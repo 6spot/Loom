@@ -1,0 +1,27 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "final-recheck",
+    "time_unix": 1789228365.0878146,
+    "model": "gpt-5.6-sol",
+    "prompt_chars": 79878,
+    "max_output_tokens": 12288,
+    "wall_clock_limit_seconds": 360
+  },
+  {
+    "kind": "http_started",
+    "phase": "final-recheck",
+    "time_unix": 1789228365.0888014,
+    "attempt": 1
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "final-recheck",
+    "time_unix": 1789228406.592072,
+    "elapsed_seconds": 41.503,
+    "phase_shape_valid": false,
+    "error": "model endpoint transient failure after 1 attempt(s): transport failure",
+    "deadline_hit": false,
+    "validation_errors": []
+  }
+]

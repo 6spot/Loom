@@ -1,0 +1,253 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "translation-review",
+    "time_unix": 1789227741.866936,
+    "model": "gpt-5.6-sol",
+    "prompt_chars": 47903,
+    "max_output_tokens": 16384,
+    "wall_clock_limit_seconds": 360
+  },
+  {
+    "kind": "http_started",
+    "phase": "translation-review",
+    "time_unix": 1789227741.867778,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "translation-review",
+    "time_unix": 1789227759.5141401,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227775.386262,
+    "bytes_received": 2
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227791.975356,
+    "bytes_received": 3
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227819.5214746,
+    "bytes_received": 5
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227834.574476,
+    "bytes_received": 6
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227865.1264539,
+    "bytes_received": 8
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227894.4790816,
+    "bytes_received": 10
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227911.7079875,
+    "bytes_received": 11
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227939.536053,
+    "bytes_received": 13
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227969.53992,
+    "bytes_received": 15
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789227984.9814498,
+    "bytes_received": 16
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789228000.024106,
+    "bytes_received": 17
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "translation-review",
+    "time_unix": 1789228016.747479,
+    "bytes_received": 1381
+  },
+  {
+    "kind": "http_returned",
+    "phase": "translation-review",
+    "time_unix": 1789228020.539262,
+    "attempt": 1,
+    "bytes": 75762,
+    "sha256": "2e96bf20e11218dd8b891d36be16e3a3362963d57790ab1b202aac8cf7a665b4",
+    "status": "completed",
+    "reported_model": "gpt-5.6-sol",
+    "usage": {
+      "attribution": {
+        "items": {
+          "msg_0884cf88286d320a016aa572e0ef0487d0988c1a808ef978b3": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 40304,
+                "output_tokens": 0
+              }
+            ],
+            "input_tokens": 40304,
+            "output_tokens": 0
+          },
+          "rs_0884cf88286d320a016aa572e2e6b087d0bc640f0bb6d7e150": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2,
+            "output_tokens": 516
+          },
+          "rs_0884cf88286d320a016aa572f2a67487d0ae06b6795c35d9dc": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa57301505087d0a2baa7f1e25bf44f": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5730e2e6887d08fa63f614e514ceb": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5731ba73487d0971357370f03d764": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5732af7c087d0a6a88e3b87f86fcd": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5733ad6a487d0ab59d8e910d5fce4": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa57348840c87d099c798c3de7cef6e": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa57356ddfc87d0ae9f27b4304cde50": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5736358f087d0b8cc1e6f1dec58cc": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa57372056887d0b6c32c92f047636d": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5737ecb2087d0af10fd818e39e89f": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0884cf88286d320a016aa5738e6c4c87d0a9cdbb8b0ad4ea7f": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 0,
+            "output_tokens": 61
+          },
+          "msg_0884cf88286d320a016aa57390a4b887d0bc8af275cad41465": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 5630
+              }
+            ],
+            "input_tokens": 0,
+            "output_tokens": 5630
+          }
+        },
+        "request_fields": {
+          "tools": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 296,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 1388,
+            "output_tokens": 0
+          }
+        }
+      },
+      "input_tokens": 41990,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 11905,
+      "output_tokens_details": {
+        "reasoning_tokens": 6275
+      },
+      "total_tokens": 53895
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "translation-review",
+    "time_unix": 1789228020.544806,
+    "elapsed_seconds": 278.678,
+    "phase_shape_valid": true,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": []
+  }
+]

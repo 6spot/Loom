@@ -1,0 +1,6 @@
+{
+  "spec_sha256": "217e099f666e2c91684e0e4728fb1267b20b9406f0d2b675dd3c560f8d891c1a",
+  "raw_sha256": "d7188b6eaafce360c77622d0cc7b1c212ec25572cf8c7a44325577942c278c24",
+  "phase": "final-recheck",
+  "meaning": "trial shape/source-coverage checkpoint only; not accepted product data"
+}

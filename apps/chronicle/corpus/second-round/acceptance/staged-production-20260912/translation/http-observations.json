@@ -1,0 +1,22 @@
+[
+  {
+    "attempt": 1,
+    "bytes": 38029,
+    "sha256": "c66a41c80a2525f219ccec7c1f1aeb3342242f4c73a7d75eaad8050d77b0ffad",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "input_tokens": 23826,
+      "output_tokens": 10889,
+      "total_tokens": 34715,
+      "input_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 23823
+      },
+      "output_tokens_details": {
+        "reasoning_tokens": 108
+      }
+    },
+    "incomplete_details": null
+  }
+]

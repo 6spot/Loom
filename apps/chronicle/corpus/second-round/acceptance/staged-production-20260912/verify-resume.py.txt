@@ -1,0 +1,58 @@
+"""Offline negative and reuse checks against trial checkpoints, no model calls."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+
+root = Path(__file__).resolve().parent
+repo = Path(sys.argv[1])
+rows = []
+
+
+def check(name, runner, spec, output, expected, expected_code):
+    command = [sys.executable, str(root / runner), '--repo', str(repo),
+               '--env-file', '/dev/null', '--spec', str(root / spec),
+               '--output', str(root / output)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    combined = result.stdout + result.stderr
+    passed = expected in combined and result.returncode == expected_code
+    rows.append({'case': name, 'passed': passed, 'exit_code': result.returncode,
+                 'stdout': result.stdout, 'stderr': result.stderr,
+                 'network_config': 'absent; /dev/null prevents reaching a provider'})
+
+
+check('translation_checkpoint_reused', 'run-phase.py', 'translation-spec.json',
+      'translation', '"new_http_calls": 0', 0)
+check('review_checkpoint_reused', 'run-phase-v2.py', 'review-luna-spec.json',
+      'review-luna', '"new_http_calls": 0', 0)
+spec = json.loads((root / 'translation-spec.json').read_text())
+spec['prompt'] += '\nchanged-spec-negative-test'
+(root / 'resume-drift-spec.json').write_text(json.dumps(spec, ensure_ascii=False))
+check('changed_spec_not_reused', 'run-phase.py', 'resume-drift-spec.json',
+      'translation', 'Checkpoint specification mismatch', 1)
+bad_output = root / 'resume-damaged-output'
+bad_output.mkdir(exist_ok=True)
+shutil.copyfile(root/'translation/checkpoint.json', bad_output/'checkpoint.json')
+(bad_output/'raw.txt').write_bytes((root/'translation/raw.txt').read_bytes()+b'\n')
+check('changed_output_not_reused', 'run-phase.py', 'translation-spec.json',
+      'resume-damaged-output', 'Checkpoint output hash mismatch', 1)
+bad_plan = json.loads((root/'plan.json').read_text())
+bad_plan['targets'][0]['text'] += 'changed-input-negative-test'
+(root/'resume-changed-plan.json').write_text(json.dumps(bad_plan,ensure_ascii=False))
+spec = json.loads((root/'review-luna-spec.json').read_text())
+spec['input_files'][0]['path'] = 'resume-changed-plan.json'
+(root/'resume-changed-input-spec.json').write_text(json.dumps(spec,ensure_ascii=False))
+check('changed_dependency_not_reused', 'run-phase-v2.py', 'resume-changed-input-spec.json',
+      'review-luna', 'Input artifact changed; refusing run/reuse: source_plan', 1)
+check('failed_extraction_not_silently_retried', 'run-phase-v2.py', 'extraction-spec.json',
+      'extraction', 'An earlier failed phase result exists; explicit new attempt required', 1)
+result = {'passed': all(r['passed'] for r in rows), 'new_http_calls': 0,
+          'runner_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+          'scope': 'experiment checkpoint guards only, not durable worker restart/fencing',
+          'cases': rows}
+(root/'resume-verification.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'passed':result['passed'],'cases':len(rows),'new_http_calls':0}))
+if not result['passed']:
+    raise SystemExit(1)

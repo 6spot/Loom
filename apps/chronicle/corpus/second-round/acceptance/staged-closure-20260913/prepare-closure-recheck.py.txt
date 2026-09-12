@@ -1,0 +1,51 @@
+import json
+import hashlib
+from pathlib import Path
+
+R = Path(__file__).resolve().parent / 'closure'
+def read(path): return json.loads((R / path).read_text())
+def sha(path): return hashlib.sha256((R / path).read_bytes()).hexdigest()
+def obj(fields): return {'type':'object','properties':fields,'required':list(fields),'additionalProperties':False}
+def arr(item): return {'type':'array','items':item}
+def enum(values): return {'type':'string','enum':values}
+text = {'type':'string','minLength':1}
+plan = read('plan.json')
+sources = [b['block_id'] for b in plan['original_context_blocks']]
+concerns = [
+ {'id':'host-t019','target':'p_019','source_ids':['b_015'],'reason':'译文和第一次修正都保留了“献帝的舅父”；原注明说董承“於獻帝為丈人……故謂之舅也”。请据上下文核对亲属称呼，不能略过原注。'},
+ {'id':'host-t085','target':'p_085','source_ids':['b_059'],'reason':'原文“臣父群未亡時”给出了父亲名字“群”。修正删除了无依据的刘姓，但也删除了原文有的名字。应保留可靠信息。'},
+ {'id':'host-t097','target':'p_097','source_ids':['b_067'],'reason':'“戮殺主後”在这里是否能译为“杀害君主和皇后”？结合本章奏表中的曹操弑后等指控核对，不能无据扩大被杀对象。'},
+ {'id':'host-f059060','target':'f_059/f_060','source_ids':['b_071'],'reason':'刘永、刘理受封在原文六月，候选目前标五月。请重验事实时间。'},
+ {'id':'host-f035','target':'f_035','source_ids':['b_027'],'reason':'修正文字把荆州南部四郡当主体，但 subject_ref 如果仍是全荆州，会把局部控制扩大到全境；须检查主体范围。'},
+ {'id':'review-local-identity','target':'e_054','source_ids':['b_075'],'reason':'第一次复核把 e_054/e_037 李严重复保留为 uncertain。区分历史指代歧义与本次补丁接口没有局部实体合并功能，不可因名字相同便默认解决。'}
+]
+(R/'host-concerns.json').write_text(json.dumps(concerns,ensure_ascii=False,indent=2)+'\n')
+schema = obj({
+ 'decisions':arr(obj({'issue_id':enum([c['id'] for c in concerns]),'verdict':enum(['supported','dismissed','unresolved']),
+                      'source_ids':arr(enum(sources)),'reason':text})),
+ 'additional_findings':arr(obj({'target':text,'source_ids':arr(enum(sources)),'reason':text})),
+ 'translation_patches':arr(obj({'paragraph_id':enum([p['id'] for p in read('repaired/translation-paragraphs.json')['paragraphs']]),
+                              'text':text,'source_ids':arr(enum(sources)),'reason':text})),
+ 'fact_patches':arr(read('source-facts-spec.json')['json_schema']['properties']['facts']['items']),
+ 'local_entity_rewrites':arr(obj({'from_ref':text,'to_ref':text,'source_ids':arr(enum(sources)),'reason':text})),
+ 'ready_for_content_acceptance':{'type':'boolean'}
+})
+prompt='''这是有界的第二次内容核验，也是本次最后一次模型调用。检查固定修正版是否可接受；未解决的问题保留进入人工审核，不无限重写。
+完整原章与原注是事实依据。待译正文范围来自 targets，原注仅用于理解和提取，不是必须译出的正文。译文与事实已经完成一次独立复核和局部修正。
+逐项处理 host_concerns，不能遗漏、不能凭前次模型赞同驳回异议。每个 issue_id 恰好返回一次 decisions。
+supported 表示质疑成立，请给最小修正；dismissed 必须有能解释该质疑的原文依据；证据不足用 unresolved。另检查整份译文与事实有无遗漏、错译、字段主体/时间/范围错误。
+translation_patches 只给需要再修的完整自然段，段号不变，不删同段正确细节。fact_patches 只替换现有 ref，不新编未知实体。
+local_entity_rewrites 只在本章充分明确同一指代时使用，提供来源，from/to 必须存在；这不是跨来源 canonical 合并。程序会重映射所有引用并保存原版本。不得用名称相同替代依据。
+ready_for_content_acceptance 只有全部实质意见解决且无新增问题时可 true；有任何 unresolved 或无对应修正的 additional_findings 必须 false。
+完整来源：\n'''+json.dumps(plan['original_context_blocks'],ensure_ascii=False,separators=(',',':'))
+prompt+='\n待译正文：\n'+json.dumps(plan['targets'],ensure_ascii=False,separators=(',',':'))
+prompt+='\n固定修正版译文：\n'+json.dumps(read('repaired/translation-paragraphs.json')['paragraphs'],ensure_ascii=False,separators=(',',':'))
+prompt+='\n固定修正版事实：\n'+json.dumps(read('repaired/source-facts.json'),ensure_ascii=False,separators=(',',':'))
+prompt+='\nhost_concerns：\n'+json.dumps(concerns,ensure_ascii=False,separators=(',',':'))
+spec=read('translation-review-spec.json')
+spec.update(phase='final-recheck',prompt=prompt,json_schema=schema,format_name='final_recheck',max_output_tokens=12288)
+spec['input_files']=read('source-facts-spec.json')['input_files']+[
+ {'role':role,'path':path,'sha256':sha(path)} for role,path in [
+ ('translation','repaired/translation-paragraphs.json'),('facts','repaired/source-facts.json'),('host_concerns','host-concerns.json')]]
+(R/'final-recheck-spec.json').write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps({'prompt_chars':len(prompt),'max_output_tokens':spec['max_output_tokens'],'limit_seconds':spec['wall_clock_limit_seconds']}))

@@ -1,0 +1,140 @@
+"""Apply bounded, snapshot-bound trial patches; never publish product data."""
+import copy
+import hashlib
+import json
+from pathlib import Path
+import re
+from jsonschema import Draft202012Validator
+
+ROOT = Path(__file__).resolve().parent / 'closure'
+
+def sha_bytes(value):
+    return hashlib.sha256(value).hexdigest()
+
+def sha_json(value):
+    return sha_bytes(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode())
+
+def read(path):
+    return json.loads((ROOT / path).read_text())
+
+def write(path, value):
+    target = ROOT / path
+    target.parent.mkdir(exist_ok=True)
+    target.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+
+plan = read('plan.json')
+sources = {b['block_id'] for b in plan['original_context_blocks']}
+
+def validated_review(phase):
+    spec = read(phase + '-spec.json')
+    result = read(phase + '/result.json')
+    assert result['spec_sha256'] == sha_bytes((ROOT / (phase + '-spec.json')).read_bytes())
+    assert result['phase_shape_valid'], phase + ': incomplete or invalid response'
+    raw = (ROOT / phase / 'raw.txt').read_bytes()
+    assert result['raw_sha256'] == sha_bytes(raw)
+    assert json.loads(raw) == result['candidate']
+    for item in spec['input_files']:
+        assert sha_bytes((ROOT / item['path']).read_bytes()) == item['sha256'], 'input drift: ' + item['role']
+    Draft202012Validator(spec['json_schema']).validate(result['candidate'])
+    ids = [f['id'] for f in result['candidate']['findings']]
+    assert len(ids) == len(set(ids)), phase + ': duplicate findings'
+    for finding in result['candidate']['findings']:
+        assert finding['source_ids'] and set(finding['source_ids']) <= sources
+    return result['candidate'], result['raw_sha256']
+
+if __name__ == '__main__':
+    manifest = read('translation-paragraphs.json')
+    raw_translation = (ROOT / 'pure-translation/raw.txt').read_bytes()
+    assert sha_bytes(raw_translation) == manifest['raw_sha256']
+    old_paragraphs = manifest['paragraphs']
+    assert re.split(r'\n\s*\n', raw_translation.decode().strip()) == [p['text'] for p in old_paragraphs]
+    review, review_sha = validated_review('translation-review')
+    coverage_ids = [entry['source_id'] for entry in review['coverage']]
+    assert len(coverage_ids) == len(set(coverage_ids))
+    assert set(coverage_ids) == {target['source_id'] for target in plan['targets']}
+    paragraphs = copy.deepcopy(old_paragraphs)
+    by_id = {p['id']: p for p in paragraphs}
+    changes, unresolved, touched = [], [], set()
+    for item in review['findings']:
+        if item['kind'] == 'uncertain' or item['replacement'] is None:
+            unresolved.append(item)
+            continue
+        target = item['paragraph_id']
+        assert target not in touched, 'overlapping paragraph patches'
+        touched.add(target)
+        paragraph = by_id[target]
+        assert paragraph['sha256'] == sha_bytes(paragraph['text'].encode())
+        replacement = item['replacement']
+        assert replacement.strip() and not replacement.lstrip().startswith(('```', '{', '['))
+        assert '\n\n' not in replacement, 'patch must preserve one paragraph identity'
+        changes.append({'finding_id': item['id'], 'target': target, 'before_sha256': paragraph['sha256'],
+                        'after_sha256': sha_bytes(replacement.encode()), 'source_ids': item['source_ids']})
+        paragraph.update(text=replacement, sha256=changes[-1]['after_sha256'])
+    for entry in review['coverage']:
+        if entry['status'] != 'covered':
+            unresolved.append({'coverage': entry})
+    assert [p['id'] for p in paragraphs] == [p['id'] for p in old_paragraphs]
+    for before, after in zip(old_paragraphs, paragraphs):
+        if before['id'] not in touched:
+            assert before == after
+    repaired_text = '\n\n'.join(p['text'] for p in paragraphs) + '\n'
+    (ROOT / 'repaired').mkdir(exist_ok=True)
+    (ROOT / 'repaired/translation.txt').write_text(repaired_text)
+    write('repaired/translation-paragraphs.json', {'raw_sha256': sha_bytes(repaired_text.encode()), 'paragraphs': paragraphs})
+    translation_report = {'input_sha256': manifest['raw_sha256'], 'review_sha256': review_sha,
+                          'changes': changes, 'unresolved': unresolved, 'unchanged_paragraphs_verified': len(paragraphs) - len(touched),
+                          'new_model_calls': 0, 'semantic_recheck_required': True, 'production_artifact': False}
+    write('repaired/translation-patch-report.json', translation_report)
+
+    original = read('source-facts/result.json')['candidate']
+    repaired = copy.deepcopy(original)
+    review, review_sha = validated_review('facts-review')
+    replacements, unresolved = [], [f for f in review['findings'] if f['status'] == 'uncertain']
+    for plural in ('entities', 'facts'):
+        key = 'entity_replacements' if plural == 'entities' else 'fact_replacements'
+        seen = set()
+        positions = {item['ref']: i for i, item in enumerate(repaired[plural])}
+        for replacement in review[key]:
+            ref = replacement['ref']
+            assert ref not in seen, 'duplicate replacements'
+            seen.add(ref)
+            if ref in positions:
+                index = positions[ref]
+                previous = repaired[plural][index]
+                assert any(f['target_ref'] == ref and f['status'] == 'fix' for f in review['findings']), 'patch has no fix finding'
+                replacements.append({'target': ref, 'before_sha256': sha_json(previous), 'after_sha256': sha_json(replacement)})
+                repaired[plural][index] = replacement
+            else:
+                assert plural == 'facts' and ref.startswith('f_added_'), 'unknown patch target'
+                replacements.append({'target': ref, 'before_sha256': None, 'after_sha256': sha_json(replacement)})
+                repaired[plural].append(replacement)
+    Draft202012Validator(read('source-facts-spec.json')['json_schema']).validate(repaired)
+    entities = {e['ref']: e for e in repaired['entities']}
+    errors = []
+    for fact in repaired['facts']:
+        subject = entities.get(fact['subject_ref'])
+        if not subject or subject['name'] != fact['subject_name']:
+            errors.append(fact['ref'] + ': subject binding mismatch')
+        if not fact['source_ids'] or not set(fact['source_ids']) <= sources:
+            errors.append(fact['ref'] + ': invalid source handles')
+        if set(fact['other_refs']) - set(entities):
+            errors.append(fact['ref'] + ': dangling participant')
+        time = fact['time']
+        if time['basis'] == 'unknown' and time['label'] is not None:
+            errors.append(fact['ref'] + ': unknown time has label')
+        if time['basis'] != 'unknown' and (not time['label'] or not time['source_ids']):
+            errors.append(fact['ref'] + ': known time lacks label/source')
+        if subject and fact['dimension'] in ('place_control', 'place_administration') and subject['kind'] != 'place':
+            errors.append(fact['ref'] + ': place state attached to non-place')
+        if subject and fact['dimension'] in ('office', 'title', 'kinship') and subject['kind'] != 'person':
+            errors.append(fact['ref'] + ': person state attached to non-person')
+    for finding in review['findings']:
+        if finding['status'] == 'fix' and finding['target_ref'] not in {p['target'] for p in replacements}:
+            errors.append(finding['id'] + ': fix finding has no patch')
+    write('repaired/source-facts.json', repaired)
+    facts_report = {'input_sha256': sha_json(original), 'review_sha256': review_sha, 'changes': replacements,
+                    'unresolved': unresolved, 'validation_errors': errors, 'new_model_calls': 0,
+                    'semantic_recheck_required': True, 'production_artifact': False}
+    write('repaired/facts-patch-report.json', facts_report)
+    print(json.dumps({'translation_patches': len(changes), 'translation_unresolved': len(translation_report['unresolved']),
+                      'facts_patches': len(replacements), 'facts_unresolved': len(unresolved), 'facts_validation_errors': errors}, ensure_ascii=False))

@@ -1,0 +1,75 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "pure-translation",
+    "time_unix": 1789226015.895292,
+    "model": "gpt-5.6-luna",
+    "prompt_chars": 21476,
+    "max_output_tokens": 32768,
+    "wall_clock_limit_seconds": 360
+  },
+  {
+    "kind": "http_started",
+    "phase": "pure-translation",
+    "time_unix": 1789226015.895874,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "pure-translation",
+    "time_unix": 1789226035.2743094,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "pure-translation",
+    "time_unix": 1789226064.1511002,
+    "bytes_received": 3
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "pure-translation",
+    "time_unix": 1789226093.2331233,
+    "bytes_received": 5
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "pure-translation",
+    "time_unix": 1789226123.2198942,
+    "bytes_received": 1369
+  },
+  {
+    "kind": "http_returned",
+    "phase": "pure-translation",
+    "time_unix": 1789226127.6446748,
+    "attempt": 1,
+    "bytes": 36331,
+    "sha256": "51739d7507f796fa25d6e4856d77cb0a18983fb9fb0ac8c85cf6d19eeada30a2",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "input_tokens": 23118,
+      "output_tokens": 10510,
+      "total_tokens": 33628,
+      "input_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 23115
+      },
+      "output_tokens_details": {
+        "reasoning_tokens": 117
+      }
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "pure-translation",
+    "time_unix": 1789226127.6470695,
+    "elapsed_seconds": 111.752,
+    "phase_shape_valid": true,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": []
+  }
+]

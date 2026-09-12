@@ -1,0 +1,42 @@
+{
+  "phase": "final-recheck",
+  "spec_sha256": "217e099f666e2c91684e0e4728fb1267b20b9406f0d2b675dd3c560f8d891c1a",
+  "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "model": "gpt-5.6-sol",
+  "max_output_tokens": 12288,
+  "wall_clock_limit_seconds": 360,
+  "max_http_attempts": 1,
+  "production_artifact": false,
+  "semantic_quality_accepted": false,
+  "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+  "input_files": [
+    {
+      "role": "source_plan",
+      "path": "plan.json",
+      "sha256": "e4867923af9de098c689cefa64e231f779c6e5886d86d30213340f4cf34f45c8"
+    },
+    {
+      "role": "translation",
+      "path": "repaired/translation-paragraphs.json",
+      "sha256": "bc75ef6002abc21ae6f0ccc6f829deaa8e57f70d5b38946871c71b5f4cce5b53"
+    },
+    {
+      "role": "facts",
+      "path": "repaired/source-facts.json",
+      "sha256": "101538477348709d19a60cefdc79e0d47be689b2653ab71a75527e1d1d8b88dc"
+    },
+    {
+      "role": "host_concerns",
+      "path": "host-concerns.json",
+      "sha256": "afd867b2b6753395bbf76b4665425f430ca49ef138402b7d93381ae4ea72931a"
+    }
+  ],
+  "runner_sha256": "6dd06c35546fec7f2df6c0aa571e3103cd852b503cf7909c61edfcb23775fd1e",
+  "error": "model endpoint transient failure after 1 attempt(s): transport failure",
+  "phase_shape_valid": false,
+  "elapsed_seconds": 41.503,
+  "http_calls": 1,
+  "http_observations": [],
+  "deadline_hit": false,
+  "billed_cost": null
+}

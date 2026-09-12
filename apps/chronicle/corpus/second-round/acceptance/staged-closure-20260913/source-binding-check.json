@@ -1,0 +1,8 @@
+{
+  "bare_corpus_source_sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+  "uploaded_revision_source_sha256_from_frozen_plan": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+  "normalized_content_matches_complete_corpus_plus_markdown_headings": true,
+  "raw_upload_bytes_independently_reverified": false,
+  "note": "The bare corpus file is not the uploaded Markdown revision; direct raw-byte hash comparison is not applicable."
+}

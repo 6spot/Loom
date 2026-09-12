@@ -1,0 +1,105 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v6",
+  "provider": {
+    "max_attempts": 1,
+    "max_output_tokens": 65536,
+    "max_response_bytes": 4194304,
+    "model": "deepseek-v4.1-flash",
+    "timeout_seconds": 1200.0,
+    "streaming": false,
+    "http_observations": [
+      {
+        "http_attempt": 1,
+        "status": "incomplete",
+        "usage": {
+          "input_tokens": 36071,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens": 65534,
+          "output_tokens_details": {
+            "reasoning_tokens": 31751
+          },
+          "total_tokens": 101605
+        }
+      }
+    ],
+    "reported_usage": {
+      "input_tokens": 36071,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 65534,
+      "output_tokens_details": {
+        "reasoning_tokens": 31751
+      },
+      "total_tokens": 101605
+    },
+    "billed_cost": null,
+    "cost_unavailable_reason": "No billed cost returned; absent usage is unknown, not zero."
+  },
+  "scope": {
+    "comparison": "Canonical extract_chapter and build_chapter_model with the complete saved v4 request, same v6 prompt and strict schema; only the runtime model changes from gpt-5.6-luna to deepseek-v4.1-flash in this controlled comparison. Client timeout 1200 seconds and max HTTP attempts 1 bound transport behavior without changing the model request payload. No database writes, review or publication; not full R2/R3 acceptance.",
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false,
+    "complete_http_envelope_preserved": false,
+    "diagnostic_limit": "The provider observer retained status and usage, not the full HTTP envelope. No complete candidate was returned; the exact upstream failure cause is not reconstructed."
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "calls": {
+    "semantic_calls": 1,
+    "http_attempts": 1,
+    "transport_retries": 0,
+    "correction_rounds": 0,
+    "scope": "This full-chapter execution only; small availability probes are separate."
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "latency_ms": 257894,
+      "prompt_sha256": "5808834e2650514aff7c84e4a4223710fdb3834d3b7bd1985a13f21cf0c5bd40",
+      "raw_response_sha256": null,
+      "transport_error": "model call failed: model response did not complete (status incomplete)"
+    }
+  ],
+  "checks": {
+    "mechanical_accepted": false,
+    "error": {
+      "code": "model_transport_error",
+      "message": "chapter extraction stopped on model transport failure (model response did not complete (status incomplete)); transport retry belongs to the provider layer, not to the semantic correction round"
+    },
+    "server_history_replay_mismatches": [],
+    "independent_content_review": "NOT_RUN_NO_COMPLETE_CANDIDATE",
+    "local_history_replay_mismatches": [],
+    "local_history_replay_environment": {
+      "python": "/private/tmp/loom-chronicle-history-venv/bin/python3",
+      "version": "3.9.6"
+    }
+  },
+  "evidence": {
+    "candidate_file": "candidate-live-r2-20260912-deepseek-v6.json",
+    "candidate_file_sha256": "1b58d3c622203651ab3e24c9498ea1018197dd57bc46ba9ecd7d2b0d651f296a"
+  },
+  "not_verified": [
+    "Translation and extraction content quality for this model",
+    "Four-chapter R2 Studio/review/publication/browser acceptance",
+    "R3 0.3 person-state acceptance"
+  ],
+  "observation": "Returned incomplete after 257 seconds; reported output_tokens=65534 of requested 65536, including 31751 reasoning tokens. No complete output accepted; this does not establish translation quality."
+}

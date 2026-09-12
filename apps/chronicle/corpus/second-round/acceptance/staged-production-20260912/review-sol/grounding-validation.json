@@ -1,0 +1,261 @@
+{
+  "anchors": [
+    {
+      "path": "$.findings[0].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_b689e4630c8eb27d",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_009",
+        "last_block_id": "b_009",
+        "quote": "靈帝末，黃巾起，州郡各舉義兵，先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉。",
+        "quote_sha256": "6f0fe37e796229323698aa6d98904e6dd1d1a41423edef42e858020e17f23ec3",
+        "occurrence": 1,
+        "start": 467,
+        "end": 504
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[1].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_3495bddff0c92916",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_013",
+        "last_block_id": "b_013",
+        "quote": "將至沛收散卒，給其軍糧，益與兵使東擊布。",
+        "quote_sha256": "39a74ce44fc4065b03d062642faf1b6c1a6bf79a208b96abe33058b105291b02",
+        "occurrence": 1,
+        "start": 2008,
+        "end": 2028
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[3].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_3659e2eef00c4da0",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_015",
+        "last_block_id": "b_015",
+        "quote": "先主未發。",
+        "quote_sha256": "597451cbdea6f7d67770623b6d2164c547d1e1c07336449bc61266381100ebab",
+        "occurrence": 1,
+        "start": 2319,
+        "end": 2324
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[3].source_evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_89f884a408853469",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_015",
+        "last_block_id": "b_015",
+        "quote": "會見使，未發。事覺，承等皆伏誅。",
+        "quote_sha256": "35ac34fd1481957279cc15ce01e1ff82eec5cb6da94e27cf5666b88e0784ec6b",
+        "occurrence": 1,
+        "start": 2448,
+        "end": 2464
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[4].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_7920f36875b0e600",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_017",
+        "last_block_id": "b_017",
+        "quote": "先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛。",
+        "quote_sha256": "f8cb718f9b5b7d07036933e27bd3edbea3c68c2e8e22d668e2f0691546c30c49",
+        "occurrence": 1,
+        "start": 2620,
+        "end": 2654
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[5].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_299c02199dbf96d2",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_019",
+        "last_block_id": "b_019",
+        "quote": "青州刺史袁譚，先主故茂才也，將步騎迎先主。",
+        "quote_sha256": "c6d798d55526d4751c985068115620d31ac36bef8e1e5570e1aa0a703c6d7e1e",
+        "occurrence": 1,
+        "start": 3009,
+        "end": 3030
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[6].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_10e81019aa80aa0e",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_021",
+        "last_block_id": "b_021",
+        "quote": "曹公既破紹，自南擊先主。",
+        "quote_sha256": "36d491c352f13986ddce64cc72aa05d2926811642dc53c805e0c216ecace3bf8",
+        "occurrence": 1,
+        "start": 3217,
+        "end": 3229
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[7].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_13a839dec07aa65c",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_023",
+        "last_block_id": "b_023",
+        "quote": "先主屯樊，不知曹公卒至，至宛乃聞之，遂將其眾去。",
+        "quote_sha256": "7f37e6912ffa401036b49ef771581ad351b90463d30a48c51cec70f69b3bcf63",
+        "occurrence": 1,
+        "start": 3888,
+        "end": 3912
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[8].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_160d988a895be376",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_035",
+        "last_block_id": "b_035",
+        "quote": "先主徑至關中，質諸將並士卒妻子，引兵與忠、膺等進到涪，據其城。",
+        "quote_sha256": "8f8530b47e9675b35d7d0dd0044b60b1e23febd297b9d005b5fdd8f9ba665daa",
+        "occurrence": 1,
+        "start": 6890,
+        "end": 6921
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[9].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_cb9f2c9586cf71b2",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_047",
+        "last_block_id": "b_047",
+        "quote": "孝昭幼衝而上官逆謀",
+        "quote_sha256": "2f74d38b6d792bf243b91c5927678dd63712ba27de3c033af444120562ddfe5a",
+        "occurrence": 1,
+        "start": 8479,
+        "end": 8488
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[11].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_68ad02933469bf25",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_047",
+        "last_block_id": "b_047",
+        "quote": "臣等以備肺腑枝葉，宗子籓翰，心存國家，念在弭亂。",
+        "quote_sha256": "c14165250a6ab0f70ee1d2450e9be851b9a7a43ac9dc7fb672b05f2a58e84d35",
+        "occurrence": 1,
+        "start": 8835,
+        "end": 8859
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[12].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e2fd1b4c6c68b7f2",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_059",
+        "last_block_id": "b_059",
+        "quote": "臣父群未亡時，言西南數有黃氣",
+        "quote_sha256": "a7d7c8af4afb78df600094f0d2635ceb605eb56c217c000fdc1b64b86193efdc",
+        "occurrence": 1,
+        "start": 10102,
+        "end": 10116
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[13].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_0254867b62c36ce0",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_063",
+        "last_block_id": "b_063",
+        "quote": "曹丕篡弒，湮滅漢室，竊據神器",
+        "quote_sha256": "1a4998deafac40e3022e34cbcfe9d61c7bdd3e3f8fabd854c4f0b4ca068ea5d5",
+        "occurrence": 1,
+        "start": 10417,
+        "end": 10431
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.findings[14].source_evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_fcdbcb2be4b2b085",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_063",
+        "last_block_id": "b_063",
+        "quote": "昔周有烏魚之瑞，咸曰休哉。二祖受命，圖、書先著，以為徵驗。",
+        "quote_sha256": "ef28f84e8c3d8a40e658ba775299ae5a97288b3966486941203ab786480fa816",
+        "occurrence": 1,
+        "start": 10677,
+        "end": 10706
+      },
+      "annotation_overlap_chars": 0
+    }
+  ],
+  "errors": [
+    "$.findings[2].source_evidence[0] quote occurs 0 time(s) in ['b_015'..'b_015'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+    "$.findings[10].source_evidence[0] quote occurs 0 time(s) in ['b_047'..'b_047'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+  ],
+  "semantic_entailment_verified": false
+}

@@ -1,0 +1,37 @@
+{
+  "kind": "independent_host_comparison_review",
+  "verdict": "needs_correction",
+  "observations": [
+    {
+      "decision_index": 8,
+      "finding_ref": "review-sol/i_008",
+      "problem": "The comparator rejects a valid actor correction despite the full source annotation explicitly stating 是時曹公在宛. It leaves the translated actor at 宛 incorrectly attached to 劉備.",
+      "source_block": "b_023",
+      "source_quote": "是時曹公在宛，備乃大驚駭"
+    },
+    {
+      "decision_index": 6,
+      "finding_ref": "review-sol/i_004",
+      "problem": "The comparator introduces 有使者来见 as the meaning of 會見使, instead of preserving the passive mission/departure relation. A review correction can introduce a new error.",
+      "source_block": "b_015",
+      "source_quote": "承等與備謀未發，而備出。"
+    },
+    {
+      "decision_index": 2,
+      "finding_ref": "review-luna/f_003",
+      "problem": "The comparator accepts a mandatory change from desertion to deaths for 亡者日多 without establishing that interpretation from context. A second agreement does not prove the proposed correction; this lexical dispute remains unresolved.",
+      "source_block": "b_043",
+      "source_quote": "終不交鋒，積月不拔，亡者日多。"
+    },
+    {
+      "finding_refs": [
+        "review-sol/i_002",
+        "review-sol/i_003",
+        "review-sol/i_007"
+      ],
+      "problem": "Rejected opinions involve classical-word/subject interpretation. They require context-based resolution; the comparator assertion alone is not a completed resolution."
+    }
+  ],
+  "translation_not_rewritten": true,
+  "no_automatic_publication": true
+}

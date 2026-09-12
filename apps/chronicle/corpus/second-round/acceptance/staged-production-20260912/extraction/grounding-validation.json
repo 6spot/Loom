@@ -1,0 +1,1290 @@
+{
+  "anchors": [
+    {
+      "path": "$.entities[0].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_96defebf48cf2c19",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_005",
+        "last_block_id": "b_005",
+        "quote": "先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。",
+        "quote_sha256": "b36dce641e1fe82276f051e3178ed8282d4aeeb2b25e3ec8cc7b0ea18a60d7cc",
+        "occurrence": 1,
+        "start": 18,
+        "end": 49
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[0].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_9dd74ad1c8699b47",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_065",
+        "last_block_id": "b_065",
+        "quote": "即皇帝位於成都武擔之南。",
+        "quote_sha256": "216628bc0f648d1fdbffede41a62d7e5a7be9e6cab6e14c5e13a7a107e5d56e3",
+        "occurrence": 1,
+        "start": 10859,
+        "end": 10871
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[1].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[2].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_083f3c12a55c7437",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_025",
+        "last_block_id": "b_025",
+        "quote": "先主遣諸葛亮自結於孫權，",
+        "quote_sha256": "eabd659a7122ebad28d9d642753f4f400a3fafedea492ef5afb1d8ecf24c27cd",
+        "occurrence": 1,
+        "start": 4496,
+        "end": 4508
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[2].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_e0e1d27d532e3332",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_027",
+        "last_block_id": "b_027",
+        "quote": "權稍畏之，進妹固好。",
+        "quote_sha256": "297fdc03725b033defdb2ed04496f17c9168384aa6106813f896042169e439ea",
+        "occurrence": 1,
+        "start": 5410,
+        "end": 5420
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[3].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_07bd06912e29dbee",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_033",
+        "last_block_id": "b_033",
+        "quote": "十六年，益州牧劉璋遙聞曹公將遣鍾繇等向漢中討張魯，內懷恐懼。",
+        "quote_sha256": "f200710aa418d7d27a77fcf1737797a178f078edf5ed9cd1c8367811d1c518d2",
+        "occurrence": 1,
+        "start": 6054,
+        "end": 6084
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[3].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_b641693091042fee",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "進圍成都數十日，璋出降。",
+        "quote_sha256": "eb1ea1a78f1dce973997a972db61bf7c9069900184832793438bd60af740ce28",
+        "occurrence": 1,
+        "start": 7185,
+        "end": 7197
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[4].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_60b93d6b617e93e1",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_023",
+        "last_block_id": "b_023",
+        "quote": "過襄陽，諸葛亮說先主攻琮，荊州可有。",
+        "quote_sha256": "83ea316ce364efca3114f4fdbc54a4aab8e0c725285f0a647dba4c38ea7d7b15",
+        "occurrence": 1,
+        "start": 3912,
+        "end": 3930
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[4].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_5613a5a3cada17cb",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "以諸葛亮為丞相，許靖為司徒。",
+        "quote_sha256": "abf466f1194c2aef153b9092584662ea8490f1dc49ed57c7dc471ef23fc3b7d4",
+        "occurrence": 1,
+        "start": 11367,
+        "end": 11381
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[5].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_a4a4d8fef3796787",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_055",
+        "last_block_id": "b_055",
+        "quote": "時關羽攻曹公將曹仁，禽于禁於樊。俄而孫權襲殺羽，取荊州。",
+        "quote_sha256": "928a3f98225da41e14c0cab6e09a4f59a4d29eec031ea53d41d6960bc275503a",
+        "occurrence": 1,
+        "start": 9807,
+        "end": 9835
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[6].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_cc507bd0e0399f7f",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_039",
+        "last_block_id": "b_039",
+        "quote": "先主令張飛進兵宕渠，與郃等戰於瓦口，破郃等，收兵還南鄭。",
+        "quote_sha256": "03266d22a9a6aa32699814f7c0b0412d4c4ec18f429b6ac1b62f5f5fc53204b5",
+        "occurrence": 1,
+        "start": 7877,
+        "end": 7905
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[6].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_4d7c248bbdb8b2e5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "車騎將軍張飛為其左右所害。",
+        "quote_sha256": "30d781f8b437dfcb03ff812957d9b698dea9136b70e011135de749bd630697b4",
+        "occurrence": 1,
+        "start": 11507,
+        "end": 11520
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[7].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_66abdd9279b25ac0",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "五月，立皇后吳氏，子禪為皇太子。",
+        "quote_sha256": "86cb80aa8e8bcfb9b56b59f272d17dce40b77363f6a6253d4c70059a6a05feca",
+        "occurrence": 1,
+        "start": 11476,
+        "end": 11492
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[7].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_b62324ce67721fba",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_075",
+        "last_block_id": "b_075",
+        "quote": "先主病篤，託孤於丞相亮，尚書令李嚴為副。",
+        "quote_sha256": "99650933f0c74a6b7f65cb63ce96912d34e9438d94cf9a61cd7c62e1d9893053",
+        "occurrence": 1,
+        "start": 11988,
+        "end": 12008
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[8].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_12a15bc1cac758eb",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_005",
+        "last_block_id": "b_005",
+        "quote": "漢景帝子中山靖王勝之後也。",
+        "quote_sha256": "b9dd99042fbf9602082c2efe9c2381b64247152acab4b0cced155c39ab3b999f",
+        "occurrence": 1,
+        "start": 36,
+        "end": 49
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[8].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_6c68b18302750e76",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_067",
+        "last_block_id": "b_067",
+        "quote": "漢有天下，歷數無疆。",
+        "quote_sha256": "b1f3c5fc13084174adbcdd4923ffc6106ef45f86c2f0d3d6af37a9db39e04655",
+        "occurrence": 1,
+        "start": 11030,
+        "end": 11040
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[9].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_1d8bfc92667640e5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_057",
+        "last_block_id": "b_057",
+        "quote": "二十五年，魏文帝稱尊號，改年曰黃初。",
+        "quote_sha256": "d156bbd3cfe675e1aa065cb59c85d78d875d714a4de1b851f740662308227757",
+        "occurrence": 1,
+        "start": 9837,
+        "end": 9855
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[10].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_8663993507b0cf40",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "初，先主忿孫權之襲關羽，將東征，秋七月，遂帥諸軍伐吳。",
+        "quote_sha256": "cb71dadef7286fa6b03d5f72a224ff3bf533a96c2bf0da272b4bab1f68c1d939",
+        "occurrence": 1,
+        "start": 11520,
+        "end": 11547
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[11].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_96defebf48cf2c19",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_005",
+        "last_block_id": "b_005",
+        "quote": "先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。",
+        "quote_sha256": "b36dce641e1fe82276f051e3178ed8282d4aeeb2b25e3ec8cc7b0ea18a60d7cc",
+        "occurrence": 1,
+        "start": 18,
+        "end": 49
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[12].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_3c96543f91685393",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_011",
+        "last_block_id": "b_011",
+        "quote": "先主遂領徐州。",
+        "quote_sha256": "3742856262dc965f6aea19642d022d1a53bbf22c4ff8b46a50fdc4266f755f72",
+        "occurrence": 1,
+        "start": 1440,
+        "end": 1447
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[13].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_0e655e0ea1aa7419",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_027",
+        "last_block_id": "b_027",
+        "quote": "琦病死，羣下推先主為荊州牧，治公安。",
+        "quote_sha256": "a71244ac78a5beb45a57b45a6e850da21662e76cf259e22d2ea58a4ea6d526df",
+        "occurrence": 1,
+        "start": 5392,
+        "end": 5410
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[13].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_c2b1e4e03cdd82dc",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_055",
+        "last_block_id": "b_055",
+        "quote": "俄而孫權襲殺羽，取荊州。",
+        "quote_sha256": "9eafce72eb46ec4275834497538b6e84f252d593400fec9a8d1b59b10a952a06",
+        "occurrence": 1,
+        "start": 9823,
+        "end": 9835
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[14].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_07bd06912e29dbee",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_033",
+        "last_block_id": "b_033",
+        "quote": "十六年，益州牧劉璋遙聞曹公將遣鍾繇等向漢中討張魯，內懷恐懼。",
+        "quote_sha256": "f200710aa418d7d27a77fcf1737797a178f078edf5ed9cd1c8367811d1c518d2",
+        "occurrence": 1,
+        "start": 6054,
+        "end": 6084
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[14].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_7dedc901dd40c07a",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "先主复領益州牧，諸葛亮為股肱，法正為謀主，關羽、張飛、馬超為爪牙，許靖、麋竺、簡雍為賓友。",
+        "quote_sha256": "044388e5f3a743278c1d10dec84fd9278f30e24e2997512407e8388010891c38",
+        "occurrence": 1,
+        "start": 7585,
+        "end": 7630
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[15].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[15].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_a0afa3470afa8361",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_047",
+        "last_block_id": "b_047",
+        "quote": "臣等輒依舊典，封備漢中王，拜大司馬，董齊六軍，糾合同盟，掃滅凶逆。以漢中、巴、蜀、廣漢、犍為為國，所署置依漢初諸侯王故典。",
+        "quote_sha256": "dc47f876cac8dda2cb433893a25a90205265cc22616422926216169fe354b4c2",
+        "occurrence": 1,
+        "start": 8999,
+        "end": 9060
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[16].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_b641693091042fee",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "進圍成都數十日，璋出降。",
+        "quote_sha256": "eb1ea1a78f1dce973997a972db61bf7c9069900184832793438bd60af740ce28",
+        "occurrence": 1,
+        "start": 7185,
+        "end": 7197
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[16].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_9dd74ad1c8699b47",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_065",
+        "last_block_id": "b_065",
+        "quote": "即皇帝位於成都武擔之南。",
+        "quote_sha256": "216628bc0f648d1fdbffede41a62d7e5a7be9e6cab6e14c5e13a7a107e5d56e3",
+        "occurrence": 1,
+        "start": 10859,
+        "end": 10871
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.entities[17].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_3f65a4cc74670919",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_025",
+        "last_block_id": "b_025",
+        "quote": "與曹公戰於赤壁，大破之，焚其舟船。",
+        "quote_sha256": "4524f5119a4a7c880e5eaeda2f7ad1d1614ae5467cb78af0432487113c2d543c",
+        "occurrence": 1,
+        "start": 5132,
+        "end": 5149
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[0].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_07f5d6110d0e8e5c",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_011",
+        "last_block_id": "b_011",
+        "quote": "謙死，竺率州人迎先主，先主未敢當。下邳陳登謂先主曰：「今漢室陵遲，海內傾覆，立功立事，在於今日。彼州殷富，戶口百萬，欲屈使君撫臨州事。」",
+        "quote_sha256": "fad14102281239438e991eb89960cdc40208244ef37937a3e71f2d453004a4a3",
+        "occurrence": 1,
+        "start": 1214,
+        "end": 1282
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[0].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_3c96543f91685393",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_011",
+        "last_block_id": "b_011",
+        "quote": "先主遂領徐州。",
+        "quote_sha256": "3742856262dc965f6aea19642d022d1a53bbf22c4ff8b46a50fdc4266f755f72",
+        "occurrence": 1,
+        "start": 1440,
+        "end": 1447
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[1].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_083f3c12a55c7437",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_025",
+        "last_block_id": "b_025",
+        "quote": "先主遣諸葛亮自結於孫權，",
+        "quote_sha256": "eabd659a7122ebad28d9d642753f4f400a3fafedea492ef5afb1d8ecf24c27cd",
+        "occurrence": 1,
+        "start": 4496,
+        "end": 4508
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[1].evidence[2]",
+      "anchor": {
+        "anchor_id": "anc_3f65a4cc74670919",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_025",
+        "last_block_id": "b_025",
+        "quote": "與曹公戰於赤壁，大破之，焚其舟船。",
+        "quote_sha256": "4524f5119a4a7c880e5eaeda2f7ad1d1614ae5467cb78af0432487113c2d543c",
+        "occurrence": 1,
+        "start": 5132,
+        "end": 5149
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[2].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_887ccbbbf12efb3c",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "十九年夏，雒城破，",
+        "quote_sha256": "cfd2ddc99b23423a6cef8e4fc9e78f7cd91e0bf3f8ee8736bfbb148520e46075",
+        "occurrence": 1,
+        "start": 7076,
+        "end": 7085
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[2].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_7dedc901dd40c07a",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "先主复領益州牧，諸葛亮為股肱，法正為謀主，關羽、張飛、馬超為爪牙，許靖、麋竺、簡雍為賓友。",
+        "quote_sha256": "044388e5f3a743278c1d10dec84fd9278f30e24e2997512407e8388010891c38",
+        "occurrence": 1,
+        "start": 7585,
+        "end": 7630
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[3].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_763b711871d96c6b",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "二十四年春，自陽平南渡沔水，緣山稍前，於定軍山勢作營。",
+        "quote_sha256": "8a1f9882268040fa8604b16a3048b1af5622d4bcecb3f35595e7d22cfff7b7f5",
+        "occurrence": 1,
+        "start": 7969,
+        "end": 7996
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[3].time.evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[3].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_309d54252195e7e8",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "先主命黃忠乘高鼓譟攻之，大破淵軍，斬淵及曹公所署益州刺史趙顒等。",
+        "quote_sha256": "9b581a9d59b5da12e611145197b036f4356d065433972735ec6f63553df46ae3",
+        "occurrence": 1,
+        "start": 8004,
+        "end": 8036
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[3].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[4].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_39245ea792321499",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_045",
+        "last_block_id": "b_045",
+        "quote": "秋，群下上先主為漢中王，表於漢帝曰：",
+        "quote_sha256": "298d1a0c23f12def6a1fcf1bb49f8da04282d42fb4d127c1406698860afee39b",
+        "occurrence": 1,
+        "start": 8134,
+        "end": 8152
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[4].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e15d5acb90387880",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_047",
+        "last_block_id": "b_047",
+        "quote": "臣等輒依舊典，封備漢中王，拜大司馬，董齊六軍，糾合同盟，掃滅凶逆。",
+        "quote_sha256": "1a97ab7a42b1095883ebea5e1c05425bd8da14f3ed4e0ba4dce757988c2e77a4",
+        "occurrence": 1,
+        "start": 8999,
+        "end": 9032
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[4].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_4eaa17456c6206cb",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_049",
+        "last_block_id": "b_049",
+        "quote": "遂於沔陽設壇場，陳兵列眾，群臣陪位，讀奏訖，禦王冠於先主。",
+        "quote_sha256": "7a937df3b4bdab282671655d4fc36cd2ad68c976b1038df730908037ba46895f",
+        "occurrence": 1,
+        "start": 9097,
+        "end": 9126
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[5].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_6734802dca31fc41",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_067",
+        "last_block_id": "b_067",
+        "quote": "惟建安二十六年四月丙午，皇帝備敢用玄牡，昭告皇天上帝后土神祇：",
+        "quote_sha256": "9d5aa605fda4398db306712ab198f3963e7967530340f39790bfeb8a97f9c859",
+        "occurrence": 1,
+        "start": 10999,
+        "end": 11030
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[5].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_9dd74ad1c8699b47",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_065",
+        "last_block_id": "b_065",
+        "quote": "即皇帝位於成都武擔之南。",
+        "quote_sha256": "216628bc0f648d1fdbffede41a62d7e5a7be9e6cab6e14c5e13a7a107e5d56e3",
+        "occurrence": 1,
+        "start": 10859,
+        "end": 10871
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[5].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_80b5b08364eacea1",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_067",
+        "last_block_id": "b_067",
+        "quote": "謹擇元日，與百寮登壇，受皇帝璽綬。",
+        "quote_sha256": "f046eb9cf3031b9e70795998a92f3e82850b75d1fad253b9e0d284cc8c461626",
+        "occurrence": 1,
+        "start": 11200,
+        "end": 11217
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[6].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_460873248e2d1821",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_073",
+        "last_block_id": "b_073",
+        "quote": "夏六月，黃氣見自秭歸十餘里中，廣數十丈。",
+        "quote_sha256": "35de2c857f774f94a9fd97106bc9ee2c36674321cc6277cdb186898d0eb07281",
+        "occurrence": 1,
+        "start": 11732,
+        "end": 11752
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[6].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_8663993507b0cf40",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "初，先主忿孫權之襲關羽，將東征，秋七月，遂帥諸軍伐吳。",
+        "quote_sha256": "cb71dadef7286fa6b03d5f72a224ff3bf533a96c2bf0da272b4bab1f68c1d939",
+        "occurrence": 1,
+        "start": 11520,
+        "end": 11547
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[6].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_6f2c67944eda632f",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_073",
+        "last_block_id": "b_073",
+        "quote": "後十餘日，陸議大破先主軍於猇亭，將軍馮習、張南等皆沒。",
+        "quote_sha256": "0424bb591617a44f308b40ddcabfe6d73bd952738670f615c9feeb7b9d7ea887",
+        "occurrence": 1,
+        "start": 11752,
+        "end": 11779
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[7].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_26bb82df671d47e6",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_075",
+        "last_block_id": "b_075",
+        "quote": "夏四月癸巳，先主殂於永安宮，時年六十三。",
+        "quote_sha256": "2c612205b92066330d92dab3b37da8d1ace682bcc8d13bd3179166e9af6ea938",
+        "occurrence": 1,
+        "start": 12008,
+        "end": 12028
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[7].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_69d026c08e8cf4ee",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_075",
+        "last_block_id": "b_075",
+        "quote": "先主病篤，託孤於丞相亮，尚書令李嚴為副。夏四月癸巳，先主殂於永安宮，時年六十三。",
+        "quote_sha256": "68c119be569a446e9db656f4610b40d40d553cbd0754a33fb0fd97eacb21d40b",
+        "occurrence": 1,
+        "start": 11988,
+        "end": 12028
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.events[7].evidence[1]",
+      "anchor": {
+        "anchor_id": "anc_fc98add1255f7902",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_085",
+        "last_block_id": "b_085",
+        "quote": "五月，梓宮自永安還成都，諡曰昭烈皇帝。秋，八月，葬惠陵。",
+        "quote_sha256": "dd9d0bf084bb10c891387d1354c2c1984f28c261b47ab184ed1cf0ae64d97355",
+        "occurrence": 1,
+        "start": 12406,
+        "end": 12434
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[0].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_96defebf48cf2c19",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_005",
+        "last_block_id": "b_005",
+        "quote": "先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。",
+        "quote_sha256": "b36dce641e1fe82276f051e3178ed8282d4aeeb2b25e3ec8cc7b0ea18a60d7cc",
+        "occurrence": 1,
+        "start": 18,
+        "end": 49
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[1].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e979f8ebc4bf6fd5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_011",
+        "last_block_id": "b_011",
+        "quote": "曹公表先主為鎮東將軍，封宜城亭侯，是歲建安元年也。",
+        "quote_sha256": "7a77111c11454dd093867f8bb97e6eab76f97921ca595ddf42b54a743198d245",
+        "occurrence": 1,
+        "start": 1601,
+        "end": 1626
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[1].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e979f8ebc4bf6fd5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_011",
+        "last_block_id": "b_011",
+        "quote": "曹公表先主為鎮東將軍，封宜城亭侯，是歲建安元年也。",
+        "quote_sha256": "7a77111c11454dd093867f8bb97e6eab76f97921ca595ddf42b54a743198d245",
+        "occurrence": 1,
+        "start": 1601,
+        "end": 1626
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[2].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_b8d64610f52c0127",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_013",
+        "last_block_id": "b_013",
+        "quote": "表先主為左將軍，禮之愈重，出則同輿，坐則同席。",
+        "quote_sha256": "ca2433e71dc1f55c8fddca7c9ca508fd61a7a75b69ef8f398797291e4ab6bad2",
+        "occurrence": 1,
+        "start": 2191,
+        "end": 2214
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[3].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_0e655e0ea1aa7419",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_027",
+        "last_block_id": "b_027",
+        "quote": "琦病死，羣下推先主為荊州牧，治公安。",
+        "quote_sha256": "a71244ac78a5beb45a57b45a6e850da21662e76cf259e22d2ea58a4ea6d526df",
+        "occurrence": 1,
+        "start": 5392,
+        "end": 5410
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[4].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_887ccbbbf12efb3c",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "十九年夏，雒城破，",
+        "quote_sha256": "cfd2ddc99b23423a6cef8e4fc9e78f7cd91e0bf3f8ee8736bfbb148520e46075",
+        "occurrence": 1,
+        "start": 7076,
+        "end": 7085
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[4].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_7dedc901dd40c07a",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_037",
+        "last_block_id": "b_037",
+        "quote": "先主复領益州牧，諸葛亮為股肱，法正為謀主，關羽、張飛、馬超為爪牙，許靖、麋竺、簡雍為賓友。",
+        "quote_sha256": "044388e5f3a743278c1d10dec84fd9278f30e24e2997512407e8388010891c38",
+        "occurrence": 1,
+        "start": 7585,
+        "end": 7630
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[5].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_39245ea792321499",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_045",
+        "last_block_id": "b_045",
+        "quote": "秋，群下上先主為漢中王，表於漢帝曰：",
+        "quote_sha256": "298d1a0c23f12def6a1fcf1bb49f8da04282d42fb4d127c1406698860afee39b",
+        "occurrence": 1,
+        "start": 8134,
+        "end": 8152
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[5].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e15d5acb90387880",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_047",
+        "last_block_id": "b_047",
+        "quote": "臣等輒依舊典，封備漢中王，拜大司馬，董齊六軍，糾合同盟，掃滅凶逆。",
+        "quote_sha256": "1a97ab7a42b1095883ebea5e1c05425bd8da14f3ed4e0ba4dce757988c2e77a4",
+        "occurrence": 1,
+        "start": 8999,
+        "end": 9032
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[6].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_6734802dca31fc41",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_067",
+        "last_block_id": "b_067",
+        "quote": "惟建安二十六年四月丙午，皇帝備敢用玄牡，昭告皇天上帝后土神祇：",
+        "quote_sha256": "9d5aa605fda4398db306712ab198f3963e7967530340f39790bfeb8a97f9c859",
+        "occurrence": 1,
+        "start": 10999,
+        "end": 11030
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[6].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_9dd74ad1c8699b47",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_065",
+        "last_block_id": "b_065",
+        "quote": "即皇帝位於成都武擔之南。",
+        "quote_sha256": "216628bc0f648d1fdbffede41a62d7e5a7be9e6cab6e14c5e13a7a107e5d56e3",
+        "occurrence": 1,
+        "start": 10859,
+        "end": 10871
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[7].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_e0e1d27d532e3332",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_027",
+        "last_block_id": "b_027",
+        "quote": "權稍畏之，進妹固好。",
+        "quote_sha256": "297fdc03725b033defdb2ed04496f17c9168384aa6106813f896042169e439ea",
+        "occurrence": 1,
+        "start": 5410,
+        "end": 5420
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[8].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_0f78e61526db02c4",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_075",
+        "last_block_id": "b_075",
+        "quote": "三年春二月，丞相亮自成都到永安。",
+        "quote_sha256": "366910f5ee9c02c3e34e69c20494600b256e71a53b634c7feb72c3ed48f613a2",
+        "occurrence": 1,
+        "start": 11923,
+        "end": 11939
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[8].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_b62324ce67721fba",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_075",
+        "last_block_id": "b_075",
+        "quote": "先主病篤，託孤於丞相亮，尚書令李嚴為副。",
+        "quote_sha256": "99650933f0c74a6b7f65cb63ce96912d34e9438d94cf9a61cd7c62e1d9893053",
+        "occurrence": 1,
+        "start": 11988,
+        "end": 12008
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[9].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[9].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_668ec3ea6199f971",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_043",
+        "last_block_id": "b_043",
+        "quote": "夏，曹公果引軍還，先主遂有漢中。",
+        "quote_sha256": "2dbac7166d9cdbe8a152e9050473a09e0441ff434b293428264578b9d3653e91",
+        "occurrence": 1,
+        "start": 8099,
+        "end": 8115
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[10].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_1d8bfc92667640e5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_057",
+        "last_block_id": "b_057",
+        "quote": "二十五年，魏文帝稱尊號，改年曰黃初。",
+        "quote_sha256": "d156bbd3cfe675e1aa065cb59c85d78d875d714a4de1b851f740662308227757",
+        "occurrence": 1,
+        "start": 9837,
+        "end": 9855
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[10].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_1d8bfc92667640e5",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_057",
+        "last_block_id": "b_057",
+        "quote": "二十五年，魏文帝稱尊號，改年曰黃初。",
+        "quote_sha256": "d156bbd3cfe675e1aa065cb59c85d78d875d714a4de1b851f740662308227757",
+        "occurrence": 1,
+        "start": 9837,
+        "end": 9855
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[11].time.evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_4a480f89d61c1ea7",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "章武元年夏四月，大赦，改年。以諸葛亮為丞相，許靖為司徒。",
+        "quote_sha256": "d07d32f8787768498b5f3dba00fc3513b6f8dd55705137e4d37e9ce40212e798",
+        "occurrence": 1,
+        "start": 11353,
+        "end": 11381
+      },
+      "annotation_overlap_chars": 0
+    },
+    {
+      "path": "$.facts[11].evidence[0]",
+      "anchor": {
+        "anchor_id": "anc_5613a5a3cada17cb",
+        "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+        "chapter_id": "ch_a1a57b31542a36d7339f016c",
+        "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+        "first_block_id": "b_071",
+        "last_block_id": "b_071",
+        "quote": "以諸葛亮為丞相，許靖為司徒。",
+        "quote_sha256": "abf466f1194c2aef153b9092584662ea8490f1dc49ed57c7dc471ef23fc3b7d4",
+        "occurrence": 1,
+        "start": 11367,
+        "end": 11381
+      },
+      "annotation_overlap_chars": 0
+    }
+  ],
+  "errors": [
+    "$.entities[1].evidence[0] quote occurs 0 time(s) in ['b_013'..'b_013'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+    "$.entities[5].evidence[0] quote occurs 0 time(s) in ['b_013'..'b_013'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount",
+    "$.entities[18].evidence[0] quote occurs 0 time(s) in ['b_073'..'b_073'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+    "$.events[1].evidence[1] quote occurs 0 time(s) in ['b_025'..'b_025'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+    "$.events[2].evidence[0] quote occurs 0 time(s) in ['b_037'..'b_037'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+  ],
+  "semantic_entailment_verified": false
+}

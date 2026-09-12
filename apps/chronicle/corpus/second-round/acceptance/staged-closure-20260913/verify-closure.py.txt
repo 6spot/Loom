@@ -1,0 +1,91 @@
+"""Offline evidence verification and fail-closed trial publication decision."""
+import hashlib
+import json
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+ROOT = Path(__file__).resolve().parent
+checks = []
+def read(path): return json.loads((ROOT / path).read_text())
+def digest(path): return hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
+def check(name, condition): checks.append({'name': name, 'passed': bool(condition)})
+
+phases = ['pure-translation', 'source-facts', 'translation-review', 'facts-review', 'final-recheck', 'final-recheck-retry1']
+runs = []
+for phase in phases:
+    spec_name = 'final-recheck' if phase == 'final-recheck-retry1' else phase
+    spec_path = spec_name + '-spec.json'
+    spec = read(spec_path)
+    result = read(phase + '/result.json')
+    check(phase + ':spec', result['spec_sha256'] == digest(spec_path))
+    for item in spec['input_files']:
+        check(phase + ':input:' + item['role'], digest(item['path']) == item['sha256'])
+    source = read('plan.json')['source_request']
+    check(phase + ':raw-source-binding', spec['source_sha256'] == source['source_sha256'])
+    check(phase + ':normalized-source-binding', spec['normalized_sha256'] == source['normalized_sha256'])
+    check(phase + ':one-http', result['http_calls'] == 1)
+    usage = None
+    if (ROOT / phase / 'raw.txt').exists():
+        raw = (ROOT / phase / 'raw.txt').read_text()
+        check(phase + ':raw', digest(phase + '/raw.txt') == result['raw_sha256'])
+        candidate = raw if spec['output_kind'] == 'plain_text' else json.loads(raw)
+        check(phase + ':candidate', candidate == result['candidate'])
+        if spec['json_schema'] is not None:
+            check(phase + ':json-schema', not list(Draft202012Validator(spec['json_schema']).iter_errors(candidate)))
+        observations = result['http_observations']
+        check(phase + ':completed', observations[-1]['status'] == 'completed')
+        usage = observations[-1].get('usage')
+    else:
+        check(phase + ':failed-without-text', not result['phase_shape_valid'] and bool(result.get('error')))
+    runs.append({'phase': phase, 'model': result['model'], 'elapsed_seconds': result['elapsed_seconds'],
+                 'shape_valid': result['phase_shape_valid'], 'usage': usage,
+                 'error': result.get('error'), 'validation_errors': result.get('validation_errors', [])})
+
+resume = read('resume-verification.json')
+check('resume:all-seven', len(resume['checks']) == 7 and resume['passed'] and resume['new_http_calls'] == 0)
+patches = read('repaired/translation-patch-report.json')
+check('patch:19-targets', len(patches['changes']) == 19)
+check('patch:95-unchanged', patches['unchanged_paragraphs_verified'] == 95)
+check('facts:repaired-structure', read('repaired/facts-patch-report.json')['validation_errors'] == [])
+
+review = read('final-recheck-retry1/result.json')['candidate']
+issues = {item['id'] for item in read('host-concerns.json')}
+decisions = [item['issue_id'] for item in review['decisions']]
+check('recheck:all-host-concerns', len(decisions) == len(set(decisions)) and set(decisions) == issues)
+
+# A review can approve only its exact input snapshot. Patches, newly found
+# defects or changed entity membership require a new artifact and review.
+# The model's approval flag is never the publication condition.
+reasons = []
+if review['translation_patches'] or review['fact_patches'] or review['local_entity_rewrites']:
+    reasons.append('recheck_proposes_new_bytes_without_review_of_resulting_version')
+if any(item['verdict'] == 'unresolved' for item in review['decisions']):
+    reasons.append('unresolved_reported_concerns')
+if review['additional_findings']:
+    reasons.append('additional_material_findings_require_disposition')
+prior = {x['paragraph_id']: x for x in read('translation-review/result.json')['candidate']['findings']}
+reopened = sorted(p['paragraph_id'] for p in review['translation_patches'] if p['paragraph_id'] in prior)
+if reopened:
+    reasons.append('previously_repaired_targets_changed_again_without_full_review_history')
+
+# The final prompt contains only host concerns and repaired snapshots, not
+# the complete earlier model reports. Record this trial implementation gap.
+check('recheck:history-gap-recorded', 'translation-review/result.json' not in
+      {item['path'] for item in read('final-recheck-spec.json')['input_files']})
+allowed = bool(review['ready_for_content_acceptance']) and not reasons
+decision = {'model_ready_flag': review['ready_for_content_acceptance'], 'automatic_acceptance_allowed': allowed,
+            'next_state': 'content_checked' if allowed else 'needs_review', 'reasons': reasons, 'reopened_paragraphs': reopened,
+            'final_proposed_patches_applied': False, 'production_artifact': False,
+            'note': 'Trial gate decision only; no product ReviewItem, publication or worker checkpoint was created.'}
+check('gate:reject-model-flag', decision['model_ready_flag'] and reasons and not decision['automatic_acceptance_allowed'])
+
+result = {'evidence_verified': all(c['passed'] for c in checks), 'checks': checks,
+          'runs': runs, 'gate': decision, 'new_http_calls_from_verification': 0,
+          'pipeline_product_implemented': False, 'content_accepted': False,
+          'reported_total_tokens_completed_calls': sum((r['usage'] or {}).get('total_tokens', 0) for r in runs),
+          'failed_call_usage': 'unknown', 'billed_cost': None}
+(ROOT / 'verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({'evidence_verified': result['evidence_verified'], 'checks': len(checks),
+                  'failed_checks': [c for c in checks if not c['passed']], 'gate': decision,
+                  'reported_total_tokens_completed_calls': result['reported_total_tokens_completed_calls']}, ensure_ascii=False))
+raise SystemExit(0 if result['evidence_verified'] else 1)

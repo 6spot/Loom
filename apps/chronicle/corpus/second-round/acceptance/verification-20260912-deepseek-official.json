@@ -1,0 +1,163 @@
+{
+  "scope": "Evidence integrity and mechanical replay only; not semantic or R2/R3 acceptance",
+  "count": 39,
+  "passed": true,
+  "checks": [
+    {
+      "name": "production_history_replays",
+      "passed": true
+    },
+    {
+      "name": "production_request_same_as_previous",
+      "passed": true
+    },
+    {
+      "name": "json_request_same_as_previous",
+      "passed": true
+    },
+    {
+      "name": "production_prompt_same_as_previous",
+      "passed": true
+    },
+    {
+      "name": "json_prompt_same_as_production",
+      "passed": true
+    },
+    {
+      "name": "json_prompt_hash",
+      "passed": true
+    },
+    {
+      "name": "complete_source_hash",
+      "passed": true
+    },
+    {
+      "name": "complete_source_length",
+      "passed": true
+    },
+    {
+      "name": "complete_source_blocks",
+      "passed": true
+    },
+    {
+      "name": "required_source_blocks",
+      "passed": true
+    },
+    {
+      "name": "production_candidate_file_hash",
+      "passed": true
+    },
+    {
+      "name": "json_request_file_hash",
+      "passed": true
+    },
+    {
+      "name": "same_requested_model",
+      "passed": true
+    },
+    {
+      "name": "same_output_budget",
+      "passed": true
+    },
+    {
+      "name": "json_format_override_explicit",
+      "passed": true
+    },
+    {
+      "name": "production_failed_without_artifact",
+      "passed": true
+    },
+    {
+      "name": "production_one_call_no_correction",
+      "passed": true
+    },
+    {
+      "name": "http_error_hash",
+      "passed": true
+    },
+    {
+      "name": "http_error_message",
+      "passed": true
+    },
+    {
+      "name": "json_result_absent",
+      "passed": true
+    },
+    {
+      "name": "json_stopped_process_absent",
+      "passed": true
+    },
+    {
+      "name": "json_stopped_after_window",
+      "passed": true
+    },
+    {
+      "name": "json_one_semantic_call",
+      "passed": true
+    },
+    {
+      "name": "json_one_http_call",
+      "passed": true
+    },
+    {
+      "name": "json_elapsed_matches_record",
+      "passed": true
+    },
+    {
+      "name": "json_no_completed_text_observation",
+      "passed": true
+    },
+    {
+      "name": "json_report_unknown_usage",
+      "passed": true
+    },
+    {
+      "name": "small_probe_http_hash",
+      "passed": true
+    },
+    {
+      "name": "small_probe_http_size",
+      "passed": true
+    },
+    {
+      "name": "small_probe_output_from_response",
+      "passed": true
+    },
+    {
+      "name": "small_probe_expected_json",
+      "passed": true
+    },
+    {
+      "name": "small_probe_completed",
+      "passed": true
+    },
+    {
+      "name": "small_probe_usage_exact",
+      "passed": true
+    },
+    {
+      "name": "small_probe_output_tokens",
+      "passed": true
+    },
+    {
+      "name": "small_probe_reasoning_tokens",
+      "passed": true
+    },
+    {
+      "name": "preflight_ready_real_model",
+      "passed": true
+    },
+    {
+      "name": "preflight_no_generation_calls",
+      "passed": true
+    },
+    {
+      "name": "no_acceptance_claims",
+      "passed": true
+    },
+    {
+      "name": "public_json_no_credential_fields",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+"""Isolated checkpoint fault injection. This must make zero HTTP calls."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--repo', required=True)
+parser.add_argument('--env-file', required=True)
+args = parser.parse_args()
+root = Path(__file__).resolve().parent
+checks = []
+
+def invoke(spec, output):
+    result = subprocess.run([sys.executable, str(root / 'closure-run.py'), '--repo', args.repo,
+                             '--env-file', args.env_file, '--spec', str(spec), '--output', str(output)],
+                            capture_output=True, text=True, timeout=15)
+    combined = result.stdout + result.stderr
+    assert 'http_started' not in combined, 'unexpected new model call'
+    return result.returncode, combined.strip()
+
+for phase in ('pure-translation', 'translation-review', 'facts-review'):
+    code, message = invoke(root / (phase + '-spec.json'), root / phase)
+    valid = code == 0 and '"new_http_calls": 0' in message
+    checks.append({'case': phase + '-resume', 'passed': valid, 'new_http_calls': 0, 'message': message})
+
+with tempfile.TemporaryDirectory(prefix='checkpoint-guard-', dir=root) as directory:
+    scratch = Path(directory)
+    for case in ('spec-drift', 'source-drift', 'raw-drift'):
+        folder = scratch / case
+        folder.mkdir()
+        shutil.copy2(root / 'plan.json', folder / 'plan.json')
+        shutil.copy2(root / 'pure-translation-spec.json', folder / 'spec.json')
+        shutil.copytree(root / 'pure-translation', folder / 'output', ignore=shutil.ignore_patterns('private-*'))
+        if case == 'spec-drift':
+            path = folder / 'spec.json'
+            spec = json.loads(path.read_text())
+            spec['model'] = 'gpt-5.6-sol'
+            path.write_text(json.dumps(spec, ensure_ascii=False))
+        elif case == 'source-drift':
+            path = folder / 'plan.json'
+            path.write_text(path.read_text() + '\n')
+        else:
+            path = folder / 'output/raw.txt'
+            path.write_text(path.read_text() + '\n变更')
+        code, message = invoke(folder / 'spec.json', folder / 'output')
+        expected = {'spec-drift': 'Checkpoint specification mismatch',
+                    'source-drift': 'input hash drift', 'raw-drift': 'Checkpoint output hash mismatch'}[case]
+        checks.append({'case': case, 'passed': code != 0 and expected in message,
+                       'new_http_calls': 0, 'message': message})
+
+code, message = invoke(root / 'source-facts-spec.json', root / 'source-facts')
+checks.append({'case': 'failed-phase-needs-explicit-new-attempt',
+               'passed': code != 0 and 'explicit new attempt required' in message,
+               'new_http_calls': 0, 'message': message})
+result = {'checks': checks, 'passed': all(c['passed'] for c in checks), 'new_http_calls': 0,
+          'scope': 'isolated trial checkpoint only, not production worker or lease recovery'}
+(root / 'resume-verification.json').write_text(json.dumps(result, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps(result, ensure_ascii=False))
+raise SystemExit(0 if result['passed'] else 1)

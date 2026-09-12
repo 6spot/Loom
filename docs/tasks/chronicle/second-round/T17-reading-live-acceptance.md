@@ -29,7 +29,44 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 
 ## Live acceptance status
 
-Latest generation-only regression (2026-09-12): [run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v5.json),
+Latest experiment (2026-09-12): [staged generation and model review report](../../../../apps/chronicle/corpus/second-round/acceptance/staged-production-20260912.md).
+
+- Luna returned the whole-chapter prose in one 114.150-second call and a
+  separate extraction response in 124.013 seconds. Natural prose paragraphs
+  did not create separate translation calls. Original annotations remained
+  available as context; this experiment translated the defined main-text scope.
+- Two model reviews ran in parallel with extraction; their comparison also
+  returned a complete response. Five calls reported 194,987 total tokens.
+  Citation defects, wrong actors/state subjects, and erroneous adjudication
+  remain. **Content is not accepted.**
+- Six trial checkpoint checks passed without another HTTP call. These are
+  file-level experiment checks, not production worker/DB recovery tests.
+- The user subsequently clarified pure-text-only translation and per-step
+  single/multiple models; [discussion and task boundaries](../staged-production-discussion.md)
+  record those requirements. Production contracts and workers are unchanged;
+  no database writes, publication, deployment, browser or R3 acceptance claim.
+
+Previous same-model generation regression (v6, preserved): [run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v6.json),
+[complete request and both responses](../../../../apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v6.json),
+and [independent full-chapter review](../../../../apps/chronicle/corpus/second-round/acceptance/reading-review-20260912-v6.md).
+
+- `07c6c40`, prompt v6, real `gpt-5.6-luna`, the same complete 0.2 request.
+  Two semantic calls / two HTTP attempts; 128,583 provider-reported tokens,
+  no billed cost reported. Initial bundle was empty; the only correction
+  returned 10 entities / 6 events / 2 claims but still failed three source
+  reference checks. The joint candidate was rejected; history replays.
+- All 41 translated blocks and 13,728 characters were preserved in correction.
+  Independent review of every source/translation block still **FAILS**:
+  reversed actors and kinship, missing complete annotations and arguments,
+  wrong event place/season, and lost reading associations. Some v5 mistakes
+  improved; others remained or regressed. One sample does not establish a
+  general model or prompt quality claim.
+- No database writes, human publication decisions or browser walkthrough.
+  #586 / #549 remain unaccepted; R3 must be assessed independently.
+
+### Previous generation-only regression (v5, preserved)
+
+[Run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v5.json),
 [complete request and both responses](../../../../apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v5.json),
 and [independent content review](../../../../apps/chronicle/corpus/second-round/acceptance/reading-review-20260912-v5.md).
 
@@ -90,6 +127,7 @@ Evidence: `apps/chronicle/corpus/second-round/acceptance/run-live-r2.json` and
 
 ## Progress Log
 
+- 2026-09-12 — Recorded a bounded staged trial: whole-chapter translation, independent extraction, two model reviews, and comparison. All HTTP responses completed; citation/content/adjudication quality remains unaccepted. Recorded the user's pure-prose, checkpoint, configurable-model and exception-review requirements without changing production authority.
 - 2026-09-12 — Archived the v5 generation-only regression separately from the full-stack runs. Metadata correction preserves the complete prose and passes replay; independent content review still fails. No publication, browser or R3 acceptance claim.
 - 2026-09-12 — Retested 0.2 prompt v4 in a fresh isolated environment; retained both rejected candidates and full validation reports. Independently confirmed three translation omissions and two omitted repair diagnostics. No publication or live acceptance claim; four-chapter/content/browser requirements remain open.
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.

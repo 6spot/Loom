@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "new_http_calls": 0,
+  "runner_sha256": "ee550e629ff8c1c6d54833139673ef426b182733c0241cb355190ca05625c6ab",
+  "scope": "experiment checkpoint guards only, not durable worker restart/fencing",
+  "cases": [
+    {
+      "case": "translation_checkpoint_reused",
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "{\"kind\": \"checkpoint_reused\", \"phase\": \"translation\", \"new_http_calls\": 0, \"spec_sha256\": \"2b41297ee419d5945217a52355a450b42173d3425016e04658933b8e06d8b8b6\"}\n",
+      "stderr": "",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    },
+    {
+      "case": "review_checkpoint_reused",
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "{\"kind\": \"checkpoint_reused\", \"phase\": \"translation-review\", \"new_http_calls\": 0, \"spec_sha256\": \"eca39a03c481be9a834f46f901d260d25098ce90c44ddd94e87e3da7775e5b7f\"}\n",
+      "stderr": "",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    },
+    {
+      "case": "changed_spec_not_reused",
+      "passed": true,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Checkpoint specification mismatch; refusing reuse\n",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    },
+    {
+      "case": "changed_output_not_reused",
+      "passed": true,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Checkpoint output hash mismatch; refusing reuse\n",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    },
+    {
+      "case": "changed_dependency_not_reused",
+      "passed": true,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Input artifact changed; refusing run/reuse: source_plan\n",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    },
+    {
+      "case": "failed_extraction_not_silently_retried",
+      "passed": true,
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "An earlier failed phase result exists; explicit new attempt required\n",
+      "network_config": "absent; /dev/null prevents reaching a provider"
+    }
+  ]
+}

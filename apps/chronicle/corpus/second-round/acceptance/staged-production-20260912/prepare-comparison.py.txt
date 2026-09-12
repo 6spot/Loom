@@ -1,0 +1,82 @@
+"""Prepare one independent comparison of the two saved model review reports."""
+import hashlib
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+def obj(fields):
+    return {'type': 'object', 'properties': fields, 'required': list(fields), 'additionalProperties': False}
+def array(items):
+    return {'type': 'array', 'items': items}
+def enum(values):
+    return {'type': 'string', 'enum': values}
+text = {'type': 'string', 'minLength': 1}
+plan = json.loads((ROOT / 'plan.json').read_text())
+translated = json.loads((ROOT / 'translation-input.json').read_text())
+base = json.loads((ROOT / 'review-luna-spec.json').read_text())
+reports = []
+refs = []
+for phase in ['review-luna', 'review-sol']:
+    result = json.loads((ROOT / phase / 'result.json').read_text())
+    for finding in result['candidate']['findings']:
+        ref = phase + '/' + finding['issue_id']
+        refs.append(ref)
+        reports.append({'finding_ref': ref, 'model': result['model'],
+                        'report_mechanical_errors': result['validation_errors'],
+                        'finding': finding})
+    base['input_files'].append({'role': phase, 'path': phase + '/result.json',
+                                'sha256': digest(ROOT / phase / 'result.json')})
+selection = obj({'first_block_id': enum([b['block_id'] for b in plan['original_context_blocks']]),
+                 'last_block_id': enum([b['block_id'] for b in plan['original_context_blocks']]),
+                 'quote': text, 'occurrence': {'type': 'integer', 'minimum': 1}})
+base.update({
+    'phase': 'review-comparison', 'format_name': 'review_comparison',
+    'max_output_tokens': 8192, 'finding_refs': refs,
+    'json_schema': obj({
+        'verdict': enum(['no_material_issues_found', 'needs_correction', 'needs_human']),
+        'decisions': array(obj({
+            'finding_refs': array(enum(refs)),
+            'disposition': enum(['supported', 'unsupported', 'needs_human']),
+            'explanation': text,
+            'source_evidence': array(selection),
+            'translation_ids': array(enum(base['translation_ids'])),
+            'suggested_change': {'type': ['string', 'null']},
+        })),
+    }),
+})
+base['prompt'] = '''你是历史译文审核结果的汇总者。两个模型已独立检查同一份固定译文，你要比较、去重和核实每项意见。
+不得按模型数量、模型名称、confidence 或一致意见投票决定真伪；每个判断必须回看完整原章和译文。
+原始报告可能错引原文，也可能提出错误纠正建议。机械错误提示已随报告给出，这些意见只能作为线索，不能当作已批准依据。你必须重新给出真实的原文逐字选择；不可复制不存在的拼接引文。
+把同一个语义问题合在一个 decision 中，以 finding_refs 保留所有来源意见。全部 finding_refs 必须且只能出现一次，不得丢弃少数意见。
+supported 表示原文确实支持这项纠正；unsupported 表示建议不成立或没有足够依据要求修改；不能确定且确需人工判断时用 needs_human。不要为了达成一致强行选择一个解释。
+原文只说某人声称、上表或传闻，就保留其说法的归属，不借外部常识断言事实。只核对意见，不重新生成全文或提取实体。
+每项 source_evidence 必须真实存在于给定原文的 first_block_id..last_block_id 内，保留原字、标点和空白，occurrence 从1开始。
+本节点不会直接发布。总 verdict 有待改内容用 needs_correction，有无法解决的实质争议用 needs_human；不得把复核未提到的内容宣称完全正确。
+只输出规定 JSON。
+
+完整原章：
+''' + json.dumps(plan['original_context_blocks'],ensure_ascii=False,separators=(',',':')) + '\n\n冻结译文：\n' + json.dumps(translated['blocks'],ensure_ascii=False,separators=(',',':')) + '\n\n待比较意见：\n' + json.dumps(reports,ensure_ascii=False,separators=(',',':'))
+path = ROOT / 'comparison-spec.json'
+path.write_text(json.dumps(base,ensure_ascii=False,indent=2)+'\n')
+path.chmod(0o600)
+runner = (ROOT / 'run-phase-v2.py').read_text()
+needle = "    elif spec['phase'] == 'extraction':"
+validation = '''    elif spec['phase'] == 'review-comparison':
+        covered = [ref for item in value['decisions'] for ref in item['finding_refs']]
+        if len(covered) != len(set(covered)) or set(covered) != set(spec['finding_refs']):
+            errors.append('comparison must account for each input finding exactly once')
+        for item in value['decisions']:
+            if not item['finding_refs'] or not item['source_evidence']:
+                errors.append('comparison decision lacks finding refs or original evidence')
+        if value['verdict'] == 'no_material_issues_found' and any(item['disposition'] != 'unsupported' for item in value['decisions']):
+            errors.append('no-issues verdict contradicts unresolved/supported findings')
+'''
+assert needle in runner
+runner = runner.replace(needle,validation+needle)
+(ROOT/'run-phase-v3.py').write_text(runner)
+(ROOT/'run-phase-v3.py').chmod(0o600)
+compile(runner,'run-phase-v3.py','exec')
+print(json.dumps({'prompt_chars':len(base['prompt']),'finding_refs':len(refs),'model':base['model'],
+                  'spec_sha256':digest(path),'runner_sha256':digest(ROOT/'run-phase-v3.py')}))
