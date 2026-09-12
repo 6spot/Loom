@@ -19,7 +19,9 @@ import hashlib
 import json
 import os
 import shutil
+import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -133,6 +135,73 @@ def candidate_commit(repo: Path) -> dict[str, Any]:
     except (subprocess.CalledProcessError, OSError) as exc:
         raise GateError(f"cannot determine candidate commit: {exc}") from exc
     return {"commit": commit, "git_clean": not dirty}
+
+
+# ---------------------------------------------------------------------------
+# Generic stack preflight helpers (shared by the round gates)
+# ---------------------------------------------------------------------------
+
+
+def free_port() -> int:
+    """Allocate an ephemeral loopback port for an in-gate fixture provider."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def write_compose_override(
+    path: Path, *, service: str, host_gateway: str = "host.docker.internal"
+) -> Path:
+    """Write a minimal Compose override letting ``service`` reach the host.
+
+    The in-gate fixture model provider binds the host loopback and must be
+    reachable from a containerized worker, so the override adds the host
+    gateway mapping only to the named service.
+    """
+    path.write_text(
+        "services:\n"
+        f"  {service}:\n"
+        "    extra_hosts:\n"
+        f'      - "{host_gateway}:host-gateway"\n',
+        encoding="utf-8",
+    )
+    return path
+
+
+def compose_config_check(repo: Path, env_file: Path) -> dict[str, Any]:
+    """Validate the Compose model for a live preflight without starting it."""
+    if shutil.which("docker") is None:
+        return {"checked": False, "reason": "docker binary unavailable"}
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            str(env_file),
+            "-f",
+            "compose.chronicle.yaml",
+            "config",
+            "--quiet",
+        ],
+        cwd=repo,
+        text=True,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        raise GateError(
+            "compose config failed: " + (result.stdout + result.stderr)[:1000]
+        )
+    return {"checked": True}
+
+
+def require_interactive_stdin() -> bool:
+    """Live review gates need a TTY so an operator can resolve blocking items."""
+    if not sys.stdin.isatty():
+        raise GateError(
+            "live mode requires an interactive terminal: stdin is not a TTY, "
+            "so no operator could resolve blocking reviews in Studio"
+        )
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -479,8 +548,20 @@ def job_action(
 
 
 def reviews_for_job(
-    base_url: str, auth: str, job_id: str, status_filter: str
+    base_url: str,
+    auth: str,
+    job_id: str,
+    status_filter: str,
+    *,
+    review_scope: str | None = None,
 ) -> list[dict[str, Any]]:
+    """List a job's reviews, optionally narrowed by ``review_scope``.
+
+    The queue defaults an omitted ``review_scope`` to ``resolution``. A gate
+    that must see narrative/person-state packages therefore has to pass
+    ``review_scope="all"`` explicitly; a scope-less page deliberately hides
+    every third-round package.
+    """
     collected: list[dict[str, Any]] = []
     cursor: str | None = None
     for _ in range(1000):
@@ -488,6 +569,8 @@ def reviews_for_job(
             f"/api/v1/studio/jobs/reviews?status={status_filter}"
             f"&job_id={job_id}&limit=100"
         )
+        if review_scope is not None:
+            query += f"&review_scope={urllib.parse.quote(review_scope, safe='')}"
         if cursor:
             query += f"&cursor={urllib.parse.quote(cursor, safe='')}"
         status, payload = json_http(base_url, query, auth=auth)
