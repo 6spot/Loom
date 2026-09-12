@@ -1,0 +1,469 @@
+{
+  "evidence_type": "provider_protocol_isolation_diagnostics",
+  "evidence_version": 1,
+  "date": "2026-09-12",
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "scope": "Eight bounded synthetic-number requests sent directly to the authorized CPA endpoint with Python urllib, without importing Chronicle or using its provider. This is protocol diagnostics, not a whole-chapter translation/extraction, content review, or R2/R3 acceptance. All requests ask for integers 1 through 200 with an explicit 16-token output budget.",
+  "database_writes": false,
+  "review_decisions": 0,
+  "publications": 0,
+  "chronicle_commit": "91346fa1579470515931cf1a1dd3b04b80a79f96",
+  "client": {
+    "http_attempts_per_probe": 1,
+    "http_timeout_seconds": 60,
+    "stream_wall_deadline_seconds": 90,
+    "max_response_bytes": 1048576,
+    "script_sha256": "23cda1b7126e93f0e2fb8fda3f513cfbb99105d4ee38afcbebb47f3b9e7758a8"
+  },
+  "cpa": {
+    "endpoint": "https://cpa.zale.net/v1/responses",
+    "reported_version": "v7.2.151",
+    "reported_commit": "5208aec",
+    "resolved_public_commit": "5208aec703b5ce7e3445f6e9d91cc13b3e78003a",
+    "reported_build_date": "2026-09-04T20:04:17Z",
+    "version_observation": "X-Cpa-* response headers on the management configuration endpoint; HTTP 401 with the authorized inference credential. No management configuration was obtained.",
+    "deployed_configuration_verified": false,
+    "actual_upstream_request_observed": false,
+    "source_files": [
+      {
+        "path": "internal/runtime/executor/openai_compat_executor.go",
+        "url": "https://github.com/router-for-me/CLIProxyAPI/blob/5208aec703b5ce7e3445f6e9d91cc13b3e78003a/internal/runtime/executor/openai_compat_executor.go",
+        "sha256": "b85d706d1469b51fbf855bf25e501771b99f267d28e180c9d7827dae7c079857"
+      },
+      {
+        "path": "internal/translator/openai/openai/responses/openai_openai-responses_request.go",
+        "url": "https://github.com/router-for-me/CLIProxyAPI/blob/5208aec703b5ce7e3445f6e9d91cc13b3e78003a/internal/translator/openai/openai/responses/openai_openai-responses_request.go",
+        "sha256": "f735893806bc9cf5f8c913ec28edb4b4147dfea9e70a1209b6779bf4071b76a8"
+      },
+      {
+        "path": "internal/runtime/executor/helps/payload_helpers.go",
+        "url": "https://github.com/router-for-me/CLIProxyAPI/blob/5208aec703b5ce7e3445f6e9d91cc13b3e78003a/internal/runtime/executor/helps/payload_helpers.go",
+        "sha256": "0675e217e2a17badc2559c7c270e3c70106067cc4c8913f3fa3bf44483565351"
+      },
+      {
+        "path": "internal/thinking/provider/openai/apply.go",
+        "url": "https://github.com/router-for-me/CLIProxyAPI/blob/5208aec703b5ce7e3445f6e9d91cc13b3e78003a/internal/thinking/provider/openai/apply.go",
+        "sha256": "60910ea342cf6f6a66bcb2da84e83cc6f455d18f7b7be858e4a4abea64968278"
+      }
+    ]
+  },
+  "probes": [
+    {
+      "name": "responses_cap16",
+      "route": "/responses",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "input": "Output the integers 1 through 200 separated by commas. No explanation.",
+        "max_output_tokens": 16
+      },
+      "request_sha256": "46b14bcc6388a1455cc4343e7d28dd9523ada5b243235c3c007426b0bafe5bfb",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "application/json",
+      "headers_ms": 5033,
+      "model": "deepseek-v4.1-flash",
+      "status": "completed",
+      "incomplete_details": null,
+      "max_output_tokens": null,
+      "usage": {
+        "input_tokens": 45,
+        "output_tokens": 652,
+        "total_tokens": 697,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 53
+        }
+      },
+      "reasoning_effort_echo": null,
+      "elapsed_ms": 5034,
+      "response_bytes": 2278,
+      "response_sha256": "a8e1524c3b06f57528e39a4a00994be9d2225b89b0696764a2189757e484c5f1",
+      "message_chars": 890,
+      "message_sha256": "d92f809bf43027881e5c4f50091f59982e572557f84c2cb6464304bf028ced0b",
+      "reasoning_chars": 222
+    },
+    {
+      "name": "chat_cap16",
+      "route": "/chat/completions",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output the integers 1 through 200 separated by commas. No explanation."
+          }
+        ],
+        "max_tokens": 16
+      },
+      "request_sha256": "82f5132b4d5bdbe4a0560685fc41f2389df707e3413953eba215f6ce0f2086e6",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "application/json",
+      "headers_ms": 5426,
+      "model": "deepseek-v4.1-flash",
+      "usage": {
+        "completion_tokens": 1104,
+        "total_tokens": 1149,
+        "prompt_tokens": 45,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 505
+        }
+      },
+      "finish_reasons": [
+        "stop"
+      ],
+      "elapsed_ms": 6346,
+      "response_bytes": 2495,
+      "response_sha256": "f37b8c9241738f9e23a72a55bac9ccac7efd26738849b972b899ceae63d23c9a",
+      "message_chars": 890,
+      "message_sha256": "d92f809bf43027881e5c4f50091f59982e572557f84c2cb6464304bf028ced0b",
+      "reasoning_chars": 1139
+    },
+    {
+      "name": "chat_completion_cap16",
+      "route": "/chat/completions",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output the integers 1 through 200 separated by commas. No explanation."
+          }
+        ],
+        "max_completion_tokens": 16
+      },
+      "request_sha256": "015d9703783aa69a635933878c5e51ee9ff9e8ebc1acd7f1e293eaded0d8db21",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "application/json",
+      "headers_ms": 3917,
+      "model": "deepseek-v4.1-flash",
+      "usage": {
+        "completion_tokens": 630,
+        "total_tokens": 675,
+        "prompt_tokens": 45,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 31
+        }
+      },
+      "finish_reasons": [
+        "stop"
+      ],
+      "elapsed_ms": 4198,
+      "response_bytes": 1484,
+      "response_sha256": "098d3f5a4cb4f6eb806f896d1ad35d888534aa8b38df46eabbffe596a19cd3e3",
+      "message_chars": 890,
+      "message_sha256": "d92f809bf43027881e5c4f50091f59982e572557f84c2cb6464304bf028ced0b",
+      "reasoning_chars": 141
+    },
+    {
+      "name": "responses_none_cap16",
+      "route": "/responses",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "input": "Output the integers 1 through 200 separated by commas. No explanation.",
+        "max_output_tokens": 16,
+        "reasoning": {
+          "effort": "none"
+        }
+      },
+      "request_sha256": "d51207ac8c76cf83ddf2f4b7bec73c81d668f2dece812b4759039fd4d7b44268",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "application/json",
+      "headers_ms": 4202,
+      "model": "deepseek-v4.1-flash",
+      "status": "completed",
+      "incomplete_details": null,
+      "max_output_tokens": null,
+      "usage": {
+        "input_tokens": 45,
+        "output_tokens": 873,
+        "total_tokens": 918,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 473
+        }
+      },
+      "reasoning_effort_echo": null,
+      "elapsed_ms": 4506,
+      "response_bytes": 2863,
+      "response_sha256": "bfa74fa58c2c0b5bf978a07d1fd32e018ebcee88e205e8ab463156b369f129b5",
+      "message_chars": 691,
+      "message_sha256": "2066223c021d5fe0c60e02fcc68bfe6f618de108f9e5afc21200d86b620c305b",
+      "reasoning_chars": 1005
+    },
+    {
+      "name": "chat_none_cap16",
+      "route": "/chat/completions",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output the integers 1 through 200 separated by commas. No explanation."
+          }
+        ],
+        "max_tokens": 16,
+        "reasoning_effort": "none"
+      },
+      "request_sha256": "d4924ceef2667749760e4a8b1e7b5611d1a0b864ecc353286987f2f27de35c9a",
+      "http_attempts": 1,
+      "client_error_type": "URLError",
+      "elapsed_ms": 60366,
+      "response_bytes": 0,
+      "response_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "message_chars": 0,
+      "message_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reasoning_chars": 0
+    },
+    {
+      "name": "chat_disabled_cap16",
+      "route": "/chat/completions",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output the integers 1 through 200 separated by commas. No explanation."
+          }
+        ],
+        "max_tokens": 16,
+        "thinking": {
+          "type": "disabled"
+        }
+      },
+      "request_sha256": "f44be9f0e5c0a027d25464f5093f73ff563462744b3b3a020c1d2b9f23349839",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "application/json",
+      "headers_ms": 7730,
+      "model": "deepseek-v4.1-flash",
+      "usage": {
+        "completion_tokens": 834,
+        "total_tokens": 879,
+        "prompt_tokens": 45,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 434
+        }
+      },
+      "finish_reasons": [
+        "stop"
+      ],
+      "elapsed_ms": 9573,
+      "response_bytes": 1998,
+      "response_sha256": "c10bd5ac6bcc801adeb96a478d2b0a99236cdecebe8a71f710bcb3850917ce75",
+      "message_chars": 691,
+      "message_sha256": "2066223c021d5fe0c60e02fcc68bfe6f618de108f9e5afc21200d86b620c305b",
+      "reasoning_chars": 851
+    },
+    {
+      "name": "responses_stream_cap16",
+      "route": "/responses",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "input": "Output the integers 1 through 200 separated by commas. No explanation.",
+        "max_output_tokens": 16,
+        "stream": true
+      },
+      "request_sha256": "14ffb517f90bf8a3477367b37ae1cb588bcfde62d75a4d97e143121a38bf0b10",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "text/event-stream",
+      "headers_ms": 1843,
+      "sse_done": false,
+      "first_event_ms": 1843,
+      "first_text_ms": 7102,
+      "event_types": {
+        "response.created": 1,
+        "response.in_progress": 1,
+        "response.output_item.added": 2,
+        "response.content_part.added": 2,
+        "response.reasoning_text.delta": 512,
+        "response.reasoning_text.done": 1,
+        "response.content_part.done": 2,
+        "response.output_item.done": 2,
+        "response.output_text.delta": 399,
+        "response.output_text.done": 1,
+        "response.completed": 1
+      },
+      "model": "deepseek-v4.1-flash",
+      "status": "completed",
+      "incomplete_details": null,
+      "max_output_tokens": null,
+      "usage": {
+        "input_tokens": 45,
+        "output_tokens": 912,
+        "total_tokens": 957,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 512
+        }
+      },
+      "reasoning_effort_echo": null,
+      "elapsed_ms": 10957,
+      "response_bytes": 201688,
+      "response_sha256": "580f36427579697dae4489402caaa2877a7d066fff4722c3e913d7bfe9532dca",
+      "message_chars": 691,
+      "message_sha256": "2066223c021d5fe0c60e02fcc68bfe6f618de108f9e5afc21200d86b620c305b",
+      "reasoning_chars": 1165
+    },
+    {
+      "name": "chat_stream_cap16",
+      "route": "/chat/completions",
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Output the integers 1 through 200 separated by commas. No explanation."
+          }
+        ],
+        "max_tokens": 16,
+        "stream": true,
+        "stream_options": {
+          "include_usage": true
+        }
+      },
+      "request_sha256": "23b6d50dbd0d444c6a537233a6857c5a472dda82f341e7e1007ce2bc581c25d8",
+      "http_attempts": 1,
+      "http_status": 200,
+      "content_type": "text/event-stream",
+      "headers_ms": 3172,
+      "sse_done": true,
+      "first_event_ms": 3173,
+      "first_text_ms": 4095,
+      "usage": {
+        "completion_tokens": 642,
+        "total_tokens": 687,
+        "prompt_tokens": 45,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 43
+        }
+      },
+      "finish_reasons": [
+        "stop"
+      ],
+      "event_types": {
+        "chat.completion.chunk": 643
+      },
+      "elapsed_ms": 9494,
+      "response_bytes": 163701,
+      "response_sha256": "8d6dc817a6828472daa570a464121c186f0f8b219722b241efa2f272d0c76681",
+      "message_chars": 890,
+      "message_sha256": "d92f809bf43027881e5c4f50091f59982e572557f84c2cb6464304bf028ced0b",
+      "reasoning_chars": 178
+    }
+  ],
+  "verification": [
+    {
+      "name": "responses_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "chat_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "chat_completion_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "responses_none_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "chat_none_cap16",
+      "result": "unavailable",
+      "error_type": "URLError"
+    },
+    {
+      "name": "chat_disabled_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "responses_stream_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    },
+    {
+      "name": "chat_stream_cap16",
+      "body_sha_matches": true,
+      "body_bytes_match": true,
+      "message_sha_matches": true,
+      "message_chars_match": true,
+      "complete_200_numbers": true,
+      "output_tokens_exceed_requested_16": true
+    }
+  ],
+  "local_checks": {
+    "provider_unit_tests": 27,
+    "chapter_stage_wiring_tests": 12,
+    "result": "PASS"
+  },
+  "observations": [
+    "Seven requests returned HTTP 200 with all 200 integers, status completed or finish_reason stop, and reported output greater than the requested 16 tokens. One Chat reasoning_effort=none request had URLError at about 60 seconds, with no response or usage available; it was not retried.",
+    "Nonstreaming Responses reported 652 output tokens; Chat max_tokens reported 1104; Chat max_completion_tokens reported 630. These failures to honor the requested limit occurred outside Chronicle.",
+    "Responses reasoning.effort=none and Chat thinking.type=disabled still produced nonzero reasoning usage. This proves those tested controls did not disable reported reasoning on this route, but does not identify where they were ignored or overridden.",
+    "Both routes delivered SSE incrementally. Responses reached response.completed with 912 output tokens; Chat reached stop plus [DONE] with 642. Responses completion does not require a literal [DONE] marker.",
+    "Streaming changes delivery, not the single-generation token budget. These small stream successes do not establish complete-chapter success or that streaming removes the previously observed approximately 65536-token termination.",
+    "The pinned public CPA Responses-to-Chat translator maps max_output_tokens to max_tokens and reasoning.effort to reasoning_effort; the compatible executor then applies configurable payload overrides/filters. The actual route configuration and forwarded request remain unavailable, so CPA versus its upstream cannot yet be separated.",
+    "Chronicle currently sends a nonstreaming Responses request and preserves the configured output-token value. Its byte limit was not reached in the prior 131072-budget chapter run; the remote response reported incomplete/max_output_tokens.",
+    "No production transport change, generation retry, chapter summary, review, publication, or deployment was made for this diagnosis."
+  ],
+  "limitations": [
+    "Private HTTP bodies remain only in the controlled diagnostic directory; no reasoning text or credentials are archived here.",
+    "Body and assembled-message SHA/lengths were independently recalculated from private responses without another model call. The 42 boolean checks across seven available replies passed; this is deterministic evidence verification, not independent content acceptance.",
+    "No actual CPA configuration or upstream credentials were available. No direct request to the underlying model service was made.",
+    "Costs are unknown; the failed request has no reported usage."
+  ]
+}
