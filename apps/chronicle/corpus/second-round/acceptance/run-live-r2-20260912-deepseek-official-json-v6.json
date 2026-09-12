@@ -1,0 +1,112 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v6",
+  "provider": {
+    "max_attempts": 1,
+    "max_output_tokens": 131072,
+    "max_response_bytes": 4194304,
+    "model": "deepseek-flash",
+    "reasoning_effort_requested": null,
+    "timeout_seconds": 1200.0,
+    "streaming": false,
+    "effective_text_format": {
+      "type": "json_object"
+    },
+    "format_override_test_only": true,
+    "production_text_format": "json_schema"
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "scope": {
+    "format_override_test_only": true,
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false
+  },
+  "calls": {
+    "semantic_calls": 1,
+    "http_attempts": 1,
+    "transport_retries": 0,
+    "correction_rounds": 0,
+    "scope": "This JSON-mode whole-chapter call only; production-format rejection and small probe counted separately."
+  },
+  "checks": {
+    "complete_result_returned": false,
+    "candidate_produced": false,
+    "mechanical_accepted": false,
+    "validation_run_on_output": false,
+    "content_review": "NOT_RUN_NO_COMPLETE_CANDIDATE",
+    "same_initial_prompt_as_prior_128k": true,
+    "controller_confirmed_process_stopped": true,
+    "full_http_body_preserved": false
+  },
+  "termination": {
+    "actor": "test_controller",
+    "observation_limit_seconds": 1200,
+    "actual_stop_elapsed_seconds": 1263.151,
+    "last_event": "http_headers_received",
+    "upstream_reason": null,
+    "interpretation": "Stopped after exceeding the observation window; not evidence of an upstream timeout or token truncation. The buffered nonstreaming adapter did not yield complete text. Partial wire content was not captured."
+  },
+  "reported_usage": null,
+  "billed_cost": null,
+  "small_probe": {
+    "purpose": "Small availability/output probe, not chapter acceptance",
+    "model": "deepseek-flash",
+    "prompt": "Return only this complete JSON object, with no explanation: {\"ok\":true,\"numbers\":[1,2,3,4,5]}",
+    "text_format": {
+      "type": "json_object"
+    },
+    "max_output_tokens": 1024,
+    "timeout_seconds": 60,
+    "wall_clock_limit_seconds": 90,
+    "max_attempts": 1,
+    "output_text": "{\"ok\":true,\"numbers\":[1,2,3,4,5]}",
+    "expected_json_matches": true,
+    "elapsed_seconds": 4.578,
+    "http_observation": {
+      "response_bytes": 884,
+      "response_sha256": "cabded46bba35a3503086a7220ba4935353d0ed013a141090ef24a51b0a8d5c1",
+      "status": "completed",
+      "reported_model": "deepseek-flash",
+      "incomplete_details": null,
+      "usage": {
+        "input_tokens": 80,
+        "input_tokens_details": {
+          "cached_tokens": 0
+        },
+        "output_tokens": 56,
+        "total_tokens": 136,
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    },
+    "billed_cost": null
+  },
+  "evidence": {
+    "request_file": "request-live-r2-20260912-deepseek-official-json-v6.json",
+    "request_file_sha256": "095af37c935071a1086ec49d7b7c078e096497ad31dbcfceb34a07682028fd3f",
+    "small_probe_private_http_sha256": "cabded46bba35a3503086a7220ba4935353d0ed013a141090ef24a51b0a8d5c1"
+  },
+  "not_verified": [
+    "Translation and extraction content quality",
+    "Full-chapter completion with this model",
+    "Four-chapter R2 acceptance",
+    "R3 0.3 acceptance"
+  ],
+  "observation": "JSON mode avoided the immediate response-format rejection, but no complete chapter result was available after 1263.151 seconds, so the controller stopped the call. A separate tiny JSON probe completed correctly in 4.578 seconds and reported 56 output tokens / 0 reasoning tokens. Small-output success does not establish chapter capacity or quality."
+}
