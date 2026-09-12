@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-person-state-v0.1.schema.json",
+  "title": "Chronicle Person State v0.1 (review + public read DTOs)",
+  "description": "Machine contract for the third-round person-state review and read surfaces. Public DTOs mirror apps/chronicle/webapp/src/lib/person-state-types.ts and apps/chronicle/persistence/person_state_contract.py. Every DTO here is program-compiled: certainty=clear|uncertain is decided by assessed evidence in a frozen publication version, never by model confidence, and the browser never re-derives it from state fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "certainty": {"enum": ["clear", "uncertain"]},
+    "state_dimension": {"enum": ["office", "title", "affiliation"]},
+    "place_dimension": {"enum": ["administration", "control"]},
+    "operation": {"enum": ["start", "end", "attest"]},
+    "qualification": {"enum": ["ordinary", "recommendation", "self_designation", "posthumous", "reported"]},
+    "attribution": {"enum": ["narrator", "quotation", "annotation", "hearsay"]},
+    "phase_mode": {"enum": ["single", "process", "ambiguous", "unknown"]},
+    "reason_code": {
+      "enum": [
+        "tenure_unproven",
+        "order_unknown",
+        "source_disagreement",
+        "attribution_uncertain",
+        "evidence_uncertain",
+        "phase_not_reached",
+        "phase_not_begun"
+      ]
+    },
+    "review_scope": {"enum": ["resolution", "person_state", "all"]},
+    "assessment": {"enum": ["supported", "uncertain", "disputed", "rejected"]},
+    "predicted_effect": {"enum": ["current", "prior", "ended", "none"]},
+    "section": {"enum": ["identities", "changes", "evidence", "places"]},
+    "phase_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase_id", "label", "ordinal", "mode"],
+      "properties": {
+        "phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "label": {"type": "string", "minLength": 1},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "mode": {"$ref": "#/$defs/phase_mode"}
+      }
+    },
+    "source_fact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chapter_publication_id", "chapter_id", "revision_id", "fact_ref", "claim_refs", "phase_id"],
+      "properties": {
+        "chapter_publication_id": {"type": "string", "minLength": 1},
+        "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+        "revision_id": {"type": "string", "minLength": 1},
+        "fact_ref": {"type": "string", "pattern": "^pf_[0-9]{3,}$"},
+        "claim_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"}
+      }
+    },
+    "state_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id", "person_id", "dimension", "value", "relation", "target", "target_id",
+        "qualification", "certainty", "reason_codes", "reason_text", "phase_ids",
+        "current", "source_facts", "evidence_count", "evidence_cursor"
+      ],
+      "properties": {
+        "item_id": {"type": "string", "pattern": "^psi_[0-9a-f]{24}$"},
+        "person_id": {"type": "string", "minLength": 1},
+        "dimension": {"$ref": "#/$defs/state_dimension"},
+        "value": {"type": ["string", "null"]},
+        "relation": {"type": ["string", "null"], "enum": ["serves", "attached_to", null]},
+        "target": {"type": ["string", "null"]},
+        "target_id": {"type": ["string", "null"]},
+        "qualification": {"$ref": "#/$defs/qualification"},
+        "certainty": {"$ref": "#/$defs/certainty"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true},
+        "reason_text": {"type": "string"},
+        "phase_ids": {"type": "array", "items": {"type": "string", "pattern": "^ph_[0-9]{3,}$"}, "uniqueItems": true},
+        "current": {"type": "boolean"},
+        "source_facts": {"type": "array", "items": {"$ref": "#/$defs/source_fact_ref"}},
+        "evidence_count": {"type": "integer", "minimum": 0},
+        "evidence_cursor": {"type": ["string", "null"]}
+      }
+    },
+    "state_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id", "person_id", "dimension", "value", "relation", "target",
+        "operation", "from_phase_id", "to_phase_id", "certainty", "reason_codes",
+        "source_facts"
+      ],
+      "properties": {
+        "item_id": {"type": "string", "pattern": "^psi_[0-9a-f]{24}$"},
+        "person_id": {"type": "string", "minLength": 1},
+        "dimension": {"$ref": "#/$defs/state_dimension"},
+        "value": {"type": ["string", "null"]},
+        "relation": {"type": ["string", "null"], "enum": ["serves", "attached_to", null]},
+        "target": {"type": ["string", "null"]},
+        "operation": {"$ref": "#/$defs/operation"},
+        "from_phase_id": {"type": ["string", "null"]},
+        "to_phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "certainty": {"$ref": "#/$defs/certainty"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true},
+        "source_facts": {"type": "array", "items": {"$ref": "#/$defs/source_fact_ref"}}
+      }
+    },
+    "person_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "person_id", "name", "importance", "phase_mode", "certainty",
+        "identities", "identity_count", "has_more_identities", "identity_cursor",
+        "changes", "change_count", "has_more_changes", "change_cursor",
+        "reason_codes"
+      ],
+      "properties": {
+        "person_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "importance": {"enum": ["primary", "other"]},
+        "phase_mode": {"$ref": "#/$defs/phase_mode"},
+        "certainty": {"$ref": "#/$defs/certainty"},
+        "identities": {"type": "array", "items": {"$ref": "#/$defs/state_item"}, "maxItems": 3},
+        "identity_count": {"type": "integer", "minimum": 0},
+        "has_more_identities": {"type": "boolean"},
+        "identity_cursor": {"type": ["string", "null"]},
+        "changes": {"type": "array", "items": {"$ref": "#/$defs/state_change"}, "maxItems": 3},
+        "change_count": {"type": "integer", "minimum": 0},
+        "has_more_changes": {"type": "boolean"},
+        "change_cursor": {"type": ["string", "null"]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      }
+    },
+    "unit_people_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id", "unit_id", "catalog_sha", "publication_id", "state_manifest_sha",
+        "phase_mode", "phases", "limit", "people", "people_count", "next_cursor", "has_more"
+      ],
+      "properties": {
+        "stream_id": {"type": "string", "minLength": 1},
+        "unit_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "publication_id": {"type": "string", "minLength": 1},
+        "state_manifest_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "phase_mode": {"$ref": "#/$defs/phase_mode"},
+        "phases": {"type": "array", "items": {"$ref": "#/$defs/phase_summary"}},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "people": {"type": "array", "items": {"$ref": "#/$defs/person_summary"}},
+        "people_count": {"type": "integer", "minimum": 0},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"}
+      }
+    },
+    "person_state_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id", "unit_id", "catalog_sha", "publication_id", "state_manifest_sha",
+        "person_id", "section", "phase_id", "phases", "items", "changes", "item_count",
+        "limit", "next_cursor", "has_more"
+      ],
+      "properties": {
+        "stream_id": {"type": "string", "minLength": 1},
+        "unit_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "publication_id": {"type": "string", "minLength": 1},
+        "state_manifest_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "person_id": {"type": "string", "minLength": 1},
+        "section": {"enum": ["identities", "changes"]},
+        "phase_id": {"type": ["string", "null"], "pattern": "^ph_[0-9]{3,}$"},
+        "phases": {"type": "array", "items": {"$ref": "#/$defs/phase_summary"}},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/state_item"}},
+        "changes": {"type": "array", "items": {"$ref": "#/$defs/state_change"}},
+        "item_count": {"type": "integer", "minimum": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"}
+      }
+    },
+    "evidence_descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptor_id", "source_publication_id", "anchor_id", "quote", "quote_sha256",
+        "attribution", "source_title", "phase_id", "relation"
+      ],
+      "properties": {
+        "descriptor_id": {"type": "string", "minLength": 1},
+        "source_publication_id": {"type": "string", "minLength": 1},
+        "anchor_id": {"type": "string", "pattern": "^anc_[0-9a-f]{16}$"},
+        "quote": {"type": "string", "minLength": 1},
+        "quote_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "attribution": {"$ref": "#/$defs/attribution"},
+        "source_title": {"type": "string", "minLength": 1},
+        "phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "relation": {"enum": ["support", "supplement", "contradict", "background"]}
+      }
+    },
+    "state_evidence_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id", "unit_id", "catalog_sha", "publication_id", "state_manifest_sha",
+        "item_id", "section", "phase_id", "descriptors", "descriptor_count",
+        "limit", "next_cursor", "has_more"
+      ],
+      "properties": {
+        "stream_id": {"type": "string", "minLength": 1},
+        "unit_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "publication_id": {"type": "string", "minLength": 1},
+        "state_manifest_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "item_id": {"type": "string", "pattern": "^psi_[0-9a-f]{24}$"},
+        "section": {"const": "evidence"},
+        "phase_id": {"type": ["string", "null"], "pattern": "^ph_[0-9]{3,}$"},
+        "descriptors": {"type": "array", "items": {"$ref": "#/$defs/evidence_descriptor"}, "maxItems": 50},
+        "descriptor_count": {"type": "integer", "minimum": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"}
+      }
+    },
+    "place_state_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id", "place_id", "name", "dimension", "value", "controller",
+        "certainty", "reason_codes", "reason_text", "phase_ids", "current",
+        "source_facts", "evidence_count", "evidence_cursor"
+      ],
+      "properties": {
+        "item_id": {"type": "string", "pattern": "^psi_[0-9a-f]{24}$"},
+        "place_id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "dimension": {"$ref": "#/$defs/place_dimension"},
+        "value": {"type": ["string", "null"]},
+        "controller": {"type": ["string", "null"]},
+        "certainty": {"$ref": "#/$defs/certainty"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true},
+        "reason_text": {"type": "string"},
+        "phase_ids": {"type": "array", "items": {"type": "string", "pattern": "^ph_[0-9]{3,}$"}, "uniqueItems": true},
+        "current": {"type": "boolean"},
+        "source_facts": {"type": "array", "items": {"$ref": "#/$defs/source_fact_ref"}},
+        "evidence_count": {"type": "integer", "minimum": 0},
+        "evidence_cursor": {"type": ["string", "null"]}
+      }
+    },
+    "place_state_page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stream_id", "unit_id", "catalog_sha", "publication_id", "state_manifest_sha",
+        "section", "phases", "places", "limit", "next_cursor", "has_more"
+      ],
+      "properties": {
+        "stream_id": {"type": "string", "minLength": 1},
+        "unit_id": {"type": "string", "minLength": 1},
+        "catalog_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "publication_id": {"type": "string", "minLength": 1},
+        "state_manifest_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "section": {"const": "places"},
+        "phases": {"type": "array", "items": {"$ref": "#/$defs/phase_summary"}},
+        "places": {"type": "array", "items": {"$ref": "#/$defs/place_state_item"}},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"}
+      }
+    },
+    "review_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_key", "kind", "chapter_id", "item_ref", "person_id", "person_name",
+        "dimension", "value", "relation", "target", "operation", "qualification",
+        "phase_refs", "predicted_effect", "assessment_default", "allowed_assessments",
+        "source_label", "quote", "attribution", "reason_codes"
+      ],
+      "properties": {
+        "candidate_key": {"type": "string", "pattern": "^psc_[0-9a-f]{24}$"},
+        "kind": {"enum": ["phase", "phase_order", "unit_phase", "fact", "continuity", "disagreement"]},
+        "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+        "item_ref": {"type": "string", "minLength": 1},
+        "person_id": {"type": ["string", "null"]},
+        "person_name": {"type": ["string", "null"]},
+        "dimension": {"anyOf": [{"$ref": "#/$defs/state_dimension"}, {"$ref": "#/$defs/place_dimension"}, {"type": "null"}]},
+        "value": {"type": ["string", "null"]},
+        "relation": {"type": ["string", "null"]},
+        "target": {"type": ["string", "null"]},
+        "operation": {"anyOf": [{"$ref": "#/$defs/operation"}, {"type": "null"}]},
+        "qualification": {"anyOf": [{"$ref": "#/$defs/qualification"}, {"type": "null"}]},
+        "phase_refs": {"type": "array", "items": {"type": "string", "pattern": "^ph_[0-9]{3,}$"}, "uniqueItems": true},
+        "predicted_effect": {"$ref": "#/$defs/predicted_effect"},
+        "assessment_default": {"$ref": "#/$defs/assessment"},
+        "allowed_assessments": {"type": "array", "items": {"$ref": "#/$defs/assessment"}, "minItems": 1, "uniqueItems": true},
+        "source_label": {"type": "string", "minLength": 1},
+        "quote": {"type": "string", "minLength": 1},
+        "attribution": {"$ref": "#/$defs/attribution"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      }
+    },
+    "review_package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "version", "review_id", "plan_fingerprint", "scope", "review_mode",
+        "chapter_id", "catalog_sha", "candidates", "candidate_count", "limit",
+        "cursor", "next_cursor", "has_more", "default_assessment"
+      ],
+      "properties": {
+        "schema": {"const": "chronicle.person-state-review"},
+        "version": {"const": "0.1"},
+        "review_id": {"type": "string", "minLength": 1},
+        "plan_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "scope": {"const": "person_state"},
+        "review_mode": {"const": "chapter_state_evidence"},
+        "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+        "catalog_sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "candidates": {"type": "array", "items": {"$ref": "#/$defs/review_candidate"}},
+        "candidate_count": {"type": "integer", "minimum": 0},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {"type": ["string", "null"]},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"},
+        "default_assessment": {"$ref": "#/$defs/assessment"}
+      }
+    },
+    "assessment_overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plan_fingerprint", "default_assessment", "overrides", "rationale"],
+      "properties": {
+        "plan_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "default_assessment": {"$ref": "#/$defs/assessment"},
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["candidate_key", "assessment", "rationale"],
+            "properties": {
+              "candidate_key": {"type": "string", "pattern": "^psc_[0-9a-f]{24}$"},
+              "assessment": {"$ref": "#/$defs/assessment"},
+              "rationale": {"type": "string"}
+            }
+          }
+        },
+        "rationale": {"type": "string"}
+      }
+    }
+  }
+}

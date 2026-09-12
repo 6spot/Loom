@@ -1,0 +1,1652 @@
+{
+  "schema": "chronicle.chapter-artifact",
+  "version": "0.3",
+  "chapter_id": "ch_756922e9af0d759d29d7475f",
+  "revision_id": "rev_c2r3_demo_001",
+  "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+  "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+  "candidate": {
+    "schema": "chronicle.chapter-candidate",
+    "version": "0.3",
+    "chapter_id": "ch_756922e9af0d759d29d7475f",
+    "bundle": {
+      "schema_version": "0.1",
+      "source": {
+        "temp_id": "src_001",
+        "kind": "source",
+        "source_type": "book",
+        "title": "c2r3 contract fixture",
+        "author": null,
+        "language": "zh-CN",
+        "edition": null,
+        "citation": null,
+        "url": null,
+        "metadata": {},
+        "extraction": {
+          "method": "model",
+          "job_id": "c2r3-contract",
+          "confidence": 0.9
+        }
+      },
+      "entities": [
+        {
+          "temp_id": "ent_001",
+          "kind": "entity",
+          "type": "person",
+          "canonical_name": "孫策",
+          "aliases": [
+            "策"
+          ],
+          "mentions": [
+            {
+              "text": "策"
+            },
+            {
+              "text": "孫策"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_002",
+          "kind": "entity",
+          "type": "person",
+          "canonical_name": "周瑜",
+          "aliases": [
+            "瑜"
+          ],
+          "mentions": [
+            {
+              "text": "瑜"
+            },
+            {
+              "text": "周瑜"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_003",
+          "kind": "entity",
+          "type": "office",
+          "canonical_name": "建威中郎將",
+          "aliases": [],
+          "mentions": [
+            {
+              "text": "建威中郎將"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_004",
+          "kind": "entity",
+          "type": "other",
+          "canonical_name": "前部大督",
+          "aliases": [],
+          "mentions": [
+            {
+              "text": "前部大督"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_005",
+          "kind": "entity",
+          "type": "person",
+          "canonical_name": "孫權",
+          "aliases": [
+            "權"
+          ],
+          "mentions": [
+            {
+              "text": "權"
+            },
+            {
+              "text": "孫權"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_006",
+          "kind": "entity",
+          "type": "office",
+          "canonical_name": "偏將軍",
+          "aliases": [],
+          "mentions": [
+            {
+              "text": "偏將軍"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_007",
+          "kind": "entity",
+          "type": "office",
+          "canonical_name": "南郡太守",
+          "aliases": [],
+          "mentions": [
+            {
+              "text": "南郡太守"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        },
+        {
+          "temp_id": "ent_008",
+          "kind": "entity",
+          "type": "place",
+          "canonical_name": "南郡",
+          "aliases": [],
+          "mentions": [
+            {
+              "text": "南郡"
+            }
+          ],
+          "description": null,
+          "attributes": {},
+          "resolution": {
+            "status": "unresolved"
+          },
+          "extraction": {
+            "method": "model",
+            "job_id": "c2r3-contract",
+            "confidence": 0.9
+          }
+        }
+      ],
+      "events": [],
+      "claims": [],
+      "warnings": []
+    },
+    "translation": {
+      "language": "zh-CN",
+      "blocks": [
+        {
+          "block_id": "t_001",
+          "text": "建安三年，孫策授周瑜建威中郎將。",
+          "source_block_ids": [
+            "b_001"
+          ],
+          "entity_refs": [
+            {
+              "kind": "entity",
+              "ref": "ent_001"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_002"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_003"
+            }
+          ],
+          "event_refs": []
+        },
+        {
+          "block_id": "t_002",
+          "text": "周瑜為前部大督，後拜偏將軍，領南郡太守。",
+          "source_block_ids": [
+            "b_002"
+          ],
+          "entity_refs": [
+            {
+              "kind": "entity",
+              "ref": "ent_002"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_004"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_006"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_007"
+            }
+          ],
+          "event_refs": []
+        },
+        {
+          "block_id": "t_003",
+          "text": "孫權遣周瑜還。",
+          "source_block_ids": [
+            "b_003"
+          ],
+          "entity_refs": [
+            {
+              "kind": "entity",
+              "ref": "ent_002"
+            },
+            {
+              "kind": "entity",
+              "ref": "ent_005"
+            }
+          ],
+          "event_refs": []
+        }
+      ]
+    },
+    "mentions": [
+      {
+        "mention_id": "m_001",
+        "surface": "策",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_001",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_001",
+          "last_block_id": "b_001",
+          "quote": "策",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_002",
+        "surface": "瑜",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_002",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_001",
+          "last_block_id": "b_001",
+          "quote": "瑜",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_003",
+        "surface": "建威中郎將",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_003",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_001",
+          "last_block_id": "b_001",
+          "quote": "建威中郎將",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_004",
+        "surface": "前部大督",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_004",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_002",
+          "last_block_id": "b_002",
+          "quote": "前部大督",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_005",
+        "surface": "偏將軍",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_006",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_002",
+          "last_block_id": "b_002",
+          "quote": "偏將軍",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_006",
+        "surface": "南郡太守",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_007",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_002",
+          "last_block_id": "b_002",
+          "quote": "南郡太守",
+          "occurrence": 1
+        }
+      },
+      {
+        "mention_id": "m_007",
+        "surface": "權",
+        "contextual": false,
+        "status": "resolved",
+        "target_ref": "ent_005",
+        "candidate_refs": [],
+        "selection": {
+          "first_block_id": "b_003",
+          "last_block_id": "b_003",
+          "quote": "權",
+          "occurrence": 1
+        }
+      }
+    ],
+    "record_sources": [
+      {
+        "record_ref": "ent_001",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "策",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_002",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "瑜",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_003",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "建威中郎將",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_004",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "前部大督",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_005",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_003",
+            "last_block_id": "b_003",
+            "quote": "權",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_006",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "偏將軍",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_007",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "南郡太守",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "record_ref": "ent_008",
+        "record_kind": "entity",
+        "selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "南郡",
+            "occurrence": 1
+          }
+        ]
+      }
+    ],
+    "reading": {
+      "units": [
+        {
+          "block_id": "t_001",
+          "narrative_time": {
+            "mode": "unknown",
+            "event_refs": [],
+            "from_block_id": null,
+            "source_selections": []
+          },
+          "current_event_refs": [],
+          "event_spans": [],
+          "context_entities": [
+            {
+              "entity_ref": "ent_002",
+              "importance": "primary",
+              "source_selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "瑜",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            },
+            {
+              "entity_ref": "ent_003",
+              "importance": "other",
+              "source_selections": [
+                {
+                  "first_block_id": "b_001",
+                  "last_block_id": "b_001",
+                  "quote": "建威中郎將",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            }
+          ]
+        },
+        {
+          "block_id": "t_002",
+          "narrative_time": {
+            "mode": "unknown",
+            "event_refs": [],
+            "from_block_id": null,
+            "source_selections": []
+          },
+          "current_event_refs": [],
+          "event_spans": [],
+          "context_entities": [
+            {
+              "entity_ref": "ent_002",
+              "importance": "primary",
+              "source_selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "瑜",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            },
+            {
+              "entity_ref": "ent_007",
+              "importance": "other",
+              "source_selections": [
+                {
+                  "first_block_id": "b_002",
+                  "last_block_id": "b_002",
+                  "quote": "南郡太守",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            }
+          ]
+        },
+        {
+          "block_id": "t_003",
+          "narrative_time": {
+            "mode": "unknown",
+            "event_refs": [],
+            "from_block_id": null,
+            "source_selections": []
+          },
+          "current_event_refs": [],
+          "event_spans": [],
+          "context_entities": [
+            {
+              "entity_ref": "ent_002",
+              "importance": "primary",
+              "source_selections": [
+                {
+                  "first_block_id": "b_003",
+                  "last_block_id": "b_003",
+                  "quote": "瑜",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            },
+            {
+              "entity_ref": "ent_005",
+              "importance": "other",
+              "source_selections": [
+                {
+                  "first_block_id": "b_003",
+                  "last_block_id": "b_003",
+                  "quote": "權",
+                  "occurrence": 1
+                }
+              ],
+              "event_roles": []
+            }
+          ]
+        }
+      ],
+      "warnings": []
+    },
+    "person_states": {
+      "phases": [
+        {
+          "phase_id": "ph_001",
+          "label": "建安三年·還吳",
+          "event_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_001",
+              "last_block_id": "b_001",
+              "quote": "策授瑜建威中郎將",
+              "occurrence": 1
+            }
+          ]
+        },
+        {
+          "phase_id": "ph_002",
+          "label": "前部大督",
+          "event_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "瑜為前部大督",
+              "occurrence": 1
+            }
+          ]
+        },
+        {
+          "phase_id": "ph_003",
+          "label": "偏將軍兼南郡太守",
+          "event_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "後拜偏將軍，領南郡太守",
+              "occurrence": 1
+            }
+          ]
+        }
+      ],
+      "phase_orders": [
+        {
+          "assertion_id": "po_001",
+          "earlier_phase_ref": "ph_001",
+          "later_phase_ref": "ph_002",
+          "source_selections": [
+            {
+              "first_block_id": "b_001",
+              "last_block_id": "b_002",
+              "quote": "策授瑜建威中郎將。瑜為前部大督",
+              "occurrence": 1
+            }
+          ]
+        },
+        {
+          "assertion_id": "po_002",
+          "earlier_phase_ref": "ph_002",
+          "later_phase_ref": "ph_003",
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "後拜偏將軍",
+              "occurrence": 1
+            }
+          ]
+        }
+      ],
+      "unit_phases": [
+        {
+          "block_id": "t_001",
+          "mode": "single",
+          "phase_refs": [
+            "ph_001"
+          ],
+          "source_selections": [
+            {
+              "first_block_id": "b_001",
+              "last_block_id": "b_001",
+              "quote": "策授瑜建威中郎將",
+              "occurrence": 1
+            }
+          ]
+        },
+        {
+          "block_id": "t_002",
+          "mode": "process",
+          "phase_refs": [
+            "ph_002",
+            "ph_003"
+          ],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "後拜偏將軍",
+              "occurrence": 1
+            }
+          ]
+        },
+        {
+          "block_id": "t_003",
+          "mode": "unknown",
+          "phase_refs": [],
+          "source_selections": []
+        }
+      ],
+      "facts": [
+        {
+          "fact_id": "pf_001",
+          "person_ref": {
+            "kind": "entity",
+            "ref": "ent_002"
+          },
+          "dimension": "office",
+          "value_ref": {
+            "kind": "entity",
+            "ref": "ent_003"
+          },
+          "relation": null,
+          "target_ref": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_ref": "ph_001",
+          "claim_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_001",
+              "last_block_id": "b_001",
+              "quote": "授瑜建威中郎將",
+              "occurrence": 1
+            }
+          ],
+          "attribution": "narrator"
+        },
+        {
+          "fact_id": "pf_002",
+          "person_ref": {
+            "kind": "entity",
+            "ref": "ent_002"
+          },
+          "dimension": "office",
+          "value_ref": {
+            "kind": "entity",
+            "ref": "ent_006"
+          },
+          "relation": null,
+          "target_ref": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_ref": "ph_003",
+          "claim_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "後拜偏將軍",
+              "occurrence": 1
+            }
+          ],
+          "attribution": "narrator"
+        },
+        {
+          "fact_id": "pf_003",
+          "person_ref": {
+            "kind": "entity",
+            "ref": "ent_002"
+          },
+          "dimension": "office",
+          "value_ref": {
+            "kind": "entity",
+            "ref": "ent_007"
+          },
+          "relation": null,
+          "target_ref": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_ref": "ph_003",
+          "claim_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "領南郡太守",
+              "occurrence": 1
+            }
+          ],
+          "attribution": "narrator"
+        },
+        {
+          "fact_id": "pf_004",
+          "person_ref": {
+            "kind": "entity",
+            "ref": "ent_002"
+          },
+          "dimension": "affiliation",
+          "value_ref": null,
+          "relation": "serves",
+          "target_ref": {
+            "kind": "entity",
+            "ref": "ent_005"
+          },
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_ref": "ph_003",
+          "claim_refs": [],
+          "source_selections": [
+            {
+              "first_block_id": "b_002",
+              "last_block_id": "b_002",
+              "quote": "拜",
+              "occurrence": 1
+            }
+          ],
+          "attribution": "narrator"
+        }
+      ],
+      "continuities": [
+        {
+          "assertion_id": "pc_001",
+          "fact_ref": "pf_001",
+          "start_phase_ref": "ph_001",
+          "end_phase_ref": "ph_003",
+          "source_selections": [
+            {
+              "first_block_id": "b_001",
+              "last_block_id": "b_002",
+              "quote": "策授瑜建威中郎將。瑜為前部大督，後拜偏將軍",
+              "occurrence": 1
+            }
+          ]
+        }
+      ],
+      "disagreements": []
+    },
+    "warnings": []
+  },
+  "candidate_sha256": "859634ed1cd4ca093597a751398a55420db09f85c685f64b8a72847420085869",
+  "anchors": [
+    {
+      "anchor_id": "anc_4e3cc77df0cf8ed4",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "建安三年，策授瑜建威中郎將。",
+      "quote_sha256": "b9927d61ac42a6bf67b544d460b6cd6536ccadfe2b364f1b402853fa0de642cc",
+      "occurrence": 1,
+      "start": 0,
+      "end": 14
+    },
+    {
+      "anchor_id": "anc_d6cd2ec91db519ae",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "策",
+      "quote_sha256": "74a4d2c758f54d7af0ebaf6d077ff8990c53f916ccc9e3cef1d8cc4716906062",
+      "occurrence": 1,
+      "start": 5,
+      "end": 6
+    },
+    {
+      "anchor_id": "anc_223b6a5c8eee9155",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "瑜",
+      "quote_sha256": "03c8586cce5a1fd1f708f59d1a93faf0077ac8b0ef7d33fcf662b5355d46fc7d",
+      "occurrence": 1,
+      "start": 7,
+      "end": 8
+    },
+    {
+      "anchor_id": "anc_3b266dec908a20cb",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "建威中郎將",
+      "quote_sha256": "a4794d52ef987fd459275e9619ad158db29ff3148e79707afa9aad14e260213a",
+      "occurrence": 1,
+      "start": 8,
+      "end": 13
+    },
+    {
+      "anchor_id": "anc_3ec46ee628d38ac8",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "瑜為前部大督，後拜偏將軍，領南郡太守。",
+      "quote_sha256": "d58fb040a4d1dd5cd0e10902ae6151499502870cb413294c2a0390e9facc89b4",
+      "occurrence": 1,
+      "start": 14,
+      "end": 33
+    },
+    {
+      "anchor_id": "anc_dcacc04f0987f8c4",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "前部大督",
+      "quote_sha256": "a83bc54b4d023a5843f4782ffbcfe4a9bc73a8912588fd74367e3591cf900e3a",
+      "occurrence": 1,
+      "start": 16,
+      "end": 20
+    },
+    {
+      "anchor_id": "anc_7f815d848ba2a38f",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "偏將軍",
+      "quote_sha256": "0b589f7bd18a7ca031dbe3a5aacefe30121c75afecc45c212a2df5c101bdbd88",
+      "occurrence": 1,
+      "start": 23,
+      "end": 26
+    },
+    {
+      "anchor_id": "anc_375c7e8863c3d00b",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "南郡",
+      "quote_sha256": "cd38ec0e3bd0d3fc8d13024823ee1ed98ca33323fceda8c09efc9d05ace705bd",
+      "occurrence": 1,
+      "start": 28,
+      "end": 30
+    },
+    {
+      "anchor_id": "anc_ab1ef89e7833a25b",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "南郡太守",
+      "quote_sha256": "2703a12625a57de415fec35c941ae8e79f3c0b492c67d24c06cc0229078cbd08",
+      "occurrence": 1,
+      "start": 28,
+      "end": 32
+    },
+    {
+      "anchor_id": "anc_671d60fe076830e4",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_003",
+      "last_block_id": "b_003",
+      "quote": "權",
+      "quote_sha256": "d41967ad2133b7ecab7a53268bbb726e26d15bdbcd24eed59a82d55ece340c28",
+      "occurrence": 1,
+      "start": 33,
+      "end": 34
+    },
+    {
+      "anchor_id": "anc_639df68b9743a333",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_003",
+      "last_block_id": "b_003",
+      "quote": "權遣瑜還。",
+      "quote_sha256": "dfbf9d13d4100dd26e75401f510218e51521a4b0b40057d817ebaaab01aae828",
+      "occurrence": 1,
+      "start": 33,
+      "end": 38
+    }
+  ],
+  "request_fingerprint": "32dac33a7c17dfa53deebeb9c02c6ea6e9dadc64b9664a2bc95afac6b0481487",
+  "producing_run": {
+    "run_id": "r3-fixture",
+    "model": "contract-fixture",
+    "prompt_schema_version": "0.3"
+  },
+  "reading": {
+    "units": [
+      {
+        "block_id": "t_001",
+        "narrative_time": {
+          "mode": "unknown",
+          "event_refs": [],
+          "from_block_id": null,
+          "source_selections": []
+        },
+        "current_event_refs": [],
+        "event_spans": [],
+        "context_entities": [
+          {
+            "entity_ref": "ent_002",
+            "importance": "primary",
+            "source_selections": [
+              {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "瑜",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          },
+          {
+            "entity_ref": "ent_003",
+            "importance": "other",
+            "source_selections": [
+              {
+                "first_block_id": "b_001",
+                "last_block_id": "b_001",
+                "quote": "建威中郎將",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          }
+        ]
+      },
+      {
+        "block_id": "t_002",
+        "narrative_time": {
+          "mode": "unknown",
+          "event_refs": [],
+          "from_block_id": null,
+          "source_selections": []
+        },
+        "current_event_refs": [],
+        "event_spans": [],
+        "context_entities": [
+          {
+            "entity_ref": "ent_002",
+            "importance": "primary",
+            "source_selections": [
+              {
+                "first_block_id": "b_002",
+                "last_block_id": "b_002",
+                "quote": "瑜",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          },
+          {
+            "entity_ref": "ent_007",
+            "importance": "other",
+            "source_selections": [
+              {
+                "first_block_id": "b_002",
+                "last_block_id": "b_002",
+                "quote": "南郡太守",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          }
+        ]
+      },
+      {
+        "block_id": "t_003",
+        "narrative_time": {
+          "mode": "unknown",
+          "event_refs": [],
+          "from_block_id": null,
+          "source_selections": []
+        },
+        "current_event_refs": [],
+        "event_spans": [],
+        "context_entities": [
+          {
+            "entity_ref": "ent_002",
+            "importance": "primary",
+            "source_selections": [
+              {
+                "first_block_id": "b_003",
+                "last_block_id": "b_003",
+                "quote": "瑜",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          },
+          {
+            "entity_ref": "ent_005",
+            "importance": "other",
+            "source_selections": [
+              {
+                "first_block_id": "b_003",
+                "last_block_id": "b_003",
+                "quote": "權",
+                "occurrence": 1
+              }
+            ],
+            "event_roles": []
+          }
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "reading_sha256": "b72ec9791b726fac035512b8338e267931350ba80acdbe3e5d5fdf26b0dac3af",
+  "person_states": {
+    "phases": [
+      {
+        "phase_id": "ph_001",
+        "label": "建安三年·還吳",
+        "event_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "策授瑜建威中郎將",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "phase_id": "ph_002",
+        "label": "前部大督",
+        "event_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "瑜為前部大督",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "phase_id": "ph_003",
+        "label": "偏將軍兼南郡太守",
+        "event_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "後拜偏將軍，領南郡太守",
+            "occurrence": 1
+          }
+        ]
+      }
+    ],
+    "phase_orders": [
+      {
+        "assertion_id": "po_001",
+        "earlier_phase_ref": "ph_001",
+        "later_phase_ref": "ph_002",
+        "source_selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_002",
+            "quote": "策授瑜建威中郎將。瑜為前部大督",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "assertion_id": "po_002",
+        "earlier_phase_ref": "ph_002",
+        "later_phase_ref": "ph_003",
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "後拜偏將軍",
+            "occurrence": 1
+          }
+        ]
+      }
+    ],
+    "unit_phases": [
+      {
+        "block_id": "t_001",
+        "mode": "single",
+        "phase_refs": [
+          "ph_001"
+        ],
+        "source_selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "策授瑜建威中郎將",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "block_id": "t_002",
+        "mode": "process",
+        "phase_refs": [
+          "ph_002",
+          "ph_003"
+        ],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "後拜偏將軍",
+            "occurrence": 1
+          }
+        ]
+      },
+      {
+        "block_id": "t_003",
+        "mode": "unknown",
+        "phase_refs": [],
+        "source_selections": []
+      }
+    ],
+    "facts": [
+      {
+        "fact_id": "pf_001",
+        "person_ref": {
+          "kind": "entity",
+          "ref": "ent_002"
+        },
+        "dimension": "office",
+        "value_ref": {
+          "kind": "entity",
+          "ref": "ent_003"
+        },
+        "relation": null,
+        "target_ref": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_ref": "ph_001",
+        "claim_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "授瑜建威中郎將",
+            "occurrence": 1
+          }
+        ],
+        "attribution": "narrator"
+      },
+      {
+        "fact_id": "pf_002",
+        "person_ref": {
+          "kind": "entity",
+          "ref": "ent_002"
+        },
+        "dimension": "office",
+        "value_ref": {
+          "kind": "entity",
+          "ref": "ent_006"
+        },
+        "relation": null,
+        "target_ref": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_ref": "ph_003",
+        "claim_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "後拜偏將軍",
+            "occurrence": 1
+          }
+        ],
+        "attribution": "narrator"
+      },
+      {
+        "fact_id": "pf_003",
+        "person_ref": {
+          "kind": "entity",
+          "ref": "ent_002"
+        },
+        "dimension": "office",
+        "value_ref": {
+          "kind": "entity",
+          "ref": "ent_007"
+        },
+        "relation": null,
+        "target_ref": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_ref": "ph_003",
+        "claim_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "領南郡太守",
+            "occurrence": 1
+          }
+        ],
+        "attribution": "narrator"
+      },
+      {
+        "fact_id": "pf_004",
+        "person_ref": {
+          "kind": "entity",
+          "ref": "ent_002"
+        },
+        "dimension": "affiliation",
+        "value_ref": null,
+        "relation": "serves",
+        "target_ref": {
+          "kind": "entity",
+          "ref": "ent_005"
+        },
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_ref": "ph_003",
+        "claim_refs": [],
+        "source_selections": [
+          {
+            "first_block_id": "b_002",
+            "last_block_id": "b_002",
+            "quote": "拜",
+            "occurrence": 1
+          }
+        ],
+        "attribution": "narrator"
+      }
+    ],
+    "continuities": [
+      {
+        "assertion_id": "pc_001",
+        "fact_ref": "pf_001",
+        "start_phase_ref": "ph_001",
+        "end_phase_ref": "ph_003",
+        "source_selections": [
+          {
+            "first_block_id": "b_001",
+            "last_block_id": "b_002",
+            "quote": "策授瑜建威中郎將。瑜為前部大督，後拜偏將軍",
+            "occurrence": 1
+          }
+        ]
+      }
+    ],
+    "disagreements": []
+  },
+  "person_states_sha256": "a8f4ba14c29cf6599c59f5865832721bab9db4fe7d711f58cfcd8cbb8735536d",
+  "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+  "reading_units": [
+    {
+      "unit_id": "ru_deb900fb556d7ee57dc34676",
+      "ordinal": 0,
+      "block_id": "t_001",
+      "text_hash": "88e42da2070161b09c09da6a64611b3900701543de861eb3dbcd287118106cbf",
+      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "narrative_time": {
+        "mode": "unknown",
+        "event_refs": [],
+        "from_block_id": null,
+        "source_selections": []
+      },
+      "current_event_refs": [],
+      "resolved_spans": [],
+      "context_entities": [
+        {
+          "entity_ref": "ent_002",
+          "importance": "primary",
+          "event_roles": []
+        },
+        {
+          "entity_ref": "ent_003",
+          "importance": "other",
+          "event_roles": []
+        }
+      ],
+      "segments": [
+        {
+          "kind": "text",
+          "text": "建安三年，孫策授周瑜建威中郎將。"
+        }
+      ]
+    },
+    {
+      "unit_id": "ru_d8bb87ee048a6a66d36f5240",
+      "ordinal": 1,
+      "block_id": "t_002",
+      "text_hash": "5d1f2e5af879602b7a6b6d99e5e8818016a7aecb014752c17cc7eb2a3347e1a6",
+      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "narrative_time": {
+        "mode": "unknown",
+        "event_refs": [],
+        "from_block_id": null,
+        "source_selections": []
+      },
+      "current_event_refs": [],
+      "resolved_spans": [],
+      "context_entities": [
+        {
+          "entity_ref": "ent_002",
+          "importance": "primary",
+          "event_roles": []
+        },
+        {
+          "entity_ref": "ent_007",
+          "importance": "other",
+          "event_roles": []
+        }
+      ],
+      "segments": [
+        {
+          "kind": "text",
+          "text": "周瑜為前部大督，後拜偏將軍，領南郡太守。"
+        }
+      ]
+    },
+    {
+      "unit_id": "ru_5ff55a446e330c405f713447",
+      "ordinal": 2,
+      "block_id": "t_003",
+      "text_hash": "2d884505edcc06ced2ecb88c50417216f9e49228b993fc9beebca57cf41e10f0",
+      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "narrative_time": {
+        "mode": "unknown",
+        "event_refs": [],
+        "from_block_id": null,
+        "source_selections": []
+      },
+      "current_event_refs": [],
+      "resolved_spans": [],
+      "context_entities": [
+        {
+          "entity_ref": "ent_002",
+          "importance": "primary",
+          "event_roles": []
+        },
+        {
+          "entity_ref": "ent_005",
+          "importance": "other",
+          "event_roles": []
+        }
+      ],
+      "segments": [
+        {
+          "kind": "text",
+          "text": "孫權遣周瑜還。"
+        }
+      ]
+    }
+  ],
+  "person_state_candidates": [
+    {
+      "candidate_key": "psc_edb98b7455697c20693aab13",
+      "kind": "continuity",
+      "item_ref": "pc_001",
+      "phase_ids": [
+        "ph_001",
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_e38268ba5bb65151"
+      ],
+      "source_fact_refs": [
+        "pf_001"
+      ]
+    },
+    {
+      "candidate_key": "psc_e366a7db91dc266b72a92016",
+      "kind": "fact",
+      "item_ref": "pf_001",
+      "phase_ids": [
+        "ph_001"
+      ],
+      "anchor_ids": [
+        "anc_1b8b3c8cadf23007"
+      ],
+      "source_fact_refs": [
+        "pf_001"
+      ]
+    },
+    {
+      "candidate_key": "psc_b357c50169363cc3a0f28785",
+      "kind": "fact",
+      "item_ref": "pf_002",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_5f24038fb8e1df78"
+      ],
+      "source_fact_refs": [
+        "pf_002"
+      ]
+    },
+    {
+      "candidate_key": "psc_596bda238e336c4b5794dbef",
+      "kind": "fact",
+      "item_ref": "pf_003",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_4ab0694342a7b925"
+      ],
+      "source_fact_refs": [
+        "pf_003"
+      ]
+    },
+    {
+      "candidate_key": "psc_83b2e111de6fbe15b46103df",
+      "kind": "fact",
+      "item_ref": "pf_004",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_accdf70c74ce959c"
+      ],
+      "source_fact_refs": [
+        "pf_004"
+      ]
+    },
+    {
+      "candidate_key": "psc_9b7a78a901064d036449ff35",
+      "kind": "phase",
+      "item_ref": "ph_001",
+      "phase_ids": [
+        "ph_001"
+      ],
+      "anchor_ids": [
+        "anc_702b57668f66826b"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_b6bbee90bbbadd84b37bdce6",
+      "kind": "phase",
+      "item_ref": "ph_002",
+      "phase_ids": [
+        "ph_002"
+      ],
+      "anchor_ids": [
+        "anc_939ce973841da6e3"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_c5e4e594e0ed4aa766a054a9",
+      "kind": "phase",
+      "item_ref": "ph_003",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_8fcc8ac30eaee62a"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_63877f6175f0454071c174a7",
+      "kind": "phase_order",
+      "item_ref": "po_001",
+      "phase_ids": [
+        "ph_001",
+        "ph_002"
+      ],
+      "anchor_ids": [
+        "anc_f4c35a982e4c9fdd"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_d031460fe16f0af01ae0f3e8",
+      "kind": "phase_order",
+      "item_ref": "po_002",
+      "phase_ids": [
+        "ph_002",
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_5f24038fb8e1df78"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_903f9dea0d1589d514488654",
+      "kind": "unit_phase",
+      "item_ref": "t_001",
+      "phase_ids": [
+        "ph_001"
+      ],
+      "anchor_ids": [
+        "anc_702b57668f66826b"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_46fbd33318d8b7e53c6936a9",
+      "kind": "unit_phase",
+      "item_ref": "t_002",
+      "phase_ids": [
+        "ph_002",
+        "ph_003"
+      ],
+      "anchor_ids": [
+        "anc_5f24038fb8e1df78"
+      ],
+      "source_fact_refs": []
+    },
+    {
+      "candidate_key": "psc_fa316c9da6b782fc553527e3",
+      "kind": "unit_phase",
+      "item_ref": "t_003",
+      "phase_ids": [],
+      "anchor_ids": [],
+      "source_fact_refs": []
+    }
+  ]
+}
