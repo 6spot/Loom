@@ -236,12 +236,16 @@ do not extend the deadline. The staged transport makes exactly one HTTP
 attempt; the saved step budget owns retries. A request started before a crash
 consumes an attempt even when its remote outcome is unknown. Streaming does
 not remove model output limits, and incomplete responses cannot be accepted.
-Complete but invalid output immediately retries only that node within its
-remaining attempt budget, with the complete saved result and validation
-errors. A transport failure during correction does not discard that feedback.
+Complete but invalid translation, extraction, linking or repair output retries
+only that node within its remaining attempt budget, with the complete saved
+result and validation errors. A transport failure during correction does not discard that feedback.
 Successful sibling steps remain saved. An exhausted budget or oversized
 correction context stops the step with an explicit failure; it never opens
 a new node to reset the budget or truncates source/results to fit.
+Invalid review/comparison reports are retained for the content gate, including
+after a sibling failure: retrying their format must not erase an already
+expressed objection. Pure transport failures can still retry within budget.
+This distinction is part of the frozen task configuration.
 
 The first execution freezes source, model profiles, limits, actual prompt
 templates and step policy.

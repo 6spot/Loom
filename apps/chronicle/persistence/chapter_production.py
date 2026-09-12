@@ -19,6 +19,11 @@ from common import PersistenceError, sha256_json
 
 VERSION = "chapter-production/0.1"
 STEPS = ("translation", "extraction", "comparison", "linking", "review", "repair")
+# A malformed opinion may already contain a substantive objection. Letting a
+# later format retry replace it could erase that objection without a decision.
+# Those two steps use the existing human gate instead; generation/patching
+# still has its own bounded format correction followed by content review.
+FORMAT_RETRY_STEPS = ("translation", "extraction", "linking", "repair")
 MAX_PATCHES = 128
 
 

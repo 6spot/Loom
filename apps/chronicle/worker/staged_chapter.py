@@ -211,7 +211,8 @@ class Runner:
                             status=status, error=error)
                     results[(attempt["step"], attempt["slot"])] = record
                     self._emit("chapter_step_saved", step=attempt["step"], model=attempt["model"], status=status)
-                    if status == "invalid" and attempt["attempt"] < self.models.max_step_attempts:
+                    if (status == "invalid" and attempt["step"] in protocol.FORMAT_RETRY_STEPS
+                            and attempt["attempt"] < self.models.max_step_attempts):
                         # The same logical node consumes its next attempt;
                         # the store attaches this saved result/diagnostics.
                         # Successful parallel slots and other steps stay saved.

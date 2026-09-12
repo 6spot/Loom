@@ -197,6 +197,48 @@ class StagedComparisonPostgresTests(unittest.TestCase):
         self.assertIn(failed[0]["output_sha256"], artifact["production_receipt"]["step_output_sha256s"])
         self.assertEqual(self._counts(ctx), {"runs": 2, "reviews": 0, "published": 0})
 
+    def test_invalid_comparison_objection_survives_link_failure_and_resume(self):
+        class InvalidComparison(ComparisonModels):
+            def __init__(self):
+                super().__init__()
+                self.failures = {("linking", "executor"): {1}}
+
+            def complete(self, expected_step, slot, prompt):
+                raw = super().complete(expected_step, slot, prompt)
+                if expected_step == "comparison" and slot == "comparator_b" and self.count("comparison", slot) == 1:
+                    report = json.loads(raw)
+                    report["differences"][0]["assessment"] = "disputed"
+                    del report["candidate_set_sha256"]
+                    return json.dumps(report, ensure_ascii=False)
+                return raw
+
+        ctx = self._prepared_extract()
+        script = InvalidComparison()
+        self.assertEqual(self._extract(ctx, script), "failed")
+        self.assertEqual(script.count("comparison", "comparator_b"), 1)
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(script.count("comparison", "comparator_b"), 1)
+        self.assertEqual(script.count("translation"), 2)
+        self.assertEqual(script.count("extraction"), 1)
+        self.assertEqual(script.count("linking"), 2)
+        self.assertEqual(script.count("review"), 1)
+        records = self._records(ctx)
+        invalid = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["status"] == "invalid"]
+        self.assertEqual(len(invalid), 1)
+        self.assertEqual(invalid[0]["step"], "comparison")
+        self.assertEqual(invalid[0]["parsed"]["differences"][0]["assessment"], "disputed")
+        self.assertEqual([r["parsed"]["verdict"] for r in self._completed(records, "review")], ["pass"])
+        self.assertEqual(self._accepted(ctx), [])
+        with psycopg.connect(self.database_url) as conn:
+            review_id = conn.execute("SELECT review_id FROM chronicle.review_items WHERE job_id=%s", (ctx["job_id"],)).fetchone()[0]
+            packet = chapter_content_review.read_content_review(conn, review_id)["packet"]
+        self.assertTrue(any(issue.get("comparison_disputed") for issue in packet["issues"]))
+        self.assertIn(invalid[0]["output_sha256"], packet["step_output_sha256s"])
+        calls = script.calls.copy()
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(script.calls, calls)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -45,6 +45,7 @@ class ChapterModels:
                 "steps": {key: list(value) for key, value in self.steps.items()},
                 "max_parallel": self.max_parallel, "max_step_attempts": self.max_step_attempts,
                 "max_repair_rounds": self.max_repair_rounds,
+                "format_retry_steps": list(protocol.FORMAT_RETRY_STEPS),
                 "schemas": {step: sha256_json(protocol.step_schema(step)) for step in protocol.STEPS},
                 # Render the actual template with empty, deterministic data:
                 # prompt wording/wrapper changes must also freeze the whole

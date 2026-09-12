@@ -133,14 +133,19 @@ def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
             if len(completed) != 1:
                 raise PersistenceConflict("one chapter node has multiple completed results")
             return completed[0], True
+        invalid = [row for row in results if row["status"] == "invalid"]
+        previous = max(invalid, key=lambda row: row["attempt"]) if invalid else None
+        if previous is not None and step not in chapter_production.FORMAT_RETRY_STEPS:
+            # Reuse the malformed opinion for the existing human gate even
+            # if a later sibling failed or the attempt budget is exhausted.
+            # A new model response must not erase an unresolved objection.
+            return previous, True
         starts = [r for r in records if r["artifact_type"] == ATTEMPT_TYPE and r.get("node_key") == key]
         if len(starts) >= max_attempts:
             raise StepBudgetExhausted(f"{step}/{slot}: {max_attempts} saved attempts exhausted")
         attempt = len(starts) + 1
         # A transport failure did not correct the last invalid result. Keep
         # its exact feedback on resume without spending a fresh node budget.
-        invalid = [row for row in results if row["status"] == "invalid"]
-        previous = max(invalid, key=lambda row: row["attempt"]) if invalid else None
         actual_prompt = prompt
         if previous is not None:
             actual_prompt = chapter_production.retry_prompt(

@@ -322,6 +322,51 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             errors = conn.execute("SELECT error FROM chronicle.ingestion_chunk_runs WHERE chunk_id = %s", (ctx["chunk_id"],)).fetchall()
         self.assertTrue(all("complete-context prompt limit" in row[0] for row in errors))
 
+    def test_invalid_review_cannot_drop_its_objection_in_a_format_retry(self):
+        class InvalidOpinion(ScriptedModels):
+            def complete(self, expected_step, slot, prompt):
+                raw = super().complete(expected_step, slot, prompt)
+                if expected_step == "review" and self.count("review") == 1:
+                    report = json.loads(raw)
+                    report["verdict"] = "needs_review"
+                    del report["coverage"]
+                    return json.dumps(report, ensure_ascii=False)
+                # A second call would silently drop the first objection.
+                if expected_step == "review":
+                    report = json.loads(raw)
+                    report.update(verdict="pass", issues=[], dispositions=[])
+                    return json.dumps(report, ensure_ascii=False)
+                return raw
+
+        ctx = self._prepared_extract()
+        script = InvalidOpinion(mode="revise")
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(script.count("review"), 1)
+        records = self._records(ctx)
+        reports = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "review"]
+        self.assertEqual([r["status"] for r in reports], ["invalid"])
+        self.assertEqual(self._accepted(ctx), [])
+        with psycopg.connect(self.database_url) as conn:
+            review_id = conn.execute("SELECT review_id FROM chronicle.review_items WHERE job_id=%s", (ctx["job_id"],)).fetchone()[0]
+            packet = content_review.read_content_review(conn, review_id)["packet"]
+        self.assertTrue(any(issue.get("model_issue_id") == "subject-assignment" for issue in packet["issues"]))
+        self.assertEqual(packet["candidate"]["translation"]["blocks"][0]["text"], WRONG_FIRST)
+        self.assertIn(reports[0]["output_sha256"], packet["step_output_sha256s"])
+        # Reusing an invalid opinion must precede even the one-attempt budget
+        # check; otherwise a later sibling failure could block this gate.
+        plan = next(r for r in records if r["artifact_type"] == store.PLAN_TYPE)
+        attempt = next(r for r in records if r["artifact_type"] == store.ATTEMPT_TYPE and r["step"] == "review")
+        with psycopg.connect(self.database_url) as conn:
+            resumed, reused = store.begin_attempt(conn, job_id=ctx["job_id"], chunk_id=ctx["chunk_id"],
+                worker=WORKER, plan=plan, step="review", round=attempt["round"], slot=attempt["slot"],
+                data=attempt["input"], prompt=attempt["prompt"], model_config=attempt["model_config"], max_attempts=1)
+        self.assertTrue(reused)
+        self.assertEqual(resumed["output_sha256"], reports[0]["output_sha256"])
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(script.count("review"), 1)
+        self.assertEqual(self._counts(ctx), {"runs": 0, "reviews": 1, "published": 0})
+
     def test_extraction_transport_retry_reuses_completed_translation(self):
         ctx = self._prepared_extract()
         script = ScriptedModels(failures={("extraction", "executor"): {1}})
