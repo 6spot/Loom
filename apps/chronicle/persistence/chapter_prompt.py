@@ -33,12 +33,26 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: distinguishable in run history.
 READING_PROMPT_VERSION = "c2r2-chapter-prompt-v2"
 
+#: Person-state (0.3) prompt template version. Bound into the producing run
+#: of every accepted 0.3 artifact so 0.1/0.2/0.3 runs stay distinguishable.
+PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v1"
+
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
 CANDIDATE_VERSION = "0.1"
 
 #: Reading-annotation candidate version (second round).
 READING_CANDIDATE_VERSION = "0.2"
+
+#: Person-state candidate version (third round); registered production.
+PERSON_STATE_CANDIDATE_VERSION = "0.3"
+
+#: Every candidate version this renderer can address.
+SUPPORTED_CANDIDATE_VERSIONS = (
+    CANDIDATE_VERSION,
+    READING_CANDIDATE_VERSION,
+    PERSON_STATE_CANDIDATE_VERSION,
+)
 
 #: Offset unit for every block coordinate in the rendered chapter.
 OFFSET_UNIT = "chars-normalized-utf8"
@@ -214,6 +228,68 @@ READING UNIT EXAMPLE (shape only):
  "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
  "occurrence":1}],"event_roles":[{"event_ref":"evt_001","participant_index":0}]}]}'''
 
+PERSON_STATE_GUIDE = r'''PERSON STATE SHAPE (0.3 only; the same whole chapter, with reading annotations kept)
+Add one top-level "person_states" object beside bundle/translation/mentions/record_sources/reading:
+person_states: {phases:[], phase_orders:[], unit_phases:[], facts:[], continuities:[], disagreements:[]}.
+Every local ref below is chapter-local and must close inside this chapter; never return a canonical
+UUID, a supported/certainty verdict, a stream/unit ID or a URL. A fact is candidate evidence only.
+  phases[]: {phase_id:"ph_001", label, event_refs:[{kind:"event",ref:"evt_*"}], source_selections:[...]}.
+    A phase is one source-supported narrative context inside this chapter (a stretch of narrative,
+    not a new calendar). label is a short source label; never invent a year. event_refs names existing
+    evt_* this phase narrates (may be empty). source_selections 1..16. At most 512 phases.
+  phase_orders[]: {assertion_id:"po_001", earlier_phase_ref:"ph_*", later_phase_ref:"ph_*",
+    source_selections:[...]}. Only add an edge when the source itself proves the earlier/later order
+    (a later appointment, a before/after turn). Never derive precedence from Gregorian years,
+    from "same month", from the chapter's paragraph order, or from a shared canonical event.
+    The edges must stay acyclic. No edge for an unknown or disputed order. At most 1024.
+  unit_phases[]: exactly one binding per translation block, in the SAME order and with the same
+    block_id as translation.blocks. {block_id, mode, phase_refs:[...], source_selections:[...]}.
+    mode "single": exactly one phase_ref. mode "process": >=2 ordered phase_refs experienced within
+      the block (keep the whole process, never only the last identity). mode "ambiguous": >=1
+      phase_ref where the source genuinely leaves several readings. mode "unknown": no phase_refs and
+      no source_selections (do not inherit the previous block's phase). A phase is a candidate, so
+      every phase must be referenced by at least one unit; never bind a unit to a foreign chapter id.
+  facts[]: {fact_id:"pf_001", person_ref:{kind:"entity",ref:"ent_*"}, dimension:office|title|affiliation,
+    value_ref:{kind:"entity",ref:"ent_*"}|null, relation:"serves"|"attached_to"|null,
+    target_ref:{kind:"entity",ref:"ent_*"}|null, operation:start|end|attest,
+    qualification:ordinary|recommendation|self_designation|posthumous|reported, phase_ref:"ph_*",
+    claim_refs:[{kind:"claim",ref:"clm_*"}], source_selections:[...],
+    attribution:narrator|quotation|annotation|hearsay}. At most 512 facts.
+    office/title facts carry a value_ref to an office/other entity and keep relation/target_ref null.
+    affiliation facts carry relation serves|attached_to and a target_ref to a person/polity/
+    organization (never a place) and keep value_ref null.
+    operation start = a source-supported taking-up / attachment; end = the proven end of that exact
+    item; attest = only that this record exists in the phase (use it when the source does not prove
+    a new start/end). One appointment does not end other offices; a turn of allegiance ends only the
+    relation it proves. qualification recommendation or posthumous may ONLY use operation attest and
+    must never establish a current office; self_designation/reported keep their qualifier.
+    attribution narrator|quotation|annotation|hearsay must match where the record comes from: a
+    quoted self-report (for example a memorial saying seals were returned) stays quotation/annotation
+    and is never rewritten as the narrator's own fact for the whole realm.
+    SUBJECT DISCIPLINE: person_ref is the person the record is about — never an ancestor or father
+    (父祖), never a ruler acting on the person, and never the speaker of a quotation. Each fact must
+    trace to verbatim source: source_selections 1..16 must quote the chapter text that supports THIS
+    subject/value/relation, not a nearby mention of the same surname.
+    ROLE vs LONG-TERM STATE: a one-off action role (for example 前部大督 for one campaign) is not a
+    lasting office; record lasting offices, titles and relations as facts, and do not turn an action
+    role into an office or inherit it into later phases. Different offices/titles/relations coexist;
+    do not collapse them to the highest one, and do not let a later title overwrite an earlier phase's
+    identity. Acquisition of a new post does not clear the others.
+  continuities[]: {assertion_id:"pc_001", fact_ref:"pf_*", start_phase_ref:"ph_*",
+    end_phase_ref:"ph_*"|null, source_selections:[...]}. Only claim a proven continuous interval
+    when the source supports it; end_phase_ref must be a phase the source proves later than start
+    (null means no proven end, which is NOT an open-ended certainty). At most 1024.
+  disagreements[]: {assertion_id:"pd_001", topic, fact_refs:[two or more pf_*], phase_refs:[...],
+    source_selections:[...]}. Only record a disagreement for the same question and comparable phase
+    where the chapter itself gives different claims; different offices, different phases or different
+    relations are not disagreements. topic is a short stable label. At most 1024.
+  UNASSESSED / ID DISCIPLINE: never return supported, uncertain/disputed/rejected assessments,
+    certainty colors, confidence, canonical_id, stream_id, unit_id, publication_id, hashes or URLs.
+    The model returns local refs and source support only; the program decides assessment and identity.
+PERSON STATE EXAMPLE (shape only, not history): a phase ph_001 grounded on "策授瑜建威中郎將", a
+unit_phases single binding to it, and one office fact with person_ref ent_a, value_ref ent_b,
+operation "start", qualification "ordinary", attribution "narrator".'''
+
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
@@ -365,21 +441,23 @@ def request_candidate_version(request: dict[str, Any]) -> str:
     """Return the candidate version a request must produce.
 
     Requests that do not declare a candidate version default to the
-    registered production version (0.2 reading joint product); an
+    registered production version (0.3 person-state joint product); an
     unregistered version fails closed here instead of guessing.
     """
     versions = request.get("schema_versions") if isinstance(request, dict) else None
     if isinstance(versions, dict) and isinstance(versions.get("candidate"), str):
         version = versions["candidate"]
     else:
-        version = READING_CANDIDATE_VERSION
-    if version not in (CANDIDATE_VERSION, READING_CANDIDATE_VERSION):
+        version = PERSON_STATE_CANDIDATE_VERSION
+    if version not in SUPPORTED_CANDIDATE_VERSIONS:
         raise PersistenceError(f"unsupported chapter-candidate version {version!r}")
     return version
 
 
 def prompt_version_for(candidate_version: str) -> str:
     """Return the prompt template version bound to a candidate version."""
+    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        return PERSON_STATE_PROMPT_VERSION
     if candidate_version == READING_CANDIDATE_VERSION:
         return READING_PROMPT_VERSION
     if candidate_version == CANDIDATE_VERSION:
@@ -391,6 +469,13 @@ def _joint_guide_for(candidate_version: str) -> str:
     """Render the joint-product shape guide for one candidate version."""
     if candidate_version == CANDIDATE_VERSION:
         return JOINT_PRODUCT_GUIDE
+    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        return JOINT_PRODUCT_GUIDE.replace(
+            'version="0.1"', 'version="0.3"'
+        ).replace(
+            "bundle, translation, mentions, record_sources, warnings.",
+            "bundle, translation, mentions, record_sources, reading, person_states, warnings.",
+        )
     return JOINT_PRODUCT_GUIDE.replace(
         'version="0.1"', 'version="0.2"'
     ).replace(
@@ -412,18 +497,20 @@ def render_chapter_prompt(
     initial call and the single bounded correction. A correction appends
     the compacted diagnostics plus the previous candidate and requires one
     complete regenerated chapter product. Requests that declare candidate
-    version 0.2 also carry the reading-annotation guide; both the initial
-    and the correction round explain every unit from the whole chapter.
+    version 0.2 carry the reading-annotation guide; version 0.3 carries the
+    reading guide plus the person-state guide; both the initial and the
+    correction round explain every unit and phase from the whole chapter.
     """
     request = _require_request(request)
     candidate_version = request_candidate_version(request)
     prompt_version = prompt_version_for(candidate_version)
     joint_guide = _joint_guide_for(candidate_version)
-    reading_guide = (
-        "\n\n" + READING_ANNOTATION_GUIDE
-        if candidate_version == READING_CANDIDATE_VERSION
-        else ""
-    )
+    guides = ""
+    if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
+        guides += "\n\n" + READING_ANNOTATION_GUIDE
+    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        guides += "\n\n" + PERSON_STATE_GUIDE
+    reading_guide = guides
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
@@ -433,7 +520,12 @@ def render_chapter_prompt(
     if validation_errors is not None:
         diagnostics = compact_validation_errors(validation_errors)
         prev_chars = _translation_chars(previous_candidate)
-        if candidate_version == READING_CANDIDATE_VERSION:
+        if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+            repaired = (
+                "the joint bundle, mentions, record_sources, reading annotations "
+                "and person_states"
+            )
+        elif candidate_version == READING_CANDIDATE_VERSION:
             repaired = "the joint bundle, mentions, record_sources and reading annotations"
         else:
             repaired = "the joint bundle, mentions and record_sources"
@@ -445,6 +537,12 @@ def render_chapter_prompt(
             # (e.g. 16404 chars) to a fraction (e.g. 7318). The contract is
             # unchanged — only the re-ask now names the prior full length and
             # forbids condensing it. Never a validation gate; a repair signal.
+            repaired_fields = (
+                "the joint bundle, mentions, record_sources, reading, person_states "
+                "and time fields"
+                if candidate_version == PERSON_STATE_CANDIDATE_VERSION
+                else "the joint bundle, mentions, record_sources, reading and time fields"
+            )
             preserve = (
                 f"FIDELITY: the previous translation had {prev_chars} characters. "
                 "The corrected product MUST keep the whole translation at that "
@@ -455,8 +553,7 @@ def render_chapter_prompt(
                 "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
                 "translation.blocks through unchanged (same block_ids, same order, "
                 "same full text). Do NOT rewrite, shorten, or re-summarize the "
-                "translation; the diagnostics below concern the joint bundle, "
-                "mentions, record_sources, reading and time fields — repair those "
+                "translation; the diagnostics below concern " + repaired_fields + " — repair those "
                 "and keep the translation verbatim.\n"
             )
         correction = (

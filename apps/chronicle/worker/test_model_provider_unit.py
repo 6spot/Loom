@@ -337,7 +337,15 @@ class ChapterProviderTests(unittest.TestCase):
         self.assertIn("chronicle.chapter-candidate", dumped)
         self.assertIn("translation", dumped)
         self.assertIn("record_sources", dumped)
-        for forbidden in ("anchor_id", "canonical_id", "request_fingerprint", '"start"', '"end"'):
+        # Program-bound offset keys must stay out; the person-state operation
+        # enum legitimately contains the words start/end, so match the keys.
+        for forbidden in (
+            "anchor_id",
+            "canonical_id",
+            "request_fingerprint",
+            '"start":',
+            '"end":',
+        ):
             self.assertNotIn(forbidden, dumped)
         self.assertEqual(fmt, chapter_candidate_text_format())
 

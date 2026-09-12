@@ -103,7 +103,7 @@ def fixture_reading_candidate() -> dict:
 
 
 class ReadingProviderTests(unittest.TestCase):
-    def test_chapter_factory_defaults_to_reading_format(self) -> None:
+    def test_chapter_factory_defaults_to_production_format(self) -> None:
         provider = model_provider.build_chapter_model(
             "chapter-live", "https://gateway.example/v1/responses"
         )
@@ -120,11 +120,14 @@ class ReadingProviderTests(unittest.TestCase):
         body = captured["body"]
         self.assertEqual(65536, body["max_output_tokens"])
         fmt = body["text"]["format"]
-        self.assertEqual(model_provider.PRODUCTION_CHAPTER_CANDIDATE_VERSION, "0.2")
+        # C2-R3-T02 advances the default production generation to 0.3 while
+        # keeping the reading block.
+        self.assertEqual(model_provider.PRODUCTION_CHAPTER_CANDIDATE_VERSION, "0.3")
         dumped = json.dumps(fmt["schema"])
         self.assertIn('"reading"', dumped)
+        self.assertIn('"person_states"', dumped)
         self.assertIn("chronicle.chapter-candidate", dumped)
-        self.assertIn('"const": "0.2"', dumped)
+        self.assertIn('"const": "0.3"', dumped)
         self.assertNotIn("canonical_id", dumped)
 
     def test_chapter_factory_can_request_legacy_0_1_format(self) -> None:

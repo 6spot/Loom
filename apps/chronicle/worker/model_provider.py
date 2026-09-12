@@ -47,8 +47,9 @@ except ImportError:  # pragma: no cover - package import path
     )
     from .presentation_model_schema import presentation_text_format
 
-#: Chapter candidate version new production emits (reading annotations).
-PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.2"
+#: Chapter candidate version new production emits (person states on top of
+#: the reading joint product).
+PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.3"
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
 # Legacy C1 extraction/presentation transport bound. Kept at 2 MiB so the
@@ -437,11 +438,12 @@ def build_chapter_model(
     The request carries the chapter-candidate strict format (only
     model-generatable fields) plus the chapter-production §3 output token
     budget and 4 MiB response byte cap. ``candidate_version`` selects the
-    strict contract; it defaults to the registered production version (0.2
-    reading annotations). Acceptance still runs the matching T01/reading
-    validator on the returned text; this factory only constrains generation
-    and transport. Legacy extraction/presentation providers keep their own
-    2 MiB default and are unaffected.
+    strict contract; it defaults to the registered production version (0.3
+    person states on top of the reading annotations). Acceptance still runs
+    the matching T01/reading/person-state validator on the returned text;
+    this factory only constrains generation and transport. Legacy
+    extraction/presentation providers keep their own 2 MiB default and are
+    unaffected.
 
     Worker selection and environment wiring belong to C2-R1-T13/T16; this
     helper exists so that wiring can construct the provider without

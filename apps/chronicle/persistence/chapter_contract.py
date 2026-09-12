@@ -54,25 +54,28 @@ RESOLUTION_VERSION = "0.2"
 PLAN_VERSION = "c2r1-chapters-v1"
 
 # ---------------------------------------------------------------------------
-# Production version registration (C2-R2-T03)
+# Production version registration (C2-R2-T03, extended C2-R3-T02)
 # ---------------------------------------------------------------------------
 # chapter_contract owns only the version *registry* after the first round:
 # which candidate/artifact schema/version pairs exist and which one the
 # production chain must emit. The 0.1 pair stays frozen and is validated by
 # this module's first-round validator; the 0.2 pair adds reading annotations
 # and its pure validator/acceptance live in the T01 ``reading_contract``
-# module. Consumers (``chapter_extraction``) dispatch to that validator
-# rather than re-implementing a second set of checks.
+# module; the 0.3 pair adds ``person_states`` and its pure
+# validator/acceptance live in the T01 ``person_state_contract`` module.
+# Consumers (``chapter_extraction``) dispatch to those validators rather than
+# re-implementing a second set of checks. This is the single registration for
+# the 0.3 generation: no module creates a parallel version registry.
 
 #: Candidate versions registered for the production chain (frozen first).
-CANDIDATE_VERSIONS = ("0.1", "0.2")
+CANDIDATE_VERSIONS = ("0.1", "0.2", "0.3")
 #: Artifact versions registered for the production chain (frozen first).
-ARTIFACT_VERSIONS = ("0.1", "0.2")
+ARTIFACT_VERSIONS = ("0.1", "0.2", "0.3")
 
-#: Version new production emits (reading annotations on top of the joint
-#: product). New production never silently downgrades to 0.1.
-PRODUCTION_CANDIDATE_VERSION = "0.2"
-PRODUCTION_ARTIFACT_VERSION = "0.2"
+#: Version new production emits (person-state facts on top of the reading
+#: joint product). New production never silently downgrades to 0.2/0.1.
+PRODUCTION_CANDIDATE_VERSION = "0.3"
+PRODUCTION_ARTIFACT_VERSION = "0.3"
 
 #: Offset unit for every chapter/block/anchor coordinate.
 OFFSET_UNIT = "chars-normalized-utf8"
@@ -136,14 +139,28 @@ ARTIFACT_V02_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json"
 )
 
+# 0.3 schema locations are registered here by filename/$id only; their
+# cross-file $ref resolution belongs to the T01 ``person_state_contract``
+# loader (which resolves the frozen 0.1/0.2 definitions 0.3 reuses).
+CANDIDATE_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.3.schema.json"
+ARTIFACT_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.3.schema.json"
+CANDIDATE_V03_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.3.schema.json"
+)
+ARTIFACT_V03_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.3.schema.json"
+)
+
 #: Registry mapping each production version to its schema file/$id.
 _CANDIDATE_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
     "0.1": (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
     "0.2": (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
+    "0.3": (CANDIDATE_V03_SCHEMA_PATH, CANDIDATE_V03_SCHEMA_ID),
 }
 _ARTIFACT_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
     "0.1": (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
     "0.2": (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
+    "0.3": (ARTIFACT_V03_SCHEMA_PATH, ARTIFACT_V03_SCHEMA_ID),
 }
 
 
