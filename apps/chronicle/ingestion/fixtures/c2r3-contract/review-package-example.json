@@ -1,0 +1,47 @@
+{
+  "schema": "chronicle.person-state-review",
+  "version": "0.1",
+  "review_id": "review_c2r3_demo",
+  "plan_fingerprint": "b38f069c1073a252c4a87ad1709380d4f9b1d6bfa3f0a3f060db87d9390906b6",
+  "scope": "person_state",
+  "review_mode": "chapter_state_evidence",
+  "chapter_id": "ch_756922e9af0d759d29d7475f",
+  "catalog_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "candidates": [
+    {
+      "candidate_key": "psc_edb98b7455697c20693aab13",
+      "kind": "fact",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "item_ref": "pf_001",
+      "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+      "person_name": "周瑜",
+      "dimension": "office",
+      "value": "建威中郎將",
+      "relation": null,
+      "target": null,
+      "operation": "start",
+      "qualification": "ordinary",
+      "phase_refs": [
+        "ph_001"
+      ],
+      "predicted_effect": "current",
+      "assessment_default": "uncertain",
+      "allowed_assessments": [
+        "supported",
+        "uncertain",
+        "disputed",
+        "rejected"
+      ],
+      "source_label": "周瑜傳",
+      "quote": "策授瑜建威中郎將",
+      "attribution": "narrator",
+      "reason_codes": []
+    }
+  ],
+  "candidate_count": 1,
+  "limit": 20,
+  "cursor": null,
+  "next_cursor": null,
+  "has_more": false,
+  "default_assessment": "uncertain"
+}

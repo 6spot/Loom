@@ -1,0 +1,166 @@
+{
+  "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+  "unit_id": "ru_deb900fb556d7ee57dc34676",
+  "catalog_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+  "state_manifest_sha": "33e38d1f0adf9ab53ec1c33af2ba93ba8c3fdf16179de9603df9d67ebe2d3230",
+  "phase_mode": "process",
+  "phases": [
+    {
+      "phase_id": "ph_001",
+      "label": "建安三年·還吳",
+      "ordinal": 0,
+      "mode": "single"
+    },
+    {
+      "phase_id": "ph_002",
+      "label": "前部大督",
+      "ordinal": 1,
+      "mode": "process"
+    },
+    {
+      "phase_id": "ph_003",
+      "label": "偏將軍兼南郡太守",
+      "ordinal": 2,
+      "mode": "process"
+    }
+  ],
+  "limit": 6,
+  "people": [
+    {
+      "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+      "name": "周瑜",
+      "importance": "primary",
+      "phase_mode": "single",
+      "certainty": "uncertain",
+      "identities": [
+        {
+          "item_id": "psi_cd1cb48a5f1eb450b47ff835",
+          "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+          "dimension": "office",
+          "value": "建威中郎將",
+          "relation": null,
+          "target": null,
+          "target_id": null,
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "reason_codes": [],
+          "reason_text": "",
+          "phase_ids": [
+            "ph_001"
+          ],
+          "current": true,
+          "source_facts": [
+            {
+              "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+              "chapter_id": "ch_756922e9af0d759d29d7475f",
+              "revision_id": "rev_c2r3_demo_001",
+              "fact_ref": "pf_001",
+              "claim_refs": [],
+              "phase_id": "ph_001"
+            }
+          ],
+          "evidence_count": 1,
+          "evidence_cursor": null
+        },
+        {
+          "item_id": "psi_62ebec6703aa63ce7c19df79",
+          "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+          "dimension": "title",
+          "value": "前部大督",
+          "relation": null,
+          "target": null,
+          "target_id": null,
+          "qualification": "reported",
+          "certainty": "uncertain",
+          "reason_codes": [
+            "attribution_uncertain"
+          ],
+          "reason_text": "引述／注文归属或限定未定",
+          "phase_ids": [
+            "ph_002"
+          ],
+          "current": false,
+          "source_facts": [
+            {
+              "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+              "chapter_id": "ch_756922e9af0d759d29d7475f",
+              "revision_id": "rev_c2r3_demo_001",
+              "fact_ref": "pf_002",
+              "claim_refs": [],
+              "phase_id": "ph_001"
+            }
+          ],
+          "evidence_count": 1,
+          "evidence_cursor": null
+        },
+        {
+          "item_id": "psi_ceb7fa87186ddd55fa2a7c56",
+          "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+          "dimension": "affiliation",
+          "value": null,
+          "relation": "serves",
+          "target": "孫權",
+          "target_id": "0192f0a0-0000-7000-8000-0000000000ee",
+          "qualification": "ordinary",
+          "certainty": "clear",
+          "reason_codes": [],
+          "reason_text": "",
+          "phase_ids": [
+            "ph_003"
+          ],
+          "current": true,
+          "source_facts": [
+            {
+              "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+              "chapter_id": "ch_756922e9af0d759d29d7475f",
+              "revision_id": "rev_c2r3_demo_001",
+              "fact_ref": "pf_004",
+              "claim_refs": [],
+              "phase_id": "ph_001"
+            }
+          ],
+          "evidence_count": 1,
+          "evidence_cursor": null
+        }
+      ],
+      "identity_count": 3,
+      "has_more_identities": false,
+      "identity_cursor": null,
+      "changes": [
+        {
+          "item_id": "psi_df165fcd2d4079ed0f4ef1c0",
+          "person_id": "0192f0a0-0000-7000-8000-00000000cc07",
+          "dimension": "office",
+          "value": "偏將軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "from_phase_id": "ph_002",
+          "to_phase_id": "ph_003",
+          "certainty": "clear",
+          "reason_codes": [],
+          "source_facts": [
+            {
+              "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+              "chapter_id": "ch_756922e9af0d759d29d7475f",
+              "revision_id": "rev_c2r3_demo_001",
+              "fact_ref": "pf_002",
+              "claim_refs": [],
+              "phase_id": "ph_001"
+            }
+          ]
+        }
+      ],
+      "change_count": 1,
+      "has_more_changes": false,
+      "change_cursor": null,
+      "reason_codes": [
+        "attribution_uncertain"
+      ]
+    }
+  ],
+  "people_count": 1,
+  "next_cursor": null,
+  "has_more": false
+}

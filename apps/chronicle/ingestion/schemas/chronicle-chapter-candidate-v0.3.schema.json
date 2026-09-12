@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.3.schema.json",
+  "title": "Chronicle Chapter Candidate v0.3 (model-generated part only)",
+  "description": "Machine contract for chronicle.chapter-candidate / 0.3. Adds the third-round `person_states` block on top of the frozen 0.2 joint chapter product (which itself reuses the frozen 0.1 definitions by $ref). Only model-authored candidate interpretations live here: the model never returns supported/certainty/canonical UUIDs, stream/unit IDs or URLs. Total return: phases as narrative context, phase_orders as source-supported precedence, one unit_phases binding per translation block, person state facts, continuities and in-chapter disagreements.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "version", "chapter_id", "bundle", "translation",
+    "mentions", "record_sources", "reading", "person_states", "warnings"
+  ],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-candidate"},
+    "version": {"const": "0.3"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "bundle": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/staged_bundle"},
+    "translation": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/translation"},
+    "mentions": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/mention"}
+    },
+    "record_sources": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/record_source"}
+    },
+    "reading": {"$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/reading"},
+    "person_states": {"$ref": "#/$defs/person_states"},
+    "warnings": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/warning"}
+    }
+  },
+  "$defs": {
+    "source_selection": {
+      "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/selection"
+    },
+    "entity_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {"const": "entity"},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "event_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {"const": "event"},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "claim_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": {"const": "claim"},
+        "ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase_id", "label", "event_refs", "source_selections"],
+      "properties": {
+        "phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "event_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/event_ref"},
+          "uniqueItems": true,
+          "maxItems": 16
+        },
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    "phase_order": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion_id", "earlier_phase_ref", "later_phase_ref", "source_selections"],
+      "properties": {
+        "assertion_id": {"type": "string", "pattern": "^po_[0-9]{3,}$"},
+        "earlier_phase_ref": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "later_phase_ref": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    "unit_phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["block_id", "mode", "phase_refs", "source_selections"],
+      "properties": {
+        "block_id": {"type": "string", "minLength": 1},
+        "mode": {"enum": ["single", "process", "ambiguous", "unknown"]},
+        "phase_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+          "uniqueItems": true,
+          "maxItems": 8
+        },
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "maxItems": 16
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "single"}}, "required": ["mode"]},
+          "then": {
+            "properties": {"phase_refs": {"minItems": 1, "maxItems": 1}, "source_selections": {"minItems": 1}}
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "process"}}, "required": ["mode"]},
+          "then": {
+            "properties": {"phase_refs": {"minItems": 2}, "source_selections": {"minItems": 1}}
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "ambiguous"}}, "required": ["mode"]},
+          "then": {
+            "properties": {"phase_refs": {"minItems": 1}, "source_selections": {"minItems": 1}}
+          }
+        },
+        {
+          "if": {"properties": {"mode": {"const": "unknown"}}, "required": ["mode"]},
+          "then": {
+            "properties": {"phase_refs": {"maxItems": 0}, "source_selections": {"maxItems": 0}}
+          }
+        }
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fact_id", "person_ref", "dimension", "value_ref", "relation", "target_ref",
+        "operation", "qualification", "phase_ref", "claim_refs", "source_selections",
+        "attribution"
+      ],
+      "properties": {
+        "fact_id": {"type": "string", "pattern": "^pf_[0-9]{3,}$"},
+        "person_ref": {"$ref": "#/$defs/entity_ref"},
+        "dimension": {"enum": ["office", "title", "affiliation"]},
+        "value_ref": {
+          "anyOf": [{"$ref": "#/$defs/entity_ref"}, {"type": "null"}]
+        },
+        "relation": {"enum": ["serves", "attached_to", null]},
+        "target_ref": {
+          "anyOf": [{"$ref": "#/$defs/entity_ref"}, {"type": "null"}]
+        },
+        "operation": {"enum": ["start", "end", "attest"]},
+        "qualification": {
+          "enum": ["ordinary", "recommendation", "self_designation", "posthumous", "reported"]
+        },
+        "phase_ref": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "claim_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/claim_ref"},
+          "uniqueItems": true,
+          "maxItems": 16
+        },
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        },
+        "attribution": {"enum": ["narrator", "quotation", "annotation", "hearsay"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"dimension": {"enum": ["office", "title"]}}, "required": ["dimension"]},
+          "then": {
+            "properties": {
+              "value_ref": {"$ref": "#/$defs/entity_ref"},
+              "relation": {"type": "null"},
+              "target_ref": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"dimension": {"const": "affiliation"}}, "required": ["dimension"]},
+          "then": {
+            "properties": {
+              "value_ref": {"type": "null"},
+              "relation": {"enum": ["serves", "attached_to"]},
+              "target_ref": {"$ref": "#/$defs/entity_ref"}
+            }
+          }
+        }
+      ]
+    },
+    "continuity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion_id", "fact_ref", "start_phase_ref", "end_phase_ref", "source_selections"],
+      "properties": {
+        "assertion_id": {"type": "string", "pattern": "^pc_[0-9]{3,}$"},
+        "fact_ref": {"type": "string", "pattern": "^pf_[0-9]{3,}$"},
+        "start_phase_ref": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+        "end_phase_ref": {
+          "anyOf": [{"type": "string", "pattern": "^ph_[0-9]{3,}$"}, {"type": "null"}]
+        },
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    "disagreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion_id", "topic", "fact_refs", "phase_refs", "source_selections"],
+      "properties": {
+        "assertion_id": {"type": "string", "pattern": "^pd_[0-9]{3,}$"},
+        "topic": {"type": "string", "minLength": 1, "maxLength": 200},
+        "fact_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^pf_[0-9]{3,}$"},
+          "minItems": 2,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "phase_refs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+          "uniqueItems": true,
+          "maxItems": 16
+        },
+        "source_selections": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/source_selection"},
+          "minItems": 1,
+          "maxItems": 16
+        }
+      }
+    },
+    "person_states": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phases", "phase_orders", "unit_phases", "facts", "continuities", "disagreements"
+      ],
+      "properties": {
+        "phases": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/phase"},
+          "maxItems": 512
+        },
+        "phase_orders": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/phase_order"},
+          "maxItems": 1024
+        },
+        "unit_phases": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/unit_phase"},
+          "maxItems": 512
+        },
+        "facts": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/fact"},
+          "maxItems": 512
+        },
+        "continuities": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/continuity"},
+          "maxItems": 1024
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/disagreement"},
+          "maxItems": 1024
+        }
+      }
+    }
+  }
+}

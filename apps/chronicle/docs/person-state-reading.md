@@ -133,6 +133,17 @@ phase/fact/continuity/order 等可审核条目使用彼此不混淆的 ID 类型
 
 以上纯函数无 DB、网络、模型调用、UUID 分配或系统时间。输入相同输出与 hash 相同，数组排序规则进入 schema/fixture；不得按 dict 遍历顺序随机生成结果。`person-state-contract / 0.1` 与编译器版本进入 fingerprint。
 
+### 4.1 共享机器契约与固定 fixture（T01 冻结）
+
+T01 把上述约定固化为可被各模块直接消费的机器契约，避免实现中自定状态语义：
+
+- 模块：`apps/chronicle/persistence/person_state_contract.py`、`apps/chronicle/webapp/src/lib/person-state-types.ts`、`chronicle-person-state-v0.1.schema.json`，以及 `chronicle-chapter-candidate-v0.3` / `chronicle-chapter-artifact-v0.3` schema；契约版本为 `person-state-contract / 0.1`。共享 schema/types/runner 只由 T01 修改；后续新增字段回此契约统一处理。
+- 同一份 JSON fixture：`apps/chronicle/ingestion/fixtures/c2r3-contract/`（`request.json`、`candidate-valid.json`、`artifact-accepted.json` 及正反例、公开/审核 DTO 例）。#622 输出、#626 生产接线、#627 只读查询共用这一份，不各自另建第二套状态、来源或发布路径。
+- 来源 phase 与综合 phase 是不同空间：只有带原文依据的明确关联才可映射；没有关联时保留未知或交回核对，禁止按年份、同名事件或段落序号猜测对应。
+- 来源的 supported 只评价该条证据，不能绕过既有 facts/prose 审核变成公开的 clear 结论；综合状态最终来自固定 publication version 的已审核结论。
+- 明确性由编译器按审核评估计算（`clear | uncertain`），模型 confidence 不参与显示判定；`recommendation` / `posthumous` 只能 `attest`，不建立当前身份。地点行政归属与实际控制分开，原始 Event 不自动成为锚点、也不能凭到访推导控制。
+- 候选键由程序按 kind、chapter、item_ref 与已解析锚点计算；审核决定 payload 必须携带 `plan_fingerprint`，跨版本/并发冲突为 409 且不丢草稿。
+
 T02 扩展现有 chapter_prompt／chapter_extraction／model_provider；整章一次联合生成加最多一次完整章修正，完整采用已有 request/run/fingerprint/运输重试。结构验证不证明模型读懂原文；语义评估和真实语料验收分别负责这两层证明。接受的仍是一份完整联合 artifact，没有独立人物状态补生成或阅读时生成路径。
 
 ## 5. 阶段依据审核
@@ -157,7 +168,9 @@ supported 只确认该证据条目的语义；一个“明确授任”审核通�
 
 ### 5.1 复用审核 API
 
-在现有 `/api/v1/studio/jobs/reviews` 添加 `review_scope=resolution|person_state|all`，省略保持 resolution；第三轮页面明确请求 all。link_kind 仅用于 resolution，和 person_state/all 混用返回 400。cursor、open_count、URL、草稿隔离和再扫描均绑定 review_scope。
+在现有 `/api/v1/studio/jobs/reviews` 添加 `review_scope=resolution|person_state|all`。**省略该参数保持 `resolution`**，即当前未显式筛选的审核入口继续包含综合 facts/prose（narrative）；不得因为新增 person_state 而让既有综合审核项消失。第三轮页面明确请求 `all`，`all` 覆盖 resolution、person_state 与 narrative 三类。`link_kind` 仅用于 resolution，和 person_state/all 混用返回 400。issue#625/#628/#631 消费本已固定合同，不各自决定默认范围。cursor、open_count、URL、草稿隔离、候选类型、计数与再扫描均绑定 review_scope，且决定 payload 保留 scope。
+
+审核前后端由 T01 的 `person_state_contract.py` / `person-state-types.ts` 提供同一份 scope 语义（`normalize_review_scope` / `review_scope_covers`），不各自实现默认值。
 
 详情、contexts、sources、decision 沿用现有 routes，根据 frozen payload.scope 分派：
 
