@@ -1,0 +1,89 @@
+{
+  "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+  "unit_id": "ru_deb900fb556d7ee57dc34676",
+  "catalog_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+  "state_manifest_sha": "33e38d1f0adf9ab53ec1c33af2ba93ba8c3fdf16179de9603df9d67ebe2d3230",
+  "section": "places",
+  "phases": [
+    {
+      "phase_id": "ph_001",
+      "label": "建安三年·還吳",
+      "ordinal": 0,
+      "mode": "single"
+    },
+    {
+      "phase_id": "ph_002",
+      "label": "前部大督",
+      "ordinal": 1,
+      "mode": "process"
+    },
+    {
+      "phase_id": "ph_003",
+      "label": "偏將軍兼南郡太守",
+      "ordinal": 2,
+      "mode": "process"
+    }
+  ],
+  "places": [
+    {
+      "item_id": "psi_122caad07f60a8e8c14e66fc",
+      "place_id": "0192f0a0-0000-7000-8000-00000000dd08",
+      "name": "南郡",
+      "dimension": "administration",
+      "value": "孫權",
+      "controller": null,
+      "certainty": "clear",
+      "reason_codes": [],
+      "reason_text": "",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "current": true,
+      "source_facts": [
+        {
+          "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+          "chapter_id": "ch_756922e9af0d759d29d7475f",
+          "revision_id": "rev_c2r3_demo_001",
+          "fact_ref": "pf_003",
+          "claim_refs": [],
+          "phase_id": "ph_001"
+        }
+      ],
+      "evidence_count": 1,
+      "evidence_cursor": null
+    },
+    {
+      "item_id": "psi_5a3465c4eebc49fc363d6e34",
+      "place_id": "0192f0a0-0000-7000-8000-00000000dd08",
+      "name": "南郡",
+      "dimension": "control",
+      "value": null,
+      "controller": "0192f0a0-0000-7000-8000-0000000000ee",
+      "certainty": "uncertain",
+      "reason_codes": [
+        "evidence_uncertain"
+      ],
+      "reason_text": "有材料但结论仍不确定",
+      "phase_ids": [
+        "ph_003"
+      ],
+      "current": false,
+      "source_facts": [
+        {
+          "chapter_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+          "chapter_id": "ch_756922e9af0d759d29d7475f",
+          "revision_id": "rev_c2r3_demo_001",
+          "fact_ref": "pf_003",
+          "claim_refs": [],
+          "phase_id": "ph_001"
+        }
+      ],
+      "evidence_count": 1,
+      "evidence_cursor": null
+    }
+  ],
+  "limit": 20,
+  "next_cursor": null,
+  "has_more": false
+}

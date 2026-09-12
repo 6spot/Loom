@@ -56,10 +56,17 @@ try:
 except ImportError:  # pragma: no cover - package import path
     from . import reading_contract as R  # type: ignore[no-redef]
 
+try:
+    import person_state_contract as PS
+except ImportError:  # pragma: no cover - package import path
+    from . import person_state_contract as PS  # type: ignore[no-redef]
+
 #: Version of this whole-chapter extraction pipeline step. The 0.1 path is
-#: frozen; the 0.2 path adds reading annotations and is the new production.
+#: frozen; 0.2 adds reading annotations; 0.3 adds person states and is the
+#: registered production generation.
 EXTRACTION_VERSION = "c2r1-extraction-v1"
 READING_EXTRACTION_VERSION = "c2r2-extraction-v1"
+PERSON_STATE_EXTRACTION_VERSION = "c2r3-extraction-v1"
 
 #: Prompt template version bound into every attempt and producing run.
 PROMPT_VERSION = P.PROMPT_VERSION
@@ -70,6 +77,9 @@ CANDIDATE_VERSION = P.CANDIDATE_VERSION
 
 #: Reading candidate marker (second round).
 READING_CANDIDATE_VERSION = P.READING_CANDIDATE_VERSION
+
+#: Person-state candidate marker (third round, registered production).
+PERSON_STATE_CANDIDATE_VERSION = P.PERSON_STATE_CANDIDATE_VERSION
 
 #: Transport-retry ownership marker: this layer never retries transport.
 TRANSPORT_RETRIES_HERE = 0
@@ -129,10 +139,12 @@ def fingerprints_for(
     """
     version = candidate_version or C.PRODUCTION_CANDIDATE_VERSION
     prompt_version = prompt_version_for(version)
-    extraction_version = (
-        READING_EXTRACTION_VERSION if version == READING_CANDIDATE_VERSION
-        else EXTRACTION_VERSION
-    )
+    if version == PERSON_STATE_CANDIDATE_VERSION:
+        extraction_version = PERSON_STATE_EXTRACTION_VERSION
+    elif version == READING_CANDIDATE_VERSION:
+        extraction_version = READING_EXTRACTION_VERSION
+    else:
+        extraction_version = EXTRACTION_VERSION
     fingerprints = {
         "request_fingerprint": C.request_fingerprint(request),
         "limits": limits.to_dict(),
@@ -145,9 +157,15 @@ def fingerprints_for(
         "plan_version": request.get("plan_version"),
         "chapter_id": request.get("chapter_id"),
     }
-    if version == READING_CANDIDATE_VERSION:
+    if version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
         fingerprints["reading_schema"] = f"{R.READING_SCHEMA}/{R.READING_VERSION}"
         fingerprints["reading_limits"] = R.ReadingLimits().to_dict()
+    if version == PERSON_STATE_CANDIDATE_VERSION:
+        fingerprints["person_state_schema"] = (
+            f"{PS.PERSON_STATE_SCHEMA}/{PS.PERSON_STATE_VERSION}"
+        )
+        fingerprints["person_state_contract"] = PS.CONTRACT_VERSION
+        fingerprints["person_state_limits"] = PS.PersonStateLimits().to_dict()
     return fingerprints
 
 
@@ -157,9 +175,13 @@ def _validate_candidate(
     """Dispatch acceptance validation to the registered version owner.
 
     0.1 stays with the frozen first-round ``chapter_contract`` validator;
-    0.2 is consumed only through the T01 ``reading_contract`` validator so
-    no second set of reading checks exists.
+    0.2 is consumed only through the T01 ``reading_contract`` validator;
+    0.3 is consumed only through the T01 ``person_state_contract`` validator
+    (which itself reuses the frozen 0.2 reading validator on the subset), so
+    no second set of reading/person-state checks exists.
     """
+    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        return PS.validate_person_state_candidate(request, candidate)
     if candidate_version == READING_CANDIDATE_VERSION:
         return R.validate_reading_annotations(request, candidate)
     return C.validate_chapter_candidate(request, candidate)
@@ -173,6 +195,10 @@ def _accept_candidate(
     producing_run: dict[str, Any],
     report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
+        return PS.accept_person_state_candidate(
+            request, candidate, producing_run=producing_run, report=report
+        )
     if candidate_version == READING_CANDIDATE_VERSION:
         return R.accept_reading_candidate(
             request, candidate, producing_run=producing_run, report=report
@@ -183,6 +209,8 @@ def _accept_candidate(
 
 
 def _flatten_report_errors(report: dict[str, Any]) -> list[str]:
+    if report.get("schema") == "chronicle.person-state-validation":
+        return PS.flatten_person_state_errors(report)
     if report.get("schema") == "chronicle.reading-validation":
         return R.flatten_reading_errors(report)
     return C.flatten_validation_errors(report)

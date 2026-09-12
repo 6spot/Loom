@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.3.schema.json",
+  "title": "Chronicle Chapter Artifact v0.3 (program-accepted output)",
+  "description": "Accepted third-round chapter artifact produced only by accept_person_state_candidate from a passing 0.3 candidate. Keeps the second-round binding (candidate, hashes, anchors, fingerprint, producing run, resolved reading units) and adds the accepted person_states block, its hash and the program-computed stable state candidate keys with resolved source anchors. The model never writes these program-owned fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "version", "chapter_id", "revision_id", "source_sha256",
+    "normalized_sha256", "candidate", "candidate_sha256", "anchors",
+    "request_fingerprint", "producing_run", "artifact_sha256", "reading",
+    "reading_sha256", "reading_units", "person_states", "person_states_sha256",
+    "person_state_candidates"
+  ],
+  "properties": {
+    "schema": {"const": "chronicle.chapter-artifact"},
+    "version": {"const": "0.3"},
+    "chapter_id": {"type": "string", "pattern": "^ch_[0-9a-f]{24}$"},
+    "revision_id": {"type": "string", "minLength": 1},
+    "source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate": {"type": "object"},
+    "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchors": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/anchor"}
+    },
+    "request_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "producing_run": {
+      "$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/producing_run"
+    },
+    "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reading": {"$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/reading"},
+    "reading_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "reading_units": {
+      "type": "array",
+      "items": {"$ref": "chronicle-chapter-artifact-v0.2.schema.json#/$defs/resolved_reading_unit"}
+    },
+    "person_states": {"$ref": "chronicle-chapter-candidate-v0.3.schema.json#/$defs/person_states"},
+    "person_states_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "person_state_candidates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/person_state_candidate"}
+    }
+  },
+  "$defs": {
+    "person_state_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_key", "kind", "item_ref", "phase_ids", "anchor_ids", "source_fact_refs"],
+      "properties": {
+        "candidate_key": {"type": "string", "pattern": "^psc_[0-9a-f]{24}$"},
+        "kind": {
+          "enum": ["phase", "phase_order", "unit_phase", "fact", "continuity", "disagreement"]
+        },
+        "item_ref": {"type": "string", "minLength": 1},
+        "phase_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "anchor_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^anc_[0-9a-f]{16}$"},
+          "uniqueItems": true
+        },
+        "source_fact_refs": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

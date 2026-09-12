@@ -1,0 +1,27 @@
+{
+  "stream_id": "0192f0a0-0000-7000-8000-00000000aa01",
+  "unit_id": "ru_deb900fb556d7ee57dc34676",
+  "catalog_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+  "state_manifest_sha": "33e38d1f0adf9ab53ec1c33af2ba93ba8c3fdf16179de9603df9d67ebe2d3230",
+  "item_id": "psi_cd1cb48a5f1eb450b47ff835",
+  "section": "evidence",
+  "phase_id": "ph_001",
+  "descriptors": [
+    {
+      "descriptor_id": "evd_001",
+      "source_publication_id": "0192f0a0-0000-7000-8000-00000000bb02",
+      "anchor_id": "anc_0000000000000000",
+      "quote": "策授瑜建威中郎將",
+      "quote_sha256": "33906a4d9bd715bde5b270f68530cd30a8969504ad5c37b7ed7de3b32f3324ba",
+      "attribution": "narrator",
+      "source_title": "周瑜傳",
+      "phase_id": "ph_001",
+      "relation": "support"
+    }
+  ],
+  "descriptor_count": 1,
+  "limit": 50,
+  "next_cursor": null,
+  "has_more": false
+}

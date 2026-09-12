@@ -1,0 +1,447 @@
+/* C2-R3-T12 章阶段依据审核表单样式。
+ * 仅作用于 .psr-* 作用域；Studio 基础 token 留在 styles/studio.css。
+ * 固定操作区、窄屏可达、颜色之外仍有文字标识（预测效果、例外、限定语）。
+ */
+
+.psr-panel {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 6.5rem;
+  max-width: 72rem;
+  min-width: 0;
+}
+
+.psr-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.psr-eyebrow {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #5b6560;
+}
+
+.psr-title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+.psr-intro,
+.psr-muted {
+  margin: 0;
+  color: #55605a;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.psr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.1rem;
+  margin: 0;
+  font-size: 0.82rem;
+  color: #5b6560;
+}
+
+.psr-warn {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #e6c46a;
+  border-left: 3px solid #c99a1f;
+  border-radius: 6px;
+  background: #fdf7e4;
+  color: #6a5312;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.psr-basis,
+.psr-person {
+  border: 1px solid #e2e6e2;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  min-width: 0;
+}
+
+.psr-basis h2,
+.psr-person-name {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.psr-basis-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.psr-basis-list li {
+  line-height: 1.8;
+}
+
+.psr-basis-list li > * {
+  margin-right: 0.6rem;
+}
+
+.psr-audit summary {
+  cursor: pointer;
+  color: #55605a;
+  font-size: 0.82rem;
+}
+
+.psr-basis-readable {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.psr-basis-readable li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.4rem 0.55rem;
+  border-left: 2px solid #cdd6ce;
+  background: #f7f9f7;
+  border-radius: 4px;
+}
+
+.psr-basis-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.psr-basis-phase {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid #8aa08a;
+  border-radius: 999px;
+  background: #eef5ec;
+  color: #2f4a2c;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.psr-rationale-only {
+  align-self: center;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed #b45309;
+  border-radius: 999px;
+  color: #8a3d0a;
+  font-size: 0.78rem;
+}
+
+.psr-basis-detail {
+  font-size: 0.82rem;
+  color: #55605a;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.psr-basis-quote {
+  margin: 0.15rem 0 0;
+  font-family: "Songti SC", serif;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.psr-review-state {
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed #b45309;
+  border-radius: 999px;
+  color: #8a3d0a;
+  font-size: 0.78rem;
+}
+
+.psr-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.psr-pagination .psr-error {
+  flex: 1 1 100%;
+}
+
+
+.psr-code {
+  margin: 0.4rem 0 0;
+  padding: 0.5rem;
+  background: #f6f7f6;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  overflow-x: auto;
+}
+
+.psr-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.psr-batch [data-test="psr-coverage"] {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.psr-empty {
+  margin: 0;
+  padding: 1rem;
+  border: 1px dashed #c9d2cb;
+  border-radius: 6px;
+  color: #55605a;
+}
+
+.psr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.psr-candidate {
+  border: 1px solid #e6eae6;
+  border-radius: 7px;
+  padding: 0.75rem 0.85rem;
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.psr-candidate[data-exception="true"] {
+  border-left: 3px solid #b45309;
+}
+
+.psr-candidate-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.psr-dimension {
+  font-weight: 600;
+}
+
+.psr-operation,
+.psr-basis-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #eef2ee;
+  color: #3f4a44;
+  font-size: 0.78rem;
+}
+
+.psr-effect {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid #cdd6ce;
+  border-radius: 999px;
+  font-size: 0.78rem;
+}
+
+.psr-effect[data-effect="current"] {
+  border-color: #6f8f6c;
+  background: #eef5ec;
+}
+
+.psr-effect[data-effect="ended"] {
+  border-color: #b45309;
+  background: #fdf1e4;
+}
+
+.psr-flow {
+  margin: 0;
+  font-family: "Songti SC", serif;
+  font-size: 1.05rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.psr-quote {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-left: 2px solid #a7b5a4;
+  background: #f5f7f2;
+  font-family: "Songti SC", serif;
+  font-size: 1rem;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.psr-source-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0;
+  font-size: 0.82rem;
+  color: #55605a;
+}
+
+.psr-attribution {
+  padding: 0.05rem 0.45rem;
+  border: 1px solid #d5dbd5;
+  border-radius: 999px;
+}
+
+.psr-source-slot {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e2e6e2;
+  border-radius: 6px;
+  background: #fbfcfb;
+}
+
+.psr-notes {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.7;
+  color: #55605a;
+}
+
+.psr-qualification {
+  color: #7c4a12;
+}
+
+.psr-reasons {
+  color: #6a5312;
+}
+
+.psr-decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+}
+
+.psr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.82rem;
+  color: #3f4a44;
+  min-width: 0;
+}
+
+.psr-field-wide {
+  flex: 1 1 16rem;
+}
+
+.psr-field select,
+.psr-field input,
+.psr-field textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #d7dcd6;
+  border-radius: 5px;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+  color: #272e2c;
+  font: inherit;
+}
+
+.psr-field textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.psr-package-rationale {
+  border-top: 1px dashed #d9dfd7;
+  padding-top: 0.75rem;
+}
+
+.psr-error {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #e0a3a3;
+  border-left: 3px solid #b42318;
+  border-radius: 6px;
+  background: #fdf2f2;
+  color: #7a1c14;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.psr-error p {
+  margin: 0;
+}
+
+.psr-notice,
+.psr-skipped {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #b7cdb5;
+  border-radius: 6px;
+  background: #f1f7ef;
+  color: #2f4a2c;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.psr-skipped {
+  border-color: #d9c489;
+  background: #fdf8ea;
+  color: #6a5312;
+}
+
+.psr-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+  padding: 0.85rem max(0.5rem, env(safe-area-inset-right))
+    calc(0.85rem + env(safe-area-inset-bottom)) 0.5rem;
+  background: #fbfcfaf2;
+  border-top: 1px solid #d7ded3;
+  box-shadow: 0 -3px 12px #25351e0b;
+}
+
+.psr-actions [data-test="psr-return"] {
+  margin-right: auto;
+}
+
+.psr-actions button {
+  min-height: 44px;
+}
+
+@media (max-width: 767px) {
+  .psr-dimension,
+  .psr-effect,
+  .psr-basis-badge {
+    white-space: normal;
+  }
+
+  .psr-actions {
+    gap: 0.45rem;
+  }
+
+  .psr-actions [data-test="psr-return"] {
+    margin-right: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .psr-actions {
+    box-shadow: none;
+  }
+}

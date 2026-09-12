@@ -1,0 +1,12 @@
+{
+  "plan_fingerprint": "b38f069c1073a252c4a87ad1709380d4f9b1d6bfa3f0a3f060db87d9390906b6",
+  "default_assessment": "uncertain",
+  "overrides": [
+    {
+      "candidate_key": "psc_edb98b7455697c20693aab13",
+      "assessment": "supported",
+      "rationale": "授任者與階段各有依據"
+    }
+  ],
+  "rationale": "逐項覆寫"
+}

@@ -1,0 +1,312 @@
+/* C2-R3-T11 阅读人物／地点当时状态组件样式。
+ *
+ * 复用 `reading-context.css` 的 `.chr-context-*` 骨架与 `.public-text-button`；
+ * 这里只补紧凑状态行、两档标记、限定语／原因、依据与详情时间轴。
+ * 颜色不是唯一信号：实心／空心、文字标签与可访问名称同时存在。
+ * 不明确项保持正常可操作，不使用整卡 opacity 或 disabled。 */
+
+.chr-context-panel.pstate-panel {
+  gap: 1rem;
+}
+
+.pstate-subject-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0;
+}
+
+.pstate-name-button {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pstate-name-button:focus-visible {
+  outline: 2px solid #884d41;
+  outline-offset: 3px;
+}
+
+.pstate-panel .chr-context-states {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.pstate-panel .chr-context-state,
+.pstate-detail-items .chr-context-state {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-height: 1.6rem;
+}
+
+.pstate-panel .chr-context-state[data-certainty="uncertain"],
+.pstate-detail-items .chr-context-state[data-certainty="uncertain"] {
+  color: #696e67;
+}
+
+.pstate-panel .chr-state-mark,
+.pstate-detail-items .chr-state-mark,
+.pstate-timeline .chr-state-mark {
+  flex: none;
+  font-size: 0.45rem;
+}
+
+.pstate-item-label {
+  color: #696e67;
+  font-size: 0.7rem;
+}
+
+.pstate-item-value {
+  font-weight: 500;
+}
+
+.pstate-qualification {
+  font-size: 0.7rem;
+}
+
+.pstate-reason {
+  align-self: flex-start;
+  padding: 0 0.35rem;
+  border: 1px solid #c9c7bd;
+  border-radius: 3px;
+  color: #5c615b;
+  font-size: 0.68rem;
+  text-align: left;
+}
+
+.pstate-evidence {
+  display: inline;
+}
+
+.pstate-evidence-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+}
+
+.pstate-evidence-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #884d41;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.pstate-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pstate-source-button,
+.pstate-event-button {
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 4px;
+  color: #884d41;
+  font-size: 0.72rem;
+}
+
+.pstate-more {
+  min-height: 2.75rem;
+  padding: 0.4rem 0;
+  border: 0;
+  background: transparent;
+  color: #696e67;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.pstate-more:focus-visible {
+  outline: 2px solid #884d41;
+  outline-offset: 3px;
+}
+
+.pstate-phase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  color: #5c615b;
+  font-size: 0.7rem;
+}
+
+.pstate-phase small {
+  color: #696e67;
+}
+
+.pstate-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e3db;
+  color: #696e67;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.pstate-empty {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pstate-empty small {
+  color: #696e67;
+}
+
+.pstate-loading,
+.pstate-error {
+  color: #696e67;
+  font-size: 0.8rem;
+  line-height: 1.8;
+}
+
+.pstate-error {
+  padding: 0.75rem;
+  border: 1px solid #e3c9a3;
+  border-radius: 8px;
+  background: #fdf4e3;
+}
+
+.pstate-error .public-text-button {
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  padding-left: 0;
+  color: #884d41;
+}
+
+/* ------------------------------------------------------------- 人物详情 */
+
+.pstate-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pstate-intro {
+  margin: 0 0 0.5rem;
+  line-height: 1.8;
+}
+
+.pstate-section-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #696e67;
+}
+
+.pstate-detail-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-timeline-entry {
+  display: grid;
+  gap: 0.25rem;
+  padding-left: 0.9rem;
+  border-left: 2px solid #e5e3db;
+}
+
+.pstate-timeline-stage {
+  color: #884d41;
+  font-size: 0.75rem;
+}
+
+.pstate-timeline-text {
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  line-height: 1.9;
+}
+
+.pstate-timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: #696e67;
+  font-size: 0.72rem;
+}
+
+.pstate-inline-source {
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  padding-left: 0;
+  color: #884d41;
+  font-size: 0.72rem;
+}
+
+.pstate-timeline-empty {
+  color: #696e67;
+  font-size: 0.8rem;
+}
+
+.pstate-related {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pstate-related li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e5e3db;
+}
+
+.pstate-related small {
+  color: #696e67;
+}
+
+.pstate-attribution {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #d8d0c2;
+  border-radius: 999px;
+  color: #5c615b;
+  font-size: 0.68rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pstate-panel *,
+  .pstate-details * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

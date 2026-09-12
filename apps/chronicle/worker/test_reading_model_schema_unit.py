@@ -109,16 +109,20 @@ class ReadingProjectionTests(unittest.TestCase):
         self.assertEqual(["units", "warnings"], reading["required"])
         self.assertNotIn("$ref", json.dumps(reading))
 
-    def test_version_dispatch_keeps_0_1_and_0_2_apart(self) -> None:
+    def test_version_dispatch_keeps_0_1_0_2_0_3_apart(self) -> None:
         legacy = S.chapter_candidate_text_format_for("0.1")
         reading = S.chapter_candidate_text_format_for("0.2")
+        person_state = S.chapter_candidate_text_format_for("0.3")
         self.assertNotIn("reading", legacy["schema"]["properties"])
         self.assertEqual("0.1", legacy["schema"]["properties"]["version"]["const"])
         self.assertIn("reading", reading["schema"]["properties"])
+        self.assertNotIn("person_states", reading["schema"]["properties"])
         self.assertEqual("0.2", reading["schema"]["properties"]["version"]["const"])
-        self.assertEqual(reading, S.chapter_candidate_text_format())
-        with self.assertRaises(ValueError):
-            S.chapter_candidate_text_format_for("0.3")
+        self.assertIn("reading", person_state["schema"]["properties"])
+        self.assertIn("person_states", person_state["schema"]["properties"])
+        self.assertEqual("0.3", person_state["schema"]["properties"]["version"]["const"])
+        # The production format is now the 0.3 person-state projection.
+        self.assertEqual(person_state, S.chapter_candidate_text_format())
 
     def test_projection_carries_no_program_generated_fields(self) -> None:
         schema = S.reading_chapter_candidate_model_schema()

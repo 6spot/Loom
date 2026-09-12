@@ -23,6 +23,16 @@ export const BASE_SUITE = "harness";
 export const FIXTURE_PATH = "/tests/fixtures/reading/index.html";
 export const HARNESS_SCENE = "harness/base-reading-window";
 
+// --- C2-R3-T01 third-round suites ----------------------------------------
+// `r3-harness` is the D02 interaction harness reused as the third-round
+// base; `person-states` / `person-state-review` are the T11/T12 component
+// suites. `r3-all` requires every component suite to exist and pass, so a
+// missing spec fails instead of silently passing.
+export const R3_BASE_SUITE = "r3-harness";
+export const R3_COMPONENT_SUITES = ["person-states", "person-state-review"];
+export const R3_ALL_SUITE = "r3-all";
+export const R3_SUITE_NAMES = [R3_BASE_SUITE, ...R3_COMPONENT_SUITES, R3_ALL_SUITE];
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 export function fixtureUrl(baseUrl, params = {}) {
@@ -250,14 +260,23 @@ async function runBaseHarnessSuite(ctx) {
  */
 export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir = null }) {
   if (!baseUrl) throw new Error("reading harness: baseUrl is required");
-  if (suite !== "all" && !SUITE_NAMES.includes(suite)) {
-    throw new Error(`reading harness: unknown suite ${suite}; expected ${[...SUITE_NAMES, "all"].join("|")}`);
+  const validSuites = [...SUITE_NAMES, ...R3_SUITE_NAMES];
+  if (suite !== "all" && !validSuites.includes(suite)) {
+    throw new Error(
+      `reading harness: unknown suite ${suite}; expected ${[...validSuites, "all"].join("|")}`,
+    );
   }
-  const requested = suite === "all" ? SUITE_NAMES.slice() : [suite];
+  let requested;
   if (suite === "all") {
+    requested = SUITE_NAMES.slice();
     for (const required of COMPONENT_SUITES) {
       if (!requested.includes(required)) requested.push(required);
     }
+  } else if (suite === R3_ALL_SUITE) {
+    // r3-all must fail if any third-round component spec is missing.
+    requested = [R3_BASE_SUITE, ...R3_COMPONENT_SUITES];
+  } else {
+    requested = [suite];
   }
 
   const browser = await chromium.launch();
@@ -269,6 +288,8 @@ export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir 
       try {
         if (name === BASE_SUITE) {
           runner = await runBaseHarnessSuite(ctx);
+        } else if (name === R3_BASE_SUITE || R3_COMPONENT_SUITES.includes(name)) {
+          runner = await runR3Suite(name, ctx);
         } else {
           runner = await runComponentSuite(name, ctx);
         }
@@ -288,10 +309,13 @@ export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir 
   }
 
   const ok = results.every((result) => result.ok);
+  const isThirdRound = requested.some(
+    (name) => name === R3_BASE_SUITE || R3_COMPONENT_SUITES.includes(name),
+  );
   const payload = {
     schema: "chronicle.reading-component-harness",
     version: "0.1",
-    task: "C2-R2-T02",
+    task: isThirdRound ? "C2-R3-T01" : "C2-R2-T02",
     base_url: baseUrl,
     requested_suite: suite,
     ok,
@@ -302,6 +326,77 @@ export async function runReadingSuites({ baseUrl, suite = BASE_SUITE, outputDir 
     writeFileSync(join(outputDir, "result.json"), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
   }
   return payload;
+}
+
+/**
+ * Run a third-round suite. `r3-harness` reuses the D02 interaction harness
+ * (`tests/reading-browser/person-state-harness.mjs`); the component suites
+ * are owned by T11/T12 and must provide their own `reading-browser/<name>.mjs`
+ * exporting `run(ctx)`. A missing file fails explicitly.
+ */
+async function runR3Suite(name, ctx) {
+  const runner = new SuiteRunner(name, ctx.outputDir);
+  runner.browser = ctx.browser;
+  const specPath = join(HERE, "person-state-harness.mjs");
+  if (!existsSync(specPath)) {
+    throw new Error(
+      `reading ${name} suite: FAIL: suite_not_implemented: ${specPath} 不存在（第三轮基座由 T01/D02 交付）`,
+    );
+  }
+  const spec = await import(pathToFileURL(specPath).href);
+  if (typeof spec.run !== "function") {
+    throw new Error(`reading ${name} suite: FAIL: ${specPath} 未导出 run(ctx)`);
+  }
+  const r3ctx = {
+    baseUrl: ctx.baseUrl,
+    outputDir: ctx.outputDir,
+    browser: ctx.browser,
+    runner,
+    check: (label, condition, detail = "") => runner.check(label, condition, detail),
+    info: (label, value) => runner.info(label, value),
+    screenshot: (page, label) => runner.screenshot(page, label),
+    openScene: async (target, options) => {
+      const page = await runner.newPage(options ?? { viewport: { width: 1440, height: 900 } });
+      if (name === R3_BASE_SUITE) {
+        await page.goto(spec.fixtureUrl(ctx.baseUrl, { case: target }), { waitUntil: "networkidle" });
+        return page;
+      }
+      const url = /^https?:/.test(target)
+        ? target
+        : new URL(
+            target,
+            ctx.baseUrl.endsWith("/") ? ctx.baseUrl : `${ctx.baseUrl}/`,
+          ).toString();
+      await page.goto(url, { waitUntil: "networkidle" });
+      return page;
+    },
+  };
+  if (name === R3_BASE_SUITE) {
+    r3ctx.scene = "all";
+    try {
+      await spec.run(r3ctx);
+    } finally {
+      await runner.closePages();
+    }
+    return runner;
+  }
+  const componentPath = join(HERE, `${name}.mjs`);
+  if (!existsSync(componentPath)) {
+    throw new Error(
+      `reading ${name} suite: FAIL: suite_not_implemented: ${componentPath} 不存在` +
+        "（T11/T12 需新增自己的 reading-browser/" + name + ".mjs 与 scene/spec）",
+    );
+  }
+  const component = await import(pathToFileURL(componentPath).href);
+  if (typeof component.run !== "function") {
+    throw new Error(`reading ${name} suite: FAIL: ${componentPath} 未导出 run(ctx)`);
+  }
+  try {
+    await component.run(r3ctx);
+  } finally {
+    await runner.closePages();
+  }
+  return runner;
 }
 
 async function runComponentSuite(name, ctx) {
