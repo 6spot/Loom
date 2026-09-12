@@ -6,6 +6,8 @@
 // directly. Job detail is the server's safe projection: model prompts, raw
 // responses and candidates are intentionally not part of these types.
 
+import type { Assessment, AssessmentOverlay, ReviewScope } from "./person-state-types";
+
 export class StudioApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -272,7 +274,10 @@ export interface ReviewSummary {
   job_status: JobStatus;
   revision_id: string;
   document: ReviewDocumentContext;
-  scope: "resolution" | "narrative";
+  // §5.1 mixed queue: the union keeps resolution, narrative (facts/prose) and
+  // the new person_state package distinguishable; adding the third scope must
+  // never narrow away the existing two.
+  scope: "resolution" | "narrative" | "person_state";
   narrative_kind?: "facts" | "prose";
   candidate_sha?: string;
   link_kind: ReviewLinkKind;
@@ -293,6 +298,12 @@ export interface ReviewSummary {
   suggestion: ReviewSuggestion;
   decision: ReviewChosenDecision | null;
   plan_fingerprint?: string | null;
+  // Person-state package summary fields (omitted for the other scopes).
+  review_mode?: "chapter_state_evidence" | string | null;
+  chapter_id?: string | null;
+  candidate_count?: number;
+  default_assessment?: Assessment;
+  allowed_assessments?: Assessment[];
 }
 
 export interface ReviewDetail extends ReviewSummary {
@@ -439,6 +450,8 @@ export interface ReviewPageQuery {
   status?: ReviewStatus | "all";
   jobId?: string | null;
   linkKind?: ReviewLinkKind | null;
+  /** Omitted keeps the legacy resolution scope (§5.1); `all` is explicit. */
+  reviewScope?: ReviewScope;
   limit?: number;
   cursor?: string | null;
 }
@@ -450,6 +463,7 @@ export interface ReviewPage {
     status: ReviewStatus | "all";
     job_id: string | null;
     link_kind: ReviewLinkKind | null;
+    review_scope?: ReviewScope;
     limit: number;
   };
   items: ReviewSummary[];
@@ -598,6 +612,31 @@ export async function submitNarrativeDecision(auth: string | null, reviewId: str
   })).review;
 }
 
+/**
+ * Submit one chapter person-state evidence assessment package (§5.1 decision
+ * branch). The payload is fixed to
+ * `{plan_fingerprint, default_assessment, overrides, rationale}`: passing a
+ * `AssessmentOverlay` (built from the frozen review package) is what keeps the
+ * identity/state decision impossible to mix with a resolution or narrative
+ * payload. The server still enforces the frozen fingerprint and candidate
+ * coverage; a wrong-scope or drifted submission surfaces as a typed 400/409.
+ */
+export async function submitPersonStateAssessment(
+  auth: string | null,
+  reviewId: string,
+  overlay: AssessmentOverlay,
+): Promise<ReviewDetail> {
+  const payload = {
+    plan_fingerprint: overlay.plan_fingerprint,
+    default_assessment: overlay.default_assessment,
+    overrides: overlay.overrides,
+    rationale: overlay.rationale,
+  };
+  return (await studioRequest<ReviewResponse>(auth, `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  })).review;
+}
+
 export interface NarrativeSourceChoices {
   catalog_sha: string | null;
   items: Array<{ publication_id: string; document_title: string; chapter_id: string; revision_no: number; title: string }>;
@@ -620,6 +659,21 @@ export async function listReviewPage(
   params.set("status", query.status ?? "open");
   if (query.jobId) params.set("job_id", query.jobId);
   if (query.linkKind) params.set("link_kind", query.linkKind);
+  // §5.1: an omitted review_scope keeps the legacy resolution queue (which
+  // still includes the narrative facts/prose entries); callers that want the
+  // R3 mixed queue must ask for `all` explicitly.
+  if (query.reviewScope) {
+    // link_kind belongs to the resolution surface only; mixing it with
+    // person_state/all is the same 400 the server enforces.
+    if (query.linkKind && query.reviewScope !== "resolution") {
+      throw new StudioApiError(
+        400,
+        "invalid_scope",
+        "link_kind 只能与 review_scope=resolution 组合使用",
+      );
+    }
+    params.set("review_scope", query.reviewScope);
+  }
   params.set("limit", String(query.limit ?? 50));
   if (query.cursor) params.set("cursor", query.cursor);
   return studioRequest<ReviewPage>(auth, `${REVIEWS_API}?${params.toString()}`);
