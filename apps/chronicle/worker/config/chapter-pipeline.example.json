@@ -1,0 +1,18 @@
+{
+  "version": "0.1",
+  "models": {
+    "executor": { "model": "replace-with-primary-model", "max_output_tokens": 32768 },
+    "reviewer": { "model": "replace-with-review-model", "max_output_tokens": 8192 }
+  },
+  "steps": {
+    "translation": ["executor"],
+    "extraction": ["executor"],
+    "comparison": ["reviewer"],
+    "linking": ["executor"],
+    "review": ["executor", "reviewer"],
+    "repair": ["executor"]
+  },
+  "max_parallel": 2,
+  "max_step_attempts": 2,
+  "max_repair_rounds": 1
+}

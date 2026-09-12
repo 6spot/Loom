@@ -5,7 +5,7 @@ Narrow persistence for complete natural-chapter joint products behind
 ``chapter-production.md`` sections 5/7:
 
 - :func:`record_accepted_chapter_fenced` accepts only a fully validated
-  ``chronicle.chapter-artifact / 0.1`` or ``/ 0.2`` (the T01 artifact is
+  registered ``chronicle.chapter-artifact`` (the contract artifact is
   the sole accepted input) and commits the artifact row, the chunk
   accepted pointer, and the chunk ``completed`` status in one
   lease-fenced transaction. A 0.2 candidate is validated and accepted
@@ -13,7 +13,8 @@ Narrow persistence for complete natural-chapter joint products behind
   program-resolved reading annotations), a 0.1 candidate through the
   frozen first-round contract. Partial products, wrong revisions,
   unknown producing runs, lost leases, and hash conflicts are rejected;
-  repeating the identical artifact is idempotent.
+  repeating the identical artifact is idempotent. New 0.4 products also
+  require an acceptance receipt bound to the run and persisted step outputs.
 - :func:`read_accepted_chapters` / :func:`read_accepted_chapter` return
   already-accepted complete results so a restarted worker resumes from
   the accepted artifact instead of creating a second chapter queue/run.
@@ -60,6 +61,7 @@ import chapter_contract as chapter_contract  # noqa: E402
 import control_plane as control_plane  # noqa: E402
 import person_state_contract as person_state_contract  # noqa: E402
 import reading_contract as reading_contract  # noqa: E402
+import staged_chapter_contract as staged_chapter_contract  # noqa: E402
 from common import (  # noqa: E402
     LeaseLost,
     PersistenceConflict,
@@ -119,12 +121,12 @@ def record_accepted_chapter_fenced(
     request: dict[str, Any],
     candidate: dict[str, Any],
     producing_run: dict[str, Any],
+    production_receipt: dict[str, Any] | None = None,
 ) -> str:
     """Accept one complete chapter joint product under the job lease.
 
     The candidate is always re-validated against this exact request via
-    the owning T01 contract (0.1 ``chapter_contract`` or 0.2
-    ``reading_contract``); a caller-supplied report can never substitute
+    the owning versioned contract; a caller-supplied report can never substitute
     for that check. On success the accepted artifact row, the chunk
     accepted pointer (``checkpoint.accepted_chapter_artifact``), and the
     chunk ``completed`` status commit atomically. Repeating the identical
@@ -161,7 +163,12 @@ def record_accepted_chapter_fenced(
     # the program-computed state candidate keys.
     accepted_run = {**producing_run, "run_id": str(producing_run_id)}
     candidate_version = candidate.get("version")
-    if candidate_version == person_state_contract.CANDIDATE_VERSION:
+    if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+        artifact = staged_chapter_contract.accept_staged_candidate(
+            request, candidate, producing_run=accepted_run,
+            production_receipt=production_receipt,
+        )
+    elif candidate_version == person_state_contract.CANDIDATE_VERSION:
         artifact = person_state_contract.accept_person_state_candidate(
             request, candidate, producing_run=accepted_run
         )
@@ -178,15 +185,17 @@ def record_accepted_chapter_fenced(
             "chapter candidate version must be "
             f"{chapter_contract.CANDIDATE_VERSION!r}, "
             f"{reading_contract.CANDIDATE_VERSION!r} or "
-            f"{person_state_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
+            f"{person_state_contract.CANDIDATE_VERSION!r} or "
+            f"{staged_chapter_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
         )
     if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (
         ARTIFACT_VERSION,
         reading_contract.ARTIFACT_VERSION,
         person_state_contract.ARTIFACT_VERSION,
+        staged_chapter_contract.ARTIFACT_VERSION,
     ):
         raise PersistenceError(
-            "accepted artifact must be chronicle.chapter-artifact/0.1, /0.2 or /0.3"
+            "accepted artifact must be chronicle.chapter-artifact/0.1, /0.2, /0.3 or /0.4"
         )
     chapter_id = artifact["chapter_id"]
     if not isinstance(chapter_id, str) or not chapter_id:
@@ -199,6 +208,13 @@ def record_accepted_chapter_fenced(
         # Lease fence first: cancelled jobs and taken-over leases hold no
         # lease for this worker, so stale execution halts here.
         control_plane.require_job_lease(conn, job_id=job_id, worker=worker)
+        if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+            # Staged results may arrive after a long model wait. Reuse the
+            # existing wall-clock fence without changing frozen generations'
+            # owner-only acceptance contract.
+            from resolve_publish import require_unexpired_lease
+
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
 
         _job_id, job_revision_id, job_status, _lease_owner = _job_row_for_update(
             conn, job_id=job_id
@@ -213,16 +229,21 @@ def record_accepted_chapter_fenced(
                 f"revision {job_revision_id} of job {job_id}"
             )
         revision_row = conn.execute(
-            "SELECT document_id FROM chronicle.document_revisions WHERE revision_id = %s",
+            "SELECT document_id, source_sha256 FROM chronicle.document_revisions WHERE revision_id = %s",
             (job_revision_id,),
         ).fetchone()
         if revision_row is None:  # pragma: no cover - FK guards this
             raise PersistenceError(f"unknown revision {job_revision_id}")
         document_id = revision_row[0]
+        if candidate_version == staged_chapter_contract.CANDIDATE_VERSION and (
+            revision_row[1] != request.get("source_sha256")
+        ):
+            raise PersistenceConflict("staged request source_sha256 differs from its source revision")
 
         chunk_row = conn.execute(
             """
-            SELECT job_id, status, checkpoint
+            SELECT job_id, status, checkpoint, source_start, source_end,
+                   source_sha256, content_sha256
             FROM chronicle.ingestion_chunks WHERE chunk_id = %s FOR UPDATE
             """,
             (chunk_id,),
@@ -234,6 +255,14 @@ def record_accepted_chapter_fenced(
                 f"chunk {chunk_id} belongs to job {chunk_row[0]}, not job {job_id}"
             )
         chunk_status = chunk_row[1]
+        if candidate_version == staged_chapter_contract.CANDIDATE_VERSION and (
+            (chunk_row[3], chunk_row[4]) != (request.get("chapter_start"), request.get("chapter_end"))
+            or chunk_row[5] != request.get("source_sha256")
+            or chunk_row[6] != request.get("normalized_sha256")
+        ):
+            raise PersistenceConflict(
+                "staged source scope coordinates/hashes differ from the persisted chapter chunk"
+            )
 
         run_row = conn.execute(
             """
@@ -268,6 +297,48 @@ def record_accepted_chapter_fenced(
                 f"chapter request fingerprint {request_fingerprint!r} (hash drift)"
             )
 
+        if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+            # A structurally valid candidate is not content acceptance. The
+            # producing run and immutable output must both name this exact
+            # receipt, which in turn binds the reviewed candidate/history.
+            if not isinstance(run_checkpoint, dict) or (
+                run_checkpoint.get("production_receipt") != production_receipt
+                or run_checkpoint.get("request_fingerprint") != request_fingerprint
+            ):
+                raise PersistenceConflict(
+                    "staged producing run is not bound to this production receipt/request"
+                )
+            receipt_sha = sha256_json(production_receipt)
+            receipt_row = conn.execute(
+                """
+                SELECT payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND revision_id = %s
+                  AND artifact_type = 'chapter-production-acceptance'
+                  AND artifact_sha256 = %s
+                """,
+                (job_id, job_revision_id, receipt_sha),
+            ).fetchone()
+            if receipt_row is None or receipt_row[0] != production_receipt:
+                raise PersistenceConflict(
+                    "staged production receipt is missing or differs from its persisted output"
+                )
+            output_shas = production_receipt["step_output_sha256s"]
+            step_rows = conn.execute(
+                """
+                SELECT artifact_sha256, payload FROM chronicle.ingestion_outputs
+                WHERE job_id = %s AND revision_id = %s
+                  AND artifact_sha256 = ANY(%s)
+                """,
+                (job_id, job_revision_id, output_shas),
+            ).fetchall()
+            verified_shas = {
+                row[0] for row in step_rows if sha256_json(row[1]) == row[0]
+            }
+            if verified_shas != set(output_shas):
+                raise PersistenceConflict(
+                    "staged production receipt references missing or drifted step outputs"
+                )
+
         # Idempotency: the same (job, chapter) key with the same bytes is
         # a replay; with different bytes it is an immutability conflict.
         existing = conn.execute(
@@ -290,6 +361,8 @@ def record_accepted_chapter_fenced(
             _point_chunk_at_artifact(conn, chunk_id=chunk_id, artifact_sha256=artifact_sha256,
                                      request_fingerprint=request_fingerprint,
                                      chunk_status=chunk_status)
+            if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+                require_unexpired_lease(conn, job_id=job_id, worker=worker)
             return artifact_sha256
 
         try:
@@ -344,6 +417,8 @@ def record_accepted_chapter_fenced(
                             (chunk_id,),
                         ).fetchone()[0],
                     )
+                    if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+                        require_unexpired_lease(conn, job_id=job_id, worker=worker)
                     return artifact_sha256
                 raise PersistenceConflict(
                     f"chapter artifact {artifact_sha256} conflicts with a persisted row"
@@ -358,6 +433,8 @@ def record_accepted_chapter_fenced(
         _point_chunk_at_artifact(conn, chunk_id=chunk_id, artifact_sha256=artifact_sha256,
                                  request_fingerprint=request_fingerprint,
                                  chunk_status=chunk_status)
+        if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
     return artifact_sha256
 
 

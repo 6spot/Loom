@@ -1,5 +1,9 @@
 # Chronicle 第一轮：章节内容生产与完整译文契约
 
+新任务的整章纯译文、独立提取、阶段保存及内容审核由
+[分阶段章节生产（0.4）](staged-chapter-production.md) 接续。下文 0.1–0.3
+联合生成与原注翻译规则用于解释这些冻结版本；0.4 不再使用一次联合输出。
+
 状态：**本轮实现契约，尚未实现**。协调 Issue [#548](https://github.com/6spot/Loom/issues/548)，执行图见 [第一轮 Task Ledger](../../../docs/tasks/chronicle/first-round/README.md)。本文固定实施选择，不把当前 C1 代码描述为已经具备这些能力。
 
 第二轮的 0.2 阅读注解、连续 stream 和事件位置扩展见 [continuous-reading.md](continuous-reading.md)，由 #549 的独立任务交付；本文的第一轮 0.1 验收不以第二轮实现为前提。

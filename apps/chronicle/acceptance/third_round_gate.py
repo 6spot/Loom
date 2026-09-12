@@ -121,6 +121,7 @@ from reading_scale_fixture import (  # noqa: E402
     parse_scale_result,
 )
 
+import chapter_contract  # noqa: E402
 import fixture_model  # noqa: E402
 import narrative_contract  # noqa: E402
 
@@ -136,7 +137,7 @@ from second_round_gate import (  # noqa: E402
     _event_ids_from_units,
 )
 
-R3_CHAPTER_MODEL = "gate-fixture:person-state-chapter"
+R3_CHAPTER_MODEL = "fixture:gate-r3:person-state-chapter"
 R3_NARRATIVE_MODEL = "gate-fixture:narrative"
 
 
@@ -194,7 +195,7 @@ def require_fixture_env(config: dict[str, str]) -> None:
 def require_live_env(config: dict[str, str]) -> dict[str, Any]:
     """Strict live-provider preflight for the third round.
 
-    The live run must produce the 0.3 joint chapter candidate and the
+    The live run must produce the current staged chapter candidate and the
     two-gate synthesis draft from the same real provider; a missing model is
     refused instead of silently degrading to a fixture or partial chain.
     """
@@ -208,13 +209,15 @@ def require_live_env(config: dict[str, str]) -> dict[str, Any]:
     for key in ("CHRONICLE_CHAPTER_MODEL", "CHRONICLE_NARRATIVE_MODEL"):
         if not config.get(key, "").strip():
             raise GateError(f"missing required live configuration: {key}")
+    if config["CHRONICLE_CHAPTER_MODEL"].strip().startswith("fixture:"):
+        raise GateError("live mode refuses the frozen fixture chapter model entry")
     parsed = urllib.parse.urlparse(config["CHRONICLE_MODEL_ENDPOINT"])
     if parsed.username is not None or parsed.password is not None:
         raise GateError("CHRONICLE_MODEL_ENDPOINT must not embed credentials")
     provider = safe_provider(config)
     provider["chapter_model"] = config["CHRONICLE_CHAPTER_MODEL"]
     provider["narrative_model"] = config["CHRONICLE_NARRATIVE_MODEL"]
-    provider["candidate_version"] = "0.3"
+    provider["candidate_version"] = chapter_contract.PRODUCTION_CANDIDATE_VERSION
     return provider
 
 
@@ -544,8 +547,8 @@ def write_stack_env(
     config["CHRONICLE_PORT"] = str(web_port)
     config["CHRONICLE_BIND_IP"] = "127.0.0.1"
     config["CHRONICLE_MODEL_ENDPOINT"] = endpoint
-    # The paired suffix selects the 0.3 candidate generation inside the worker
-    # (chapter_stage.candidate_version_for_model) and the synthesis model.
+    # Use the explicit frozen fixture entry for the 0.3 joint chapter model;
+    # a person-state-chapter suffix alone must not downgrade a live provider.
     config["CHRONICLE_CHAPTER_MODEL"] = R3_CHAPTER_MODEL
     config["CHRONICLE_NARRATIVE_MODEL"] = R3_NARRATIVE_MODEL
     config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
@@ -1629,7 +1632,7 @@ def run_live(
         evidence.data["t15_handoff"] = {
             "steps": [
                 "start an isolated Compose stack on a fresh CHRONICLE_DATA_DIR",
-                "upload the frozen whole chapters through Studio and queue 0.3 jobs",
+                "upload the frozen whole chapters through Studio and queue staged jobs",
                 "resolve every identity and chapter_state_evidence review by hand",
                 "explicitly select published sources and run the comprehensive job",
                 "resolve the facts review and the prose review by hand",

@@ -50,6 +50,7 @@ const SCOPE_FILTERS: Array<{ value: ReviewQueueScope; label: string }> = [
   { value: "all", label: "全部范围" },
   { value: "resolution", label: "身份／综合内容" },
   { value: "person_state", label: "阶段依据" },
+  { value: "chapter_content", label: "章节内容" },
 ];
 
 const PAGE_LIMIT = 50;
@@ -228,17 +229,17 @@ export default function StudioReviewPage() {
                   <div className="studio-stack studio-stack-tight">
                     <div className="studio-row-title">
                       <Badge>{reviewStatusLabel(review.status)}</Badge>
-                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "阶段依据" : reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "阶段依据" : review.scope === "chapter_content" ? "章节内容" : reviewLinkKindLabel(review.link_kind)}</Badge>
                       <strong>{review.document.title}</strong>
                       <span className="studio-muted">第 {review.document.revision_no} 版</span>
                       {review.review_id === currentId ? <Badge>上次位置</Badge> : null}
                     </div>
                     <div>
                       <strong>{review.left_label ?? "已发布侧记录"}</strong>
-                      {review.scope !== "narrative" ? <><span className="studio-muted"> ↔ </span><strong>{review.right_label ?? "本次来源记录"}</strong></> : null}
+                      {review.scope === "resolution" ? <><span className="studio-muted"> ↔ </span><strong>{review.right_label ?? "本次来源记录"}</strong></> : null}
                     </div>
                     <div className="studio-muted">
-                      {review.scope === "narrative" ? "完整章节语境 · 结论、依据与版本固定" : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
+                      {review.scope === "chapter_content" ? `${review.issue_count ?? 0} 条核对意见 · ${review.history_count ?? 0} 份完整处理记录` : review.scope === "narrative" ? "完整章节语境 · 结论、依据与版本固定" : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
                       {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
                       {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
                       {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}

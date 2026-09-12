@@ -25,6 +25,7 @@ import type {
 import { ReviewEvidenceSection } from "../../components/studio/ReviewEvidencePanel";
 import NarrativeReviewPanel from "../../components/studio/NarrativeReviewPanel";
 import PersonStateReviewPanel from "../../components/studio/PersonStateReviewPanel";
+import ChapterContentReviewPanel from "../../components/studio/ChapterContentReviewPanel";
 import {
   buildAssessmentOverlay,
   createDraft,
@@ -794,6 +795,13 @@ export default function StudioReviewDetailPage() {
   if (review.isLoading) return <p className="studio-muted">正在读取审核项…</p>;
   if (review.error) return <p className="studio-error">{errorText(review.error)}</p>;
   if (!item) return <p className="studio-muted">审核项不存在。</p>;
+
+  if (item.scope === "chapter_content" && item.chapter_content) return <ChapterContentReviewPanel
+    key={`${scope.reviewScope}:${item.review_id}:${item.chapter_content.plan_fingerprint}`}
+    item={item} queueScope={scope.reviewScope}
+    onNext={() => advance({ createdAt: item.created_at, reviewId: item.review_id })}
+    onSkip={skipCurrent} onReturn={backToQueue}
+    navigationNote={endState ? (endState.kind === "empty" ? "当前范围暂无待审项；后台处理完成后，新内容会进入队列。" : "本轮已查看，可返回队列继续检查。") : advanceNote} />;
 
   if (item.scope === "narrative" && item.narrative) return <NarrativeReviewPanel key={`${item.review_id}:${item.candidate_sha}`}
     item={item} onNext={() => advance({ createdAt: item.created_at, reviewId: item.review_id })}

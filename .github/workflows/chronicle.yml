@@ -26,6 +26,13 @@ on:
       - "apps/chronicle/persistence/assembly.py"
       - "apps/chronicle/persistence/review_subjects.py"
       - "apps/chronicle/worker/fixture_model.py"
+      - "apps/chronicle/persistence/*chapter*"
+      - "apps/chronicle/worker/*chapter*"
+      - "apps/chronicle/worker/*staged*"
+      - "apps/chronicle/worker/model_provider.py"
+      - "apps/chronicle/worker/requirements.txt"
+      - "apps/chronicle/worker/config/**"
+      - "apps/chronicle/ingestion/schemas/*v0.4*"
       - "apps/chronicle/persistence/*narrative*"
       - "apps/chronicle/persistence/migrations/0008_*"
       - "apps/chronicle/worker/*narrative*"
@@ -99,6 +106,10 @@ jobs:
             while IFS= read -r path; do
               [[ -n "$path" ]] || continue
               case "$path" in
+                apps/chronicle/persistence/*chapter*|apps/chronicle/worker/*chapter*|apps/chronicle/worker/*staged*|apps/chronicle/worker/model_provider.py|apps/chronicle/worker/requirements.txt|apps/chronicle/worker/config/*|apps/chronicle/ingestion/schemas/*v0.4*)
+                  relevant=true
+                  break
+                  ;;
                 apps/chronicle/persistence/*narrative*|apps/chronicle/persistence/migrations/0008_*|apps/chronicle/worker/*narrative*|apps/chronicle/worker/ingestion_worker.py|apps/chronicle/read_api/history.py|apps/chronicle/read_api/studio_*.py|apps/chronicle/corpus/reading-enhancement/*|apps/chronicle/corpus/test_corroboration_cases.py|apps/chronicle/webapp/src/*|apps/chronicle/webapp/scripts/*component-smoke.mjs)
                   relevant=true
                   break
@@ -334,7 +345,8 @@ jobs:
         run: |
           python3 -m pip install \
             -r apps/chronicle/persistence/requirements.txt \
-            -r apps/chronicle/read_api/requirements.txt
+            -r apps/chronicle/read_api/requirements.txt \
+            -r apps/chronicle/worker/requirements.txt
 
       - name: Install webapp and Playwright
         run: |
@@ -343,6 +355,13 @@ jobs:
 
       - name: Third-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_third_round_gate.py' -v
+
+      - name: Staged chapter production and content-review PostgreSQL regressions
+        run: |
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_staged_chapter_store_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_comparison_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
 
       - name: Third-round person-state corpus and contract tests
         run: |

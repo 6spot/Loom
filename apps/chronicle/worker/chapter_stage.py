@@ -90,7 +90,7 @@ CHAPTER_PLAN_OUTPUT_TYPE = "chapter-review-plan"
 #: chapter path fails closed instead of faking success.
 CHAPTER_FIXTURE_PACK_ENV = "CHRONICLE_CHAPTER_FIXTURE_PACK"
 
-#: Formal production entry for the live joint chapter model.
+#: Formal production entry for staged natural-chapter models.
 CHAPTER_MODEL_ENV = "CHRONICLE_CHAPTER_MODEL"
 CHAPTER_ENDPOINT_ENV = "CHRONICLE_MODEL_ENDPOINT"
 CHAPTER_API_KEY_ENV = "CHRONICLE_MODEL_API_KEY"
@@ -104,7 +104,7 @@ CHAPTER_API_KEY_ENV = "CHRONICLE_MODEL_API_KEY"
 def chapter_model_from_env(
     env: dict[str, str] | os._Environ[str] | None = None,
 ) -> Any | None:
-    """Select the joint chapter model provider, or None when unconfigured.
+    """Select staged production models, or a frozen explicit fixture.
 
     ``CHRONICLE_CHAPTER_FIXTURE_PACK`` is the explicit test-injection
     entry (a development chapter fixture pack path). Otherwise
@@ -117,7 +117,8 @@ def chapter_model_from_env(
     fixture_pack = (source.get(CHAPTER_FIXTURE_PACK_ENV) or "").strip()
     chapter_name = (source.get(CHAPTER_MODEL_ENV) or "").strip()
     if fixture_pack:
-        if chapter_name or (source.get(CHAPTER_ENDPOINT_ENV) or "").strip():
+        if (chapter_name or (source.get(CHAPTER_ENDPOINT_ENV) or "").strip()
+                or (source.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG") or "").strip()):
             raise PersistenceError(
                 f"{CHAPTER_FIXTURE_PACK_ENV} cannot be combined with live "
                 "chapter model configuration"
@@ -125,8 +126,13 @@ def chapter_model_from_env(
         import fixture_model as fixture_model  # noqa: E402
 
         return fixture_model.models_from_chapter_fixture_pack(fixture_pack)
-    if not chapter_name:
+    if not chapter_name and not source.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG"):
         return None
+    # Fresh live work uses staged 0.4; frozen fixture model families retain
+    # their original joint contracts for historical regression only.
+    if not chapter_name.startswith("fixture:"):
+        import chapter_models
+        return chapter_models.from_env(source, limits=chapter_limits_from_env(source))
     endpoint = (source.get(CHAPTER_ENDPOINT_ENV) or "").strip()
     if not endpoint:
         raise PersistenceError(
@@ -182,14 +188,10 @@ def require_production_entry(
 
 
 #: Candidate generation bound to each model family. The live production
-#: provider emits 0.3 person-state annotations on top of the reading
+#: provider emits 0.4 staged production on top of the person-state/reading
 #: annotations; the frozen first-round development fixture emits 0.1 and the
 #: second-round reading fixture emits 0.2.
-CANDIDATE_VERSIONS = (
-    chapter_contract.CANDIDATE_VERSION,
-    reading_contract.CANDIDATE_VERSION,
-    chapter_contract.PRODUCTION_CANDIDATE_VERSION,
-)
+CANDIDATE_VERSIONS = chapter_contract.CANDIDATE_VERSIONS
 
 
 def candidate_version_for_model(model: Any) -> str:
@@ -198,8 +200,8 @@ def candidate_version_for_model(model: Any) -> str:
     An explicit ``candidate_version`` on the provider wins. Otherwise a
     development fixture is recognized by its ``fixture:<version>:<kind>``
     name (``reading-chapter`` is 0.2, ``person-state-chapter`` is 0.3); every
-    other provider is the live joint model, whose production default is the
-    0.3 person-state contract. This is the only place the worker decides
+    other provider is staged production, whose default is the 0.4 contract.
+    This is the only place the worker decides
     which candidate version a planned request must declare, so the request,
     prompt, model strict format and acceptance validator always agree.
     """
@@ -216,7 +218,7 @@ def candidate_version_for_model(model: Any) -> str:
 
     name = str(getattr(model, "name", ""))
     if name.endswith(":" + fixture_model.PERSON_STATE_CHAPTER_MODEL_SUFFIX):
-        return chapter_contract.PRODUCTION_CANDIDATE_VERSION
+        return "0.3"
     if name.endswith(":" + fixture_model.READING_CHAPTER_MODEL_SUFFIX):
         return reading_contract.CANDIDATE_VERSION
     if name.endswith(":" + fixture_model.CHAPTER_MODEL_SUFFIX):
@@ -269,11 +271,11 @@ def plan_job_chapters(
     request per chapter in plan order. Hash drift between the supplied
     text and the immutable revision binding fails closed.
 
-    ``candidate_version`` selects the joint candidate generation the
-    requests declare (0.1 first round, 0.2 reading, 0.3 person states); it defaults
+    ``candidate_version`` selects the candidate generation the
+    requests declare (0.1 first round, 0.2 reading, 0.3 person states, 0.4 staged); it defaults
     to the frozen 0.1 generation so existing callers are unchanged, while the
     worker passes the model's version through
-    :func:`candidate_version_for_model` so a live run plans production 0.3. The
+    :func:`candidate_version_for_model` so a live run plans production 0.4. The
     request's declared version is the single signal the prompt renderer, the
     model strict format and the acceptance validator all read, so a run
     cannot mix the registered candidate contracts.
@@ -310,7 +312,7 @@ def plan_job_chapters(
     requests = []
     for index in range(plan["chapter_count"]):
         request = chapter_plan.build_chapter_request(
-            plan, index, text, limits=limits
+            plan, index, text, limits=limits, candidate_version=version
         )
         slice_sha256 = hashlib.sha256(
             request["normalized_text"].encode("utf-8")
@@ -660,6 +662,10 @@ def execute_chapter_extract(
     re-run; a committed-but-uncheckpointed accepted run is adopted with
     zero new model calls after full request/response re-verification.
     """
+    if getattr(model, "candidate_version", None) == "0.4":
+        return _execute_staged_extract(database_url, job_id=job_id, worker=worker,
+            plan=plan, requests=requests, model=model, limits=limits,
+            lease_seconds=lease_seconds, on_event=on_event, halt=halt)
     if model is None or not callable(getattr(model, "complete", None)):
         raise PersistenceError(
             "chapter extraction requires a joint chapter model with "
@@ -788,6 +794,74 @@ def execute_chapter_extract(
         if on_event is not None:
             on_event("chapter_completed", {"chunk_id": str(chunk_id)})
     return "ok"
+
+
+def _execute_staged_extract(database_url, *, job_id, worker, plan, requests,
+                            model, limits, lease_seconds, on_event=None, halt=None):
+    import staged_chapter
+    from resolve_publish import require_unexpired_lease
+    with psycopg.connect(database_url) as conn:
+        rows = conn.execute(
+            "SELECT chunk_id, chunk_index, status FROM chronicle.ingestion_chunks WHERE job_id = %s ORDER BY chunk_index",
+            (job_id,),
+        ).fetchall()
+    if [int(row[1]) for row in rows] != list(range(plan["chapter_count"])):
+        raise PersistenceConflict("staged chapter chunks do not match the frozen plan")
+    needs_review = False
+    for chunk_id, index, status in rows:
+        if halt:
+            outcome = halt(job_id)
+            if outcome is not None:
+                return outcome
+        if status == "completed":
+            continue
+        request = requests[int(index)]
+        with psycopg.connect(database_url) as conn:
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
+            control_plane.set_chunk_status_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                                                   worker=worker, status="running")
+        try:
+            result = staged_chapter.execute(database_url, job_id=job_id, chunk_id=chunk_id,
+                worker=worker, request=request, models=model, limits=limits,
+                lease_seconds=lease_seconds, on_event=on_event, halt=halt)
+        except staged_chapter.PipelineFailure as exc:
+            with psycopg.connect(database_url) as conn:
+                require_unexpired_lease(conn, job_id=job_id, worker=worker)
+                control_plane.record_chunk_run_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                    worker=worker, status="failed", checkpoint={
+                        "chapter_stage_version": "chapter-production/0.1", "accepted": False,
+                        "request_fingerprint": chapter_contract.request_fingerprint(request), "model": model.name},
+                    error=str(exc))
+                control_plane.set_chunk_status_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                                                       worker=worker, status="failed")
+            return "failed"
+        if result["outcome"] == "needs_review":
+            with psycopg.connect(database_url) as conn:
+                control_plane.set_chunk_status_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                                                       worker=worker, status="needs_review")
+            needs_review = True
+            continue
+        if result["outcome"] != "accepted":
+            return result["outcome"]
+        candidate, receipt = result["candidate"], result["production_receipt"]
+        # The accepted output may have committed before this transaction. It
+        # is reused without a model call, and run/artifact/checkpoint now land
+        # together, so another crash cannot manufacture a duplicate run.
+        with psycopg.connect(database_url) as conn:
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
+            checkpoint = {"chapter_stage_version": "chapter-production/0.1", "accepted": True,
+                          "request": request, "candidate": candidate, "production_receipt": receipt,
+                          "request_fingerprint": chapter_contract.request_fingerprint(request), "model": model.name}
+            run_id, _attempt = control_plane.record_chunk_run_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                worker=worker, status="completed", checkpoint=checkpoint)
+            chapter_store.record_accepted_chapter_fenced(conn, job_id=job_id, chunk_id=chunk_id,
+                worker=worker, request=request, candidate=candidate, production_receipt=receipt,
+                producing_run={"run_id": str(run_id), "model": model.name,
+                               "prompt_schema_version": "chapter-production/0.1"})
+            require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        if on_event:
+            on_event("chapter_completed", {"chunk_id": str(chunk_id), "production_version": "0.4"})
+    return "needs_review" if needs_review else "ok"
 
 
 # ---------------------------------------------------------------------------
@@ -1311,7 +1385,7 @@ def execute_chapter_present(
     # published chapters (never a second/partial reading index).
     reading_stream_id: str | None = None
     accepted_versions = {entry["artifact"].get("version") for entry in accepted}
-    if accepted_versions in ({"0.2"}, {"0.3"}):
+    if accepted_versions in ({"0.2"}, {"0.3"}, {"0.4"}):
         with psycopg.connect(database_url) as conn:
             stream_row = conn.execute(
                 """
@@ -1340,7 +1414,7 @@ def execute_chapter_present(
                 "units/groups; refusing present"
             )
         reading_stream_id = str(stream_row[0])
-        if accepted_versions == {"0.3"}:
+        if accepted_versions in ({"0.3"}, {"0.4"}):
             # A 0.3 book must also expose exactly one immutable person-state
             # manifest bound to this stream and its complete publication set;
             # present never verifies chapters while the state index is partial.
@@ -1359,7 +1433,7 @@ def execute_chapter_present(
                 ).fetchone()
             if state_row is None:
                 raise PersistenceError(
-                    f"job {job_id} published 0.3 chapters but has no person-state "
+                    f"job {job_id} published state-bearing chapters but has no person-state "
                     "manifest; refusing present"
                 )
             state_publications = {str(value) for value in state_row[1]}
@@ -1390,7 +1464,7 @@ def execute_chapter_present(
                 ),
                 "reading_stream_id": reading_stream_id,
                 "person_state_manifest_sha": (
-                    state_row[0] if accepted_versions == {"0.3"} else None
+                    state_row[0] if accepted_versions in ({"0.3"}, {"0.4"}) else None
                 ),
                 "verified_only": True,
                 "authoritative": False,

@@ -134,7 +134,7 @@ def production_configs(
 def chapter_configs(
     env: Mapping[str, str] | None = None,
 ) -> tuple[chapter_stage.chapter_contract.ChapterLimits, object | None]:
-    """Select the C2-R1 joint chapter schema/provider/limits entry.
+    """Select the natural-chapter schema/profile/limits entry.
 
     Returns ``(limits, chapter_model)``. Limits honor the documented
     ``CHRONICLE_CHAPTER_*`` overrides; the provider follows the formal
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if chapter_model is not None:
         print(
-            "chronicle-worker: joint chapter pipeline enabled "
+            "chronicle-worker: natural-chapter pipeline enabled "
             f"(chapter_model={getattr(chapter_model, 'name', 'off')}, "
             f"max_source_chars={chapter_limits.max_source_chars}, "
             f"max_prompt_chars={chapter_limits.max_prompt_chars})",

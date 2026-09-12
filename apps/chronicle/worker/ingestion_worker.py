@@ -1997,19 +1997,26 @@ class JobRunner:
                 if outcome == "needs_review":
                     with psycopg.connect(self.database_url) as conn:
                         if stage == CHUNK_BEARING_STAGE:
+                            content_gate = conn.execute(
+                                "SELECT 1 FROM chronicle.review_items WHERE job_id = %s AND status = 'open'"
+                                " AND payload->>'scope' = 'chapter_content' LIMIT 1", (job_id,),
+                            ).fetchone() is not None
+                            review_error = ("chapter content review pending" if content_gate
+                                            else "chapter attempts exhausted; awaiting review")
                             control_plane.advance_stage_fenced(
                                 conn, job_id=job_id, stage=stage,
                                 status="needs_review", worker=self.worker,
-                                error="chapter attempts exhausted; awaiting review",
+                                error=review_error,
                             )
-                            control_plane.open_review_item(
-                                conn, job_id=job_id, kind="chunk_failure",
-                                payload={"stage": stage, "worker": self.worker},
-                            )
+                            if not content_gate:
+                                control_plane.open_review_item(
+                                    conn, job_id=job_id, kind="chunk_failure",
+                                    payload={"stage": stage, "worker": self.worker},
+                                )
                             control_plane.set_job_status_fenced(
                                 conn, job_id=job_id, status="needs_review",
                                 worker=self.worker,
-                                error="chapter attempts exhausted; awaiting review",
+                                error=review_error,
                             )
                         else:
                             # Resolve already opened its review items

@@ -85,7 +85,10 @@ describe("review scope", () => {
     expect(reviewScopeCovers("resolution", "person_state")).toBe(false);
     expect(reviewScopeCovers("person_state", "narrative")).toBe(false);
     expect(reviewScopeCovers("person_state", "person_state")).toBe(true);
-    expect(REVIEW_SCOPES).toEqual(["resolution", "person_state", "all"]);
+    expect(REVIEW_SCOPES).toEqual(["resolution", "person_state", "chapter_content", "all"]);
+    expect(reviewScopeCovers("chapter_content", "chapter_content")).toBe(true);
+    expect(reviewScopeCovers("all", "chapter_content")).toBe(true);
+    expect(reviewScopeCovers("person_state", "chapter_content")).toBe(false);
   });
 
   it("rejects unknown scopes", () => {

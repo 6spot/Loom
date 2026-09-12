@@ -52,6 +52,11 @@ def _person_states():
     return _STUDIO_PERSON_STATES
 
 
+def _chapter_content():
+    import studio_chapter_content
+    return studio_chapter_content
+
+
 STUDIO_REVIEWS_PREFIX = "/api/v1/studio/jobs/reviews"
 _ALLOWED_STATUSES = ("open", "resolved", "dismissed", "all")
 _ALLOWED_LINK_KINDS = ("entity", "event")
@@ -259,7 +264,7 @@ def _scope_filter(
 
     covered = [
         scope
-        for scope in ("resolution", "person_state", "narrative")
+        for scope in ("resolution", "person_state", "narrative", "chapter_content")
         if review_scope_covers(spec["review_scope"], scope)
     ]
     placeholders = ", ".join(["%s"] * len(covered))
@@ -329,6 +334,11 @@ def _candidate_key_of(payload: dict[str, Any], index: int) -> str:
 
 
 def _immutable_candidate_entry(payload: dict[str, Any], index: int) -> dict[str, Any]:
+    if payload.get("scope") == "chapter_content":
+        return {key: payload.get(key) for key in (
+            "scope", "chapter_id", "plan_fingerprint", "request_fingerprint",
+            "candidate_sha256", "history_sha256", "pipeline_fingerprint",
+        )}
     if payload.get("scope") == "narrative":
         return {"candidate_key": _candidate_key_of(payload, index), "scope": "narrative",
                 "narrative_kind": payload["narrative_kind"], "candidate_sha": payload["candidate_sha"]}
@@ -792,6 +802,16 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
     }
     if plan_fingerprint is not None:
         item["plan_fingerprint"] = plan_fingerprint
+    if payload.get("scope") == "chapter_content":
+        item.update({
+            "review_mode": "chapter_content", "chapter_id": payload.get("chapter_id"),
+            "plan_fingerprint": payload.get("plan_fingerprint"),
+            "candidate_sha256": payload.get("candidate_sha256"),
+            "history_sha256": payload.get("history_sha256"),
+            "issue_count": payload.get("issue_count", 0), "history_count": payload.get("history_count", 0),
+            "left_label": "章节内容审核", "right_label": None,
+            "decision": ({key: decision[key] for key in ("decision", "rationale", "candidate_sha256") if key in decision} if decision else None),
+        })
     if payload.get("scope") == "narrative":
         item["narrative_kind"] = payload["narrative_kind"]
         item["candidate_sha"] = payload["candidate_sha"]
@@ -834,13 +854,15 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
-        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_state')
+        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_state', 'chapter_content')
         """,
         (review_id,),
     ).fetchall()
     if not rows:
         raise _NotFound(f"unknown review {review_id}")
     item = _summary(rows[0], conn)
+    if item["scope"] == "chapter_content":
+        return _chapter_content().detail(conn, review_id)
     if item["scope"] == "person_state":
         return _person_states().detail(conn, review_id)
     if item["scope"] == "narrative":
@@ -1616,7 +1638,7 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     (bundle_sha, ref) and the revision read via the lookup helpers).
     """
     item = _detail(conn, review_id)
-    if item["scope"] in ("narrative", "person_state"):
+    if item["scope"] in ("narrative", "person_state", "chapter_content"):
         return item
     try:
         identity = _review_identity(conn, review_id)
@@ -1719,6 +1741,20 @@ def _route(
     if not path.startswith(prefix):
         raise _NotFound("route not found")
     parts = path[len(prefix):].split("/")
+    if parts and parts[0]:
+        review_id = _require_uuid(parts[0], "review")
+        if _scope_of(conn, review_id) == "chapter_content":
+            route = "detail" if len(parts) == 1 else parts[1]
+            valid_path = len(parts) == 1 or (len(parts) == 2 and route in ("contexts", "history", "decision")) or (len(parts) == 3 and route == "sources" and bool(parts[2]))
+            if not valid_path:
+                raise _NotFound("route not found")
+            expected_method = "POST" if route == "decision" else "GET"
+            if method != expected_method:
+                raise _MethodNotAllowed(f"method {method} is not supported on {path}")
+            return _chapter_content().dispatch(
+                conn, review_id, method=method, route=route, raw_query=raw_query,
+                body=body, source_dir=source_dir, anchor_id=parts[2] if len(parts) == 3 else None,
+            )
     if len(parts) == 1 and parts[0]:
         review_id = _require_uuid(parts[0], "review")
         if method != "GET":

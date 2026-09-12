@@ -23,10 +23,12 @@ WORKDIR /opt/loom
 
 COPY apps/chronicle/persistence/requirements.txt /tmp/chronicle-persistence-requirements.txt
 COPY apps/chronicle/read_api/requirements.txt /tmp/chronicle-read-api-requirements.txt
+COPY apps/chronicle/worker/requirements.txt /tmp/chronicle-worker-requirements.txt
 
 RUN python3 -m pip install --no-cache-dir \
       -r /tmp/chronicle-persistence-requirements.txt \
       -r /tmp/chronicle-read-api-requirements.txt \
+      -r /tmp/chronicle-worker-requirements.txt \
     && groupadd --system --gid 10001 chronicle \
     && useradd --system --uid 10001 --gid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin chronicle
 

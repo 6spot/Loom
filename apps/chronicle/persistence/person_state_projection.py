@@ -91,7 +91,7 @@ PROJECTION_SCHEMA = "chronicle.person-state-projection"
 
 #: Compiler version; it enters the projection fingerprint and the
 #: published person-state manifest (see ``person-state-reading.md`` §4).
-PROJECTION_VERSION = "c2r3-person-state-projection-v1"
+PROJECTION_VERSION = "c2r3-person-state-projection-v2"
 
 _PLACE_DIMENSIONS = tuple(_contract.PLACE_DIMENSIONS)
 _OPERATIONS = tuple(_contract.OPERATIONS)
@@ -628,6 +628,8 @@ def _item_id(
     person_local: str | None,
     person_id: str,
     operation: Any,
+    *,
+    item_kind: str = "identity",
 ) -> str:
     return _contract.item_id_for(
         chapter_id=str(origin["chapter_id"] or ""),
@@ -636,6 +638,7 @@ def _item_id(
         phase_id=str(phase),
         person_ref=str(person_local or person_id),
         operation=str(operation),
+        item_kind=item_kind,
     )
 
 
@@ -693,7 +696,9 @@ def _state_change(
 ) -> dict[str, Any]:
     origin = _origin(fact)
     return {
-        "item_id": _item_id(origin, fact_ref, fact.get("dimension"), to_phase, person_local, person_id, fact.get("operation")),
+        "item_id": _item_id(
+            origin, fact_ref, fact.get("dimension"), to_phase, person_local, person_id,
+            fact.get("operation"), item_kind="change"),
         "person_id": person_id,
         "dimension": fact.get("dimension"),
         "value": value,
@@ -1114,6 +1119,25 @@ def compile_person_state_projection(
                 target,
             )
             changes.append(change)
+            # A grant is both a state record and a change. Each displayed item
+            # has its own ID and evidence so neither overwrites the other.
+            change_id = change["item_id"]
+            change_descriptors = _descriptors_for(context, fact, fact_ref, change_id, phase)
+            if change_descriptors:
+                item_descriptors[change_id] = change_descriptors
+                people_evidence.setdefault(record["person_id"], {})[change_id] = change_descriptors
+            item_reasoning[change_id] = {
+                "assessment": assessment,
+                "source_facts": [{
+                    **change["source_facts"][0],
+                    "assessment": assessment,
+                    "anchor_ids": _origin(fact)["anchor_ids"],
+                }],
+                "continuity": [],
+                "ended_by": [],
+                "from_phase_id": None,
+            }
+            people_reasoning.setdefault(record["person_id"], {})[change_id] = item_reasoning[change_id]
 
     # -- places (administration / control) keep the same certainty rules ---
     place_items: list[dict[str, Any]] = []

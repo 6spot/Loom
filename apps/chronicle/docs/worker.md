@@ -1,4 +1,4 @@
-# Chronicle durable ingestion worker (C1-T4, C2-R1-T13 chapter pipeline)
+# Chronicle durable ingestion worker
 
 Standalone, restart-safe execution for long-running book ingestion. The
 worker is a plain Python process
@@ -9,6 +9,8 @@ any other queue service in this envelope (see "Why no queue service").
 ## Run
 
 ```bash
+python3 -m pip install -r apps/chronicle/persistence/requirements.txt \
+  -r apps/chronicle/worker/requirements.txt
 export CHRONICLE_DATABASE_URL=postgresql://chronicle:...@postgres:5432/chronicle
 python3 apps/chronicle/worker/ingestion_worker.py \
   --worker-id worker-01 --lease-seconds 300 --poll-interval 5
@@ -61,10 +63,10 @@ uses the [Reader Presentation candidate shape](reader-presentation.md). The
 presentation prompt supplies the exact canonical target; the output validator
 still rejects a missing or mismatched target instead of filling it in.
 
-### Joint natural-chapter pipeline (C2-R1-T13)
+### Staged natural-chapter pipeline (0.4)
 
 When a revision source (`--source-dir` / `CHRONICLE_SOURCE_DIR`) and a
-joint chapter model are both configured, every content stage runs the
+chapter model configuration are both configured, every content stage runs the
 natural-chapter pipeline instead of the C1 chunk path; `prepare` keeps
 the deterministic fake executor so the frozen 8-stage authority is
 unchanged. Thin orchestration lives in
@@ -74,25 +76,24 @@ unchanged. Thin orchestration lives in
 - `structure` / `segment` persist the T03 plan with exactly one work
   chunk per natural chapter (absolute chapter coordinates, content
   hashes, request fingerprints in chunk checkpoints).
-- `extract` runs one whole-chapter joint call plus at most one
-  whole-chapter correction per chapter (T05/T06; never the old
-  independent chunk prompt). The lease is renewed before and after
-  each model wait while no DB transaction is ever held across a call;
-  every durable write is lease-fenced. Accepting re-validates the
-  exact request/candidate pair and the producing-run fingerprint; an
-  accepted run whose checkpoint commit never landed is adopted from
-  its complete stored request/response with zero new model calls.
-  `candidate_version_for_model` selects the candidate generation a
-  model produces: the live joint provider plans the 0.3 person-state
-  contract (reading annotations plus `person_states`); the reading
-  fixture plans 0.2 and the frozen first-round fixture stays 0.1.
-  The planned request declares that version, so prompt, strict output
-  format and acceptance validator always agree; a 0.3 candidate is
-  accepted only through the T01 `person_state_contract`, and a 0.2
-  candidate only through `reading_contract`, each keeping its
-  program-resolved units/candidate keys.
+- `extract` follows [staged-chapter-production.md](staged-chapter-production.md):
+  one complete, plain-text chapter translation and independent extraction can
+  run concurrently. Multiple candidates require comparison; linking adds
+  source/time/phase associations without repeating the prose. Review binds
+  the exact candidate and complete opinion history; at most one local repair
+  round is followed by another review. Every attempt/result is saved in the
+  existing outputs before dependants start. Retry reuses completed steps,
+  including a saved repair whose later linking failed. Content exceptions
+  create one `chapter_content` review gate per chapter, with complete source
+  and candidate context; missing or failed model responses never count as
+  agreement. No database transaction is held during model calls. Cancellation
+  or expired leases stop queued requests and interrupt active HTTP waits;
+  expired owners cannot save results. New live work plans 0.4, while explicit
+  fixture families keep their frozen 0.1/0.2/0.3 joint contracts. Accepting 0.4
+  revalidates the candidate, stored step outputs and immutable acceptance
+  receipt before committing the chunk run and chapter artifact together.
 - `assemble` requires every expected accepted chapter (T07; partial
-  books fail closed) and records one revision bundle output. A 0.3
+  books fail closed) and records one revision bundle output. A 0.3/0.4
   bundle also persists its assembled `person_states` block and evidence
   manifests next to the source bundle, so resolve and publish consume
   exactly the accepted bytes.
@@ -100,7 +101,7 @@ unchanged. Thin orchestration lives in
   `published_batch`, T08) as a job output; resume reuses that exact
   plan (never rebuilding or re-ranking it) and parks in
   `needs_review` while any candidate is open. After the identity
-  reviews are terminal, a 0.3 job freezes one `chapter_state_evidence`
+  reviews are terminal, a 0.3/0.4 job freezes one `chapter_state_evidence`
   package per chapter from the accepted artifacts, the assembled state
   evidence, the final Resolution hashes and the base catalog
   (`person_state_review`), records that plan as a job output and keeps
@@ -116,7 +117,7 @@ unchanged. Thin orchestration lives in
   the reading compile, and again immediately before the commit, so a
   lease that expires mid-transaction (or is taken over) fails closed
   with `LeaseLost` and rolls back every write instead of committing on
-  a stale lease. For a reading book (0.2 or 0.3) the caller's T03
+  a stale lease. For a reading book (0.2/0.3/0.4) the caller's T03
   `chapter_plan` is strictly bound to the persisted T03/assembled record:
   the canonical T03 `plan_sha256` is recomputed over the complete plan
   (version, revision binding and every chapter's blocks/`content_sha256`/
@@ -127,7 +128,7 @@ unchanged. Thin orchestration lives in
   projection and persists the whole T05 reading index (stream, units,
   time groups, event occurrences) **inside the
   same transaction**, after the catalog and every chapter publication and
-  before the publish checkpoint. A 0.3 book first re-verifies every frozen
+  before the publish checkpoint. A 0.3/0.4 book first re-verifies every frozen
   state binding after the final resolutions are derived: the assembled
   ``person_states`` hash must equal the plan's ``assembled_hash``, the
   complete evidence-manifest digest is computed before
@@ -167,9 +168,9 @@ unchanged. Thin orchestration lives in
   take the same lock.
 - `present` only verifies the published complete translation blocks;
   it never re-translates and never substitutes a blurb for the full
-  text. A 0.2/0.3 book additionally verifies that exactly one reading
+  text. A 0.2/0.3/0.4 book additionally verifies that exactly one reading
   stream binds this job's chapter publications with at least one
-  unit/group. A 0.3 book also verifies that exactly one person-state
+  unit/group. A 0.3/0.4 book also verifies that exactly one person-state
   manifest binds that same stream/publication snapshot, cites at least
   one reviewed assessment and carries its bounded index, so `present`
   never passes while a partial reading or person-state index is public.
@@ -179,14 +180,15 @@ unchanged. Thin orchestration lives in
 `production_worker.py` selects the formal chapter entry
 (`chapter_configs`): `ChapterLimits` from the documented
 `CHRONICLE_CHAPTER_*` overrides plus the provider from
-`CHRONICLE_CHAPTER_MODEL` + `CHRONICLE_MODEL_ENDPOINT`
+`CHRONICLE_CHAPTER_MODEL` + `CHRONICLE_MODEL_ENDPOINT`, or a
+`CHRONICLE_CHAPTER_PIPELINE_CONFIG` JSON file
 (`CHRONICLE_MODEL_API_KEY` for credentials), or the explicit
 `CHRONICLE_CHAPTER_FIXTURE_PACK` test injection. A real source
 without a chapter model fails closed; the old fake executor is never
 an implicit fallback for new chapters.
 
-The live provider receives `max_output_tokens` and `max_response_bytes`
-from those same `ChapterLimits`. The configured request fingerprint and
+Each live profile receives `max_response_bytes` from `ChapterLimits` and
+`max_output_tokens` at or below that limit. The configured request fingerprint and
 the actual HTTP budget therefore agree; a chapter override must not leave
 the provider silently using its defaults. An override is an operator resource
 setting, not proof that the endpoint supports that capacity or produces
@@ -199,13 +201,67 @@ python3 apps/chronicle/worker/production_worker.py \
   --worker-id worker-01 --source-dir /data/chronicle-sources
 ```
 
-A joint chapter model without a revision source fails the job before
+A chapter model configuration without a revision source fails the job before
 any stage runs (no silent fake completion). A production entry
 pointed at a source directory without any model refuses to start at
 all; the composable library runner stays available for explicit test
 injection (the pinned C1 segmentation/extraction tests rely on that),
 while a real source without models keeps the explicit extract failure
 instead of falling back.
+
+### Per-step models, budgets and recovery
+
+The default uses `CHRONICLE_CHAPTER_MODEL` for translation, extraction, linking
+and repair. `CHRONICLE_CHAPTER_REVIEW_MODELS` is an optional comma-separated
+list for review and comparison; omitted means the primary model. There is no
+comparison request when a step has only one candidate. Every configured
+reviewer must finish and approve the exact version before AI acceptance.
+
+For different models, endpoints or budgets at any of the six steps, copy
+[`worker/config/chapter-pipeline.example.json`](../worker/config/chapter-pipeline.example.json),
+replace its model names, and set `CHRONICLE_CHAPTER_PIPELINE_CONFIG` to its
+readable path. The `models` map defines profiles; `steps` assigns 1–4 unique
+profile IDs per step. Each profile accepts `model`, optional `endpoint`,
+`api_key_env` (an environment-variable name, never a key value),
+`timeout_seconds`, `total_timeout_seconds`, `max_output_tokens` and
+`response_format` (`json_object` or `text`). Translation always requests plain
+text. Other steps carry their schema in the prompt and run strict local
+validation even when an endpoint does not support structured output.
+
+`max_parallel` defaults to 2 (range 1–4); `max_step_attempts` defaults to 2
+(range 1–3); `max_repair_rounds` defaults to 1 (range 0–1). Each HTTP attempt
+has both an inactivity timeout and a wall-clock deadline, defaulting to the
+smaller of 360 seconds and the configured transport timeout. Keep-alive bytes
+do not extend the deadline. The staged transport makes exactly one HTTP
+attempt; the saved step budget owns retries. A request started before a crash
+consumes an attempt even when its remote outcome is unknown. Streaming does
+not remove model output limits, and incomplete responses cannot be accepted.
+Complete but invalid translation, extraction, linking or repair output retries
+only that node within its remaining attempt budget, with the complete saved
+result and validation errors. A transport failure during correction does not discard that feedback.
+Successful sibling steps remain saved. An exhausted budget or oversized
+correction context stops the step with an explicit failure; it never opens
+a new node to reset the budget or truncates source/results to fit.
+Invalid review/comparison reports are retained for the content gate, including
+after a sibling failure: retrying their format must not erase an already
+expressed objection. Pure transport failures can still retry within budget.
+This distinction is part of the frozen task configuration.
+
+The first execution freezes source, model profiles, limits, actual prompt
+templates and step policy.
+Changing them requires a new job; ordinary retry cannot silently change the
+model. Credential values may rotate without changing the frozen configuration.
+Technical failure parks the job as failed; Studio retry continues incomplete
+steps. Content gates use the existing review/resolve/resume operations.
+Manual revision creates a new candidate and requires another review; accepting
+an old draft never approves an edited version. Chapter acceptance still leaves
+identity resolution, person-state evidence and explicit composite-history
+publication under their existing review contracts.
+
+Studio job details show saved step status, model, attempt, elapsed time and
+reported output usage. Missing usage is shown as unreported. Full sources,
+candidates and all opinions are available inside the protected content review;
+the ordinary job list/detail does not expose raw prompts or credentials.
 
 ### Reviewed multi-source historical narrative
 
@@ -296,7 +352,8 @@ a substitute for that content review.
    Chunk attempts always append `ingestion_chunk_runs` rows with
    monotonically increasing `attempt`; retries never overwrite prior
    model/debug evidence.
-6. **Shutdown.** SIGTERM/SIGINT finishes the current step, then stops.
+6. **Shutdown.** SIGTERM/SIGINT stops new work. Staged model HTTP requests are
+   cancelled at the next heartbeat; already-saved results remain reusable.
    The job stays `running` under its lease, so the next live worker
    reclaims it after expiry. Shutdown never marks work failed and never
    invents checkpoints.
@@ -335,7 +392,7 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
 | Claim granularity | 1 job per claim, `SKIP LOCKED` | `claim_job` |
 | Lease default | 300 s, owner-renewed | `--lease-seconds` |
 | Idle poll | 5 s per worker, no thundering herd | `--poll-interval` |
-| Job retries | `max_attempts` (default 3) claim attempts | `ingestion_jobs` |
+| Job retries | `max_attempts` claim attempts; new Studio jobs default to 8 to include review resumes, low-level API default remains 3 | `ingestion_jobs` |
 | Chunk retries | `max_attempts` (default 3) per chunk | `ingestion_chunks` |
 | Fake topology | 1 section, 2 chunks per job | `FAKE_CHUNKS_PER_JOB` |
 | Real segmentation | versioned sections/chunks/context (C1-T5) | `segmentation.md` |
@@ -382,6 +439,11 @@ staged/resolution/canonical historical-knowledge path.
 ## Verification
 
 ```bash
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_*unit.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_production_unit.py' -v
+python3 -m unittest discover -s apps/chronicle/persistence -p 'test_staged_chapter*py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_chapter_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*postgres.py' -v

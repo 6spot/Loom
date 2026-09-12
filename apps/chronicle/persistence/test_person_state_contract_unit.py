@@ -374,10 +374,11 @@ class ReviewScopeTests(unittest.TestCase):
 
     def test_scope_coverage_matrix_matches_ts(self) -> None:
         expected = {
-            None: {"resolution": True, "person_state": False, "narrative": True},
-            "resolution": {"resolution": True, "person_state": False, "narrative": True},
-            "person_state": {"resolution": False, "person_state": True, "narrative": False},
-            "all": {"resolution": True, "person_state": True, "narrative": True},
+            None: {"resolution": True, "person_state": False, "narrative": True, "chapter_content": False},
+            "resolution": {"resolution": True, "person_state": False, "narrative": True, "chapter_content": False},
+            "person_state": {"resolution": False, "person_state": True, "narrative": False, "chapter_content": False},
+            "chapter_content": {"resolution": False, "person_state": False, "narrative": False, "chapter_content": True},
+            "all": {"resolution": True, "person_state": True, "narrative": True, "chapter_content": True},
         }
         for scope, surfaces in expected.items():
             for target, covered in surfaces.items():
@@ -386,6 +387,18 @@ class ReviewScopeTests(unittest.TestCase):
                         P.review_scope_covers(scope, target), covered,
                         f"scope={scope!r} target={target!r}",
                     )
+
+    def test_review_scope_schema_matches_current_queue_contract(self) -> None:
+        from jsonschema import Draft202012Validator
+
+        schema = P.person_state_schema()["$defs"]["review_scope"]
+        self.assertEqual(schema["enum"], list(P.REVIEW_SCOPES))
+        validator = Draft202012Validator(schema)
+        for scope in ("resolution", "person_state", "chapter_content", "all"):
+            with self.subTest(scope=scope):
+                self.assertEqual(P.normalize_review_scope(scope), scope)
+                self.assertEqual(list(validator.iter_errors(scope)), [])
+        self.assertTrue(list(validator.iter_errors("everything")))
 
     def test_unknown_scope_and_link_kind_mixing_rejected(self) -> None:
         with self.assertRaises(PersistenceError):

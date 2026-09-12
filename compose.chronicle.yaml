@@ -181,12 +181,14 @@ services:
       CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
       CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
       CHRONICLE_NARRATIVE_MODEL: ${CHRONICLE_NARRATIVE_MODEL:-}
-      # C2-R1: formal joint chapter model entry consumed by
+      # Staged natural-chapter model entry consumed by
       # chapter_stage.chapter_model_from_env. Without this passthrough
       # the worker container never sees CHRONICLE_CHAPTER_MODEL, so the
-      # joint chapter pipeline stays disabled/fails closed even when the
+      # chapter pipeline stays disabled/fails closed even when the
       # host .env.chronicle sets it.
       CHRONICLE_CHAPTER_MODEL: ${CHRONICLE_CHAPTER_MODEL:-}
+      CHRONICLE_CHAPTER_REVIEW_MODELS: ${CHRONICLE_CHAPTER_REVIEW_MODELS:-}
+      CHRONICLE_CHAPTER_PIPELINE_CONFIG: ${CHRONICLE_CHAPTER_PIPELINE_CONFIG:-}
       # C2-R1-T16: chapter-production §3 engineering envelope. These bounds
       # enter the chapter request fingerprint (ChapterLimits.from_env); they
       # are resource-protection limits, not a claim that the configured
@@ -198,6 +200,10 @@ services:
       CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES: ${CHRONICLE_CHAPTER_MAX_RESPONSE_BYTES:-}
       CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS: ${CHRONICLE_CHAPTER_MAX_OUTPUT_TOKENS:-}
     volumes:
+      - type: bind
+        source: ${CHRONICLE_CHAPTER_CONFIG_DIR:-./apps/chronicle/worker/config}
+        target: /etc/chronicle/chapter
+        read_only: true
       - type: bind
         source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
         target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}

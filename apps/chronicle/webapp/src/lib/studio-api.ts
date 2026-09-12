@@ -28,7 +28,7 @@ export type ReviewStatus = "open" | "resolved" | "dismissed";
 export type ReviewLinkKind = "entity" | "event";
 export type EntityReviewDecision = "same_entity" | "not_same" | "uncertain";
 export type EventReviewDecision = "same_occurrence" | "related_occurrence" | "not_same" | "uncertain";
-export type ReviewDecision = EntityReviewDecision | EventReviewDecision | "approve" | "reject";
+export type ReviewDecision = EntityReviewDecision | EventReviewDecision | "approve" | "reject" | "accept" | "revise";
 
 export interface DocumentSummary {
   document_id: string;
@@ -125,6 +125,23 @@ export interface JobChunk {
   source_sha256: string;
   content_sha256: string;
   runs: ChunkRun[];
+  production?: {
+    status?: string;
+    step?: string;
+    model?: string;
+    steps: {
+      step?: string;
+      slot?: string;
+      model?: string;
+      status?: string;
+      round?: number;
+      attempt?: number;
+      elapsed_seconds?: number;
+      error?: string;
+      output_sha256?: string;
+      usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number } | null;
+    }[];
+  };
 }
 
 export interface JobStage {
@@ -277,9 +294,13 @@ export interface ReviewSummary {
   // §5.1 mixed queue: the union keeps resolution, narrative (facts/prose) and
   // the new person_state package distinguishable; adding the third scope must
   // never narrow away the existing two.
-  scope: "resolution" | "narrative" | "person_state";
+  scope: "resolution" | "narrative" | "person_state" | "chapter_content";
   narrative_kind?: "facts" | "prose";
   candidate_sha?: string;
+  candidate_sha256?: string | null;
+  history_sha256?: string;
+  issue_count?: number;
+  history_count?: number;
   link_kind: ReviewLinkKind;
   review_subject_id?: string | null;
   review_subject_version?: string | null;
@@ -307,6 +328,7 @@ export interface ReviewSummary {
 }
 
 export interface ReviewDetail extends ReviewSummary {
+  chapter_content?: import("./chapter-content-review").ChapterContentReviewData;
   narrative?: import("./narrative-types").NarrativeReviewData;
   left_context: ReviewRecordContext;
   right_context: ReviewRecordContext;
@@ -582,7 +604,7 @@ export async function getJob(auth: string | null, jobId: string): Promise<JobDet
   return (await studioRequest<JobResponse>(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}`)).job;
 }
 
-export async function queueJob(auth: string | null, revisionId: string, maxAttempts = 3): Promise<JobDetail> {
+export async function queueJob(auth: string | null, revisionId: string, maxAttempts = 8): Promise<JobDetail> {
   return (
     await studioRequest<JobResponse>(auth, "/api/v1/studio/jobs", {
       method: "POST",
@@ -635,6 +657,27 @@ export async function submitPersonStateAssessment(
   return (await studioRequest<ReviewResponse>(auth, `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
   })).review;
+}
+
+export async function submitChapterContentDecision(
+  auth: string | null,
+  reviewId: string,
+  payload: import("./chapter-content-review").ChapterContentDecisionInput,
+): Promise<ReviewDetail> {
+  return (await studioRequest<ReviewResponse>(auth, `${REVIEWS_API}/${encodeURIComponent(reviewId)}/decision`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+  })).review;
+}
+
+export function getChapterReviewHistory(
+  auth: string | null,
+  reviewId: string,
+  entry: number,
+  cursor?: string | null,
+): Promise<import("./chapter-content-review").ChapterReviewHistoryPage> {
+  const query = new URLSearchParams({ entry: String(entry) });
+  if (cursor) query.set("cursor", cursor);
+  return studioRequest(auth, `${REVIEWS_API}/${encodeURIComponent(reviewId)}/history?${query}`);
 }
 
 export interface NarrativeSourceChoices {

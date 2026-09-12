@@ -107,6 +107,7 @@ from reading_scale_fixture import (  # noqa: E402
     parse_scale_result,
 )
 
+import chapter_contract  # noqa: E402
 import fixture_model  # noqa: E402
 import reading_contract  # noqa: E402
 
@@ -167,7 +168,7 @@ def require_fixture_env(config: dict[str, str]) -> None:
 
 
 def require_live_env(config: dict[str, str]) -> dict[str, Any]:
-    """Strict live-provider preflight, shared rules plus the joint model."""
+    """Strict live-provider preflight for current staged chapter production."""
     if config.get("CHRONICLE_CHAPTER_FIXTURE_PACK", "").strip():
         raise GateError(
             "live mode refuses CHRONICLE_CHAPTER_FIXTURE_PACK; fixture "
@@ -178,11 +179,14 @@ def require_live_env(config: dict[str, str]) -> dict[str, Any]:
         raise GateError(
             "missing required live configuration: CHRONICLE_CHAPTER_MODEL"
         )
+    if config["CHRONICLE_CHAPTER_MODEL"].strip().startswith("fixture:"):
+        raise GateError("live mode refuses the frozen fixture chapter model entry")
     parsed = urllib.parse.urlparse(config["CHRONICLE_MODEL_ENDPOINT"])
     if parsed.username is not None or parsed.password is not None:
         raise GateError("CHRONICLE_MODEL_ENDPOINT must not embed credentials")
     provider = safe_provider(config)
     provider["chapter_model"] = config["CHRONICLE_CHAPTER_MODEL"]
+    provider["candidate_version"] = chapter_contract.PRODUCTION_CANDIDATE_VERSION
     return provider
 
 
@@ -363,10 +367,10 @@ def write_stack_env(
     config["CHRONICLE_PORT"] = str(web_port)
     config["CHRONICLE_BIND_IP"] = "127.0.0.1"
     config["CHRONICLE_MODEL_ENDPOINT"] = endpoint
-    # Use the worker's existing fixture selector so request, strict schema
-    # and this gate's reading-only response all stay on the frozen 0.2 path.
+    # Explicitly select the worker's frozen fixture entry. A reading-chapter
+    # suffix alone must not downgrade a live model from staged production.
     config["CHRONICLE_CHAPTER_MODEL"] = (
-        "gate-fixture:" + fixture_model.READING_CHAPTER_MODEL_SUFFIX
+        "fixture:gate-r2:" + fixture_model.READING_CHAPTER_MODEL_SUFFIX
     )
     config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
         "CHRONICLE_MODEL_TIMEOUT_SECONDS", "180"
@@ -1336,7 +1340,7 @@ def run_live(
             "steps": [
                 "start an isolated Compose stack on a fresh CHRONICLE_DATA_DIR",
                 "upload the T02 sources through Studio and queue jobs",
-                "run the 0.2 reading chain with the live joint chapter model",
+                "run staged whole-chapter production and verify the reading chain",
                 "resolve every blocking review interactively in Studio",
                 "run reading-flow-smoke.mjs against the running Rust/Python stack",
                 "record the T17 content acceptance; fixture PASS is not proof",

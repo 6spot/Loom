@@ -244,7 +244,7 @@ def _load_artifact(
     if row is None or not isinstance(row[0], dict):
         return None
     artifact = row[0]
-    if artifact.get("version") != "0.3":
+    if artifact.get("version") not in ("0.3", "0.4"):
         return None
     if (
         isinstance(artifact_sha256, str)

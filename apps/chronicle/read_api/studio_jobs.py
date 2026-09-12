@@ -151,6 +151,33 @@ def _safe_run_checkpoint(checkpoint: Any) -> dict[str, Any]:
     return projected
 
 
+def _safe_production(value: Any) -> dict[str, Any]:
+    """Expose step progress only; full candidates live in the review route."""
+    if not isinstance(value, dict):
+        return {}
+    result = {key: value[key] for key in ("step", "status", "model", "pipeline_fingerprint")
+              if isinstance(value.get(key), str)}
+    steps = value.get("steps")
+    result["steps"] = []
+    if isinstance(steps, dict):
+        for entry in steps.values():
+            if not isinstance(entry, dict):
+                continue
+            safe = {key: entry[key] for key in ("step", "slot", "model", "status", "output_sha256", "error")
+                    if isinstance(entry.get(key), str)}
+            for key in ("round", "attempt", "elapsed_seconds"):
+                number = entry.get(key)
+                if isinstance(number, (int, float)) and not isinstance(number, bool) and number >= 0:
+                    safe[key] = number
+            usage = entry.get("usage")
+            safe["usage"] = ({key: usage[key] for key in (
+                "input_tokens", "output_tokens", "total_tokens", "reasoning_tokens")
+                if isinstance(usage.get(key), int) and not isinstance(usage[key], bool) and usage[key] >= 0}
+                if isinstance(usage, dict) else None)
+            result["steps"].append(safe)
+    return result
+
+
 def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
     """Return the C1-T10 browser contract from the internal control-plane view."""
     result = {
@@ -214,6 +241,11 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             for run in chunk.get("runs", [])
             if isinstance(run, dict)
         ]
+        checkpoint = chunk.get("checkpoint")
+        if isinstance(checkpoint, dict):
+            production = _safe_production(checkpoint.get("production"))
+            if production:
+                projected_chunk["production"] = production
         result["chunks"].append(projected_chunk)
     # T10 needs review debt/progress visibility but does not own the review
     # decision payload; C1-T11 will expose its own purpose-built review API.
@@ -345,8 +377,10 @@ def _queue_job(conn, control_plane, *, body: bytes) -> tuple[int, str, bytes]:
     if not isinstance(revision_id, str):
         raise _BadRequest("request body must carry a revision_id UUID string")
     revision_uuid = _require_uuid(revision_id, "revision")
-    max_attempts = payload.get("max_attempts", 3)
-    if not isinstance(max_attempts, int):
+    # Content + identity + state review resumes consume claims too. Keep a
+    # finite allocation for new Studio jobs without changing lifecycle rules.
+    max_attempts = payload.get("max_attempts", 8)
+    if not isinstance(max_attempts, int) or isinstance(max_attempts, bool):
         raise _BadRequest("max_attempts must be a positive integer")
     job_id = control_plane.queue_job(conn, revision_id=revision_uuid, max_attempts=max_attempts)
     return _job_response(conn, control_plane, job_id=job_id, status=201)

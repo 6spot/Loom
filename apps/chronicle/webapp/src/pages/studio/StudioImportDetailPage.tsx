@@ -58,17 +58,45 @@ function StageRow({ stage }: { stage: JobStage }) {
 
 function ChunkRow({ chunk }: { chunk: JobChunk }) {
   const failed = chunk.status === "failed" || chunk.runs.some((run) => run.status === "failed");
+  const stepNames: Record<string, string> = {
+    translation: "整章翻译", extraction: "信息提取", comparison: "候选比较",
+    linking: "关联原文与时间", review: "内容复核", repair: "局部修正",
+  };
   return (
     <details className="studio-chunk" open={failed}>
       <summary>
         <span className="studio-row-title">
-          <strong>分段 {chunk.chunk_index}</strong>
+          <strong>{chunk.production ? "章节" : "分段"} {chunk.chunk_index + 1}</strong>
           <Badge>{studioStatusLabel(chunk.status)}</Badge>
           <span>尝试 {chunk.attempt}/{chunk.max_attempts}</span>
         </span>
         <span className="studio-muted">源文本字符 {chunk.source_start}–{chunk.source_end}</span>
+        {chunk.production?.step ? <span className="studio-muted">{stepNames[chunk.production.step] ?? chunk.production.step} · {chunk.production.model}</span> : null}
       </summary>
       <div className="studio-chunk-body">
+        {chunk.production ? (
+          <section aria-label="章节处理进度">
+            <h4>已保存的处理步骤</h4>
+            <div className="studio-run-list">
+              {chunk.production.steps.map((step, index) => (
+                <div className="studio-run" key={step.output_sha256 ?? index}>
+                  <div className="studio-row-title">
+                    <strong>{stepNames[step.step ?? ""] ?? step.step}</strong>
+                    <span>{step.model}</span>
+                    <Badge>{step.status === "started" ? "执行中" : step.status === "invalid" ? "返回内容不合格" : studioStatusLabel(step.status ?? "")}</Badge>
+                  </div>
+                  <p className="studio-muted">
+                    第 {(step.round ?? 0) + 1} 版 · 尝试 {step.attempt ?? 1}
+                    {step.elapsed_seconds !== undefined ? ` · ${step.elapsed_seconds} 秒` : ""}
+                    {` · 输出用量：${step.usage?.output_tokens ?? "未报告"}`}
+                  </p>
+                  {step.error ? <p className="studio-error">{step.error}</p> : null}
+                </div>
+              ))}
+            </div>
+            <p className="studio-muted">已完成步骤会在恢复时复用。完整候选和各模型意见可在内容审核中查看。</p>
+          </section>
+        ) : null}
         <dl className="studio-facts studio-facts-dense">
           <div><dt>chunk_id</dt><dd className="studio-mono">{chunk.chunk_id}</dd></div>
           <div><dt>section_id</dt><dd className="studio-mono">{chunk.section_id ?? "—"}</dd></div>
@@ -76,7 +104,7 @@ function ChunkRow({ chunk }: { chunk: JobChunk }) {
           <div><dt>content sha</dt><dd className="studio-mono">{formatShortHash(chunk.content_sha256)}</dd></div>
         </dl>
         <h4>运行尝试</h4>
-        {chunk.runs.length === 0 ? <p className="studio-muted">尚未执行。</p> : null}
+        {chunk.runs.length === 0 ? <p className="studio-muted">{chunk.production ? "尚未完成整章处理，步骤结果已独立保存。" : "尚未执行。"}</p> : null}
         <div className="studio-run-list">
           {chunk.runs.map((run) => (
             <div className="studio-run" key={run.run_id}>

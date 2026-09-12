@@ -52,6 +52,8 @@ export type HumanReviewContext = ReviewRecordContext & { display?: ReviewRecordD
 
 const DECISION_LABELS: Record<string, string> = {
   approve: "审核通过",
+  accept: "接受当前版本",
+  revise: "修订后重新复核",
   reject: "驳回",
   same_entity: "同一实体",
   not_same: "明确不同",
@@ -300,6 +302,8 @@ export function comparisonRows(
 export function decisionHelp(decision: ReviewDecision): string {
   const help: Record<ReviewDecision, string> = {
     approve: "接受本次经过核对的内容，继续下一生产阶段。",
+    accept: "接受原样且已通过机械校验的当前版本，所有意见逐项留存。",
+    revise: "保存局部修订，生成新版本后重新复核。",
     reject: "拒绝本次候选，保留审核记录。",
     same_entity: "两侧证据足以确认是在说同一个人物、地点、组织或其他实体。",
     not_same: "两侧证据明确表明不是同一个实体或不是同一次事件。",

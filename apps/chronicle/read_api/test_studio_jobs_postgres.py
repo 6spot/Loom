@@ -151,6 +151,7 @@ class StudioJobsHttpTests(unittest.TestCase):
         self.assertEqual(payload["schema"], "chronicle.job")
         job = payload["job"]
         self.assertEqual(job["status"], "queued")
+        self.assertEqual(job["max_attempts"], 8)
         self.assertEqual(len(job["stages"]), 8)
         job_id = job["job_id"]
 

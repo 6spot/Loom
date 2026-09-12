@@ -59,9 +59,9 @@ python3 apps/chronicle/acceptance/second_round_gate.py \
 gate 会：
 1. 用 `gate_runtime.ComposeStack` 起隔离 Compose 栈（PG18 + Rust `chronicle-server`
    前端 + Python `read_api` sidecar + durable worker），并起进程内确定性 0.2 fixture
-   模型 HTTP provider（`host.docker.internal`）。gate 使用 `gate-fixture:reading-chapter`
-   明确选择 0.2；worker 将同一版本传入请求与 provider strict schema，避免当前生产默认
-   0.3 与 R2 fixture 混用。普通生产模型仍默认 0.3。
+   模型 HTTP provider（`host.docker.internal`）。gate 使用 `fixture:gate-r2:reading-chapter`
+   明确选择冻结的 0.2 联合格式；worker 将同一版本传入请求与 provider strict schema。
+   普通生产模型默认走 0.4 分阶段流程，live 模式拒绝 fixture 入口。
 2. 经真实 Studio HTTP（Rust 前端）上传冻结源、排队、处理 `needs_review`
    （fixture 固定决定）并发布。
 3. 经公开 HTTP 读回 stream/units/groups/locate/event preview+targets，并做未知

@@ -279,13 +279,11 @@ class ReadingCorrectionTests(unittest.TestCase):
 
 
 class VersionDisciplineTests(unittest.TestCase):
-    def test_registry_declares_0_3_production_and_keeps_0_1_and_0_2(self) -> None:
-        # C2-R3-T02 advances the registered production generation to 0.3; the
-        # frozen 0.1 and 0.2 contracts stay registered and retrievable.
-        self.assertEqual(C.PRODUCTION_CANDIDATE_VERSION, "0.3")
-        self.assertEqual(C.PRODUCTION_ARTIFACT_VERSION, "0.3")
-        self.assertEqual(tuple(C.CANDIDATE_VERSIONS), ("0.1", "0.2", "0.3"))
-        self.assertEqual(tuple(C.ARTIFACT_VERSIONS), ("0.1", "0.2", "0.3"))
+    def test_registry_declares_0_4_production_and_keeps_frozen_versions(self) -> None:
+        self.assertEqual(C.PRODUCTION_CANDIDATE_VERSION, "0.4")
+        self.assertEqual(C.PRODUCTION_ARTIFACT_VERSION, "0.4")
+        self.assertEqual(tuple(C.CANDIDATE_VERSIONS), ("0.1", "0.2", "0.3", "0.4"))
+        self.assertEqual(tuple(C.ARTIFACT_VERSIONS), ("0.1", "0.2", "0.3", "0.4"))
         self.assertTrue(C.CANDIDATE_VERSION == "0.1")
         self.assertTrue(
             C.candidate_schema_for("0.2")["$id"].endswith("candidate-v0.2.schema.json")
@@ -301,6 +299,8 @@ class VersionDisciplineTests(unittest.TestCase):
         )
         self.assertIn("0.2", C.candidate_schema_registry())
         self.assertIn("0.3", C.candidate_schema_registry())
+        self.assertEqual(C.candidate_schema_for("0.4")["properties"]["version"], {"const": "0.4"})
+        self.assertIn("production_receipt", C.artifact_schema_for("0.4")["required"])
 
     def test_refuses_silent_downgrade_from_0_2_to_0_1(self) -> None:
         request = reading_request()

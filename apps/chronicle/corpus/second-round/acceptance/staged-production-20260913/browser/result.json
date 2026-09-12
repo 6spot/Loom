@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "checks": [
+    "saved-step-progress-visible",
+    "both-content-gates-in-real-queue",
+    "source-annotations-available",
+    "prose-does-not-contain-annotation",
+    "saved-model-history-loads",
+    "edited-text-cannot-inherit-acceptance",
+    "draft-survives-refresh",
+    "save-and-next-without-returning-to-top",
+    "new-review-does-not-inherit-draft",
+    "mobile-has-no-horizontal-overflow",
+    "mobile-save-actions-remain-visible",
+    "manual-revision-saves-through-real-api",
+    "no-browser-script-errors"
+  ],
+  "scope": "Real Rust/Python/PostgreSQL with explicitly injected model fixtures; no HTTP route mocks; not live historical acceptance.",
+  "model_mode": "fixture",
+  "real_http_and_database": true,
+  "published": false,
+  "desktop_screenshot": "desktop.png",
+  "mobile_screenshot": "mobile.png",
+  "mobile_width": 390,
+  "tested_ui_commit": "49f012982997f992679aacf3f202c2899904b12c"
+}

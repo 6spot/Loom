@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.4.schema.json",
+  "title": "Chronicle staged chapter artifact v0.4",
+  "description": "Accepted complete staged chapter. Binds the exact source scope, actual candidate, persisted acceptance receipt and generated reading/state metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "chapter_id",
+    "revision_id",
+    "source_sha256",
+    "normalized_sha256",
+    "candidate",
+    "candidate_sha256",
+    "anchors",
+    "request_fingerprint",
+    "producing_run",
+    "artifact_sha256",
+    "reading",
+    "reading_sha256",
+    "reading_units",
+    "person_states",
+    "person_states_sha256",
+    "person_state_candidates",
+    "production_receipt"
+  ],
+  "properties": {
+    "schema": {
+      "const": "chronicle.chapter-artifact"
+    },
+    "version": {
+      "const": "0.4"
+    },
+    "chapter_id": {
+      "type": "string",
+      "pattern": "^ch_[0-9a-f]{24}$"
+    },
+    "revision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "normalized_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "candidate": {
+      "$ref": "chronicle-chapter-candidate-v0.4.schema.json"
+    },
+    "candidate_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "anchors": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/anchor"
+      }
+    },
+    "request_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "producing_run": {
+      "$ref": "chronicle-chapter-artifact-v0.1.schema.json#/$defs/producing_run"
+    },
+    "artifact_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reading": {
+      "$ref": "chronicle-chapter-candidate-v0.2.schema.json#/$defs/reading"
+    },
+    "reading_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reading_units": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-artifact-v0.2.schema.json#/$defs/resolved_reading_unit"
+      }
+    },
+    "person_states": {
+      "$ref": "chronicle-chapter-candidate-v0.3.schema.json#/$defs/person_states"
+    },
+    "person_states_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "person_state_candidates": {
+      "type": "array",
+      "items": {
+        "$ref": "chronicle-chapter-artifact-v0.3.schema.json#/$defs/person_state_candidate"
+      }
+    },
+    "production_receipt": {
+      "$ref": "#/$defs/production_receipt"
+    }
+  },
+  "$defs": {
+    "production_receipt": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema",
+        "version",
+        "status",
+        "request_fingerprint",
+        "candidate_sha256",
+        "history_sha256",
+        "step_output_sha256s",
+        "decision"
+      ],
+      "properties": {
+        "schema": {
+          "const": "chronicle.chapter-acceptance"
+        },
+        "version": {
+          "const": "0.1"
+        },
+        "status": {
+          "const": "accepted"
+        },
+        "request_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "candidate_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "history_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "step_output_sha256s": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "decision": {
+          "type": "object",
+          "minProperties": 1
+        },
+        "pipeline_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

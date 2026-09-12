@@ -108,6 +108,10 @@ CHAPTER_PERSON_STATE_ARTIFACT_VERSION = "0.3"
 #: Model-generatable person-state candidate marker (embedded in 0.3 artifacts).
 CHAPTER_PERSON_STATE_CANDIDATE_VERSION = "0.3"
 
+# Staged production retains reading/state fields and adds its bound receipt.
+CHAPTER_STAGED_ARTIFACT_VERSION = "0.4"
+CHAPTER_STAGED_CANDIDATE_VERSION = "0.4"
+
 _T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
 _MENTION_ID_RE = re.compile(r"^m_(\d+)$")
 
@@ -1319,18 +1323,31 @@ def _validate_accepted_chapter_artifact(
         CHAPTER_ARTIFACT_VERSION,
         CHAPTER_READING_ARTIFACT_VERSION,
         CHAPTER_PERSON_STATE_ARTIFACT_VERSION,
+        CHAPTER_STAGED_ARTIFACT_VERSION,
     ):
         raise PersistenceError(
             f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/"
             f"{CHAPTER_ARTIFACT_VERSION}, {CHAPTER_READING_ARTIFACT_VERSION} or "
-            f"{CHAPTER_PERSON_STATE_ARTIFACT_VERSION}; "
+            f"{CHAPTER_PERSON_STATE_ARTIFACT_VERSION} or {CHAPTER_STAGED_ARTIFACT_VERSION}; "
             "unaccepted or wrong-generation products are rejected"
         )
     candidate_version = {
         CHAPTER_ARTIFACT_VERSION: CHAPTER_CANDIDATE_VERSION,
         CHAPTER_READING_ARTIFACT_VERSION: CHAPTER_READING_CANDIDATE_VERSION,
         CHAPTER_PERSON_STATE_ARTIFACT_VERSION: CHAPTER_PERSON_STATE_CANDIDATE_VERSION,
+        CHAPTER_STAGED_ARTIFACT_VERSION: CHAPTER_STAGED_CANDIDATE_VERSION,
     }[version]
+    if version == CHAPTER_STAGED_ARTIFACT_VERSION:
+        import staged_chapter_contract as staged
+
+        errors = staged._schema_errors(staged.C.artifact_schema_for("0.4"), artifact)
+        errors.extend(staged.validate_production_receipt(
+            artifact.get("production_receipt"),
+            request_fingerprint=artifact.get("request_fingerprint"),
+            candidate_sha256=artifact.get("candidate_sha256"),
+        ))
+        if errors:
+            raise PersistenceError(f"{owner} invalid staged artifact: " + "; ".join(errors))
     for key in ("chapter_id", "revision_id", "source_sha256", "normalized_sha256",
                 "candidate_sha256", "request_fingerprint"):
         if not isinstance(artifact.get(key), str) or not artifact.get(key):
@@ -1434,7 +1451,10 @@ def _validate_accepted_chapter_artifact(
     reading_units: list[dict[str, Any]] = []
     person_states: dict[str, Any] | None = None
     person_state_candidates: list[dict[str, Any]] = []
-    if version in (CHAPTER_READING_ARTIFACT_VERSION, CHAPTER_PERSON_STATE_ARTIFACT_VERSION):
+    if version in (
+        CHAPTER_READING_ARTIFACT_VERSION, CHAPTER_PERSON_STATE_ARTIFACT_VERSION,
+        CHAPTER_STAGED_ARTIFACT_VERSION,
+    ):
         accepted_sha = artifact.get("artifact_sha256")
         if not isinstance(accepted_sha, str) or not accepted_sha:
             raise PersistenceError(
@@ -1478,7 +1498,7 @@ def _validate_accepted_chapter_artifact(
                     f"{owner} reading_units[{unit_index}] must name a translation block_id"
                 )
         reading_units = list(resolved)
-    if version == CHAPTER_PERSON_STATE_ARTIFACT_VERSION:
+    if version in (CHAPTER_PERSON_STATE_ARTIFACT_VERSION, CHAPTER_STAGED_ARTIFACT_VERSION):
         person_states = artifact.get("person_states")
         if not isinstance(person_states, dict):
             raise PersistenceError(f"{owner} 0.3 artifact is missing its person_states block")
@@ -1597,6 +1617,7 @@ def assemble_chapters(
     plan_content_by_id = {
         c["chapter_id"]: c.get("content_sha256") for c in plan_chapters
     }
+    plan_chapter_by_id = {c["chapter_id"]: c for c in plan_chapters}
     for item in normalized:
         pair = (item["revision_id"], item["source_sha256"])
         if pair != plan_revision:
@@ -1615,19 +1636,37 @@ def assemble_chapters(
                 f"{item['normalized_sha256']!r} does not match the planned "
                 "chapter content hash; refusing bytes outside the plan"
             )
+        if item["artifact_version"] == CHAPTER_STAGED_ARTIFACT_VERSION:
+            scope = item["candidate"]["source_scope"]
+            planned = plan_chapter_by_id[item["chapter_id"]]
+            if (
+                any(scope[key] != item[key] for key in (
+                    "chapter_id", "revision_id", "source_sha256", "normalized_sha256",
+                ))
+                or scope["chapter_content_sha256"] != item["normalized_sha256"]
+                or scope["chapter_start"] != planned["start"]
+                or scope["chapter_end"] != planned["end"]
+                or scope["revision_normalized_sha256"] != chapter_plan["normalized_sha256"]
+            ):
+                raise PersistenceError(
+                    "staged source scope origin differs from the frozen chapter plan"
+                )
     if len({(item["revision_id"], item["source_sha256"]) for item in normalized}) != 1:
         raise PersistenceError("assembly artifacts span multiple revisions/source hashes (fail closed)")
     artifact_versions = {item["artifact_version"] for item in normalized}
     if len(artifact_versions) != 1:
         raise PersistenceError(
             f"assembly artifacts mix generation versions {sorted(artifact_versions)}; "
-            "refusing to mix 0.1, 0.2 and 0.3 chapter products"
+            "refusing to mix chapter product generations"
         )
     reading_path = artifact_versions in (
         {CHAPTER_READING_ARTIFACT_VERSION},
         {CHAPTER_PERSON_STATE_ARTIFACT_VERSION},
+        {CHAPTER_STAGED_ARTIFACT_VERSION},
     )
-    person_state_path = artifact_versions == {CHAPTER_PERSON_STATE_ARTIFACT_VERSION}
+    person_state_path = artifact_versions in (
+        {CHAPTER_PERSON_STATE_ARTIFACT_VERSION}, {CHAPTER_STAGED_ARTIFACT_VERSION},
+    )
 
     expected_ids = [c["chapter_id"] for c in plan_chapters]
     seen_ids: set[str] = set()
@@ -2222,7 +2261,9 @@ def assemble_chapters(
         "schema_version": SCHEMA_VERSION,
         "candidate_schema": CHAPTER_CANDIDATE_SCHEMA,
         "candidate_version": (
-            CHAPTER_PERSON_STATE_CANDIDATE_VERSION
+            CHAPTER_STAGED_CANDIDATE_VERSION
+            if artifact_versions == {CHAPTER_STAGED_ARTIFACT_VERSION}
+            else CHAPTER_PERSON_STATE_CANDIDATE_VERSION
             if person_state_path
             else CHAPTER_READING_CANDIDATE_VERSION
             if reading_path

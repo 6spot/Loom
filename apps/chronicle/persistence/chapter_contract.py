@@ -63,19 +63,20 @@ PLAN_VERSION = "c2r1-chapters-v1"
 # and its pure validator/acceptance live in the T01 ``reading_contract``
 # module; the 0.3 pair adds ``person_states`` and its pure
 # validator/acceptance live in the T01 ``person_state_contract`` module.
-# Consumers (``chapter_extraction``) dispatch to those validators rather than
-# re-implementing a second set of checks. This is the single registration for
-# the 0.3 generation: no module creates a parallel version registry.
+# The 0.4 pair adds staged production scope and a content-acceptance receipt;
+# ``staged_chapter_contract`` validates its unchanged 0.3 sub-document.
+# Consumers dispatch to those validators rather than re-implementing checks.
+# This remains the single candidate/artifact version registry.
 
 #: Candidate versions registered for the production chain (frozen first).
-CANDIDATE_VERSIONS = ("0.1", "0.2", "0.3")
+CANDIDATE_VERSIONS = ("0.1", "0.2", "0.3", "0.4")
 #: Artifact versions registered for the production chain (frozen first).
-ARTIFACT_VERSIONS = ("0.1", "0.2", "0.3")
+ARTIFACT_VERSIONS = ("0.1", "0.2", "0.3", "0.4")
 
-#: Version new production emits (person-state facts on top of the reading
-#: joint product). New production never silently downgrades to 0.2/0.1.
-PRODUCTION_CANDIDATE_VERSION = "0.3"
-PRODUCTION_ARTIFACT_VERSION = "0.3"
+#: Version new staged production emits. Explicit frozen fixtures retain their
+#: own versions; new production never silently downgrades.
+PRODUCTION_CANDIDATE_VERSION = "0.4"
+PRODUCTION_ARTIFACT_VERSION = "0.4"
 
 #: Offset unit for every chapter/block/anchor coordinate.
 OFFSET_UNIT = "chars-normalized-utf8"
@@ -151,16 +152,29 @@ ARTIFACT_V03_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.3.schema.json"
 )
 
+# 0.4 uses the frozen base definitions, with program-owned source scope and
+# a content-acceptance receipt. Its owner is ``staged_chapter_contract``.
+CANDIDATE_V04_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.4.schema.json"
+ARTIFACT_V04_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.4.schema.json"
+CANDIDATE_V04_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.4.schema.json"
+)
+ARTIFACT_V04_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.4.schema.json"
+)
+
 #: Registry mapping each production version to its schema file/$id.
 _CANDIDATE_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
     "0.1": (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
     "0.2": (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
     "0.3": (CANDIDATE_V03_SCHEMA_PATH, CANDIDATE_V03_SCHEMA_ID),
+    "0.4": (CANDIDATE_V04_SCHEMA_PATH, CANDIDATE_V04_SCHEMA_ID),
 }
 _ARTIFACT_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
     "0.1": (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
     "0.2": (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
     "0.3": (ARTIFACT_V03_SCHEMA_PATH, ARTIFACT_V03_SCHEMA_ID),
+    "0.4": (ARTIFACT_V04_SCHEMA_PATH, ARTIFACT_V04_SCHEMA_ID),
 }
 
 
@@ -336,6 +350,10 @@ def sha256_text(value: str) -> str:
 
 def request_fingerprint(request: dict[str, Any]) -> str:
     """Fingerprint binding model, prompt/schema/plan/limits versions."""
+    if (request.get("schema_versions") or {}).get("candidate") == "0.4":
+        # Staged reuse and content decisions bind every input byte, including
+        # source scope and revision coordinates. Older hashes stay frozen.
+        return sha256_json(request)
     payload = {
         "chapter_id": request.get("chapter_id"),
         "revision_id": request.get("revision_id"),

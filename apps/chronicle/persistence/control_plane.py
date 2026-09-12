@@ -877,7 +877,7 @@ def cancel_job(conn, *, job_id: uuid.UUID) -> None:
                SET status = 'dismissed', resolved_at = %s,
                    payload = payload || '{"dismissal":"job_cancelled"}'::jsonb
                WHERE job_id = %s AND status = 'open'
-                 AND payload->>'scope' = 'narrative'""",
+                 AND payload->>'scope' IN ('narrative', 'chapter_content')""",
             (_utcnow(), job_id),
         )
 
@@ -1103,7 +1103,7 @@ def get_job_detail(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
     chunk_rows = conn.execute(
         """
         SELECT chunk_id, section_id, chunk_index, status, attempt, max_attempts,
-               source_start, source_end, source_sha256, content_sha256
+               source_start, source_end, source_sha256, content_sha256, checkpoint
         FROM chronicle.ingestion_chunks WHERE job_id = %s ORDER BY chunk_index
         """,
         (job_id,),
@@ -1131,6 +1131,7 @@ def get_job_detail(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
                 "source_end": int(chunk[7]),
                 "source_sha256": chunk[8],
                 "content_sha256": chunk[9],
+                "checkpoint": chunk[10] if chunk[10] is not None else {},
                 "runs": [
                     {
                         "run_id": str(run[0]),
