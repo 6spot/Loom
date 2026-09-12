@@ -87,12 +87,17 @@ gate 会：
 
 定位恢复计时从文档加载前注册的 `PerformanceObserver` 取得真实 locate 请求的
 `responseEnd`，仅保留最近 64 条定位记录；长文阅读填满浏览器默认资源计时缓冲区
-也不能丢失后续定位计时。缺少实际请求记录仍失败，不用当前时间补值。探针的
+也不能丢失后续定位计时。同页导航只接受此次操作开始之后的请求；缺少实际请求
+记录仍失败，不用当前时间补值。探针的
 Chromium 回归会主动填满资源缓冲区，并检查导航后不会沿用上一文档的记录：
 
 ```bash
 node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
 ```
+
+请求计数按精确 API pathname 区分正文 `/units` 分页、R3 `/units/{unit}/people`
+摘要及逐人详情，三者分别记入证据；查询参数和子路由不能被算成正文分页。原有正文
+分页请求、响应时间和长任务预算不变，测量仍包含实际人物摘要请求带来的负载。
 
 `manifest.json` 的 `criteria` 逐项记录
 `real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，
