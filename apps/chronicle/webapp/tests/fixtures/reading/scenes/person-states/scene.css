@@ -1,0 +1,58 @@
+/* C2-R3-T11 组件场景样式（仅测试使用）。
+ *
+ * 复用正式阅读页骨架与 `person-state.css`；这里只补场景控制条、窄屏入口与正文
+ * 排版，证明窄屏不挤压正文、操作区域可达。 */
+
+.pstate-synthetic-flag {
+  padding: 0.3rem 0.6rem;
+  border: 1px dashed #884d41;
+  border-radius: 4px;
+  color: #884d41;
+  font-size: 0.75rem;
+}
+
+.pstate-scene-paragraph {
+  margin: 0 0 1.25rem;
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: 18px;
+  line-height: 1.85;
+}
+
+.pstate-scene-mobile-entry {
+  display: none;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.6rem;
+  color: #884d41;
+}
+
+.pstate-scene-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 1440px;
+  margin: 1rem auto 3rem;
+  padding: 0.5rem 1rem;
+  border: 1px dashed #b9b9ae;
+  border-radius: 8px;
+  color: #696e67;
+  font-size: 0.75rem;
+}
+
+.pstate-scene-controls .public-text-button {
+  min-height: 2.75rem;
+  padding: 0 0.6rem;
+}
+
+@media (max-width: 1199px) {
+  .pstate-scene-mobile-entry {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@media (max-width: 767px) {
+  .pstate-scene-paragraph {
+    font-size: 17px;
+  }
+}
