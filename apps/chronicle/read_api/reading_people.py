@@ -80,6 +80,7 @@ _CURSOR_MARGIN_BYTES = 1024
 #: missing even though the addressed stream/unit exists (explicit 409).
 _INCONSISTENT_MARKERS = (
     "unknown person-state manifest",
+    "does not cover unit",
 )
 
 #: ``PersistenceError`` messages that name a missing reader-visible member.
@@ -311,6 +312,22 @@ def _validate_page(name: str, page: dict[str, Any]) -> dict[str, Any]:
     return page
 
 
+def _require_compiled_items(items: Any, description: str) -> None:
+    """Fail closed when one published item exceeds ``compiled_item_max_bytes``.
+
+    The page budget bounds the whole response, but ``person-state-reading.md`` §7
+    also fixes ``compiled_item_max_bytes`` (64 KiB) for a single complete
+    identity/change item. The publish boundary already rejects oversized items;
+    this is the read-side second fence so a stored oversized item can never be
+    served as a valid page.
+    """
+    for item in items or []:
+        if _byte_size(item) > _LIMITS.compiled_item_max_bytes:
+            raise ReadingPeopleInconsistent(
+                f"a published {description} item exceeds compiled_item_max_bytes"
+            )
+
+
 # ---------------------------------------------------------------------------
 # Response budgets (whole entries only)
 # ---------------------------------------------------------------------------
@@ -417,6 +434,8 @@ def unit_people(
                 f"compiled person {person['person_id']!r} is not part of unit "
                 f"{unit_id!r} context"
             )
+        _require_compiled_items(person["identities"], "identity")
+        _require_compiled_items(person["changes"], "change")
     page = _fit_summary_page(
         conn,
         page,
@@ -500,6 +519,8 @@ def unit_person_states(
         limit=limit,
         cursor=cursor,
     )
+    _require_compiled_items(page["items"], "identity")
+    _require_compiled_items(page["changes"], "change")
     page = _fit_detail_page(
         conn,
         page,

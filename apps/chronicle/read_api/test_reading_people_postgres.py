@@ -592,6 +592,42 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
                 section="evidence", item_id="psi_" + "0" * 24, catalog_sha=catalog,
             )
 
+    def test_manifest_omitted_unit_is_409(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="c1")
+        person_a = _uuid7()
+        ctx, stream_id = self._setup_stream(
+            self.conn, label="zhou", blocks=["瑜字公瑾", "權拜瑜偏將軍"],
+            catalog_sha=catalog, tag="v1",
+            context_by_unit={
+                "ru_zhou_0": self._context(person_a),
+                "ru_zhou_1": self._context(person_a),
+            },
+        )
+        # The manifest covers only the first reading unit.
+        self._persist(ctx, stream_id, [self._unit(ctx, unit_id="ru_zhou_0", unit_ordinal=0, people=[
+            self._person(person_a, "周瑜", items=[self._item(ctx, person_a, fact_ref="pf_001")]),
+        ])])
+        with self.assertRaises(people.ReadingPeopleInconsistent):
+            people.unit_people(self.conn, stream_id=stream_id, unit_id="ru_zhou_1", catalog_sha=catalog)
+        with self.assertRaises(people.ReadingPeopleInconsistent):
+            people.unit_person_states(
+                self.conn, stream_id=stream_id, unit_id="ru_zhou_1", person_id=person_a,
+                section="identities", catalog_sha=catalog,
+            )
+
+    def test_publish_rejects_oversized_item(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="c1")
+        person_a = _uuid7()
+        ctx, stream_id = self._setup_stream(
+            self.conn, label="zhou", blocks=["瑜字公瑾"], catalog_sha=catalog, tag="v1",
+            context_by_unit={"ru_zhou_0": self._context(person_a)},
+        )
+        oversized = self._item(ctx, person_a, fact_ref="pf_001", value="x" * 70000)
+        with self.assertRaises(PersistenceError):
+            self._persist(ctx, stream_id, [self._unit(ctx, unit_id="ru_zhou_0", unit_ordinal=0, people=[
+                self._person(person_a, "周瑜", items=[oversized]),
+            ])])
+
     def test_context_inconsistency_is_409(self) -> None:
         catalog = self._seed_catalog(self.conn, tag="c1")
         person_a, outsider = _uuid7(), _uuid7()

@@ -65,6 +65,7 @@ import person_state_contract as _contract  # noqa: E402
 from common import (  # noqa: E402
     PersistenceConflict,
     PersistenceError,
+    canonical_json_bytes,
     parse_uuid7,
     sha256_json,
 )
@@ -189,6 +190,21 @@ def _validate_dto(name: str, value: Any, owner: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _require_compiled_item_size(item: dict[str, Any], owner: str) -> None:
+    """Reject an oversized compiled item before any row is written.
+
+    ``person-state-reading.md`` §7 fixes ``compiled_item_max_bytes`` (64 KiB) for
+    one complete identity/change item. The schema validator does not bound text
+    length, so the publish boundary enforces the byte cap explicitly.
+    """
+    limit = _contract.PersonStateLimits().compiled_item_max_bytes
+    size = len(canonical_json_bytes(item))
+    if size > limit:
+        raise PersistenceError(
+            f"{owner} is {size} bytes and exceeds compiled_item_max_bytes {limit}"
+        )
+
+
 def _normalize_identity_item(item: Any, owner: str) -> dict[str, Any]:
     item = dict(_require_object(item, owner))
     item.setdefault("value", None)
@@ -210,6 +226,7 @@ def _normalize_identity_item(item: Any, owner: str) -> dict[str, Any]:
     if not isinstance(item.get("evidence_count"), int) or isinstance(item.get("evidence_count"), bool):
         item["evidence_count"] = len(item["source_facts"])
     _validate_dto("state_item", item, owner)
+    _require_compiled_item_size(item, owner)
     return item
 
 
@@ -225,6 +242,7 @@ def _normalize_change_item(item: Any, owner: str) -> dict[str, Any]:
     if not isinstance(item.get("source_facts"), list):
         raise PersistenceError(f"{owner}.source_facts must be an array")
     _validate_dto("state_change", item, owner)
+    _require_compiled_item_size(item, owner)
     return item
 
 
@@ -1061,7 +1079,14 @@ def _manifest_metadata(conn, *, stream_id: uuid.UUID, unit_id: str) -> dict[str,
             f"unknown person-state manifest for stream {stream_id} unit {unit_id}"
         )
     unit_phases = row[2] if isinstance(row[2], dict) else {}
-    phase_info = unit_phases.get(unit_id) if isinstance(unit_phases.get(unit_id), dict) else {}
+    phase_info = unit_phases.get(unit_id)
+    if not isinstance(phase_info, dict):
+        # The manifest for this stream does not cover the addressed reading unit.
+        # An empty page would look like "no recorded state" and hide a missing
+        # compiled unit, so the read fails closed for the caller to surface 409.
+        raise PersistenceError(
+            f"person-state manifest for stream {stream_id} does not cover unit {unit_id}"
+        )
     return {
         "manifest_sha": row[0],
         "origin_catalog_sha": row[1],

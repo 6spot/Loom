@@ -274,13 +274,16 @@ class ErrorClassificationTests(unittest.TestCase):
                         people.unit_people(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
 
     def test_missing_manifest_is_409(self) -> None:
-        with mock.patch.object(
-            people._store,
-            "list_unit_people",
-            side_effect=PersistenceError("unknown person-state manifest for stream s unit u"),
+        for message in (
+            "unknown person-state manifest for stream s unit u",
+            "person-state manifest for stream s does not cover unit ru_0",
         ):
-            with self.assertRaises(people.ReadingPeopleInconsistent):
-                people.unit_people(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
+            with self.subTest(message=message):
+                with mock.patch.object(
+                    people._store, "list_unit_people", side_effect=PersistenceError(message)
+                ):
+                    with self.assertRaises(people.ReadingPeopleInconsistent):
+                        people.unit_people(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
 
     def test_person_outside_unit_context_is_409(self) -> None:
         with mock.patch.object(
@@ -330,6 +333,29 @@ class ResponseShapeAndBudgetTests(unittest.TestCase):
         with mock.patch.object(people._store, "list_unit_people", return_value=broken):
             with self.assertRaises(people.ReadingPeopleInconsistent):
                 people.unit_people(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
+
+    def test_summary_oversized_item_is_409(self) -> None:
+        oversized = _item(name="x" * 70000)
+        with mock.patch.object(
+            people._store, "list_unit_people",
+            return_value=_summary_page([_person(identities=[oversized])]),
+        ):
+            with self.assertRaises(people.ReadingPeopleInconsistent) as ctx:
+                people.unit_people(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
+        self.assertIn("compiled_item_max_bytes", str(ctx.exception))
+
+    def test_detail_oversized_item_is_409(self) -> None:
+        oversized = _item(name="x" * 70000)
+        with mock.patch.object(
+            people._store, "list_unit_person_states",
+            return_value=_states_page(items=[oversized]),
+        ):
+            with self.assertRaises(people.ReadingPeopleInconsistent) as ctx:
+                people.unit_person_states(
+                    None, stream_id=STREAM, unit_id=UNIT, person_id=PERSON,
+                    section="identities", catalog_sha=SHA,
+                )
+        self.assertIn("compiled_item_max_bytes", str(ctx.exception))
 
     def test_summary_budget_drops_whole_people_and_keeps_cursor(self) -> None:
         huge = "字" * 20000

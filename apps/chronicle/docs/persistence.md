@@ -383,7 +383,12 @@ rows). Malformed or mis-typed cursor positions raise `PersonStateCursorError`
 read, whether or not a snapshot `catalog_sha` is supplied: an unknown person or
 item and a phase that is not bound to the unit's compiled manifest raise an
 error instead of returning a misleading empty page, and
-`list_catalog_disagreements` rejects an unknown catalog.
+`list_catalog_disagreements` rejects an unknown catalog. A read also fails
+closed when the stream's manifest does not cover the addressed reading unit
+(the compiled unit is missing), rather than returning a legitimate-looking
+empty page. The write entries reject any single identity/change item above the
+T01 `compiled_item_max_bytes` (64 KiB) cap, and the read API re-checks the same
+cap before serving so an oversized stored item can never become a valid page.
 
 Snapshot visibility never uses wall-clock time. An omitted `catalog_sha` is
 normalized once to the stream's own origin snapshot and that single effective
