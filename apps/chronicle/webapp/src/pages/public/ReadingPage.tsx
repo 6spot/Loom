@@ -345,6 +345,10 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
     unitSelector: '[data-test="reading-unit"]',
     headerHeight: chromeHeight,
     preserveLayoutPosition: true,
+    getWindowEdges: (unitId) => {
+      const edges = readingAdjacentPages(pages, unitId);
+      return { hasPrevious: Boolean(edges.previous?.has_previous), hasNext: Boolean(edges.next?.has_next) };
+    },
   });
 
   useLayoutEffect(() => {

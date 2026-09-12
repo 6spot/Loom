@@ -94,6 +94,8 @@ export interface ReadingPositionOptions {
   readonly restoreFrameBudget?: number;
   /** Window reports layout changes; this controller preserves the reading point. */
   readonly preserveLayoutPosition?: boolean;
+  /** Current contiguous window's existing HTTP page flags, used only at a scroll boundary. */
+  readonly getWindowEdges?: (unitId: string) => { readonly hasPrevious: boolean; readonly hasNext: boolean };
 }
 
 export interface ReadingPositionControllerState {
@@ -217,6 +219,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     offset: number;
     documentPoint: number;
     referenceLine: number;
+    pending?: { relativeOffset: number; residual: number };
   } | null>(null);
 
   optionsRef.current = options;
@@ -380,23 +383,37 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       const targetTop = window.scrollY + rect.top - referenceY + offsetPx;
       const behavior: ScrollBehavior = prefersReducedMotion() ? "auto" : "auto";
       window.scrollTo({ top: targetTop, behavior });
+      return targetTop - window.scrollY;
     },
     [selectorFor, headerHeight, referenceRatio],
   );
 
-  const rememberLayoutAnchor = useCallback((unitId: string) => {
-    if (!optionsRef.current.preserveLayoutPosition || typeof window === "undefined") return;
+  const hasUnloadedSpace = useCallback((unitId: string, delta: number) => {
+    const edges = optionsRef.current.getWindowEdges?.(unitId);
+    return Boolean(delta < 0 ? edges?.hasPrevious : edges?.hasNext);
+  }, []);
+
+  const rememberLayoutAnchor = useCallback((unitId: string, requested?: { relativeOffset: number; residual: number }) => {
+    if (!optionsRef.current.preserveLayoutPosition || typeof window === "undefined") return false;
+    // A temporary page boundary must not turn the requested offset into the
+    // browser's clamped position before adjacent content has arrived.
+    if (!requested && layoutAnchorRef.current?.pending) return true;
     const node = document.querySelector<HTMLElement>(selectorFor(unitId));
-    if (!node) return;
+    if (!node) return false;
     const rect = node.getBoundingClientRect();
     const referenceLine = referenceLineFor(window.innerHeight,
       optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
-    const offset = relativeOffsetWithin(rect, referenceLine);
+    const pending = requested && Math.abs(requested.residual) > 0.5 &&
+      hasUnloadedSpace(unitId, requested.residual) ? requested : undefined;
+    const offset = pending
+      ? Math.max(rect.height * pending.relativeOffset, Math.min(2, rect.height / 2)) / rect.height
+      : relativeOffsetWithin(rect, referenceLine);
     layoutAnchorRef.current = {
-      unitId, offset, referenceLine,
+      unitId, offset, referenceLine, pending,
       documentPoint: window.scrollY + rect.top + rect.height * offset,
     };
-  }, [selectorFor]);
+    return Boolean(pending);
+  }, [selectorFor, hasUnloadedSpace]);
 
   const preserveLayoutAnchor = useCallback(() => {
     const anchor = layoutAnchorRef.current;
@@ -406,14 +423,28 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     const rect = node.getBoundingClientRect();
     const referenceLine = referenceLineFor(window.innerHeight,
       optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
-    const documentPoint = window.scrollY + rect.top + rect.height * anchor.offset;
+    const offset = anchor.pending
+      ? Math.max(rect.height * anchor.pending.relativeOffset, Math.min(2, rect.height / 2)) / rect.height
+      : anchor.offset;
+    const documentPoint = window.scrollY + rect.top + rect.height * offset;
     // Document coordinates separate layout growth from the user's own scroll.
     // Applying only this delta keeps wheel/touch movement intact while newly
     // prepended paragraphs, loading notices and remeasured units change height.
-    const delta = documentPoint - anchor.documentPoint - (referenceLine - anchor.referenceLine);
-    layoutAnchorRef.current = { ...anchor, documentPoint, referenceLine };
+    const delta = documentPoint - anchor.documentPoint - (referenceLine - anchor.referenceLine) +
+      (anchor.pending?.residual ?? 0);
+    const before = window.scrollY;
     if (Math.abs(delta) > 0.5) window.scrollBy({ top: delta, behavior: "auto" });
-  }, [selectorFor]);
+    const residual = delta - (window.scrollY - before);
+    const pending = anchor.pending && Math.abs(residual) > 0.5 && hasUnloadedSpace(anchor.unitId, residual)
+      ? { ...anchor.pending, residual } : undefined;
+    layoutAnchorRef.current = { ...anchor, offset, documentPoint, referenceLine, pending };
+    if (anchor.pending && !pending) {
+      // The requested point is now reachable, or the current page flags prove
+      // this is the real stream boundary. Both are legitimate completion.
+      rememberLayoutAnchor(anchor.unitId);
+      commitState({ navigationState: "idle" });
+    }
+  }, [selectorFor, hasUnloadedSpace, rememberLayoutAnchor, commitState]);
 
   const waitForDom = useCallback(
     (unitId: string, seq: number): Promise<boolean> =>
@@ -452,8 +483,16 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     requestSeqRef.current += 1;
     operationAbortRef.current?.abort();
     operationAbortRef.current = new AbortController();
+    if (settleTimerRef.current !== null && typeof window !== "undefined") {
+      window.clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+    if (layoutAnchorRef.current?.pending) {
+      layoutAnchorRef.current = null;
+      if (activeRef.current) rememberLayoutAnchor(activeRef.current.unitId);
+    }
     return requestSeqRef.current;
-  }, []);
+  }, [rememberLayoutAnchor]);
 
   const applyLocator = useCallback(
     async (locator: ReadingLocator, detail: RestoreDetail, preallocatedSeq?: number) => {
@@ -523,9 +562,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         activeUnit: unit,
       });
       writeUrl(locator, detail.push ? "push" : "replace", key);
-      scrollToTarget(locator.unit_id, detail.relativeOffset);
-      rememberLayoutAnchor(locator.unit_id);
-      commitState({ navigationState: "idle" });
+      const residual = scrollToTarget(locator.unit_id, detail.relativeOffset) ?? 0;
+      const pending = rememberLayoutAnchor(locator.unit_id, { relativeOffset: detail.relativeOffset, residual });
+      if (!pending) commitState({ navigationState: "idle" });
       optionsRef.current.onActiveUnitChange?.(unit);
       storeRef.current.saveEntry({
         history_key: key,
@@ -595,12 +634,14 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       settleTimerRef.current = null;
     }
     schedulerRef.current?.cancel();
+    layoutAnchorRef.current = null;
+    if (activeRef.current) rememberLayoutAnchor(activeRef.current.unitId);
     if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       requestSeqRef.current += 1;
       operationAbortRef.current?.abort();
       setNavState("user_scrolled");
     }
-  }, [setNavState]);
+  }, [setNavState, rememberLayoutAnchor]);
 
   const restoreFromUrlInternal = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -789,6 +830,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
 
     return () => {
       mountedRef.current = false;
+      layoutAnchorRef.current = null;
       requestSeqRef.current += 1;
       operationAbortRef.current?.abort();
       window.removeEventListener("scroll", handleScroll);
