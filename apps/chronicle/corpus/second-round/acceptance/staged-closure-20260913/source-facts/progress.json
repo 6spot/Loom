@@ -1,0 +1,176 @@
+[
+  {
+    "kind": "phase_started",
+    "phase": "source-facts",
+    "time_unix": 1789226015.895292,
+    "model": "gpt-5.6-luna",
+    "prompt_chars": 14397,
+    "max_output_tokens": 24576,
+    "wall_clock_limit_seconds": 360
+  },
+  {
+    "kind": "http_started",
+    "phase": "source-facts",
+    "time_unix": 1789226015.8958569,
+    "attempt": 1
+  },
+  {
+    "kind": "http_headers",
+    "phase": "source-facts",
+    "time_unix": 1789226039.1663482,
+    "attempt": 1,
+    "status": 200
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226054.9740086,
+    "bytes_received": 2
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226084.1202166,
+    "bytes_received": 4
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226099.1737676,
+    "bytes_received": 5
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226130.6104918,
+    "bytes_received": 7
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226159.1803932,
+    "bytes_received": 9
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226190.4126055,
+    "bytes_received": 11
+  },
+  {
+    "kind": "wire_progress",
+    "phase": "source-facts",
+    "time_unix": 1789226217.3381598,
+    "bytes_received": 1376
+  },
+  {
+    "kind": "http_returned",
+    "phase": "source-facts",
+    "time_unix": 1789226219.5020525,
+    "attempt": 1,
+    "bytes": 45328,
+    "sha256": "fe0b7d51fd72a166849a9b28df95c9b8ca6ec39b02f9f443eb031839dd833e4c",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "attribution": {
+        "items": {
+          "msg_0f6f33ee12063110016aa56c290fa887d0b5306fa6773b9eb3": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 14743,
+                "output_tokens": 0
+              }
+            ],
+            "input_tokens": 14743,
+            "output_tokens": 0
+          },
+          "rs_0f6f33ee12063110016aa56c29ddd087d0914faddb97d19241": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2,
+            "output_tokens": 512
+          },
+          "msg_0f6f33ee12063110016aa56c33360c87d0ab67277e2382a60f": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 10032
+              }
+            ],
+            "input_tokens": 0,
+            "output_tokens": 10032
+          }
+        },
+        "request_fields": {
+          "tools": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 296,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 742,
+            "output_tokens": 0
+          }
+        }
+      },
+      "input_tokens": 15783,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 10544,
+      "output_tokens_details": {
+        "reasoning_tokens": 512
+      },
+      "total_tokens": 26327
+    },
+    "incomplete_details": null
+  },
+  {
+    "kind": "phase_finished",
+    "phase": "source-facts",
+    "time_unix": 1789226219.516427,
+    "elapsed_seconds": 203.621,
+    "phase_shape_valid": false,
+    "error": null,
+    "deadline_hit": false,
+    "validation_errors": [
+      "f_007: known time missing source ids/label",
+      "f_008: known time missing source ids/label",
+      "f_012: known time missing source ids/label",
+      "f_013: known time missing source ids/label",
+      "f_014: known time missing source ids/label",
+      "f_015: known time missing source ids/label",
+      "f_019: known time missing source ids/label",
+      "f_020: known time missing source ids/label",
+      "f_021: known time missing source ids/label",
+      "f_022: known time missing source ids/label",
+      "f_024: known time missing source ids/label",
+      "f_025: known time missing source ids/label",
+      "f_026: known time missing source ids/label",
+      "f_027: known time missing source ids/label",
+      "f_031: known time missing source ids/label",
+      "f_032: known time missing source ids/label",
+      "f_033: known time missing source ids/label",
+      "f_034: known time missing source ids/label",
+      "f_035: known time missing source ids/label",
+      "f_036: known time missing source ids/label",
+      "f_037: known time missing source ids/label",
+      "f_051: known time missing source ids/label",
+      "f_052: known time missing source ids/label",
+      "f_057: known time missing source ids/label"
+    ]
+  }
+]

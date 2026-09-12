@@ -1,0 +1,2932 @@
+{
+  "entities": [
+    {
+      "ref": "e_001",
+      "name": "刘备",
+      "kind": "person",
+      "source_ids": [
+        "b_005",
+        "b_007",
+        "b_009",
+        "b_011",
+        "b_013",
+        "b_015",
+        "b_017",
+        "b_019",
+        "b_021",
+        "b_023",
+        "b_025",
+        "b_027",
+        "b_031",
+        "b_033",
+        "b_035",
+        "b_037",
+        "b_039",
+        "b_041",
+        "b_043",
+        "b_045",
+        "b_047",
+        "b_049",
+        "b_051",
+        "b_053",
+        "b_055",
+        "b_057",
+        "b_061",
+        "b_063",
+        "b_065",
+        "b_067",
+        "b_069",
+        "b_071",
+        "b_073",
+        "b_075",
+        "b_077",
+        "b_079",
+        "b_085"
+      ]
+    },
+    {
+      "ref": "e_002",
+      "name": "刘胜",
+      "kind": "person",
+      "source_ids": [
+        "b_005"
+      ]
+    },
+    {
+      "ref": "e_003",
+      "name": "刘贞",
+      "kind": "person",
+      "source_ids": [
+        "b_005"
+      ]
+    },
+    {
+      "ref": "e_004",
+      "name": "刘雄",
+      "kind": "person",
+      "source_ids": [
+        "b_005"
+      ]
+    },
+    {
+      "ref": "e_005",
+      "name": "刘弘",
+      "kind": "person",
+      "source_ids": [
+        "b_005"
+      ]
+    },
+    {
+      "ref": "e_006",
+      "name": "卢植",
+      "kind": "person",
+      "source_ids": [
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_007",
+      "name": "公孙瓒",
+      "kind": "person",
+      "source_ids": [
+        "b_007",
+        "b_009",
+        "b_011"
+      ]
+    },
+    {
+      "ref": "e_008",
+      "name": "刘德然",
+      "kind": "person",
+      "source_ids": [
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_009",
+      "name": "张世平",
+      "kind": "person",
+      "source_ids": [
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_010",
+      "name": "苏双",
+      "kind": "person",
+      "source_ids": [
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_011",
+      "name": "邹靖",
+      "kind": "person",
+      "source_ids": [
+        "b_009"
+      ]
+    },
+    {
+      "ref": "e_012",
+      "name": "毌丘毅",
+      "kind": "person",
+      "source_ids": [
+        "b_009"
+      ]
+    },
+    {
+      "ref": "e_013",
+      "name": "袁绍",
+      "kind": "person",
+      "source_ids": [
+        "b_009",
+        "b_017",
+        "b_019"
+      ]
+    },
+    {
+      "ref": "e_014",
+      "name": "田楷",
+      "kind": "person",
+      "source_ids": [
+        "b_009",
+        "b_011"
+      ]
+    },
+    {
+      "ref": "e_015",
+      "name": "陶谦",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013"
+      ]
+    },
+    {
+      "ref": "e_016",
+      "name": "麋竺",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_061"
+      ]
+    },
+    {
+      "ref": "e_017",
+      "name": "陈登",
+      "kind": "person",
+      "source_ids": [
+        "b_011"
+      ]
+    },
+    {
+      "ref": "e_018",
+      "name": "孔融",
+      "kind": "person",
+      "source_ids": [
+        "b_011"
+      ]
+    },
+    {
+      "ref": "e_019",
+      "name": "袁术",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013"
+      ]
+    },
+    {
+      "ref": "e_020",
+      "name": "吕布",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013"
+      ]
+    },
+    {
+      "ref": "e_021",
+      "name": "曹豹",
+      "kind": "person",
+      "source_ids": [
+        "b_011"
+      ]
+    },
+    {
+      "ref": "e_022",
+      "name": "张飞",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_017",
+        "b_025",
+        "b_031",
+        "b_037",
+        "b_039",
+        "b_047",
+        "b_071"
+      ]
+    },
+    {
+      "ref": "e_023",
+      "name": "关羽",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_017",
+        "b_019",
+        "b_025",
+        "b_031",
+        "b_033",
+        "b_035",
+        "b_037",
+        "b_039",
+        "b_047",
+        "b_055",
+        "b_063",
+        "b_071"
+      ]
+    },
+    {
+      "ref": "e_024",
+      "name": "曹操",
+      "kind": "person",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_015",
+        "b_017",
+        "b_019",
+        "b_021",
+        "b_023",
+        "b_025",
+        "b_029",
+        "b_033",
+        "b_039",
+        "b_041",
+        "b_043",
+        "b_047",
+        "b_053",
+        "b_063",
+        "b_067",
+        "b_069"
+      ]
+    },
+    {
+      "ref": "e_025",
+      "name": "董承",
+      "kind": "person",
+      "source_ids": [
+        "b_015",
+        "b_053"
+      ]
+    },
+    {
+      "ref": "e_026",
+      "name": "刘表",
+      "kind": "person",
+      "source_ids": [
+        "b_021",
+        "b_023",
+        "b_025",
+        "b_027"
+      ]
+    },
+    {
+      "ref": "e_027",
+      "name": "刘琦",
+      "kind": "person",
+      "source_ids": [
+        "b_023",
+        "b_025",
+        "b_027"
+      ]
+    },
+    {
+      "ref": "e_028",
+      "name": "刘琮",
+      "kind": "person",
+      "source_ids": [
+        "b_023"
+      ]
+    },
+    {
+      "ref": "e_029",
+      "name": "诸葛亮",
+      "kind": "person",
+      "source_ids": [
+        "b_023",
+        "b_025",
+        "b_031",
+        "b_033",
+        "b_035",
+        "b_037",
+        "b_047",
+        "b_061",
+        "b_071",
+        "b_075",
+        "b_081",
+        "b_083"
+      ]
+    },
+    {
+      "ref": "e_030",
+      "name": "孙权",
+      "kind": "person",
+      "source_ids": [
+        "b_025",
+        "b_027",
+        "b_031",
+        "b_035",
+        "b_039",
+        "b_071",
+        "b_073"
+      ]
+    },
+    {
+      "ref": "e_031",
+      "name": "周瑜",
+      "kind": "person",
+      "source_ids": [
+        "b_025",
+        "b_027"
+      ]
+    },
+    {
+      "ref": "e_032",
+      "name": "程普",
+      "kind": "person",
+      "source_ids": [
+        "b_025"
+      ]
+    },
+    {
+      "ref": "e_033",
+      "name": "刘璋",
+      "kind": "person",
+      "source_ids": [
+        "b_033",
+        "b_035",
+        "b_037"
+      ]
+    },
+    {
+      "ref": "e_034",
+      "name": "张松",
+      "kind": "person",
+      "source_ids": [
+        "b_033",
+        "b_035"
+      ]
+    },
+    {
+      "ref": "e_035",
+      "name": "法正",
+      "kind": "person",
+      "source_ids": [
+        "b_033",
+        "b_035",
+        "b_037",
+        "b_047"
+      ]
+    },
+    {
+      "ref": "e_036",
+      "name": "庞统",
+      "kind": "person",
+      "source_ids": [
+        "b_033"
+      ]
+    },
+    {
+      "ref": "e_037",
+      "name": "李严",
+      "kind": "person",
+      "source_ids": [
+        "b_035",
+        "b_037",
+        "b_047",
+        "b_075"
+      ]
+    },
+    {
+      "ref": "e_038",
+      "name": "黄忠",
+      "kind": "person",
+      "source_ids": [
+        "b_035",
+        "b_043",
+        "b_047"
+      ]
+    },
+    {
+      "ref": "e_039",
+      "name": "赵云",
+      "kind": "person",
+      "source_ids": [
+        "b_025",
+        "b_035"
+      ]
+    },
+    {
+      "ref": "e_040",
+      "name": "张任",
+      "kind": "person",
+      "source_ids": [
+        "b_035",
+        "b_037"
+      ]
+    },
+    {
+      "ref": "e_041",
+      "name": "张鲁",
+      "kind": "person",
+      "source_ids": [
+        "b_029",
+        "b_033",
+        "b_039"
+      ]
+    },
+    {
+      "ref": "e_042",
+      "name": "夏侯渊",
+      "kind": "person",
+      "source_ids": [
+        "b_039",
+        "b_041",
+        "b_043"
+      ]
+    },
+    {
+      "ref": "e_043",
+      "name": "张郃",
+      "kind": "person",
+      "source_ids": [
+        "b_039",
+        "b_041",
+        "b_043"
+      ]
+    },
+    {
+      "ref": "e_044",
+      "name": "黄权",
+      "kind": "person",
+      "source_ids": [
+        "b_039",
+        "b_057",
+        "b_073"
+      ]
+    },
+    {
+      "ref": "e_045",
+      "name": "魏延",
+      "kind": "person",
+      "source_ids": [
+        "b_055"
+      ]
+    },
+    {
+      "ref": "e_046",
+      "name": "曹丕",
+      "kind": "person",
+      "source_ids": [
+        "b_057",
+        "b_063",
+        "b_067"
+      ]
+    },
+    {
+      "ref": "e_047",
+      "name": "刘禅",
+      "kind": "person",
+      "source_ids": [
+        "b_071",
+        "b_077"
+      ]
+    },
+    {
+      "ref": "e_048",
+      "name": "刘永",
+      "kind": "person",
+      "source_ids": [
+        "b_071",
+        "b_079"
+      ]
+    },
+    {
+      "ref": "e_049",
+      "name": "刘理",
+      "kind": "person",
+      "source_ids": [
+        "b_071"
+      ]
+    },
+    {
+      "ref": "e_050",
+      "name": "吴氏",
+      "kind": "person",
+      "source_ids": [
+        "b_071"
+      ]
+    },
+    {
+      "ref": "e_051",
+      "name": "陆议",
+      "kind": "person",
+      "source_ids": [
+        "b_071",
+        "b_073"
+      ]
+    },
+    {
+      "ref": "e_052",
+      "name": "冯习",
+      "kind": "person",
+      "source_ids": [
+        "b_071",
+        "b_073"
+      ]
+    },
+    {
+      "ref": "e_053",
+      "name": "黄元",
+      "kind": "person",
+      "source_ids": [
+        "b_073",
+        "b_075"
+      ]
+    },
+    {
+      "ref": "e_054",
+      "name": "李严",
+      "kind": "person",
+      "source_ids": [
+        "b_075"
+      ]
+    },
+    {
+      "ref": "e_055",
+      "name": "汉",
+      "kind": "polity",
+      "source_ids": [
+        "b_005",
+        "b_015",
+        "b_047",
+        "b_053",
+        "b_057",
+        "b_063",
+        "b_065",
+        "b_067"
+      ]
+    },
+    {
+      "ref": "e_056",
+      "name": "魏",
+      "kind": "polity",
+      "source_ids": [
+        "b_057",
+        "b_063",
+        "b_067"
+      ]
+    },
+    {
+      "ref": "e_057",
+      "name": "涿郡",
+      "kind": "place",
+      "source_ids": [
+        "b_005",
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_058",
+      "name": "涿县",
+      "kind": "place",
+      "source_ids": [
+        "b_005",
+        "b_007"
+      ]
+    },
+    {
+      "ref": "e_059",
+      "name": "安喜县",
+      "kind": "place",
+      "source_ids": [
+        "b_009"
+      ]
+    },
+    {
+      "ref": "e_060",
+      "name": "下密",
+      "kind": "place",
+      "source_ids": [
+        "b_009"
+      ]
+    },
+    {
+      "ref": "e_061",
+      "name": "高唐",
+      "kind": "place",
+      "source_ids": [
+        "b_009"
+      ]
+    },
+    {
+      "ref": "e_062",
+      "name": "平原",
+      "kind": "place",
+      "source_ids": [
+        "b_009",
+        "b_019"
+      ]
+    },
+    {
+      "ref": "e_063",
+      "name": "徐州",
+      "kind": "place",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_017"
+      ]
+    },
+    {
+      "ref": "e_064",
+      "name": "小沛",
+      "kind": "place",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_017",
+        "b_021"
+      ]
+    },
+    {
+      "ref": "e_065",
+      "name": "下邳",
+      "kind": "place",
+      "source_ids": [
+        "b_011",
+        "b_013",
+        "b_017"
+      ]
+    },
+    {
+      "ref": "e_066",
+      "name": "许",
+      "kind": "place",
+      "source_ids": [
+        "b_013",
+        "b_019"
+      ]
+    },
+    {
+      "ref": "e_067",
+      "name": "荆州",
+      "kind": "place",
+      "source_ids": [
+        "b_021",
+        "b_023",
+        "b_025",
+        "b_027",
+        "b_031",
+        "b_039"
+      ]
+    },
+    {
+      "ref": "e_068",
+      "name": "新野",
+      "kind": "place",
+      "source_ids": [
+        "b_021"
+      ]
+    },
+    {
+      "ref": "e_069",
+      "name": "襄阳",
+      "kind": "place",
+      "source_ids": [
+        "b_023",
+        "b_025",
+        "b_063"
+      ]
+    },
+    {
+      "ref": "e_070",
+      "name": "当阳",
+      "kind": "place",
+      "source_ids": [
+        "b_023",
+        "b_025"
+      ]
+    },
+    {
+      "ref": "e_071",
+      "name": "赤壁",
+      "kind": "place",
+      "source_ids": [
+        "b_025",
+        "b_029"
+      ]
+    },
+    {
+      "ref": "e_072",
+      "name": "南郡",
+      "kind": "place",
+      "source_ids": [
+        "b_025",
+        "b_027",
+        "b_031"
+      ]
+    },
+    {
+      "ref": "e_073",
+      "name": "公安",
+      "kind": "place",
+      "source_ids": [
+        "b_025",
+        "b_027",
+        "b_039"
+      ]
+    },
+    {
+      "ref": "e_074",
+      "name": "益州",
+      "kind": "place",
+      "source_ids": [
+        "b_027",
+        "b_033",
+        "b_035",
+        "b_037",
+        "b_039"
+      ]
+    },
+    {
+      "ref": "e_075",
+      "name": "成都",
+      "kind": "place",
+      "source_ids": [
+        "b_033",
+        "b_037",
+        "b_055",
+        "b_065",
+        "b_071",
+        "b_075",
+        "b_085"
+      ]
+    },
+    {
+      "ref": "e_076",
+      "name": "涪",
+      "kind": "place",
+      "source_ids": [
+        "b_033",
+        "b_035"
+      ]
+    },
+    {
+      "ref": "e_077",
+      "name": "绵竹",
+      "kind": "place",
+      "source_ids": [
+        "b_035"
+      ]
+    },
+    {
+      "ref": "e_078",
+      "name": "雒城",
+      "kind": "place",
+      "source_ids": [
+        "b_035",
+        "b_037"
+      ]
+    },
+    {
+      "ref": "e_079",
+      "name": "汉中",
+      "kind": "place",
+      "source_ids": [
+        "b_039",
+        "b_041",
+        "b_043",
+        "b_047",
+        "b_063"
+      ]
+    },
+    {
+      "ref": "e_080",
+      "name": "阳平关",
+      "kind": "place",
+      "source_ids": [
+        "b_041",
+        "b_043"
+      ]
+    },
+    {
+      "ref": "e_081",
+      "name": "定军山",
+      "kind": "place",
+      "source_ids": [
+        "b_043"
+      ]
+    },
+    {
+      "ref": "e_082",
+      "name": "永安",
+      "kind": "place",
+      "source_ids": [
+        "b_073",
+        "b_075",
+        "b_085"
+      ]
+    },
+    {
+      "ref": "e_083",
+      "name": "夷陵",
+      "kind": "place",
+      "source_ids": [
+        "b_071",
+        "b_073"
+      ]
+    },
+    {
+      "ref": "e_084",
+      "name": "白帝",
+      "kind": "place",
+      "source_ids": [
+        "b_035",
+        "b_073"
+      ]
+    }
+  ],
+  "facts": [
+    {
+      "ref": "f_001",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "kinship",
+      "statement": "刘备为中山靖王刘胜之后。",
+      "other_refs": [
+        "e_002"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_002",
+      "subject_ref": "e_058",
+      "subject_name": "涿县",
+      "dimension": "place_administration",
+      "statement": "涿县隶属涿郡。",
+      "other_refs": [
+        "e_057"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "inferred"
+    },
+    {
+      "ref": "f_003",
+      "subject_ref": "e_003",
+      "subject_name": "刘贞",
+      "dimension": "title",
+      "statement": "刘贞于元狩六年受封为涿县陆城亭侯，后因酎金获罪失侯。",
+      "other_refs": [
+        "e_058"
+      ],
+      "time": {
+        "label": "元狩六年受封，失侯时间不详",
+        "basis": "explicit",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_004",
+      "subject_ref": "e_004",
+      "subject_name": "刘雄",
+      "dimension": "office",
+      "statement": "刘雄官至东郡范令。",
+      "other_refs": [],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_005",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "kinship",
+      "statement": "正文称刘备为刘雄之孙、刘弘之子。",
+      "other_refs": [
+        "e_004",
+        "e_005"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_006",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "kinship",
+      "statement": "《典略》称刘备本为临邑侯支属。",
+      "other_refs": [],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "reported"
+    },
+    {
+      "ref": "f_007",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘备十五岁时与刘德然、公孙瓒一同从卢植受学。",
+      "other_refs": [
+        "e_006",
+        "e_007",
+        "e_008"
+      ],
+      "time": {
+        "label": "十五岁",
+        "basis": "explicit",
+        "source_ids": [
+          "b_007"
+        ]
+      },
+      "source_ids": [
+        "b_007"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_008",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备得到张世平、苏双大量金财资助后，得以招集合众。",
+      "other_refs": [
+        "e_009",
+        "e_010"
+      ],
+      "time": {
+        "label": "少年时期",
+        "basis": "contextual",
+        "source_ids": [
+          "b_007"
+        ]
+      },
+      "source_ids": [
+        "b_007"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_009",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备随校尉邹靖讨黄巾有功，被授为安喜尉。",
+      "other_refs": [
+        "e_011",
+        "e_059"
+      ],
+      "time": {
+        "label": "灵帝末",
+        "basis": "contextual",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_010",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "督邮到安喜县后，刘备因求见不通而将其捆缚杖击，随后弃官亡命。",
+      "other_refs": [
+        "e_059"
+      ],
+      "time": {
+        "label": "灵帝末",
+        "basis": "contextual",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_011",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备在下邳击贼有功后被授为下密丞。",
+      "other_refs": [
+        "e_012",
+        "e_060"
+      ],
+      "time": {
+        "label": "灵帝末以后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_012",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "公孙瓒表刘备为别部司马。",
+      "other_refs": [
+        "e_007"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_013",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备曾试守平原令。",
+      "other_refs": [
+        "e_062"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_014",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "平原民刘平遣客刺杀刘备，刺客不忍下手，告知刘备实情后离去。",
+      "other_refs": [
+        "e_062"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_015",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "陶谦表刘备为豫州刺史。",
+      "other_refs": [
+        "e_015"
+      ],
+      "time": {
+        "label": "陶谦任徐州牧期间",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_016",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "曹操表刘备为镇东将军，封宜城亭侯。",
+      "other_refs": [
+        "e_024"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_017",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备在盱眙、淮阴抵御袁术。",
+      "other_refs": [
+        "e_019"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_018",
+      "subject_ref": "e_065",
+      "subject_name": "下邳",
+      "dimension": "place_control",
+      "statement": "下邳被吕布乘虚袭取。",
+      "other_refs": [
+        "e_020"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_019",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备败归曹操后，被曹操表为豫州牧。",
+      "other_refs": [
+        "e_024"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_013"
+        ]
+      },
+      "source_ids": [
+        "b_013"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_020",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "曹操表刘备为左将军。",
+      "other_refs": [
+        "e_024"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_013"
+        ]
+      },
+      "source_ids": [
+        "b_013"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_021",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备与董承、种辑、吴子兰、王子服等同谋诛曹操，事泄后董承等被诛。",
+      "other_refs": [
+        "e_025",
+        "e_024"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_015"
+        ]
+      },
+      "source_ids": [
+        "b_015"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_022",
+      "subject_ref": "e_065",
+      "subject_name": "下邳",
+      "dimension": "place_control",
+      "statement": "下邳一度为刘备所据。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_017"
+        ]
+      },
+      "source_ids": [
+        "b_017"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_023",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "曹操东征刘备，刘备败绩，曹操俘获刘备妻子，并擒关羽带回。",
+      "other_refs": [
+        "e_024",
+        "e_023"
+      ],
+      "time": {
+        "label": "建安五年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_017"
+        ]
+      },
+      "source_ids": [
+        "b_017"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_024",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘备兵败后归附袁绍。",
+      "other_refs": [
+        "e_013"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_019"
+        ]
+      },
+      "source_ids": [
+        "b_019"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_025",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "袁绍遣刘备率兵与刘辟等进攻许下地区。",
+      "other_refs": [
+        "e_013",
+        "e_066"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_019"
+        ]
+      },
+      "source_ids": [
+        "b_019"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_026",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘表以上宾礼接待刘备。",
+      "other_refs": [
+        "e_026"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_021"
+        ]
+      },
+      "source_ids": [
+        "b_021"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_027",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备在博望设伏，以烧屯佯退诱敌，击破夏侯惇、于禁等追兵。",
+      "other_refs": [],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_021"
+        ]
+      },
+      "source_ids": [
+        "b_021"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_028",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "《英雄记》称刘表病重时曾上表使刘备领荆州刺史。",
+      "other_refs": [
+        "e_026",
+        "e_067"
+      ],
+      "time": {
+        "label": "刘表病重时",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023"
+        ]
+      },
+      "source_ids": [
+        "b_023"
+      ],
+      "basis": "reported"
+    },
+    {
+      "ref": "f_029",
+      "subject_ref": "e_028",
+      "subject_name": "刘琮",
+      "dimension": "event",
+      "statement": "刘表死后，刘琮继立并遣使向曹操请降。",
+      "other_refs": [
+        "e_026",
+        "e_024"
+      ],
+      "time": {
+        "label": "刘表死后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023"
+        ]
+      },
+      "source_ids": [
+        "b_023"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_030",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备不忍乘刘琮请降之机攻取荆州，率众南行；途中民众大量归附，至当阳时有十余万人。",
+      "other_refs": [
+        "e_028",
+        "e_067",
+        "e_070"
+      ],
+      "time": {
+        "label": "建安十二年后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023"
+        ]
+      },
+      "source_ids": [
+        "b_023"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_031",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备在当阳长坂遭曹操精骑追及后，弃妻子及大部人众，与诸葛亮、张飞、赵云等数十骑逃走。",
+      "other_refs": [
+        "e_024",
+        "e_029",
+        "e_022",
+        "e_039",
+        "e_070"
+      ],
+      "time": {
+        "label": "曹操南征荆州时",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023",
+          "b_025"
+        ]
+      },
+      "source_ids": [
+        "b_025"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_032",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘备遣诸葛亮前往与孙权结盟。",
+      "other_refs": [
+        "e_029",
+        "e_030"
+      ],
+      "time": {
+        "label": "曹操南征荆州时",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023",
+          "b_025"
+        ]
+      },
+      "source_ids": [
+        "b_025"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_033",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备与孙权所遣吴军在赤壁合力大破曹操军。",
+      "other_refs": [
+        "e_024",
+        "e_030",
+        "e_071"
+      ],
+      "time": {
+        "label": "曹操南征荆州时",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023",
+          "b_025"
+        ]
+      },
+      "source_ids": [
+        "b_025"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_034",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘琦死后，群下推刘备为荆州牧。",
+      "other_refs": [
+        "e_027",
+        "e_067"
+      ],
+      "time": {
+        "label": "刘琦死后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_027"
+        ]
+      },
+      "source_ids": [
+        "b_027"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_035",
+      "subject_ref": "e_067",
+      "subject_name": "荆州",
+      "dimension": "place_control",
+      "statement": "赤壁之战后，荆州南部武陵、长沙、桂阳、零陵四郡归降刘备。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "赤壁之战后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_025",
+          "b_027"
+        ]
+      },
+      "source_ids": [
+        "b_027"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_036",
+      "subject_ref": "e_030",
+      "subject_name": "孙权",
+      "dimension": "event",
+      "statement": "孙权将妹妹嫁给刘备以巩固双方关系。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "赤壁之战后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_025",
+          "b_027"
+        ]
+      },
+      "source_ids": [
+        "b_027"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_037",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备拒绝让孙权所遣军队借道其辖境进攻益州。",
+      "other_refs": [
+        "e_030",
+        "e_074"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_027",
+          "b_031"
+        ]
+      },
+      "source_ids": [
+        "b_027",
+        "b_031"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_038",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘璋遣法正率兵迎接刘备入益州，并以大量财物馈赠；刘备率步卒数万人进入益州。",
+      "other_refs": [
+        "e_033",
+        "e_035",
+        "e_074"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_039",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘璋推刘备行大司马。",
+      "other_refs": [
+        "e_033"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_040",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备到葭萌后没有立即进攻张鲁，而是厚树恩德以收众心。",
+      "other_refs": [
+        "e_041"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_041",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "张松谋泄后被刘璋处死，刘备与刘璋的嫌隙由此形成；刘备随后斩杨怀，率军进攻刘璋。",
+      "other_refs": [
+        "e_033",
+        "e_034"
+      ],
+      "time": {
+        "label": "建安十七年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_035"
+        ]
+      },
+      "source_ids": [
+        "b_035"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_042",
+      "subject_ref": "e_076",
+      "subject_name": "涪",
+      "dimension": "place_control",
+      "statement": "涪城被刘备军占据。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "建安十七年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_035"
+        ]
+      },
+      "source_ids": [
+        "b_035"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_043",
+      "subject_ref": "e_075",
+      "subject_name": "成都",
+      "dimension": "place_control",
+      "statement": "成都被刘备围攻数十日后，刘璋出城投降。",
+      "other_refs": [
+        "e_001",
+        "e_033"
+      ],
+      "time": {
+        "label": "建安十九年夏",
+        "basis": "explicit",
+        "source_ids": [
+          "b_037"
+        ]
+      },
+      "source_ids": [
+        "b_037"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_044",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "affiliation",
+      "statement": "刘备入主益州后，以诸葛亮为股肱、法正为谋主，关羽、张飞、马超为爪牙；并任用原刘璋属官董和、黄权、李严等。",
+      "other_refs": [
+        "e_029",
+        "e_035",
+        "e_023",
+        "e_022",
+        "e_037",
+        "e_044"
+      ],
+      "time": {
+        "label": "建安十九年后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_037"
+        ]
+      },
+      "source_ids": [
+        "b_037"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_045",
+      "subject_ref": "e_067",
+      "subject_name": "荆州",
+      "dimension": "place_control",
+      "statement": "刘备与孙权议和后分割荆州：江夏、长沙、桂阳东属孙权，南郡、零陵、武陵西属刘备。",
+      "other_refs": [
+        "e_001",
+        "e_030"
+      ],
+      "time": {
+        "label": "建安二十年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_039"
+        ]
+      },
+      "source_ids": [
+        "b_039"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_046",
+      "subject_ref": "e_022",
+      "subject_name": "张飞",
+      "dimension": "event",
+      "statement": "刘备命张飞进兵宕渠，张飞在瓦口击破张郃军。",
+      "other_refs": [
+        "e_001",
+        "e_043"
+      ],
+      "time": {
+        "label": "建安二十年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_039"
+        ]
+      },
+      "source_ids": [
+        "b_039"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_047",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备率诸将进兵汉中，在阳平关与夏侯渊、张郃相拒。",
+      "other_refs": [
+        "e_042",
+        "e_043",
+        "e_079",
+        "e_080"
+      ],
+      "time": {
+        "label": "建安二十三年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_041"
+        ]
+      },
+      "source_ids": [
+        "b_041"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_048",
+      "subject_ref": "e_079",
+      "subject_name": "汉中",
+      "dimension": "place_control",
+      "statement": "曹操退军后，汉中为刘备所有。",
+      "other_refs": [
+        "e_001",
+        "e_024"
+      ],
+      "time": {
+        "label": "建安二十四年夏",
+        "basis": "explicit",
+        "source_ids": [
+          "b_043"
+        ]
+      },
+      "source_ids": [
+        "b_043"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_049",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "title",
+      "statement": "群臣推刘备为汉中王，刘备在沔阳受王冠。",
+      "other_refs": [],
+      "time": {
+        "label": "建安二十四年秋",
+        "basis": "explicit",
+        "source_ids": [
+          "b_045",
+          "b_047",
+          "b_049"
+        ]
+      },
+      "source_ids": [
+        "b_045",
+        "b_047",
+        "b_049"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_050",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备上表归还原有左将军、宜城亭侯印绶。",
+      "other_refs": [
+        "e_055"
+      ],
+      "time": {
+        "label": "建安二十四年秋",
+        "basis": "contextual",
+        "source_ids": [
+          "b_045",
+          "b_051",
+          "b_053"
+        ]
+      },
+      "source_ids": [
+        "b_051",
+        "b_053"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_051",
+      "subject_ref": "e_023",
+      "subject_name": "关羽",
+      "dimension": "event",
+      "statement": "关羽进攻曹仁于樊，并擒获于禁。",
+      "other_refs": [
+        "e_024"
+      ],
+      "time": {
+        "label": "刘备还治成都后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_055"
+        ]
+      },
+      "source_ids": [
+        "b_055"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_052",
+      "subject_ref": "e_045",
+      "subject_name": "魏延",
+      "dimension": "office",
+      "statement": "刘备任魏延为都督。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "刘备受汉中王号后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_049",
+          "b_055"
+        ]
+      },
+      "source_ids": [
+        "b_055"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_053",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "因传闻汉献帝被害，刘备发丧制服，追谥汉献帝为孝愍皇帝。",
+      "other_refs": [
+        "e_055"
+      ],
+      "time": {
+        "label": "建安二十五年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_057"
+        ]
+      },
+      "source_ids": [
+        "b_057"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_054",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "title",
+      "statement": "刘备在成都武担之南即皇帝位，继承汉室名义。",
+      "other_refs": [
+        "e_055",
+        "e_075"
+      ],
+      "time": {
+        "label": "建安二十六年四月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_065",
+          "b_067"
+        ]
+      },
+      "source_ids": [
+        "b_065",
+        "b_067"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_055",
+      "subject_ref": "e_046",
+      "subject_name": "曹丕",
+      "dimension": "title",
+      "statement": "曹丕称帝并改元黄初。",
+      "other_refs": [
+        "e_056"
+      ],
+      "time": {
+        "label": "建安二十五年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_057"
+        ]
+      },
+      "source_ids": [
+        "b_057"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_056",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备称帝后改元章武。",
+      "other_refs": [],
+      "time": {
+        "label": "章武元年夏四月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_057",
+      "subject_ref": "e_047",
+      "subject_name": "刘禅",
+      "dimension": "kinship",
+      "statement": "刘禅为刘备之子。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_071",
+          "b_077"
+        ]
+      },
+      "source_ids": [
+        "b_071",
+        "b_077"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_058",
+      "subject_ref": "e_047",
+      "subject_name": "刘禅",
+      "dimension": "title",
+      "statement": "刘备立刘禅为皇太子。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武元年五月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_059",
+      "subject_ref": "e_048",
+      "subject_name": "刘永",
+      "dimension": "title",
+      "statement": "刘备封刘永为鲁王。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武元年五月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_060",
+      "subject_ref": "e_049",
+      "subject_name": "刘理",
+      "dimension": "title",
+      "statement": "刘备封刘理为梁王。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武元年五月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_061",
+      "subject_ref": "e_050",
+      "subject_name": "吴氏",
+      "dimension": "title",
+      "statement": "刘备立吴氏为皇后。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武元年五月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_062",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备因孙权袭杀关羽而拒绝和议，于章武元年秋率军伐吴。",
+      "other_refs": [
+        "e_030",
+        "e_023"
+      ],
+      "time": {
+        "label": "章武元年秋七月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_063",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备由秭归进军，在夷道猇亭驻营。",
+      "other_refs": [
+        "e_083"
+      ],
+      "time": {
+        "label": "章武二年二月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_073"
+        ]
+      },
+      "source_ids": [
+        "b_073"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_064",
+      "subject_ref": "e_082",
+      "subject_name": "永安",
+      "dimension": "place_administration",
+      "statement": "鱼复县被刘备改名为永安。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武二年夏",
+        "basis": "explicit",
+        "source_ids": [
+          "b_073"
+        ]
+      },
+      "source_ids": [
+        "b_073"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_065",
+      "subject_ref": "e_053",
+      "subject_name": "黄元",
+      "dimension": "event",
+      "statement": "黄元因刘备病重而举兵拒守，后进攻临邛；其军败后被亲兵绑缚，送至成都处斩。",
+      "other_refs": [
+        "e_001",
+        "e_075"
+      ],
+      "time": {
+        "label": "章武三年二月至三月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_073",
+          "b_075"
+        ]
+      },
+      "source_ids": [
+        "b_073",
+        "b_075"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_066",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备病重时将后事托付丞相诸葛亮，并以尚书令李严为副。",
+      "other_refs": [
+        "e_029",
+        "e_037"
+      ],
+      "time": {
+        "label": "章武三年三月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_075"
+        ]
+      },
+      "source_ids": [
+        "b_075"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_067",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备死于永安宫，时年六十三岁。",
+      "other_refs": [
+        "e_082"
+      ],
+      "time": {
+        "label": "章武三年夏四月癸巳",
+        "basis": "explicit",
+        "source_ids": [
+          "b_075"
+        ]
+      },
+      "source_ids": [
+        "b_075"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_068",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备遗诏告诫刘禅勿以恶小而为之、勿以善小而不为，并勉励其修德服人。",
+      "other_refs": [
+        "e_047"
+      ],
+      "time": {
+        "label": "临终前",
+        "basis": "contextual",
+        "source_ids": [
+          "b_075",
+          "b_077"
+        ]
+      },
+      "source_ids": [
+        "b_077"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_069",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "title",
+      "statement": "刘备死后被谥为昭烈皇帝。",
+      "other_refs": [],
+      "time": {
+        "label": "章武三年五月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_085"
+        ]
+      },
+      "source_ids": [
+        "b_085"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_070",
+      "subject_ref": "e_029",
+      "subject_name": "诸葛亮",
+      "dimension": "event",
+      "statement": "刘备死后，诸葛亮上表请求颁行刘备遗诏所定丧礼安排。",
+      "other_refs": [
+        "e_001",
+        "e_047"
+      ],
+      "time": {
+        "label": "章武三年四月刘备死后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_075",
+          "b_081",
+          "b_083"
+        ]
+      },
+      "source_ids": [
+        "b_081",
+        "b_083"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_001",
+      "subject_ref": "e_003",
+      "subject_name": "刘贞",
+      "dimension": "event",
+      "statement": "刘贞失侯后居于涿县一带。",
+      "other_refs": [
+        "e_058"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_005"
+        ]
+      },
+      "source_ids": [
+        "b_005"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_002",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备后任高唐尉。",
+      "other_refs": [
+        "e_061"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_003",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备由高唐尉升为高唐令。",
+      "other_refs": [
+        "e_061"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_004",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘备后领平原相。",
+      "other_refs": [
+        "e_062"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_009"
+        ]
+      },
+      "source_ids": [
+        "b_009"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_005",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "陶谦死后，刘备在州人迎立下领徐州。",
+      "other_refs": [
+        "e_015",
+        "e_016",
+        "e_017",
+        "e_018",
+        "e_063"
+      ],
+      "time": {
+        "label": "陶谦死后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_006",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "下邳失守后，刘备转军海西。",
+      "other_refs": [
+        "e_065"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_007",
+      "subject_ref": "e_020",
+      "subject_name": "吕布",
+      "dimension": "event",
+      "statement": "吕布袭取下邳时俘获刘备妻子。",
+      "other_refs": [
+        "e_001",
+        "e_065"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_008",
+      "subject_ref": "e_020",
+      "subject_name": "吕布",
+      "dimension": "event",
+      "statement": "刘备求和后，吕布归还刘备妻子。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "建安元年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_011"
+        ]
+      },
+      "source_ids": [
+        "b_011"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_009",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备杀死徐州刺史车胄。",
+      "other_refs": [
+        "e_063"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_017"
+        ]
+      },
+      "source_ids": [
+        "b_017"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_010",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备在汝南与龚都等合兵，并击杀曹操所遣蔡阳。",
+      "other_refs": [
+        "e_024"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_019"
+        ]
+      },
+      "source_ids": [
+        "b_019"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_011",
+      "subject_ref": "e_026",
+      "subject_name": "刘表",
+      "dimension": "event",
+      "statement": "《魏书》称刘表病重时曾托付荆州于刘备；裴松之认为此说不合刘表早已属意刘琮的情势，判为不然。",
+      "other_refs": [
+        "e_001",
+        "e_028",
+        "e_067"
+      ],
+      "time": {
+        "label": "刘表病重时",
+        "basis": "contextual",
+        "source_ids": [
+          "b_023"
+        ]
+      },
+      "source_ids": [
+        "b_023"
+      ],
+      "basis": "reported"
+    },
+    {
+      "ref": "f_added_012",
+      "subject_ref": "e_027",
+      "subject_name": "刘琦",
+      "dimension": "office",
+      "statement": "刘备上表推刘琦为荆州刺史。",
+      "other_refs": [
+        "e_001",
+        "e_067"
+      ],
+      "time": {
+        "label": null,
+        "basis": "unknown",
+        "source_ids": [
+          "b_027"
+        ]
+      },
+      "source_ids": [
+        "b_027"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_013",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘璋推刘备领司隶校尉。",
+      "other_refs": [
+        "e_033"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_014",
+      "subject_ref": "e_033",
+      "subject_name": "刘璋",
+      "dimension": "office",
+      "statement": "刘备推刘璋行镇西大将军。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_015",
+      "subject_ref": "e_033",
+      "subject_name": "刘璋",
+      "dimension": "office",
+      "statement": "刘备推刘璋领益州牧。",
+      "other_refs": [
+        "e_001",
+        "e_074"
+      ],
+      "time": {
+        "label": "建安十六年",
+        "basis": "explicit",
+        "source_ids": [
+          "b_033"
+        ]
+      },
+      "source_ids": [
+        "b_033"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_016",
+      "subject_ref": "e_078",
+      "subject_name": "雒城",
+      "dimension": "place_control",
+      "statement": "雒城被刘备军围攻。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "建安十七年至十九年",
+        "basis": "contextual",
+        "source_ids": [
+          "b_035",
+          "b_037"
+        ]
+      },
+      "source_ids": [
+        "b_035"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_017",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "刘璋投降后，刘备复领益州牧。",
+      "other_refs": [
+        "e_033",
+        "e_074"
+      ],
+      "time": {
+        "label": "建安十九年夏",
+        "basis": "explicit",
+        "source_ids": [
+          "b_037"
+        ]
+      },
+      "source_ids": [
+        "b_037"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_018",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备在定军山命黄忠攻破夏侯渊军，斩夏侯渊等。",
+      "other_refs": [
+        "e_038",
+        "e_042",
+        "e_081"
+      ],
+      "time": {
+        "label": "建安二十四年春",
+        "basis": "explicit",
+        "source_ids": [
+          "b_043"
+        ]
+      },
+      "source_ids": [
+        "b_043"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_019",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "office",
+      "statement": "群臣推刘备为大司马。",
+      "other_refs": [],
+      "time": {
+        "label": "建安二十四年秋",
+        "basis": "explicit",
+        "source_ids": [
+          "b_045",
+          "b_047",
+          "b_049"
+        ]
+      },
+      "source_ids": [
+        "b_047"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_020",
+      "subject_ref": "e_030",
+      "subject_name": "孙权",
+      "dimension": "event",
+      "statement": "孙权随后袭杀关羽并夺取荆州。",
+      "other_refs": [
+        "e_023",
+        "e_067"
+      ],
+      "time": {
+        "label": "关羽攻樊之后",
+        "basis": "contextual",
+        "source_ids": [
+          "b_055"
+        ]
+      },
+      "source_ids": [
+        "b_055"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_021",
+      "subject_ref": "e_029",
+      "subject_name": "诸葛亮",
+      "dimension": "office",
+      "statement": "刘备任诸葛亮为丞相。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武元年夏四月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_071"
+        ]
+      },
+      "source_ids": [
+        "b_071"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_022",
+      "subject_ref": "e_051",
+      "subject_name": "陆议",
+      "dimension": "event",
+      "statement": "陆议在猇亭大破刘备军，冯习、张南等战死。",
+      "other_refs": [
+        "e_001",
+        "e_052",
+        "e_083"
+      ],
+      "time": {
+        "label": "章武二年夏六月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_073"
+        ]
+      },
+      "source_ids": [
+        "b_073"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_023",
+      "subject_ref": "e_030",
+      "subject_name": "孙权",
+      "dimension": "event",
+      "statement": "孙权遣使向刘备请和，刘备同意并遣宗玮答复。",
+      "other_refs": [
+        "e_001"
+      ],
+      "time": {
+        "label": "章武二年冬",
+        "basis": "explicit",
+        "source_ids": [
+          "b_073"
+        ]
+      },
+      "source_ids": [
+        "b_073"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_024",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备临终召鲁王刘永，嘱咐刘永兄弟在自己死后父事丞相诸葛亮。",
+      "other_refs": [
+        "e_048",
+        "e_029"
+      ],
+      "time": {
+        "label": "临终时",
+        "basis": "explicit",
+        "source_ids": [
+          "b_079"
+        ]
+      },
+      "source_ids": [
+        "b_079"
+      ],
+      "basis": "direct"
+    },
+    {
+      "ref": "f_added_025",
+      "subject_ref": "e_001",
+      "subject_name": "刘备",
+      "dimension": "event",
+      "statement": "刘备于章武三年八月葬于惠陵。",
+      "other_refs": [],
+      "time": {
+        "label": "章武三年八月",
+        "basis": "explicit",
+        "source_ids": [
+          "b_085"
+        ]
+      },
+      "source_ids": [
+        "b_085"
+      ],
+      "basis": "direct"
+    }
+  ]
+}

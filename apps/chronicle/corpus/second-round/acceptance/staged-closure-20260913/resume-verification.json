@@ -1,0 +1,49 @@
+{
+  "checks": [
+    {
+      "case": "pure-translation-resume",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "{\"kind\": \"checkpoint_reused\", \"phase\": \"pure-translation\", \"new_http_calls\": 0, \"spec_sha256\": \"313b7d111d2b8ce75d1a69d820754dd969c3b2dfc055c79d7dcc552cd83e3ece\"}"
+    },
+    {
+      "case": "translation-review-resume",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "{\"kind\": \"checkpoint_reused\", \"phase\": \"translation-review\", \"new_http_calls\": 0, \"spec_sha256\": \"bb8ae97c409a81281c2ca2e87f7bf03ea1e585ca9f6666fb8987854c33afbdc2\"}"
+    },
+    {
+      "case": "facts-review-resume",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "{\"kind\": \"checkpoint_reused\", \"phase\": \"facts-review\", \"new_http_calls\": 0, \"spec_sha256\": \"e9fb24b23bfa08f8c535198b51ef6c8b6f305edb4e88d9b13b459f9d37e47546\"}"
+    },
+    {
+      "case": "spec-drift",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "Checkpoint specification mismatch; refusing reuse"
+    },
+    {
+      "case": "source-drift",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "input hash drift: source_plan"
+    },
+    {
+      "case": "raw-drift",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "Checkpoint output hash mismatch; refusing reuse"
+    },
+    {
+      "case": "failed-phase-needs-explicit-new-attempt",
+      "passed": true,
+      "new_http_calls": 0,
+      "message": "An earlier failed phase result exists; explicit new attempt required"
+    }
+  ],
+  "passed": true,
+  "new_http_calls": 0,
+  "scope": "isolated trial checkpoint only, not production worker or lease recovery"
+}

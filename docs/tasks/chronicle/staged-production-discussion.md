@@ -6,6 +6,12 @@
 关联 [#586](https://github.com/6spot/Loom/issues/586) 和草稿
 [#681](https://github.com/6spot/Loom/pull/681)。任务状态继续由现用工具管理。
 
+后续验证见 [纯译文、局部修正与恢复试验](../../../apps/chronicle/corpus/second-round/acceptance/staged-closure-20260913.md)。
+整章纯文本请求已完成，但自动接受闭环未通过。此次发现的实施约束是：审核必须
+携带完整前序意见与处置历史；通过只能绑定实际检查的版本；新补丁、新异议或
+未解释的结论反转不能获得同一响应中的“通过”，超过修正预算进入人工例外。
+试验文件检查点和离线 needs_review 判定不表示正式 worker/ReviewItem 已实现。
+
 ## 已明确的用户要求
 
 1. 自然章是理解和翻译的基本单位。一次调用输入完整章节，只要求输出这章的

@@ -1,0 +1,108 @@
+"""Prepare the next bounded feasibility check; no production artifact writes."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+
+BASE=Path(__file__).resolve().parent
+ROOT=BASE/'closure'
+ROOT.mkdir(mode=0o700,exist_ok=True)
+shutil.copyfile(BASE/'plan.json',ROOT/'plan.json')
+plan=json.loads((ROOT/'plan.json').read_text())
+request=plan['source_request']
+def digest(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def obj(fields):return {'type':'object','properties':fields,'required':list(fields),'additionalProperties':False}
+def arr(items):return {'type':'array','items':items}
+def enum(values):return {'type':'string','enum':values}
+text={'type':'string','minLength':1}
+source_ids=[b['block_id'] for b in plan['original_context_blocks']]
+source_refs=arr(enum(source_ids))
+time_schema=obj({'label':{'type':['string','null']},'basis':enum(['explicit','contextual','unknown']),'source_ids':source_refs})
+context=json.dumps(plan['original_context_blocks'],ensure_ascii=False,separators=(',',':'))
+main_text='\n\n'.join(t['text'] for t in plan['targets'])
+
+def write_spec(phase,prompt,schema,budget,model='gpt-5.6-luna'):
+    spec={'phase':phase,'model':model,'prompt':prompt,'json_schema':schema,'format_name':phase.replace('-','_'),
+          'max_output_tokens':budget,'max_response_bytes':4*1024*1024,'wall_clock_limit_seconds':360,
+          'source_sha256':request['source_sha256'],'normalized_sha256':request['normalized_sha256'],
+          'input_files':[{'role':'source_plan','path':'plan.json','sha256':digest(ROOT/'plan.json')}],
+          'source_ids':source_ids,'output_kind':'plain_text' if schema is None else 'json',
+          'not_a_production_artifact':True}
+    (ROOT/(phase+'-spec.json')).write_text(json.dumps(spec,ensure_ascii=False,indent=2)+'\n')
+    return spec
+
+translate=write_spec('pure-translation', '''将待译正文作为完整章节一次译成准确、完整、自然的现代汉语。
+只返回连续的白话译文正文，允许自然段；不要 JSON、编号、标题、解释、校注、人物表、事件表、引用字段或分析过程。
+完整原章及其原注供理解，真正要译出的范围由下方待译正文固定。原注独有的故事不另行译入正文，但原注对人名、称呼、主语、古词的说明要用于正确理解正文。
+完整翻译书信、奏表、对话和论据，不摘要、不压缩。依据整章正确承接简称、省略主语及说话者；不要凭主人公或相邻人名补姓。说话人的主张、声称和传闻要保留归属，不能改成客观已证实的事实。官职、亲属、军队进退及年月依原文语境。
+
+完整原章理解背景：
+'''+context+'\n\n待译正文全文：\n'+main_text,None,32768)
+
+facts_schema=obj({
+ 'entities':arr(obj({'ref':text,'name':text,'kind':enum(['person','place','polity']),'source_ids':source_refs})),
+ 'facts':arr(obj({'ref':text,'subject_ref':text,'subject_name':text,
+                  'dimension':enum(['office','title','affiliation','place_control','place_administration','kinship','event']),
+                  'statement':text,'other_refs':arr(text),'time':time_schema,'source_ids':source_refs,
+                  'basis':enum(['direct','reported','inferred'])})),
+})
+facts=write_spec('source-facts','''从完整原章提取核心人物、地点、政权及其重要事实，只做提取，不翻译全文。
+原文包含正文和原注。引用、传闻、注家意见保留归属，不能写成无异议的事实。
+输出 entities 与 facts。优先覆盖主要叙事中的人物与其职位/爵号/效力/亲属、地点实际控制/行政归属以及重要事件事实。每个普通任职仍是事实，本节点不生成前台导航锚点。
+同章明确同一人的简称共用 local ref；不能按同姓猜身份，不跨来源自动合并。实体用 e_001，事实用 f_001 等唯一编号。
+subject_ref 与 subject_name 必须是这条事实真正的主体，且匹配实体表；其他参与者放 other_refs。一个人儿子的官职不能挂在父亲身上。血缘不等于政治效力；所处战场不等于官职。官职、爵号、效力和地点控制分开。
+source_ids 只能选择给定原文块编号。系统保存了全部块的精确原文和坐标，你不要抄引文、算偏移或造引用。每条事实须选择足够原文来支持主体与断言，若简称依赖前文也引用前文块。
+日期用原文标签。直接给明用 explicit，依赖上下文年号或前文纪年用 contextual；未知 label=null、basis=unknown。不要把任命无限延续到后文，也不要给整段跨年战事只挂结尾日期。
+原章：
+'''+context,facts_schema,24576)
+
+runner=(BASE/'run-phase.py').read_text()
+start=runner.index('def validate(value):')
+end=runner.index('\ncheckpoint_path =',start)
+validation='''inputs={}
+for item in spec['input_files']:
+    input_path=args.spec.parent/item['path']
+    if hashlib.sha256(input_path.read_bytes()).hexdigest()!=item['sha256']:
+        raise SystemExit('input hash drift: '+item['role'])
+    inputs[item['role']]=json.loads(input_path.read_text()) if input_path.suffix=='.json' else input_path.read_text()
+source_request=inputs['source_plan']['source_request']
+if spec['source_sha256']!=source_request['source_sha256'] or spec['normalized_sha256']!=source_request['normalized_sha256']:
+    raise SystemExit('raw/normalized source binding mismatch')
+if hashlib.sha256(source_request['normalized_text'].encode()).hexdigest()!=spec['normalized_sha256']:
+    raise SystemExit('normalized source content mismatch')
+
+def decode(raw):
+    return raw if spec['output_kind']=='plain_text' else json.loads(raw)
+
+def validate(value):
+    if spec['output_kind']=='plain_text':
+        if not isinstance(value,str) or not value.strip():return ['empty plain prose']
+        if value.lstrip().startswith(('```','{','[')):return ['expected plain prose, received wrapper']
+        return []
+    errors=[f'{list(e.path)}: {e.message}' for e in Draft202012Validator(spec['json_schema']).iter_errors(value)]
+    if errors:return errors
+    if spec['phase']=='source-facts':
+        entities={e['ref']:e for e in value['entities']}
+        if len(entities)!=len(value['entities']):errors.append('duplicate entity refs')
+        fact_ids=[f['ref'] for f in value['facts']]
+        if len(fact_ids)!=len(set(fact_ids)):errors.append('duplicate fact refs')
+        for entity in value['entities']:
+            if not entity['source_ids']:errors.append(entity['ref']+': missing source ids')
+        for fact in value['facts']:
+            subject=entities.get(fact['subject_ref'])
+            if subject is None or subject['name']!=fact['subject_name']:errors.append(fact['ref']+': subject ref/name mismatch')
+            if set(fact['other_refs'])-set(entities):errors.append(fact['ref']+': unknown participant ref')
+            if not fact['source_ids']:errors.append(fact['ref']+': missing source ids')
+            t=fact['time']
+            if t['basis']=='unknown' and t['label'] is not None:errors.append(fact['ref']+': unknown time must have null label')
+            if t['basis']!='unknown' and (not t['label'] or not t['source_ids']):errors.append(fact['ref']+': known time missing source ids/label')
+    return errors
+'''
+runner=runner[:start]+validation+runner[end:]
+runner=runner.replace('validate(json.loads(raw))','validate(decode(raw))').replace('value = json.loads(raw)','value = decode(raw)')
+runner=runner.replace("assert spec['model'] == 'gpt-5.6-luna'","assert spec['model'] in ('gpt-5.6-luna','gpt-5.6-sol')")
+runner=runner.replace("text_format={'type': 'json_schema', 'name': spec['format_name'],\n                 'strict': True, 'schema': spec['json_schema']}","text_format=({'type':'json_schema','name':spec['format_name'],'strict':True,'schema':spec['json_schema']} if spec['output_kind']=='json' else None)")
+runner=runner.replace("'semantic_quality_accepted': False}","'semantic_quality_accepted': False, 'normalized_sha256': spec['normalized_sha256'],\n          'input_files':spec['input_files'],'runner_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}")
+compile(runner,'closure-run.py','exec')
+(ROOT/'closure-run.py').write_text(runner)
+for spec in [translate,facts]:print(json.dumps({'phase':spec['phase'],'prompt_chars':len(spec['prompt']),'format':spec['output_kind'],'timeout':360}))

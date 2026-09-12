@@ -1,0 +1,74 @@
+[
+  {
+    "attempt": 1,
+    "bytes": 45328,
+    "sha256": "fe0b7d51fd72a166849a9b28df95c9b8ca6ec39b02f9f443eb031839dd833e4c",
+    "status": "completed",
+    "reported_model": "gpt-5.6-luna",
+    "usage": {
+      "attribution": {
+        "items": {
+          "msg_0f6f33ee12063110016aa56c290fa887d0b5306fa6773b9eb3": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 14743,
+                "output_tokens": 0
+              }
+            ],
+            "input_tokens": 14743,
+            "output_tokens": 0
+          },
+          "rs_0f6f33ee12063110016aa56c29ddd087d0914faddb97d19241": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 2,
+            "output_tokens": 512
+          },
+          "msg_0f6f33ee12063110016aa56c33360c87d0ab67277e2382a60f": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "content": [
+              {
+                "cache_write_tokens": 0,
+                "cached_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 10032
+              }
+            ],
+            "input_tokens": 0,
+            "output_tokens": 10032
+          }
+        },
+        "request_fields": {
+          "tools": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 296,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0,
+            "input_tokens": 742,
+            "output_tokens": 0
+          }
+        }
+      },
+      "input_tokens": 15783,
+      "input_tokens_details": {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      },
+      "output_tokens": 10544,
+      "output_tokens_details": {
+        "reasoning_tokens": 512
+      },
+      "total_tokens": 26327
+    },
+    "incomplete_details": null
+  }
+]

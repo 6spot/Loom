@@ -1,0 +1,87 @@
+"""Bind independent reviews to immutable whole-chapter trial results."""
+import hashlib
+import json
+from pathlib import Path
+import re
+
+ROOT = Path(__file__).resolve().parent / 'closure'
+plan = json.loads((ROOT / 'plan.json').read_text())
+base = json.loads((ROOT / 'source-facts-spec.json').read_text())
+original = plan['original_context_blocks']
+source_ids = [b['block_id'] for b in original]
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def write(name, data):
+    (ROOT / name).write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+
+def obj(fields):
+    return {'type': 'object', 'properties': fields, 'required': list(fields), 'additionalProperties': False}
+
+def arr(items):
+    return {'type': 'array', 'items': items}
+
+def enum(values):
+    return {'type': 'string', 'enum': values}
+
+txt = {'type': 'string', 'minLength': 1}
+refs = arr(enum(source_ids))
+translation = (ROOT / 'pure-translation/raw.txt').read_text()
+paragraphs = [{'id': f'p_{i:03}', 'sha256': hashlib.sha256(text.encode()).hexdigest(), 'text': text}
+              for i, text in enumerate(re.split(r'\n\s*\n', translation.strip()), 1)]
+write('translation-paragraphs.json', {'raw_sha256': digest(ROOT / 'pure-translation/raw.txt'), 'paragraphs': paragraphs})
+paragraph_ids = [p['id'] for p in paragraphs]
+
+def spec(phase, prompt, schema, inputs):
+    value = dict(base)
+    value.update(phase=phase, model='gpt-5.6-sol', prompt=prompt, json_schema=schema,
+                 format_name=phase.replace('-', '_'), max_output_tokens=16384,
+                 input_files=base['input_files'] + [{'role': role, 'path': path, 'sha256': digest(ROOT / path)} for role, path in inputs])
+    write(phase + '-spec.json', value)
+    print(json.dumps({'phase': phase, 'prompt_chars': len(prompt), 'max_output_tokens': value['max_output_tokens']}))
+
+translation_schema = obj({
+    'coverage': arr(obj({'source_id': enum([t['source_id'] for t in plan['targets']]),
+                         'paragraph_ids': arr(enum(paragraph_ids)),
+                         'status': enum(['covered', 'missing', 'partial']), 'reason': txt})),
+    'findings': arr(obj({'id': txt, 'paragraph_id': enum(paragraph_ids),
+                         'kind': enum(['mistranslation', 'omission', 'addition', 'uncertain']),
+                         'source_ids': refs, 'reason': txt,
+                         'replacement': {'type': ['string', 'null']}})),
+})
+translation_prompt = '''你是独立的古汉语译文核验者。请依据完整原文和原注核验整章白话译文。
+只判断实质语义、遗漏、无依据补充、主语/亲属/官职/日期错误；不要因文风不同改写。原注只用于理解，待译正文以 targets 为准；不要求把原注独有故事译入正文。
+1. 对每个 targets.source_id 返回一次 coverage，指出对应的一个或多个译文段落；不能用有引用代替对正文意义的核对。36 个待译来源块全部覆盖。
+2. 对明确错误给 findings，source_ids 只能选择真实来源句柄，不抄原文或计算偏移。
+3. replacement 是该 paragraph_id 的完整最小修正版，不得删掉同段其他正确内容；仍无法判断的标 uncertain 且 replacement=null。
+4. 对单个段落多处错误，合并成一个 finding。不能因多个模型相同就判正确，也不能依习见历史常识替代本章依据。原注明确说明简称、主语及古词时必须考虑。
+5. 说话者的指控或传闻保留归属，不视为已证实事实。只提供有依据的修改；原文有歧义则保留未解决。
+完整原文：
+''' + json.dumps(original, ensure_ascii=False, separators=(',', ':')) + '\n待译正文范围：\n' + json.dumps(plan['targets'], ensure_ascii=False, separators=(',', ':')) + '\n固定译文段落：\n' + json.dumps(paragraphs, ensure_ascii=False, separators=(',', ':'))
+spec('translation-review', translation_prompt, translation_schema,
+     [('translation', 'pure-translation/raw.txt'), ('paragraph_manifest', 'translation-paragraphs.json')])
+
+facts = json.loads((ROOT / 'source-facts/result.json').read_text())
+fact_schema = base['json_schema']['properties']['facts']['items']
+fact_ids = [f['ref'] for f in facts['candidate']['facts']]
+entity_schema = base['json_schema']['properties']['entities']['items']
+entity_ids = [e['ref'] for e in facts['candidate']['entities']]
+facts_schema = obj({
+    'findings': arr(obj({'id': txt, 'target_kind': enum(['entity', 'fact']), 'target_ref': enum(entity_ids + fact_ids),
+                        'source_ids': refs, 'reason': txt, 'status': enum(['fix', 'uncertain'])})),
+    'entity_replacements': arr(entity_schema),
+    'fact_replacements': arr(fact_schema),
+})
+facts_prompt = '''依据下列完整原章复核独立提取。这是后台候选，还未接受。只返回问题及需要替换的实体/事实，保留所有无需修改的部分。
+检查实体重复/错误指代、一个事实主体错误或混合多个主体、维度错误、时间/来源支持不足、将原注传闻冒充确定史实。没有明确证据的地方保留未知。
+特别注意规则：
+- kinship 为亲属，不是 affiliation。person 的籍贯不是 place_administration。place_control 和 place_administration 主体必须是地点。office 主体必须是持职本人；任命他人不可成为任命者自己的职位。
+- 单条事实只表达同一主体同一维度。对混合项保留 ref，把它收窄为有根据的一条事实；需要拆出的额外事实另设 f_added_001 等 ref 并列入 fact_replacements，任何丢弃的断言在 findings 中说清楚。
+- 修正后的 subject_ref/name 与实体表一致。不能按同名或姓氏猜同一人。实体重复可列为 uncertain，不能删除实体使引用悬空。
+- time.basis=unknown 时 label=null；其他 basis 时必须有非空 label 和支持该时间的 source_ids。没有可支持时间就用 unknown，不从常识补年。
+- 只选择提供的来源块 ID，不抄引文。因简称或承接纪年依赖前文时包含前文块。
+- 所有明确修正进入 replacements；未解决列 uncertain。修改 ref 必须存在或是上述 f_added_ 前缀，新事实仍须满足单断言及主体约束。
+完整原章：
+''' + json.dumps(original, ensure_ascii=False, separators=(',', ':')) + '\n候选：\n' + json.dumps(facts['candidate'], ensure_ascii=False, separators=(',', ':')) + '\n机械校验错误：\n' + json.dumps(facts['validation_errors'], ensure_ascii=False)
+spec('facts-review', facts_prompt, facts_schema, [('source_facts', 'source-facts/result.json')])

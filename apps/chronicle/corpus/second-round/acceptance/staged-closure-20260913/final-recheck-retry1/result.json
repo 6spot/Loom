@@ -1,0 +1,423 @@
+{
+  "phase": "final-recheck",
+  "spec_sha256": "217e099f666e2c91684e0e4728fb1267b20b9406f0d2b675dd3c560f8d891c1a",
+  "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+  "model": "gpt-5.6-sol",
+  "max_output_tokens": 12288,
+  "wall_clock_limit_seconds": 360,
+  "max_http_attempts": 1,
+  "production_artifact": false,
+  "semantic_quality_accepted": false,
+  "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+  "input_files": [
+    {
+      "role": "source_plan",
+      "path": "plan.json",
+      "sha256": "e4867923af9de098c689cefa64e231f779c6e5886d86d30213340f4cf34f45c8"
+    },
+    {
+      "role": "translation",
+      "path": "repaired/translation-paragraphs.json",
+      "sha256": "bc75ef6002abc21ae6f0ccc6f829deaa8e57f70d5b38946871c71b5f4cce5b53"
+    },
+    {
+      "role": "facts",
+      "path": "repaired/source-facts.json",
+      "sha256": "101538477348709d19a60cefdc79e0d47be689b2653ab71a75527e1d1d8b88dc"
+    },
+    {
+      "role": "host_concerns",
+      "path": "host-concerns.json",
+      "sha256": "afd867b2b6753395bbf76b4665425f430ca49ef138402b7d93381ae4ea72931a"
+    }
+  ],
+  "runner_sha256": "6dd06c35546fec7f2df6c0aa571e3103cd852b503cf7909c61edfcb23775fd1e",
+  "raw_sha256": "d7188b6eaafce360c77622d0cc7b1c212ec25572cf8c7a44325577942c278c24",
+  "raw_chars": 4433,
+  "validation_errors": [],
+  "phase_shape_valid": true,
+  "candidate": {
+    "decisions": [
+      {
+        "issue_id": "host-t019",
+        "verdict": "supported",
+        "source_ids": [
+          "b_015"
+        ],
+        "reason": "原注明确说明董承是汉灵帝母董太后之侄，而对献帝为“丈人”，只是因古代无“丈人”这一称谓才称作“舅”。结合董承为献帝后妃之父的语境，此处应译为献帝的岳父，不能直译为舅父；已修正 p_019。"
+      },
+      {
+        "issue_id": "host-t085",
+        "verdict": "supported",
+        "source_ids": [
+          "b_059"
+        ],
+        "reason": "“臣父群未亡时”明确保留了父亲的名“群”，虽不能补出无依据的姓氏，也不应将名字删除；已修正 p_085。"
+      },
+      {
+        "issue_id": "host-t097",
+        "verdict": "supported",
+        "source_ids": [
+          "b_047",
+          "b_053",
+          "b_067"
+        ],
+        "reason": "本章前文分别指控曹操鸩害皇后、太子或皇子，而献帝当时并未被曹操杀害；此处“主后”应理解为君主的皇后，译作“杀害君主和皇后”无据扩大了被害对象。已修正 p_097 为“杀害天子的皇后”。"
+      },
+      {
+        "issue_id": "host-f059060",
+        "verdict": "supported",
+        "source_ids": [
+          "b_071"
+        ],
+        "reason": "原文先记五月立皇后、皇太子，随后明确记“六月，以子永为鲁王，理为梁王”。f_059、f_060 的时间均应由五月改为六月。"
+      },
+      {
+        "issue_id": "host-f035",
+        "verdict": "supported",
+        "source_ids": [
+          "b_027"
+        ],
+        "reason": "原文只记刘备南征后武陵、长沙、桂阳、零陵四郡太守归降，以整个荆州为 place_control 主体容易造成全境归降的范围误读。已将 f_035 改为以刘备为主体的征服事件，并明确限定为荆州南部四郡。"
+      },
+      {
+        "issue_id": "review-local-identity",
+        "verdict": "supported",
+        "source_ids": [
+          "b_035",
+          "b_037",
+          "b_047",
+          "b_075"
+        ],
+        "reason": "本章中的李严先为刘璋督绵竹诸军，继而投降刘备、受显任、参与推戴刘备，最后以尚书令身份受命辅政，叙事连续且无另一李严介入；不仅是同名，章内职官与经历也相互承接，足以将 e_054 局部重写为 e_037。"
+      }
+    ],
+    "additional_findings": [
+      {
+        "target": "p_103",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "“缘山截岭”表示沿山越岭进军，并非截断山岭；已改为“沿山越岭”。"
+      },
+      {
+        "target": "p_104",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "“黄气见自秭归十余里中，广数十丈”描述黄气自秭归一带绵延十余里、宽数十丈，不是“秭归方圆十多里”；已修正范围表达。"
+      },
+      {
+        "target": "p_106",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "“秋八月，收兵还巫”的承接主体是先主一方；固定译文误作吴军收兵，已改为先主收兵退回巫县。"
+      },
+      {
+        "target": "f_065",
+        "source_ids": [
+          "b_073",
+          "b_075"
+        ],
+        "reason": "该事实合并了黄元章武二年冬十二月起兵和章武三年三月兵败被斩两段事件，原时间“章武三年二月至三月”遗漏起兵时间且误添二月，已修正。"
+      },
+      {
+        "target": "f_066",
+        "source_ids": [
+          "b_075"
+        ],
+        "reason": "托孤发生在章武三年春、四月癸巳去世之前，但原文未将其明确系于三月；原事实把时间依据标作 explicit 过强，已改为 contextual。"
+      }
+    ],
+    "translation_patches": [
+      {
+        "paragraph_id": "p_019",
+        "text": "先主还没有出发时，献帝的岳父、车骑将军董承声称奉有献帝藏在衣带中的密诏，要诛杀曹操。先主还没有出兵。当时曹操从容地对先主说：“如今天下的英雄，只有使君和我曹操两个人。本初那一类人，不值得计算在内。”先主正在吃饭，听到这话，手中的匙和筷子都掉了下来。",
+        "source_ids": [
+          "b_015"
+        ],
+        "reason": "依原注将董承与献帝的关系由“舅父”改为“岳父”，保留本段其余正确内容。"
+      },
+      {
+        "paragraph_id": "p_085",
+        "text": "臣的父亲群还在世时曾说，西南方多次出现黄色云气，高达数丈，直立不散，已经持续了很多年；又时时有祥瑞的云彩和风，从璇玑星所在方向降下，与这些云气相应，这就是奇异的祥瑞。",
+        "source_ids": [
+          "b_059"
+        ],
+        "reason": "恢复原文明确记载的父名“群”，但不补入原文没有给出的姓氏。"
+      },
+      {
+        "paragraph_id": "p_097",
+        "text": "建安二十六年四月丙午日，皇帝刘备谨以黑色公牛，明白告祭皇天上帝、后土神祇：汉朝拥有天下，国运绵延无穷。从前王莽篡夺帝位，光武皇帝震怒，诛灭王莽，使国家社稷重新保存。如今曹操拥兵自重，凶狠残忍，杀害天子的皇后，罪恶滔天，毁灭华夏，不顾上天明示的法则。曹操的儿子曹丕继承他的凶恶悖逆，窃居帝王神器。",
+        "source_ids": [
+          "b_067"
+        ],
+        "reason": "将“戮杀主后”限定为杀害天子的皇后，避免误称曹操杀害了当时仍在世的献帝。"
+      },
+      {
+        "paragraph_id": "p_103",
+        "text": "章武二年春正月，先主的军队返回秭归。将军吴班、陈式率领水军驻扎在夷陵，夹守长江东西两岸。二月，先主从秭归率领各将继续进军，沿山越岭，在夷道的猇亭扎营。他从佷山通往武陵，派侍中马良去安抚五溪蛮夷，五溪蛮夷全都相继响应。",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "将误译为截断山岭的“截岭”改为符合行军语境的“越岭”。"
+      },
+      {
+        "paragraph_id": "p_104",
+        "text": "镇北将军黄权统领长江以北的各路军队，在夷陵道和吴军相持。夏六月，黄色云气从秭归一带绵延十余里，宽达几十丈。十多天后，陆议在猇亭大败先主的军队，将军冯习、张南等人都战死。",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "准确表达黄气绵延十余里、宽数十丈的范围，避免误作“方圆十多里”。"
+      },
+      {
+        "paragraph_id": "p_106",
+        "text": "秋八月，先主收拢军队，退回巫县。司徒许靖去世。冬十月，先主下诏命令丞相诸葛亮在成都修建南郊、北郊祭坛。孙权听说先主驻扎白帝，非常害怕，派使者请求讲和。先主答应了，派太中大夫宗瑋回报孙权。",
+        "source_ids": [
+          "b_073"
+        ],
+        "reason": "纠正“收兵还巫”的行为主体，将误写的吴军改为先主。"
+      }
+    ],
+    "fact_patches": [
+      {
+        "ref": "f_059",
+        "subject_ref": "e_048",
+        "subject_name": "刘永",
+        "dimension": "title",
+        "statement": "刘备封刘永为鲁王。",
+        "other_refs": [
+          "e_001"
+        ],
+        "time": {
+          "label": "章武元年六月",
+          "basis": "explicit",
+          "source_ids": [
+            "b_071"
+          ]
+        },
+        "source_ids": [
+          "b_071"
+        ],
+        "basis": "direct"
+      },
+      {
+        "ref": "f_060",
+        "subject_ref": "e_049",
+        "subject_name": "刘理",
+        "dimension": "title",
+        "statement": "刘备封刘理为梁王。",
+        "other_refs": [
+          "e_001"
+        ],
+        "time": {
+          "label": "章武元年六月",
+          "basis": "explicit",
+          "source_ids": [
+            "b_071"
+          ]
+        },
+        "source_ids": [
+          "b_071"
+        ],
+        "basis": "direct"
+      },
+      {
+        "ref": "f_035",
+        "subject_ref": "e_001",
+        "subject_name": "刘备",
+        "dimension": "event",
+        "statement": "赤壁之战后，刘备南征荆州南部四郡，武陵太守金旋、长沙太守韩玄、桂阳太守赵范、零陵太守刘度皆降。",
+        "other_refs": [
+          "e_067"
+        ],
+        "time": {
+          "label": "赤壁之战后",
+          "basis": "contextual",
+          "source_ids": [
+            "b_027"
+          ]
+        },
+        "source_ids": [
+          "b_027"
+        ],
+        "basis": "direct"
+      },
+      {
+        "ref": "f_065",
+        "subject_ref": "e_053",
+        "subject_name": "黄元",
+        "dimension": "event",
+        "statement": "黄元因刘备病重而举兵拒守，后进攻临邛；其军败后被亲兵绑缚，送至成都处斩。",
+        "other_refs": [
+          "e_001",
+          "e_075"
+        ],
+        "time": {
+          "label": "章武二年冬十二月至章武三年三月",
+          "basis": "explicit",
+          "source_ids": [
+            "b_073",
+            "b_075"
+          ]
+        },
+        "source_ids": [
+          "b_073",
+          "b_075"
+        ],
+        "basis": "direct"
+      },
+      {
+        "ref": "f_066",
+        "subject_ref": "e_001",
+        "subject_name": "刘备",
+        "dimension": "event",
+        "statement": "刘备病重时将后事托付丞相诸葛亮，并以尚书令李严为副。",
+        "other_refs": [
+          "e_029",
+          "e_037"
+        ],
+        "time": {
+          "label": "章武三年春、四月癸巳前",
+          "basis": "contextual",
+          "source_ids": [
+            "b_075"
+          ]
+        },
+        "source_ids": [
+          "b_075"
+        ],
+        "basis": "direct"
+      }
+    ],
+    "local_entity_rewrites": [
+      {
+        "from_ref": "e_054",
+        "to_ref": "e_037",
+        "source_ids": [
+          "b_035",
+          "b_037",
+          "b_047",
+          "b_075"
+        ],
+        "reason": "章内叙事连续显示，督绵竹诸军后降刘备、受显任并参与推戴、最终以尚书令受托辅政的李严是同一人；据此仅在本章范围内合并重复实体。"
+      }
+    ],
+    "ready_for_content_acceptance": true
+  },
+  "elapsed_seconds": 128.462,
+  "http_calls": 1,
+  "http_observations": [
+    {
+      "attempt": 1,
+      "bytes": 46000,
+      "sha256": "556c0cd099b814aa26054fff3af195d705cd56f3fde92628d04c517b2006578d",
+      "status": "completed",
+      "reported_model": "gpt-5.6-sol",
+      "usage": {
+        "attribution": {
+          "items": {
+            "msg_08ed5c0d64951ec6016aa5764d432087d0885dd97f7474af87": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 52068,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 52068,
+              "output_tokens": 0
+            },
+            "rs_08ed5c0d64951ec6016aa5764eafe487d0963fdff9c06a0395": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 516
+            },
+            "rs_08ed5c0d64951ec6016aa57658038087d0b22595514df6dddc": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_08ed5c0d64951ec6016aa5766158d887d0a166abce9438e5c3": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_08ed5c0d64951ec6016aa5766aa84087d095b0082ebf68a3ee": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_08ed5c0d64951ec6016aa57673ffe087d0b531a96b6faa86ed": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_08ed5c0d64951ec6016aa5767d514887d091ec081b715326d0": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 518
+            },
+            "rs_08ed5c0d64951ec6016aa57686a79487d0bdddfea4a3cf8565": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 0,
+              "output_tokens": 337
+            },
+            "msg_08ed5c0d64951ec6016aa5768cc91487d099ff37ddc4aa7ab6": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 2469
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 2469
+            }
+          },
+          "request_fields": {
+            "tools": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 296,
+              "output_tokens": 0
+            },
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 1899,
+              "output_tokens": 0
+            }
+          }
+        },
+        "input_tokens": 54265,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 5912,
+        "output_tokens_details": {
+          "reasoning_tokens": 3443
+        },
+        "total_tokens": 60177
+      },
+      "incomplete_details": null
+    }
+  ],
+  "deadline_hit": false,
+  "billed_cost": null
+}
