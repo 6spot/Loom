@@ -212,6 +212,33 @@ class FixtureConstructionTests(unittest.TestCase):
 
 
 class LiveProviderGuardTests(unittest.TestCase):
+    def test_live_refuses_gate_fixture_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            env_path = G.write_stack_env(
+                live_env(directory), directory / "stack.env",
+                endpoint="http://127.0.0.1:12345/v1/responses", web_port=8092,
+            )
+            with self.assertRaisesRegex(GateError, "frozen fixture"):
+                G.require_live_env(G.load_env_file(env_path))
+
+    def test_live_model_suffixes_do_not_select_frozen_fixtures(self) -> None:
+        for name in (
+            "provider:reading-chapter", "provider:person-state-chapter",
+            "gate-fixture:reading-chapter", "gate-fixture:person-state-chapter",
+        ):
+            with self.subTest(name=name):
+                model = chapter_stage.chapter_model_from_env({
+                    "CHRONICLE_MODEL_ENDPOINT": "https://example.test/v1/responses",
+                    "CHRONICLE_CHAPTER_MODEL": name,
+                })
+                self.assertEqual("0.4", chapter_stage.candidate_version_for_model(model))
+                self.assertIsNone(model.model_for("translation", "executor").text_format)
+                self.assertEqual(
+                    {"type": "json_object"},
+                    model.model_for("extraction", "executor").text_format,
+                )
+
     def test_live_refuses_fixture_pack(self) -> None:
         config = {
             "CHRONICLE_POSTGRES_PASSWORD": "x",
@@ -227,7 +254,7 @@ class LiveProviderGuardTests(unittest.TestCase):
             G.require_live_env(config)
         self.assertIn("FIXTURE_PACK", str(ctx.exception))
 
-    def test_live_requires_joint_chapter_model(self) -> None:
+    def test_live_requires_chapter_model(self) -> None:
         config = {
             "CHRONICLE_POSTGRES_PASSWORD": "x",
             "CHRONICLE_ADMIN_USER": "admin",
@@ -260,6 +287,7 @@ class LiveProviderGuardTests(unittest.TestCase):
 
             provider = G.require_live_env(load_env_file(live_env(Path(tmp))))
         self.assertEqual(provider["chapter_model"], "fixture-chapter")
+        self.assertEqual("0.4", provider["candidate_version"])
         self.assertFalse(provider["fixture_mode"])
 
 

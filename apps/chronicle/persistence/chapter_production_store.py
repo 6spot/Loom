@@ -10,6 +10,7 @@ from typing import Any
 
 import control_plane
 import chapter_contract
+import chapter_production
 from common import PersistenceConflict, PersistenceError, sha256_json
 from resolve_publish import require_unexpired_lease
 
@@ -136,6 +137,14 @@ def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
         if len(starts) >= max_attempts:
             raise StepBudgetExhausted(f"{step}/{slot}: {max_attempts} saved attempts exhausted")
         attempt = len(starts) + 1
+        # A transport failure did not correct the last invalid result. Keep
+        # its exact feedback on resume without spending a fresh node budget.
+        invalid = [row for row in results if row["status"] == "invalid"]
+        previous = max(invalid, key=lambda row: row["attempt"]) if invalid else None
+        actual_prompt = prompt
+        if previous is not None:
+            actual_prompt = chapter_production.retry_prompt(
+                prompt, previous, max_chars=plan["request"]["limits"]["max_prompt_chars"])
         return append_output(conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
             artifact_type=ATTEMPT_TYPE, payload={
                 "schema": "chronicle.chapter-step-attempt", "version": "0.1",
@@ -143,7 +152,9 @@ def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
                 "request_fingerprint": plan["request_fingerprint"], "node_key": key,
                 "step": step, "round": round, "slot": slot, "attempt": attempt,
                 "input_sha256": sha256_json(data), "model": model_config["model"],
-                "model_config": model_config, "prompt": prompt, "input": data,
+                "model_config": model_config, "prompt": actual_prompt, "input": data,
+                "base_prompt_sha256": sha256_json(prompt),
+                "retry_of": previous["output_sha256"] if actual_prompt != prompt else None,
                 "status": "started", "started_at": datetime.now(timezone.utc).isoformat(),
             }), False
 

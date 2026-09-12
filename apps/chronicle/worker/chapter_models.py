@@ -45,7 +45,13 @@ class ChapterModels:
                 "steps": {key: list(value) for key, value in self.steps.items()},
                 "max_parallel": self.max_parallel, "max_step_attempts": self.max_step_attempts,
                 "max_repair_rounds": self.max_repair_rounds,
-                "schemas": {step: sha256_json(protocol.step_schema(step)) for step in protocol.STEPS}}
+                "schemas": {step: sha256_json(protocol.step_schema(step)) for step in protocol.STEPS},
+                # Render the actual template with empty, deterministic data:
+                # prompt wording/wrapper changes must also freeze the whole
+                # job, even when its output schema and model names are equal.
+                "prompt_templates": {step: sha256_json(protocol.build_prompt(
+                    step, {}, {}, max_chars=1048576)) for step in protocol.STEPS},
+                "retry_template": sha256_json(protocol.retry_prompt("", {}, max_chars=1048576))}
 
     def config_for(self, step: str, slot: str) -> dict:
         return {**self.profiles[slot], "response_format": "text" if step == "translation"

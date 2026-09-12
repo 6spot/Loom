@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -68,6 +69,22 @@ class ChapterModelsTests(unittest.TestCase):
         first = chapter_models.from_env(self.env(), limits=ChapterLimits())
         second = chapter_models.from_env({**self.env(), "CHRONICLE_MODEL_API_KEY": "rotated"}, limits=ChapterLimits())
         self.assertEqual(sha256_json(first.public_config()), sha256_json(second.public_config()))
+
+    def test_prompt_only_change_also_changes_the_frozen_job_config(self):
+        model = chapter_models.from_env(self.env(), limits=ChapterLimits())
+        baseline = model.public_config()
+        original = chapter_production.build_prompt
+
+        def revised_template(step, *args, **kwargs):
+            return original(step, *args, **kwargs) + ("\n新的提取要求。" if step == "extraction" else "")
+
+        with mock.patch.object(chapter_production, "build_prompt", side_effect=revised_template):
+            changed = model.public_config()
+        self.assertEqual(changed["schemas"], baseline["schemas"])
+        self.assertEqual(changed["models"], baseline["models"])
+        self.assertNotEqual(changed["prompt_templates"]["extraction"], baseline["prompt_templates"]["extraction"])
+        self.assertEqual(changed["prompt_templates"]["translation"], baseline["prompt_templates"]["translation"])
+        self.assertNotEqual(sha256_json(changed), sha256_json(baseline))
 
     def test_model_or_policy_changes_change_config_fingerprint(self):
         baseline = self.configured(self.config()).public_config()

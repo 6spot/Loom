@@ -1,0 +1,109 @@
+{
+  "schema": "chronicle.staged-production-evidence",
+  "version": "0.1",
+  "date": "2026-09-13",
+  "issue": 684,
+  "pr": 685,
+  "base_commit": "628ef42d82eee7d0be6280ca40dd4c38a896378a",
+  "source": {
+    "path": "apps/chronicle/corpus/first-round/sources/sanguozhi-054-zhou-yu.txt",
+    "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+    "chars": 5018,
+    "request_file": "request.json"
+  },
+  "provider": {
+    "model": "gpt-5.6-luna",
+    "endpoint_family": "CPA Responses-compatible gateway",
+    "live": true
+  },
+  "real_calls": {
+    "translation": 1,
+    "extraction_initial_and_probes": 5,
+    "total": 6
+  },
+  "initial_pipeline": {
+    "outcome": "failed",
+    "elapsed_seconds": 160.225,
+    "accepted_chapters": 0,
+    "published_chapters": 0,
+    "steps": [
+      {
+        "step": "translation",
+        "model": "gpt-5.6-luna",
+        "status": "completed",
+        "attempt": 1,
+        "raw_chars": 4433,
+        "error": null,
+        "receipt": {
+          "model": "gpt-5.6-luna",
+          "usage": {
+            "input_tokens": 10947,
+            "total_tokens": 15267,
+            "output_tokens": 4320,
+            "reasoning_tokens": 269
+          },
+          "status": "completed",
+          "http_status": 200,
+          "http_attempts": 1,
+          "response_bytes": 17566,
+          "elapsed_seconds": 57.695,
+          "requested_model": "gpt-5.6-luna",
+          "incomplete_reason": null
+        },
+        "validation_error_count": 0
+      },
+      {
+        "step": "extraction",
+        "model": "gpt-5.6-luna",
+        "status": "invalid",
+        "attempt": 1,
+        "raw_chars": 21964,
+        "error": null,
+        "receipt": {
+          "model": "gpt-5.6-luna",
+          "usage": {
+            "input_tokens": 12812,
+            "total_tokens": 21121,
+            "output_tokens": 8309,
+            "reasoning_tokens": 569
+          },
+          "status": "completed",
+          "http_status": 200,
+          "http_attempts": 1,
+          "response_bytes": 36450,
+          "elapsed_seconds": 154.062,
+          "requested_model": "gpt-5.6-luna",
+          "incomplete_reason": null
+        },
+        "validation_error_count": 782
+      }
+    ],
+    "real_history_quality_accepted": false,
+    "scope": "One bounded real-model chapter extract; not R2/R3 historical acceptance or deployment.",
+    "complete_outputs_file": "initial-pipeline-outputs.json",
+    "code_snapshot_file": "initial-pipeline-code.json"
+  },
+  "probes_file": "extraction-probes.json",
+  "result": {
+    "mechanism_validation": "passed focused PostgreSQL/unit/browser fixture checks; CI is recorded on the PR",
+    "real_history_quality_accepted": false,
+    "full_live_chapter_accepted": false,
+    "accepted_chapters": 0,
+    "published_chapters": 0,
+    "business_deployment": false,
+    "last_probe": "bounded-correction",
+    "last_probe_status": "failed",
+    "last_probe_elapsed_seconds": 180.013,
+    "remaining_acceptance_issues": [
+      586,
+      549
+    ]
+  },
+  "bounds": {
+    "initial_run_per_call_seconds": 180,
+    "initial_run_seconds": 540,
+    "standalone_extraction_probe_per_call_seconds": 360,
+    "last_correction_per_call_seconds": 180
+  },
+  "fixtures_are_not_live_quality_evidence": true
+}

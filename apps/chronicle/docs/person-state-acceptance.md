@@ -70,8 +70,9 @@ gate 会：
    `chronicle-server` 前端 + Python `read_api` sidecar + durable worker，并起进程内
    确定性 HTTP provider（`host.docker.internal`）。provider 对 chapter prompt 返回
    0.3 候选（译文 + C0 记录 + reading 标注 + `person_states`），对综合 `present`
-   prompt 返回确定性 facts/prose 草稿。模型名 `gate-fixture:person-state-chapter` /
-   `gate-fixture:narrative` 使 worker 选择 0.3。
+   prompt 返回确定性 facts/prose 草稿。章模型名 `fixture:gate-r3:person-state-chapter`
+   显式选择冻结的 0.3 联合格式，综合模型名为 `gate-fixture:narrative`。
+   普通生产章模型默认走 0.4 分阶段流程，live 模式拒绝 fixture 入口。
 2. 经真实 Studio HTTP 上传四份冻结源、排队 0.3 job；身份 resolution 完成后 job 按章
    停在 `chapter_state_evidence` 包。gate 显式提交 person-state 决定（`default_assessment`
    显式声明 + plan 级 rationale），resume 后由唯一发布事务原子写入 catalog /

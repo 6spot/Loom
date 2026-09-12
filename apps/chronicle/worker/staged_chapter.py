@@ -182,23 +182,24 @@ class Runner:
                             record, reused = store.begin_attempt(conn, **self._write_args(), plan=self.plan,
                                 step=step, round=round, slot=slot, data=data, prompt=prompt,
                                 model_config=self.models.config_for(step, slot), max_attempts=self.models.max_step_attempts)
-                    except store.StepBudgetExhausted as exc:
+                    except (store.StepBudgetExhausted, protocol.RetryPromptLimitExceeded) as exc:
                         # Other completed independent results still get saved.
                         results[identity] = {"status": "failed", "step": step, "slot": slot,
-                                             "error": str(exc), "validation_errors": []}
+                                             "error": str(exc), "validation_errors": [],
+                                             "preparation_error": str(exc)}
                         continue
                     if reused:
                         results[identity] = record
                         self._emit("chapter_step_reused", step=step, model=record["model"])
                     else:
                         self._emit("chapter_step_started", step=step, model=record["model"], attempt=record["attempt"])
-                        pending[pool.submit(self._invoke, step, slot, prompt, cancelled)] = (record, data)
+                        pending[pool.submit(self._invoke, step, slot, record["prompt"], cancelled)] = (record, data, prompt)
                 if not pending:
                     continue
                 finished, _ = wait(pending, timeout=max(0.1, min(15, self.lease_seconds / 3)), return_when=FIRST_COMPLETED)
                 self._heartbeat()
                 for future in finished:
-                    attempt, data = pending.pop(future)
+                    attempt, data, base_prompt = pending.pop(future)
                     raw, parsed, errors, receipt, status, error = future.result()
                     if status == "completed":
                         errors += self._semantic_errors(attempt["step"], parsed, data)
@@ -210,9 +211,14 @@ class Runner:
                             status=status, error=error)
                     results[(attempt["step"], attempt["slot"])] = record
                     self._emit("chapter_step_saved", step=attempt["step"], model=attempt["model"], status=status)
+                    if status == "invalid" and attempt["attempt"] < self.models.max_step_attempts:
+                        # The same logical node consumes its next attempt;
+                        # the store attaches this saved result/diagnostics.
+                        # Successful parallel slots and other steps stay saved.
+                        ready.appendleft((attempt["step"], data, attempt["round"], base_prompt, attempt["slot"]))
                 if not finished:
                     self._emit("chapter_step_waiting", elapsed_seconds=int(time.monotonic() - started_at),
-                               pending_steps=sorted({record["step"] for record, _ in pending.values()}))
+                               pending_steps=sorted({record["step"] for record, _data, _prompt in pending.values()}))
         except BaseException:
             cancelled.set()
             for future in pending:
@@ -221,6 +227,13 @@ class Runner:
             raise
         else:
             pool.shutdown(wait=True)
+        preparation_errors = [f"{step}/{slot}: {results[(step, slot)]['preparation_error']}"
+                              for step, slot in sorted(results)
+                              if results[(step, slot)].get("preparation_error")]
+        if preparation_errors:
+            # Drain and save independent completions before reporting a local
+            # budget/context failure, for every step including review/repair.
+            raise PipelineFailure('; '.join(preparation_errors) + "; saved earlier steps will be reused")
         return {step: [results[(step, slot)] for slot in self.models.steps[step]] for step, _data, _round in specs}
 
     def _group(self, step, data, round):

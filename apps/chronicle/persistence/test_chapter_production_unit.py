@@ -86,6 +86,21 @@ class ChapterPatchTests(unittest.TestCase):
             production.build_prompt("review", reorder(self.request), reorder(first), max_chars=262144),
         )
 
+    def test_step_retry_preserves_complete_raw_result_and_errors_with_a_hard_limit(self):
+        prompt = production.build_prompt("extraction", self.request, {}, max_chars=262144)
+        previous = {"output_sha256": "a" * 64, "raw_text": '{"wrong": "𠮷\\n完整返回"}',
+                    "validation_errors": ["/bundle/entities/0/kind: entity was expected", "最后一项错误"]}
+        original = copy.deepcopy(previous)
+        retry = production.retry_prompt(prompt, previous, max_chars=262144)
+        self.assertTrue(retry.startswith(prompt + "\n"))
+        feedback = json.loads(next(line.removeprefix("PREVIOUS_ATTEMPT=") for line in retry.splitlines()
+                                   if line.startswith("PREVIOUS_ATTEMPT=")))
+        self.assertEqual(feedback, previous)
+        self.assertEqual(production.retry_prompt(prompt, previous, max_chars=len(retry)), retry)
+        with self.assertRaisesRegex(production.RetryPromptLimitExceeded, "no result or error truncation"):
+            production.retry_prompt(prompt, previous, max_chars=len(retry) - 1)
+        self.assertEqual(previous, original)
+
     def assert_rejected_unchanged(self, patches, message=None):
         original = copy.deepcopy(self.candidate)
         with self.assertRaisesRegex(PersistenceError, message or ".+"):

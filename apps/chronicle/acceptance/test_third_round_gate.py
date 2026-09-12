@@ -18,9 +18,13 @@ import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
+
+from jsonschema import Draft202012Validator
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
@@ -34,7 +38,10 @@ for _path in (
         sys.path.insert(0, _path)
 
 import chapter_contract  # noqa: E402
+import chapter_extraction  # noqa: E402
 import chapter_plan  # noqa: E402
+import chapter_stage  # noqa: E402
+import model_provider  # noqa: E402
 import narrative_contract  # noqa: E402
 import person_state_contract  # noqa: E402
 import third_round_gate as G  # noqa: E402
@@ -112,6 +119,55 @@ def _narrative_context() -> dict:
 
 
 class FixtureCandidateTests(unittest.TestCase):
+    def test_stack_env_to_provider_and_worker_accepts_person_state_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            source_env = directory / "source.env"
+            source_env.write_text("CHRONICLE_ADMIN_USER=admin\n", encoding="utf-8")
+            env_path = G.write_stack_env(
+                source_env, directory / "stack.env",
+                endpoint="http://127.0.0.1:12345/v1/responses", web_port=8092,
+            )
+            model = chapter_stage.chapter_model_from_env(G.load_env_file(env_path))
+
+        version = chapter_stage.candidate_version_for_model(model)
+        _, requests = chapter_stage.plan_job_chapters(
+            text=CHAPTER_TEXT,
+            source_sha256=hashlib.sha256(CHAPTER_TEXT.encode("utf-8")).hexdigest(),
+            binding={
+                "revision_id": uuid.uuid5(uuid.NAMESPACE_URL, "c2r3-test"),
+                "filename": "test.md",
+            },
+            limits=chapter_contract.ChapterLimits(), candidate_version=version,
+        )
+        bodies = []
+
+        def fixture_response(req, timeout):
+            body = json.loads(req.data.decode("utf-8"))
+            bodies.append(body)
+            response = mock.MagicMock()
+            response.__enter__.return_value = response
+            response.headers.get.return_value = None
+            response.read.return_value = json.dumps(
+                {"status": "completed", "output_text": G.chapter_candidate(body["input"])},
+                ensure_ascii=False,
+            ).encode("utf-8")
+            return response
+
+        with mock.patch.object(model_provider.request, "urlopen", side_effect=fixture_response):
+            result = chapter_extraction.extract_chapter(requests[0], model)
+
+        self.assertTrue(result["accepted"], result["error"])
+        self.assertEqual("0.3", version)
+        self.assertEqual("0.3", requests[0]["schema_versions"]["candidate"])
+        self.assertEqual(1, len(bodies), "valid fixture must not need correction")
+        body = bodies[0]
+        self.assertNotIn("candidate_version", body, "version metadata is worker-local")
+        schema = body["text"]["format"]["schema"]
+        self.assertEqual("0.3", schema["properties"]["version"]["const"])
+        Draft202012Validator(schema).validate(json.loads(G.chapter_candidate(body["input"])))
+        self.assertEqual([], chapter_extraction.verify_history(result, request=requests[0]))
+
     def test_grounded_spec_and_person_state_candidate_validate(self):
         request = _request(0)
         spec = G.grounded_spec(request, "測試書")
@@ -205,7 +261,7 @@ class GuardTests(unittest.TestCase):
             "CHRONICLE_NARRATIVE_MODEL": "n",
         }
         provider = G.require_live_env(dict(base))
-        self.assertEqual("0.3", provider["candidate_version"])
+        self.assertEqual("0.4", provider["candidate_version"])
         self.assertEqual("n", provider["narrative_model"])
         with self.assertRaises(GateError):
             G.require_live_env({**base, "CHRONICLE_NARRATIVE_MODEL": ""})
@@ -215,6 +271,8 @@ class GuardTests(unittest.TestCase):
             )
         with self.assertRaises(GateError):
             G.require_live_env({**base, "CHRONICLE_CHAPTER_FIXTURE_PACK": "/tmp/x"})
+        with self.assertRaisesRegex(GateError, "frozen fixture"):
+            G.require_live_env({**base, "CHRONICLE_CHAPTER_MODEL": G.R3_CHAPTER_MODEL})
 
 
 class BrowserManifestTests(unittest.TestCase):

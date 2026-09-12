@@ -39,6 +39,7 @@ class StagedSchedulerTests(unittest.TestCase):
 
     def attempt(self, *args, **kwargs):
         return {"step": kwargs["step"], "slot": kwargs["slot"], "model": kwargs["slot"],
+                "prompt": kwargs["prompt"], "round": kwargs["round"],
                 "attempt": 1, "output_sha256": kwargs["slot"], "status": "started"}, False
 
     def test_stop_does_not_dispatch_or_reserve_queued_models(self):

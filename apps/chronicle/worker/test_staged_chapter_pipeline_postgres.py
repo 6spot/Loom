@@ -6,8 +6,11 @@ human decisions, acceptance, assembly and publication use production paths.
 from __future__ import annotations
 
 import copy
+import json
 import sys
+import threading
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -20,6 +23,7 @@ for path in (str(HERE), str(HERE.parent / "persistence")):
 
 import chapter_content_review as content_review
 import chapter_contract
+import chapter_production as protocol
 import chapter_production_store as store
 import chapter_stage as stage
 import chapter_store
@@ -35,6 +39,26 @@ WORKER = "staged-pipeline-test"
 LIMITS = chapter_contract.ChapterLimits()
 
 
+class InvalidExtractionModels(ScriptedModels):
+    """A complete historical extraction with a controlled structural error."""
+    def __init__(self, *, invalid_attempts, failures=None):
+        super().__init__(failures=failures)
+        self.invalid_attempts = invalid_attempts
+        self.extraction_prompts = []
+        self.extraction_raw = []
+
+    def complete(self, expected_step, slot, prompt):
+        raw = super().complete(expected_step, slot, prompt)
+        if expected_step == "extraction":
+            self.extraction_prompts.append(prompt)
+            if self.count(expected_step, slot) in self.invalid_attempts:
+                value = json.loads(raw)
+                value["bundle"]["entities"][0]["kind"] = "person"
+                raw = json.dumps(value, ensure_ascii=False)
+            self.extraction_raw.append(raw)
+        return raw
+
+
 class StagedChapterPipelinePostgresTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -48,13 +72,13 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
     _open_person_state_reviews = state_pipeline.PersonStatePipelineTests._open_person_state_reviews
     _approve_person_state = state_pipeline.PersonStatePipelineTests._approve_person_state
 
-    def _prepared_extract(self):
+    def _prepared_extract(self, *, limits=LIMITS):
         job_id, revision_id, source_sha = self._queue_job(TEXT)
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(conn, worker=WORKER, lease_seconds=300, job_id=job_id)
         _, _, plan, requests = stage.load_chapter_inputs(
             self.database_url, job_id=job_id, revision_source=lambda _job: (TEXT, source_sha),
-            limits=LIMITS, candidate_version="0.4",
+            limits=limits, candidate_version="0.4",
         )
         self.assertEqual(len(requests), 1)
         with psycopg.connect(self.database_url) as conn:
@@ -63,10 +87,10 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
         return {"job_id": job_id, "revision_id": revision_id, "source_sha": source_sha,
                 "chunk_id": chunk_id, "plan": plan, "requests": requests}
 
-    def _extract(self, ctx, script):
+    def _extract(self, ctx, script, *, limits=LIMITS):
         return stage.execute_chapter_extract(
             self.database_url, job_id=ctx["job_id"], worker=WORKER, plan=ctx["plan"],
-            requests=ctx["requests"], model=script.models, limits=LIMITS, lease_seconds=300,
+            requests=ctx["requests"], model=script.models, limits=limits, lease_seconds=300,
         )
 
     def _run_job(self, job_id, source_sha, script):
@@ -158,15 +182,17 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             ).fetchall()
             store.freeze_pipeline(conn, job_id=job_id, chunk_id=chunks[0][0], worker=WORKER,
                                   request=requests[0], config=config)
-            for drift in ("model", "steps", "budget"):
+            for drift in ("model", "steps", "budget", "prompt"):
                 with self.subTest(drift=drift):
                     changed = copy.deepcopy(config)
                     if drift == "model":
                         changed["models"]["executor"]["model"] = "another-model"
                     elif drift == "steps":
                         changed["steps"]["translation"] = ["reviewer_0"]
-                    else:
+                    elif drift == "budget":
                         changed["max_step_attempts"] += 1
+                    else:
+                        changed["prompt_templates"]["extraction"] = sha256_json("changed extraction instructions")
                     with self.assertRaisesRegex(PersistenceConflict, "frozen for the whole job"):
                         store.freeze_pipeline(conn, job_id=job_id, chunk_id=chunks[1][0], worker=WORKER,
                                               request=requests[1], config=changed)
@@ -180,6 +206,121 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             independent = store.freeze_pipeline(conn, job_id=other["job_id"], chunk_id=other["chunk_id"],
                 worker=WORKER, request=other["requests"][0], config=changed)
             self.assertEqual(independent["config"], changed)
+
+    def test_invalid_extraction_retries_same_node_with_full_feedback_without_retranslation(self):
+        ctx = self._prepared_extract()
+        script = InvalidExtractionModels(invalid_attempts={1})
+        self.assertEqual(self._extract(ctx, script), "ok")
+        self.assertEqual(script.count("translation"), 1)
+        self.assertEqual(script.count("extraction"), 2)
+        self.assertEqual(script.count("linking"), 1)
+        self.assertEqual(script.count("review"), 1)
+        self.assertEqual(script.count("comparison"), 0)
+        records = self._records(ctx)
+        attempts = [r for r in records if r["artifact_type"] == store.ATTEMPT_TYPE and r["step"] == "extraction"]
+        results = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "extraction"]
+        self.assertEqual([r["attempt"] for r in attempts], [1, 2])
+        self.assertEqual([r["status"] for r in results], ["invalid", "completed"])
+        self.assertEqual(len({r["node_key"] for r in attempts + results}), 1)
+        self.assertEqual([r["raw_text"] for r in results], script.extraction_raw)
+        self.assertEqual([r["prompt"] for r in attempts], script.extraction_prompts)
+        self.assertEqual({r["base_prompt_sha256"] for r in attempts}, {sha256_json(attempts[0]["prompt"])})
+        self.assertIsNone(attempts[0]["retry_of"])
+        self.assertEqual(attempts[1]["retry_of"], results[0]["output_sha256"])
+        feedback = json.loads(next(line.removeprefix("PREVIOUS_ATTEMPT=") for line in attempts[1]["prompt"].splitlines()
+                                   if line.startswith("PREVIOUS_ATTEMPT=")))
+        self.assertEqual(feedback, {key: results[0][key] for key in ("output_sha256", "raw_text", "validation_errors")})
+        self.assertTrue(any("/bundle/entities/0/kind" in error for error in feedback["validation_errors"]))
+        reviewed_history = [entry for entry in script.inputs if entry["step"] == "review"][0]["data"]["history"]
+        self.assertTrue(any(entry.get("output_sha256") == results[0]["output_sha256"] for entry in reviewed_history))
+        self.assertEqual(len(self._accepted(ctx)), 1)
+        self.assertEqual(self._counts(ctx), {"runs": 1, "reviews": 0, "published": 0})
+
+    def test_invalid_extraction_exhausts_saved_budget_and_resume_never_opens_another_node(self):
+        ctx = self._prepared_extract()
+        script = InvalidExtractionModels(invalid_attempts={1, 2})
+        self.assertEqual(self._extract(ctx, script), "failed")
+        self.assertEqual(script.count("extraction"), 2)
+        records = self._records(ctx)
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script), "failed")
+        self.assertEqual(self._records(ctx), records)
+        self.assertEqual(script.count("extraction"), 2)
+        self.assertEqual(script.count("translation"), 1)
+        self.assertEqual(script.count("linking"), 0)
+        self.assertEqual(script.count("review"), 0)
+        attempts = [r for r in records if r["artifact_type"] == store.ATTEMPT_TYPE and r["step"] == "extraction"]
+        results = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "extraction"]
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(len({r["node_key"] for r in attempts + results}), 1)
+        self.assertTrue(all(r["status"] == "invalid" for r in results))
+        self.assertFalse(any(r["artifact_type"] == store.ACCEPTANCE_TYPE for r in records))
+        self.assertEqual(self._accepted(ctx), [])
+        self.assertEqual(self._counts(ctx), {"runs": 2, "reviews": 0, "published": 0})
+
+    def test_transport_failure_during_correction_retains_invalid_feedback_on_resume(self):
+        ctx = self._prepared_extract()
+        script = InvalidExtractionModels(invalid_attempts={1}, failures={("extraction", "executor"): {2}})
+        script.models = replace(script.models, max_step_attempts=3)
+        self.assertEqual(self._extract(ctx, script), "failed")
+        self.assertEqual(script.count("extraction"), 2)
+        self.assertEqual(self._extract(ctx, script), "ok")
+        self.assertEqual(script.count("translation"), 1)
+        self.assertEqual(script.count("extraction"), 3)
+        records = self._records(ctx)
+        attempts = [r for r in records if r["artifact_type"] == store.ATTEMPT_TYPE and r["step"] == "extraction"]
+        results = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "extraction"]
+        self.assertEqual([r["status"] for r in results], ["invalid", "failed", "completed"])
+        self.assertEqual([r["attempt"] for r in attempts], [1, 2, 3])
+        self.assertEqual(len({r["node_key"] for r in attempts + results}), 1)
+        self.assertEqual(attempts[1]["prompt"], attempts[2]["prompt"])
+        self.assertEqual(attempts[1]["retry_of"], results[0]["output_sha256"])
+        self.assertEqual(attempts[2]["retry_of"], results[0]["output_sha256"])
+        self.assertIn("PREVIOUS_ATTEMPT=", attempts[2]["prompt"])
+        self.assertEqual(len(self._accepted(ctx)), 1)
+
+    def test_oversized_retry_context_stops_locally_and_still_saves_pending_translation(self):
+        limits = replace(LIMITS, max_prompt_chars=20000)
+        ctx = self._prepared_extract(limits=limits)
+        release_translation = threading.Event()
+        original_retry = protocol.retry_prompt
+
+        class PendingTranslation(InvalidExtractionModels):
+            def complete(self, expected_step, slot, prompt):
+                if expected_step == "translation" and not release_translation.wait(timeout=15):
+                    raise AssertionError("translation was not released after the local retry limit")
+                return super().complete(expected_step, slot, prompt)
+
+        def observe_retry_limit(*args, **kwargs):
+            try:
+                return original_retry(*args, **kwargs)
+            except protocol.RetryPromptLimitExceeded:
+                release_translation.set()
+                raise
+
+        script = PendingTranslation(invalid_attempts={1})
+        try:
+            with mock.patch.object(protocol, "retry_prompt", side_effect=observe_retry_limit):
+                self.assertEqual(self._extract(ctx, script, limits=limits), "failed")
+        finally:
+            release_translation.set()
+        records = self._records(ctx)
+        translation = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "translation"]
+        extraction = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "extraction"]
+        self.assertEqual([r["status"] for r in translation], ["completed"])
+        self.assertEqual([r["status"] for r in extraction], ["invalid"])
+        self.assertEqual(extraction[0]["raw_text"], script.extraction_raw[0])
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script, limits=limits), "failed")
+        self.assertEqual(self._records(ctx), records)
+        self.assertEqual(script.count("translation"), 1)
+        self.assertEqual(script.count("extraction"), 1)
+        self.assertEqual(self._accepted(ctx), [])
+        self.assertEqual(self._counts(ctx), {"runs": 2, "reviews": 0, "published": 0})
+        with psycopg.connect(self.database_url) as conn:
+            errors = conn.execute("SELECT error FROM chronicle.ingestion_chunk_runs WHERE chunk_id = %s", (ctx["chunk_id"],)).fetchall()
+        self.assertTrue(all("complete-context prompt limit" in row[0] for row in errors))
 
     def test_extraction_transport_retry_reuses_completed_translation(self):
         ctx = self._prepared_extract()
