@@ -558,9 +558,23 @@ def _parse_context_page(raw_query: str) -> dict[str, Any]:
     }
 
 
-def _anchor_evidence_kind(candidate: dict[str, Any] | None) -> str:
+def _candidate_evidence_kind(
+    candidate: dict[str, Any] | None, item: dict[str, Any] | None
+) -> str:
+    """Classify one frozen candidate/anchor link from its real premises.
+
+    A state fact is ``direct_claim`` only when the accepted 0.3 state item
+    actually carries ``claim_refs``. A fact supported only by exact
+    ``source_selections`` (no direct Claim) stays ``record_source`` and is
+    never displayed as Claim evidence. Every non-fact candidate maps to
+    ``record_source``.
+    """
     if isinstance(candidate, dict) and candidate.get("kind") == "fact":
-        return "direct_claim"
+        claim_refs = item.get("claim_refs") if isinstance(item, dict) else None
+        if isinstance(claim_refs, list) and any(
+            isinstance(ref, str) and ref for ref in claim_refs
+        ):
+            return "direct_claim"
     return "record_source"
 
 
@@ -571,7 +585,8 @@ def _anchor_descriptor(
     anchor: dict[str, Any] | None,
     chapter_info: dict[str, Any] | None,
     artifact: dict[str, Any] | None,
-    candidate: dict[str, Any] | None,
+    candidates: list[dict[str, Any]],
+    state_index: dict[tuple[str, str], dict[str, Any]],
 ) -> dict[str, Any]:
     info = chapter_info if isinstance(chapter_info, dict) else {}
     revision_id = anchor.get("revision_id") if isinstance(anchor, dict) else None
@@ -581,9 +596,37 @@ def _anchor_descriptor(
         if isinstance(candidate_bundle, dict):
             bundle = str(candidate_bundle.get("label") or "")
     anchor_id_value = anchor.get("anchor_id") if isinstance(anchor, dict) else None
-    candidate_key = (
-        candidate.get("candidate_key") if isinstance(candidate, dict) else None
+    # Every frozen candidate that cites this anchor keeps its association; a
+    # shared anchor must not collapse to the first candidate.
+    candidate_keys = sorted(
+        {
+            candidate["candidate_key"]
+            for candidate in candidates
+            if isinstance(candidate, dict)
+            and isinstance(candidate.get("candidate_key"), str)
+        }
     )
+    evidence_kinds = sorted(
+        {
+            _candidate_evidence_kind(
+                candidate,
+                state_index.get(
+                    (str(candidate.get("kind")), str(candidate.get("item_ref")))
+                ),
+            )
+            for candidate in candidates
+            if isinstance(candidate, dict)
+        }
+    ) or ["record_source"]
+    attribution = next(
+        (
+            candidate.get("attribution")
+            for candidate in candidates
+            if isinstance(candidate, dict)
+            and isinstance(candidate.get("attribution"), str)
+        ),
+        None,
+    ) or "narrator"
     available = bool(
         isinstance(anchor, dict) and isinstance(anchor_id_value, str) and info
     )
@@ -599,7 +642,7 @@ def _anchor_descriptor(
         "record_ref": anchor_id,
         "anchor_id": anchor_id,
         "link_kind": "person_state",
-        "candidate_keys": [candidate_key] if isinstance(candidate_key, str) else [],
+        "candidate_keys": candidate_keys,
         "job_id": info.get("job_id"),
         "revision_id": str(revision_id) if revision_id is not None else None,
         "chapter_id": anchor.get("chapter_id") if isinstance(anchor, dict) else None,
@@ -608,17 +651,14 @@ def _anchor_descriptor(
         "artifact_sha256": info.get("artifact_sha256"),
         "source_title": _source_title(artifact),
         "source_sha256": anchor.get("source_sha256") if isinstance(anchor, dict) else None,
-        "evidence_kinds": [_anchor_evidence_kind(candidate)],
+        "evidence_kinds": evidence_kinds,
         "available": available,
         "unavailable_reason": unavailable_reason,
         "anchor_count": 1,
         "quote": anchor.get("quote") if isinstance(anchor, dict) else None,
         "start": anchor.get("start") if isinstance(anchor, dict) else None,
         "end": anchor.get("end") if isinstance(anchor, dict) else None,
-        "attribution": (
-            (candidate.get("attribution") if isinstance(candidate, dict) else None)
-            or "narrator"
-        ),
+        "attribution": attribution,
         "anchors": [
             {
                 "anchor_id": anchor_id_value,
@@ -667,14 +707,15 @@ def contexts(
     lookup = _source_context.load_chapter_lookup(conn, job_id=row[1])
     anchors = lookup.get("anchors_by_id") or {}
     chapters = lookup.get("chapters") or {}
-    # Map each anchor to its candidate so one source is not mistaken for a
-    # merged person's first reference.
-    anchor_candidates: dict[str, dict[str, Any]] = {}
+    # Every candidate that cites an anchor keeps its association, so a shared
+    # anchor reports all of them instead of only the first.
+    anchor_candidates: dict[str, list[dict[str, Any]]] = {}
     for entry in _package_candidates(payload):
         for anchor_id in entry.get("anchor_ids") or []:
             if isinstance(anchor_id, str):
-                anchor_candidates.setdefault(anchor_id, entry)
+                anchor_candidates.setdefault(anchor_id, []).append(entry)
     artifact_cache: dict[str, dict[str, Any] | None] = {}
+    state_index_cache: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
     page_ids = anchor_ids[offset : offset + spec["limit"]]
     items = []
     for anchor_id in page_ids:
@@ -682,6 +723,7 @@ def contexts(
         chapter_id = anchor.get("chapter_id") if isinstance(anchor, dict) else None
         chapter_info = chapters.get(chapter_id) if chapter_id else None
         artifact = None
+        state_index: dict[tuple[str, str], dict[str, Any]] = {}
         if isinstance(chapter_info, dict):
             artifact_sha = str(chapter_info.get("artifact_sha256") or "")
             if artifact_sha not in artifact_cache:
@@ -692,6 +734,11 @@ def contexts(
                     artifact_sha256=chapter_info.get("artifact_sha256"),
                 )
             artifact = artifact_cache[artifact_sha]
+            if artifact_sha not in state_index_cache:
+                state_index_cache[artifact_sha] = _state_index(
+                    artifact.get("person_states") if isinstance(artifact, dict) else None
+                )
+            state_index = state_index_cache[artifact_sha]
             if not isinstance(chapter_info.get("job_id"), str):
                 chapter_info = {**chapter_info, "job_id": str(row[1])}
         items.append(
@@ -701,7 +748,8 @@ def contexts(
                 anchor=anchor,
                 chapter_info=chapter_info,
                 artifact=artifact,
-                candidate=anchor_candidates.get(anchor_id),
+                candidates=anchor_candidates.get(anchor_id) or [],
+                state_index=state_index,
             )
         )
     next_offset = offset + len(page_ids)
@@ -965,7 +1013,18 @@ def decision(conn, review_id: uuid.UUID, *, body: bytes) -> tuple[int, str, byte
     payload = row[5] if isinstance(row[5], dict) else {}
     stored_fingerprint = payload.get("plan_fingerprint")
     submitted = payload_in.get("plan_fingerprint")
-    if submitted is not None and submitted != stored_fingerprint:
+    # The frozen fingerprint is required and must be a string: omitting it
+    # would let a draft from another plan/version submit against this package
+    # without the (review_id, plan_fingerprint) isolation the contract fixes.
+    if not isinstance(submitted, str) or not submitted:
+        raise PersonStateBadRequest(
+            "plan_fingerprint is required and must be a non-empty string"
+        )
+    if not isinstance(stored_fingerprint, str) or not stored_fingerprint:
+        raise PersonStateConflict(
+            "inconsistent", "frozen person-state package has no plan fingerprint"
+        )
+    if submitted != stored_fingerprint:
         raise PersonStateConflict(
             "plan_drift",
             "person-state review was frozen against a different plan",

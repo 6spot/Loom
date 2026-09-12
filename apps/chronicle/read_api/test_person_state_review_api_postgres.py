@@ -175,9 +175,23 @@ def _person_states() -> dict:
                 "operation": "end",
                 "qualification": "ordinary",
                 "phase_ref": "ph_002",
-                "claim_refs": [],
+                "claim_refs": ["clm_001"],
                 "source_selections": [],
                 "attribution": "annotation",
+            },
+            {
+                "fact_id": "pf_003",
+                "person_ref": {"kind": "entity", "ref": "ent_001"},
+                "dimension": "office",
+                "value_ref": {"kind": "entity", "ref": "ent_002"},
+                "relation": None,
+                "target_ref": None,
+                "operation": "attest",
+                "qualification": "ordinary",
+                "phase_ref": "ph_001",
+                "claim_refs": [],
+                "source_selections": [],
+                "attribution": "narrator",
             },
         ],
         "continuities": [
@@ -206,6 +220,7 @@ _ARTIFACT_CANDIDATES = (
     ("phase", "ph_002", ["ph_002"], ["anc_2"]),
     ("fact", "pf_001", ["ph_001"], ["anc_3"]),
     ("fact", "pf_002", ["ph_002"], ["anc_4"]),
+    ("fact", "pf_003", ["ph_001"], ["anc_3"]),
 )
 
 
@@ -502,6 +517,13 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
 
     # -- helpers -----------------------------------------------------------
 
+    def _candidate_key_for(self, item_ref: str) -> str:
+        return next(
+            candidate["candidate_key"]
+            for candidate in self.person_state_candidates
+            if candidate["item_ref"] == item_ref
+        )
+
     def _request(self, method: str, path: str, body: dict | None = None):
         data = json.dumps(body).encode() if body is not None else None
         headers = {"Content-Type": "application/json"} if body is not None else {}
@@ -568,7 +590,7 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
         self.assertEqual([item["scope"] for item in payload["items"]], ["person_state"])
         item = payload["items"][0]
         self.assertEqual(item["chapter_id"], CHAPTER)
-        self.assertEqual(item["candidate_count"], 4)
+        self.assertEqual(item["candidate_count"], 5)
         self.assertEqual(item["default_assessment"], "uncertain")
         self.assertEqual(item["left_label"], "阶段依据审核")
         self.assertEqual(item["plan_fingerprint"], self.plan["plan_fingerprint"])
@@ -611,8 +633,8 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
         self.assertEqual(detail["scope"], "person_state")
         self.assertEqual(detail["review_mode"], "chapter_state_evidence")
         self.assertEqual(detail["chapter_id"], CHAPTER)
-        self.assertEqual(detail["candidate_count"], 4)
-        self.assertEqual(len(detail["candidates"]), 4)
+        self.assertEqual(detail["candidate_count"], 5)
+        self.assertEqual(len(detail["candidates"]), 5)
         by_kind = {(c["kind"], c["item_ref"]): c for c in detail["candidates"]}
         fact = by_kind[("fact", "pf_001")]
         self.assertEqual(fact["person_name"], "周瑜")
@@ -643,8 +665,8 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
                 break
         else:
             self.fail("candidate pagination did not terminate")
-        self.assertEqual(len(collected), 4)
-        self.assertEqual(len(set(collected)), 4)
+        self.assertEqual(len(collected), 5)
+        self.assertEqual(len(set(collected)), 5)
         status, payload = self._request(
             "GET",
             f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}?cursor=bogus",
@@ -673,11 +695,7 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
         self.assertEqual(sorted(collected), self.anchor_ids)
 
         # candidate_id limits the descriptor set to that candidate's anchors.
-        candidate_key = next(
-            candidate["candidate_key"]
-            for candidate in self.person_state_candidates
-            if candidate["item_ref"] == "pf_001"
-        )
+        candidate_key = self._candidate_key_for("pf_001")
         status, payload = self._request(
             "GET",
             f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}/contexts?candidate_id={candidate_key}",
@@ -685,13 +703,38 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
         self.assertEqual(status, 200, payload)
         self.assertEqual(payload["candidate_id"], candidate_key)
         self.assertEqual([item["anchor_id"] for item in payload["items"]], ["anc_3"])
-        self.assertIn(candidate_key, payload["items"][0]["candidate_keys"])
+        # anc_3 is shared by pf_001 and pf_003: the descriptor keeps both
+        # candidate associations instead of only the first.
+        shared = payload["items"][0]
+        self.assertIn(candidate_key, shared["candidate_keys"])
+        self.assertIn(self._candidate_key_for("pf_003"), shared["candidate_keys"])
 
         status, payload = self._request(
             "GET",
             f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}/contexts?candidate_id=psc_missing",
         )
         self.assertEqual(status, 404, payload)
+
+    def test_contexts_evidence_kind_follows_real_claim_and_record_source(self) -> None:
+        status, payload = self._request(
+            "GET", f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}/contexts?limit=100"
+        )
+        self.assertEqual(status, 200, payload)
+        by_anchor = {item["anchor_id"]: item for item in payload["items"]}
+        # pf_001 / pf_003 only have exact source_selections (no direct Claim),
+        # so a shared anchor must read as record_source, never direct_claim.
+        shared = by_anchor["anc_3"]
+        self.assertEqual(shared["evidence_kinds"], ["record_source"])
+        self.assertEqual(
+            sorted(shared["candidate_keys"]),
+            sorted(
+                [self._candidate_key_for("pf_001"), self._candidate_key_for("pf_003")]
+            ),
+        )
+        # pf_002 carries claim_refs, so its anchor is direct_claim evidence.
+        self.assertEqual(by_anchor["anc_4"]["evidence_kinds"], ["direct_claim"])
+        # Phase candidates are record_source.
+        self.assertEqual(by_anchor["anc_1"]["evidence_kinds"], ["record_source"])
 
     def test_source_window_and_chapter_are_exact(self) -> None:
         status, payload = self._request(
@@ -806,6 +849,36 @@ class PersonStateReviewApiPostgresTests(unittest.TestCase):
             {"rationale": "no default"},
         )
         self.assertEqual(status, 400, payload)
+
+    def test_person_state_decision_requires_plan_fingerprint(self) -> None:
+        endpoint = f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}/decision"
+        # A body with legal assessment/overrides/rationale but no fingerprint
+        # must still be rejected: the draft's (review_id, plan_fingerprint)
+        # isolation cannot be skipped.
+        status, payload = self._request(
+            "POST",
+            endpoint,
+            {"default_assessment": "uncertain", "overrides": [], "rationale": ""},
+        )
+        self.assertEqual(status, 400, payload)
+        # A non-string fingerprint is rejected the same way.
+        status, payload = self._request(
+            "POST",
+            endpoint,
+            {
+                "plan_fingerprint": 123,
+                "default_assessment": "uncertain",
+                "overrides": [],
+                "rationale": "",
+            },
+        )
+        self.assertEqual(status, 400, payload)
+        # Neither rejected submission changed the review.
+        status, payload = self._request(
+            "GET", f"{STUDIO_REVIEWS_PREFIX}/{self.person_state_review_id}"
+        )
+        self.assertEqual(status, 200, payload)
+        self.assertEqual(payload["review"]["status"], "open")
 
     # -- existing surfaces stay unchanged ----------------------------------
 

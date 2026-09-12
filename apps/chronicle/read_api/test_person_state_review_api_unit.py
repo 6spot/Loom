@@ -260,13 +260,47 @@ class PersonStateProjectionUnitTests(unittest.TestCase):
         with self.assertRaises(person_states.PersonStateBadRequest):
             person_states._normalize_overrides("not-a-list")
 
-    def test_anchor_evidence_kind_separates_claims_from_record_sources(self) -> None:
+    def test_evidence_kind_follows_real_claim_and_record_source(self) -> None:
+        # A fact that actually carries claim_refs is direct_claim evidence.
         self.assertEqual(
-            person_states._anchor_evidence_kind(_candidate(kind="fact")), "direct_claim"
+            person_states._candidate_evidence_kind(
+                _candidate(kind="fact"), {"claim_refs": ["clm_001"]}
+            ),
+            "direct_claim",
+        )
+        # A fact with only exact source_selections (no direct Claim) must not
+        # be reported as Claim evidence.
+        self.assertEqual(
+            person_states._candidate_evidence_kind(
+                _candidate(kind="fact"), {"claim_refs": []}
+            ),
+            "record_source",
         )
         self.assertEqual(
-            person_states._anchor_evidence_kind(_candidate(kind="phase")), "record_source"
+            person_states._candidate_evidence_kind(_candidate(kind="fact"), {}),
+            "record_source",
         )
+        self.assertEqual(
+            person_states._candidate_evidence_kind(_candidate(kind="phase"), {}),
+            "record_source",
+        )
+
+    def test_shared_anchor_keeps_every_candidate_key(self) -> None:
+        candidate_a = _candidate(candidate_key="psc_a", anchor_ids=["anc_1"])
+        candidate_b = _candidate(
+            candidate_key="psc_b", anchor_ids=["anc_1"], kind="fact", item_ref="pf_002"
+        )
+        descriptor = person_states._anchor_descriptor(
+            review_id="019535d9-3df7-7000-8000-000000000001",
+            anchor_id="anc_1",
+            anchor={"anchor_id": "anc_1", "chapter_id": "ch_001", "start": 0, "end": 3},
+            chapter_info={},
+            artifact=None,
+            candidates=[candidate_a, candidate_b],
+            state_index={},
+        )
+        self.assertEqual(descriptor["candidate_keys"], ["psc_a", "psc_b"])
+        self.assertEqual(descriptor["evidence_kinds"], ["record_source"])
 
 
 if __name__ == "__main__":
