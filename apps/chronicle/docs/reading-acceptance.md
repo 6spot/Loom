@@ -73,7 +73,15 @@ gate 会：
 7. 运行 `reading-flow-smoke.mjs --suite all`：多 stream、版本固定、事件预览
    hover/keyboard/touch、角色、时间轴、导航负例、触屏面板、reduced-motion、
    200% 字体、四 viewport、44px、对比度、unknown/missing role/time 负例；性能在
-   固定 Chromium/viewport 下执行 5 次，记录每次与总体的 active/restore p95。
+   固定 Chromium/viewport 下执行 5 次，每次先逐段推进 1,000 次，确认每次相邻
+   active unit 更新且挂载数有界，再连续滚动 30 秒，每 5 秒检查仍在前进；
+   同页定位已回收段落并后退恢复；再通过侧轴跳到尚未缓存的末区段，连续向前文
+   读 40 段、向后文读 35 段，跨越 locate 页边界，不能靠刷新页面绕过窗口；记录每次与总体的
+   active/restore p95。active 从浏览器 wheel 输入计时，直到新正文 active 与侧栏
+   对应同一 unit，作为 active 到侧栏更新的保守上界，仍使用原 100ms 预算；不能
+   用 MutationObserver 回调时刻抹去同一 JS task 中的同步耗时。恢复从目标 locate
+   响应完成（含 page）计时，直到目标 active、侧栏一致且滚动位置正确稳定。
+   跨过的 ordinal 数不能代替逐段推进次数。
 
 `manifest.json` 的 `criteria` 逐项记录
 `real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，

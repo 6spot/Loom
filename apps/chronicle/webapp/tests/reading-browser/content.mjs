@@ -181,9 +181,9 @@ export async function run(ctx) {
     (await page.locator(UNIT).count()) === beforeSourceFail,
   );
 
-  // 7. 大页触发有界窗口与显式加载；饱和后不再自动请求，手动入口可用。
+  // 7. 正常回收后仍允许自动加载；只有操作内容超过保护额度才暂停。
   await page.locator('[data-test="content-load-bulk"]').click();
-  await page.waitForSelector('[data-test="reading-paused"]', { timeout: 10000 });
+  await waitForUnitCount(page, 120);
   const mountedAfterBulk = await page.locator(UNIT).count();
   ctx.check("bulk-bounded-mounted", mountedAfterBulk <= 120, `mounted=${mountedAfterBulk}`);
   ctx.check(
@@ -194,52 +194,82 @@ export async function run(ctx) {
     "active-unit-survives-bulk",
     (await readUnits(page)).some((unit) => unit.unitId === activeUnit.unitId && unit.pinned),
   );
-  const requestsAtBulk = (await windowRequests(page)).length;
+  ctx.check("recycled-window-keeps-auto-prefetch",
+    await page.locator('[data-test="reading-window"]').getAttribute("data-auto-prefetch") === "true");
+  ctx.check("recycled-window-does-not-pause", await page.locator('[data-test="reading-paused"]').count() === 0);
+  await ctx.screenshot(page, "bounded-window");
+
+  const protectedIds = (await readUnits(page)).slice(0, 30).map((unit) => unit.unitId);
+  await page.locator('[data-test="content-pin-overflow"]').click();
+  await page.waitForSelector('[data-test="reading-paused"]', { timeout: 10000 });
+  const protectedUnits = await readUnits(page);
+  ctx.check("overflow-keeps-every-protected-unit",
+    protectedIds.every((id) => protectedUnits.some((unit) => unit.unitId === id && unit.pinned)));
+  ctx.check("overflow-reclaims-ordinary-units", protectedUnits.length <= 140);
+  const requestsAtPause = (await windowRequests(page)).length;
   await page.waitForTimeout(400);
   ctx.check(
-    "saturated-window-stops-auto-prefetch",
-    (await windowRequests(page)).length === requestsAtBulk,
-    "explicit load must be required once saturated",
+    "protected-overflow-stops-auto-prefetch",
+    (await windowRequests(page)).length === requestsAtPause,
+    "explicit load must be required while protected content prevents safe recycling",
   );
   await page.locator('[data-test="reading-manual-next"]').click();
   await page.waitForTimeout(200);
-  ctx.check("manual-load-keeps-window-bounded", (await page.locator(UNIT).count()) <= 120);
-  await ctx.screenshot(page, "bounded-window");
+  ctx.check("manual-load-keeps-window-bounded", (await page.locator(UNIT).count()) <= 140);
+  ctx.check("manual-load-requested", (await windowRequests(page)).length > requestsAtPause);
+  const allProtectedIds = (await readUnits(page)).map((unit) => unit.unitId);
+  ctx.check("full-protection-setup-has-140-units", allProtectedIds.length === 140);
+  await page.locator('[data-test="content-pin-all"]').click();
+  await page.waitForTimeout(100);
+  const fullProtection = await readUnits(page);
+  ctx.check("full-protection-defers-new-target",
+    fullProtection.length === 140 && allProtectedIds.every((id) =>
+      fullProtection.some((unit) => unit.unitId === id && unit.pinned)));
+  await page.locator('[data-test="content-clear-pins"]').click();
+  await page.waitForSelector('[data-test="reading-paused"]', { state: "detached", timeout: 10000 });
+  ctx.check("released-pins-resume-auto-prefetch",
+    await page.locator('[data-test="reading-window"]').getAttribute("data-auto-prefetch") === "true");
+  ctx.check("released-capacity-mounts-deferred-active", (await readUnits(page)).some((unit) => unit.active));
 
-  // 8. 文本选择固定的单位在窗口回收后仍在 DOM。
+  // 8. 跨段选择的首尾及中间正文在回收后都保留，选中文字没有改变。
   await page.locator('[data-test="content-reset"]').click();
   await waitForUnitCount(page, 9);
-  const selectedUnit = await page.evaluate(() => {
-    const target = document.querySelectorAll('[data-test="reading-unit"]')[1];
-    const paragraph = target?.querySelector('[data-test="reading-unit-text"]');
-    if (!target || !paragraph || !paragraph.firstChild) return null;
+  const selected = await page.evaluate(() => {
+    const targets = Array.from(document.querySelectorAll('[data-test="reading-unit"]')).slice(1, 6);
+    const first = targets[0]?.querySelector('[data-test="reading-unit-text"]');
+    const last = targets.at(-1)?.querySelector('[data-test="reading-unit-text"]');
+    if (!first || !last) return null;
     const range = document.createRange();
-    range.selectNodeContents(paragraph.firstChild);
+    range.setStart(first, 0);
+    range.setEnd(last, last.childNodes.length);
     const selection = window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
     document.dispatchEvent(new Event("selectionchange"));
-    return target.getAttribute("data-unit-id");
+    return { ids: targets.map((target) => target.getAttribute("data-unit-id")), text: selection?.toString() };
   });
-  ctx.check("selection-made", Boolean(selectedUnit), "could not select unit text");
+  ctx.check("selection-made", Boolean(selected?.text), "could not select unit text");
   await page.waitForFunction(
-    (unitId) => {
-      const node = document.querySelector(`[data-test="reading-unit"][data-unit-id="${unitId}"]`);
-      return node?.getAttribute("data-pinned") === "true";
-    },
-    selectedUnit,
+    (ids) => ids.every((unitId) => document.querySelector(
+      `[data-test="reading-unit"][data-unit-id="${unitId}"]`)?.getAttribute("data-pinned") === "true"),
+    selected.ids,
     { timeout: 5000 },
   );
-  ctx.check("selection-pins-unit", true);
+  ctx.check("selection-pins-interior-and-endpoints", true);
   await page.evaluate(() => {
     document.querySelector('[data-test="content-load-bulk"]').click();
   });
-  await page.waitForSelector('[data-test="reading-paused"]', { timeout: 10000 });
+  await waitForUnitCount(page, 120);
+  await page.evaluate(() => document.querySelector('[data-test="content-active-bulk-end"]').click());
   await page.waitForTimeout(200);
+  const protectedSelectionUnits = await readUnits(page);
   ctx.check(
     "selection-survives-window-recycle",
-    (await readUnits(page)).some((unit) => unit.unitId === selectedUnit && unit.pinned),
+    selected.ids.every((id) => protectedSelectionUnits.some((unit) => unit.unitId === id && unit.pinned)),
   );
+  ctx.check("selection-text-preserved", await page.evaluate(() => window.getSelection()?.toString()) === selected.text);
+  ctx.check("selection-window-bounded", protectedSelectionUnits.length <= 140);
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
 
   // 9. 部分页起始（locate 到章中间）：不得伪造章标题；也不预取整本书。
   await page.locator('[data-test="content-jump-far"]').click();

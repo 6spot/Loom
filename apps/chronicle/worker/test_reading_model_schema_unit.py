@@ -10,6 +10,7 @@ acceptance authority.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import sys
@@ -178,6 +179,84 @@ class ReadingProjectionTests(unittest.TestCase):
         self.assertEqual([], projection_errors)
         report = R.validate_reading_annotations(request, candidate)
         self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+
+    def test_supported_regnal_date_survives_generation_and_time_projection(self) -> None:
+        import reading_contract as R
+        import reading_projection as P
+
+        request, candidate = fixture_reading_candidate()
+        event = candidate["bundle"]["events"][0]
+        event["time"] = {
+            "original_text": "建安十三年",
+            "source_calendar": {
+                "system": "chinese_lunisolar_regnal",
+                "era": "建安",
+                "era_year": 13,
+                "season": None,
+                "month": None,
+                "day": None,
+                "inherited_fields": [],
+            },
+            "normalized": None,
+        }
+        Draft202012Validator(S.reading_chapter_candidate_model_schema()).validate(candidate)
+        report = R.validate_reading_annotations(request, candidate)
+        self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
+        observation = P.event_time_observation(event["temp_id"], event)
+        key = R.observation_time_key(observation)
+        self.assertEqual("regnal:建安:13", key.year_key)
+        self.assertEqual("year", key.precision)
+        self.assertIsNone(observation["normalized"])
+
+    def test_source_month_and_sexagenary_day_do_not_require_gregorian_conversion(self) -> None:
+        import reading_contract as R
+        import reading_projection as P
+
+        schema = S.reading_chapter_candidate_model_schema()
+        time_schema = schema["properties"]["bundle"]["properties"]["events"]["items"]["properties"]["time"]
+        moment = {
+            "original_text": "建安十三年秋八月壬子",
+            "source_calendar": {
+                "system": "chinese_lunisolar_regnal",
+                "era": "建安", "era_year": 13, "season": "autumn",
+                "month": 8, "day": "壬子", "inherited_fields": [],
+            },
+            "normalized": None,
+        }
+        Draft202012Validator(time_schema).validate(moment)
+        canonical = json.loads((HERE.parent / "ingestion/schemas/chronicle-v0.1.schema.json").read_text())
+        Draft202012Validator(canonical["$defs"]["time"]).validate(moment)
+        observation = P.event_time_observation("evt_001", {"time": moment})
+        self.assertEqual("regnal:建安:13:8", R.observation_time_key(observation).period_key)
+        self.assertEqual("壬子", observation["source_calendar"]["day"])
+        for field, value in (("month", 13), ("era_year", 0), ("season", "later")):
+            with self.subTest(field=field):
+                invalid = copy.deepcopy(moment)
+                invalid["source_calendar"][field] = value
+                self.assertFalse(Draft202012Validator(time_schema).is_valid(invalid))
+
+    def test_unknown_source_components_remain_valid_without_weakening_0_1(self) -> None:
+        import reading_contract as R
+        import reading_projection as P
+
+        moment = {
+            "original_text": "其後",
+            "source_calendar": {
+                "system": "unknown", "era": None, "era_year": None,
+                "season": None, "month": None, "day": None, "inherited_fields": [],
+            },
+            "normalized": None,
+        }
+        def time_schema(version: str) -> dict:
+            schema = S.chapter_candidate_text_format_for(version)["schema"]
+            return schema["properties"]["bundle"]["properties"]["events"]["items"]["properties"]["time"]
+
+        Draft202012Validator(time_schema("0.2")).validate(moment)
+        self.assertEqual("unknown", R.observation_time_key(P.event_time_observation("evt_001", {"time": moment})).year_key)
+        legacy = copy.deepcopy(moment)
+        legacy["source_calendar"] = {"system": "unknown", "inherited_fields": []}
+        Draft202012Validator(time_schema("0.1")).validate(legacy)
+        self.assertFalse(Draft202012Validator(time_schema("0.1")).is_valid(moment))
 
 
 if __name__ == "__main__":

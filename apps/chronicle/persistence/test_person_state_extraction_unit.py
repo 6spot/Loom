@@ -79,6 +79,7 @@ class PersonStatePromptTests(unittest.TestCase):
         self.assertIn(text[-20:], prompt)
         self.assertIn(P.PERSON_STATE_PROMPT_VERSION, prompt)
         self.assertIn("READING ANNOTATION SHAPE", prompt)
+        self.assertNotIn("READING ANNOTATION SHAPE (0.2 only;", prompt)
         self.assertIn("PERSON STATE SHAPE", prompt)
         self.assertIn("recommendation", prompt)
         self.assertIn("attest", prompt)

@@ -9,6 +9,7 @@ import {
   mergeReadingUnitPages,
   planAutoPrefetch,
   planReadingWindow,
+  readingAdjacentPages,
   readingChapterHeadings,
   readingStreamEdges,
   resolveReadingWindowLimits,
@@ -26,6 +27,7 @@ import {
   NEXT_PAGE,
   PREVIOUS_PAGE,
   makeUnit,
+  pageOf,
 } from "./fixtures/reading/cases/content/fixtures";
 
 const webappRoot = new URL("..", import.meta.url).pathname;
@@ -89,7 +91,7 @@ describe("reading-window: adjacent-page auto prefetch", () => {
       hasPrevious: true,
       hasNext: true,
     });
-    expect(readingStreamEdges([PREVIOUS_PAGE, NEXT_PAGE])).toEqual({
+    expect(readingStreamEdges([PREVIOUS_PAGE, INITIAL_PAGE, NEXT_PAGE])).toEqual({
       firstOrdinal: 0,
       lastOrdinal: 8,
       hasPrevious: false,
@@ -101,6 +103,28 @@ describe("reading-window: adjacent-page auto prefetch", () => {
       hasPrevious: false,
       hasNext: false,
     });
+  });
+
+  it("loads adjacent to a distant locate even when old cached pages include both stream ends", () => {
+    const start = pageOf(Array.from({ length: 1040 }, (_, i) => makeUnit(i, "此前已读正文。")), {
+      hasNext: true, nextCursor: "after-1039",
+    });
+    const end = pageOf(Array.from({ length: 20 }, (_, i) => makeUnit(4980 + i, "远端正文。")), {
+      hasPrevious: true, prevCursor: "before-4980",
+    });
+    const pages = [end, start];
+    const active = end.units[0].unit_id;
+    const edges = readingStreamEdges(pages, active);
+    expect(edges).toEqual({ firstOrdinal: 4980, lastOrdinal: 4999, hasPrevious: true, hasNext: false });
+    expect(readingAdjacentPages(pages, active).previous?.prev_cursor).toBe("before-4980");
+    expect(planAutoPrefetch({ autoPrefetch: true, units: mergeReadingUnitPages(pages), edges, activeUnitId: active }).requests)
+      .toEqual(["previous"]);
+    expect(readingAdjacentPages(pages, start.units.at(-1)!.unit_id).next?.next_cursor).toBe("after-1039");
+    const previous = pageOf(Array.from({ length: 20 }, (_, i) => makeUnit(4960 + i, "刚加载的前文。")), {
+      hasPrevious: true, hasNext: true, prevCursor: "before-4960", nextCursor: "after-4979",
+    });
+    expect(readingStreamEdges([...pages, previous], active).firstOrdinal).toBe(4960);
+    expect(readingAdjacentPages([...pages, previous], active).previous?.prev_cursor).toBe("before-4960");
   });
 
   it("requests both adjacent pages at a normal boundary", () => {
@@ -116,7 +140,7 @@ describe("reading-window: adjacent-page auto prefetch", () => {
     expect(plan.markers).toEqual({ previous: 3, next: 6 });
   });
 
-  it("produces no request once the window is saturated", () => {
+  it("produces no request while protected content prevents safe recycling", () => {
     const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
     const edges = readingStreamEdges([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
     const plan = planAutoPrefetch({
@@ -194,15 +218,15 @@ describe("reading-window: bounded plan and pinning", () => {
     expect(plan.requiresExplicitLoad).toBe(false);
   });
 
-  it("caps mounted units at 120 and stops auto prefetch once content is recycled", () => {
+  it("recycles to 120 mounted units and keeps adjacent-page prefetch enabled", () => {
     const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
     expect(units.length).toBeGreaterThan(120);
     const plan = planReadingWindow({ units, activeUnitId: activeFromOrdinal(units, 4) });
     expect(plan.mountedUnitIds.length).toBeLessThanOrEqual(120);
     expect(plan.mountedUnitIds).toContain(activeFromOrdinal(units, 4));
     expect(plan.evictedUnitIds.length).toBe(units.length - plan.mountedUnitIds.length);
-    expect(plan.requiresExplicitLoad).toBe(true);
-    expect(plan.autoPrefetch).toBe(false);
+    expect(plan.requiresExplicitLoad).toBe(false);
+    expect(plan.autoPrefetch).toBe(true);
     expect(plan.placeholders.length).toBe(plan.evictedUnitIds.length);
     // active unit is always mounted, even when the loaded set is far larger.
     expect(plan.mountedUnitIds).toContain(activeFromOrdinal(units, 4));
@@ -231,7 +255,7 @@ describe("reading-window: bounded plan and pinning", () => {
     expect(placeholder?.estimated).toBe(false);
   });
 
-  it("caps pinned units at 20 and requires explicit load on overflow", () => {
+  it("does not charge pins inside the ordinary window against the extra allowance", () => {
     const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
     const pins = units.slice(0, 30).map((unit) => unit.unit_id);
     const plan = planReadingWindow({
@@ -239,10 +263,92 @@ describe("reading-window: bounded plan and pinning", () => {
       activeUnitId: activeFromOrdinal(units, 4),
       pinnedUnitIds: pins,
     });
-    expect(plan.pinnedUnitIds).toHaveLength(20);
-    expect(plan.overflowPinnedUnitIds).toHaveLength(10);
+    expect(plan.pinnedUnitIds).toEqual(pins);
+    expect(plan.overflowPinnedUnitIds).toEqual([]);
+    expect(plan.mountedUnitIds).toHaveLength(120);
+    expect(plan.autoPrefetch).toBe(true);
+  });
+
+  it("uses up to 20 extra units for distant pins without interrupting reading", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
+    const pins = units.slice(0, 20).map((unit) => unit.unit_id);
+    const plan = planReadingWindow({
+      units,
+      activeUnitId: activeFromOrdinal(units, 203),
+      pinnedUnitIds: pins,
+    });
+    expect(plan.mountedUnitIds).toHaveLength(140);
+    expect(plan.pinnedUnitIds).toEqual(pins);
+    expect(pins.every((id) => plan.mountedUnitIds.includes(id))).toBe(true);
+    expect(plan.overflowPinnedUnitIds).toEqual([]);
+    expect(plan.autoPrefetch).toBe(true);
+  });
+
+  it("preserves every operated unit on overflow and resumes after pins are released", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
+    const pins = units.slice(0, 30).map((unit) => unit.unit_id);
+    const activeUnitId = activeFromOrdinal(units, 203);
+    const plan = planReadingWindow({ units, activeUnitId, pinnedUnitIds: pins });
+    expect(plan.pinnedUnitIds).toEqual(pins);
+    expect(plan.overflowPinnedUnitIds).toEqual(pins.slice(20));
+    expect(pins.every((id) => plan.mountedUnitIds.includes(id))).toBe(true);
+    expect(plan.mountedUnitIds).toHaveLength(140);
     expect(plan.autoPrefetch).toBe(false);
     expect(plan.requiresExplicitLoad).toBe(true);
+    const released = planReadingWindow({ units, activeUnitId, pinnedUnitIds: pins.slice(0, 20) });
+    expect(released.autoPrefetch).toBe(true);
+    expect(released.requiresExplicitLoad).toBe(false);
+  });
+
+  it("requests the next and previous pages after multiple normal window recycles", () => {
+    const units = Array.from({ length: 320 }, (_, ordinal) => makeUnit(ordinal, "连续正文。"));
+    const edges = { firstOrdinal: 0, lastOrdinal: 319, hasPrevious: true, hasNext: true };
+    for (const [ordinal, direction] of [[315, "next"], [4, "previous"]] as const) {
+      const activeUnitId = units[ordinal].unit_id;
+      const window = planReadingWindow({ units, activeUnitId });
+      expect(window.mountedUnitIds).toHaveLength(120);
+      expect(planAutoPrefetch({ autoPrefetch: window.autoPrefetch, units, edges, activeUnitId }).requests)
+        .toEqual([direction]);
+    }
+  });
+
+  it("defers a new target when every slot protects operated DOM, then admits it on release", () => {
+    const units = Array.from({ length: 600 }, (_, ordinal) => makeUnit(ordinal, "连续正文。"));
+    const previous = planReadingWindow({
+      units, activeUnitId: units[300].unit_id,
+      pinnedUnitIds: units.slice(0, 20).map((unit) => unit.unit_id),
+    });
+    expect(previous.mountedUnitIds).toHaveLength(140);
+    const target = units[500].unit_id;
+    const blocked = planReadingWindow({
+      units, activeUnitId: target,
+      pinnedUnitIds: [target, ...previous.mountedUnitIds],
+      previousMountedUnitIds: previous.mountedUnitIds,
+    });
+    expect(blocked.mountedUnitIds).toEqual(previous.mountedUnitIds);
+    expect(blocked.mountedUnitIds).not.toContain(target);
+    expect(blocked.autoPrefetch).toBe(false);
+    expect(blocked.overflowPinnedUnitIds).toContain(target);
+    const released = planReadingWindow({
+      units, activeUnitId: target, pinnedUnitIds: [target],
+      previousMountedUnitIds: blocked.mountedUnitIds,
+    });
+    expect(released.mountedUnitIds).toContain(target);
+    expect(released.mountedUnitIds).toHaveLength(120);
+    expect(released.autoPrefetch).toBe(true);
+  });
+
+  it("admits a pending distant target before the controller commits a new active unit", () => {
+    const units = Array.from({ length: 1000 }, (_, ordinal) => makeUnit(ordinal, "连续正文。"));
+    const activeUnitId = units[600].unit_id;
+    const before = planReadingWindow({ units, activeUnitId });
+    const pending = units[0].unit_id;
+    const locating = planReadingWindow({
+      units, activeUnitId, pinnedUnitIds: [pending], previousMountedUnitIds: before.mountedUnitIds,
+    });
+    expect(locating.mountedUnitIds).toContain(activeUnitId);
+    expect(locating.mountedUnitIds).toContain(pending);
+    expect(locating.mountedUnitIds).toHaveLength(121);
   });
 
   it("resolves limits and estimates unmounted heights", () => {
@@ -340,7 +446,7 @@ describe("reading-window: window states", () => {
     expect(html).not.toContain('data-test="reading-unit"');
   });
 
-  it("renders placeholders and a paused explicit-load entry when the window is saturated", () => {
+  it("renders placeholders without a pause during ordinary recycling", () => {
     const units = mergeReadingUnitPages([INITIAL_PAGE, NEXT_PAGE, BULK_PAGE]);
     const html = renderToString(
       React.createElement(ReadingWindow, {
@@ -348,11 +454,24 @@ describe("reading-window: window states", () => {
         activeUnitId: activeFromOrdinal(units, 4),
       }),
     );
+    expect(html).not.toContain('data-test="reading-paused"');
+    expect(html).toContain('data-auto-prefetch="true"');
+    expect(html).toContain('data-test="reading-unit-placeholder"');
+    expect((html.match(/data-test="reading-unit"/g) ?? []).length).toBeLessThanOrEqual(120);
+  });
+
+  it("offers explicit loading while retaining pins that exceed the extra allowance", () => {
+    const pages = [INITIAL_PAGE, NEXT_PAGE, BULK_PAGE];
+    const units = mergeReadingUnitPages(pages);
+    const html = renderToString(React.createElement(ReadingWindow, {
+      pages,
+      activeUnitId: activeFromOrdinal(units, 203),
+      pinnedUnitIds: units.slice(0, 30).map((unit) => unit.unit_id),
+    }));
     expect(html).toContain('data-test="reading-paused"');
     expect(html).toContain('data-test="reading-manual-next"');
     expect(html).toContain('data-test="reading-load-more"');
-    expect(html).toContain('data-test="reading-unit-placeholder"');
-    expect((html.match(/data-test="reading-unit"/g) ?? []).length).toBeLessThanOrEqual(120);
+    expect((html.match(/data-test="reading-unit"/g) ?? []).length).toBeLessThanOrEqual(140);
   });
 
   it("exposes the far page through an explicit page prop without downloading the gap", () => {

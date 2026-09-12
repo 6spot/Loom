@@ -4,7 +4,7 @@
 // published DTO 形状与受控 locate 响应，用于验证 active unit、深链接/刷新、
 // 返回栈、旧响应忽略、用户滚动打断与 storage 降级。所有数据显式 synthetic。
 
-import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 
 import {
   parseReadingFields,
@@ -139,15 +139,18 @@ const FIXTURE_URL_STRATEGY: ReadingUrlStrategy = {
 
 interface FixtureProps {
   readonly params: URLSearchParams;
+  readonly shortWindow?: boolean;
 }
 
-function PositionFixture({ params }: FixtureProps): ReactElement {
+function PositionFixture({ params, shortWindow = false }: FixtureProps): ReactElement {
   const storageMode = params.get("storage") === "off" ? null : undefined;
   const slowNextRef = useRef(false);
   const slowWindowNextRef = useRef(false);
   const [returnResult, setReturnResult] = useState<string>("");
   const [returnTokens, setReturnTokens] = useState<string[]>([]);
   const [previewCount, setPreviewCount] = useState(0);
+  const [prependedHeight, setPrependedHeight] = useState(0);
+  const canPrepend = shortWindow && params.get("more") !== "false" && prependedHeight < 6000;
 
   const getUnit = useCallback(
     (id: string): ReadingUnitSnapshot | null => FIXTURE_UNIT_SNAPSHOTS.get(id) ?? null,
@@ -201,11 +204,16 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       urlStrategy: FIXTURE_URL_STRATEGY,
       headerHeight: HEADER_HEIGHT,
       settleDelayMs: 120,
+      preserveLayoutPosition: true,
+      getWindowEdges: () => ({ hasPrevious: canPrepend, hasNext: false }),
     }),
-    [getUnit, locate, resolveStart, loadWindow, storageMode],
+    [getUnit, locate, resolveStart, loadWindow, storageMode, canPrepend],
   );
 
   const controller = useReadingPosition(options);
+  useLayoutEffect(() => {
+    controller.notifyLayoutChange();
+  }, [prependedHeight, controller.notifyLayoutChange]);
 
   const navigateAxis = () => {
     const target = UNITS[10]!;
@@ -290,8 +298,34 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
     setReturnResult(resolved ? "不应发生：无效 token 被接受" : "token 失效：进入相关正文（无外部跳转）");
   };
 
+  if (shortWindow) {
+    const unit = UNIT_BY_ID.get(params.get("at") ?? "") ?? UNITS[20]!;
+    return (
+      <main data-test="position-scene" data-synthetic="true"
+        style={{ position: "absolute", top: 0, left: 0, width: "100%", paddingTop: 205,
+          paddingBottom: 420, background: "white", overflowAnchor: "none" }}>
+        <header data-test="position-header"
+          style={{ position: "fixed", top: 0, height: HEADER_HEIGHT, background: "white", zIndex: 3 }}>
+          <span data-test="position-active-unit" data-unit-id={controller.activeUnitId ?? ""}
+            data-ordinal={controller.activeOrdinal ?? -1}>{controller.activeUnitId}</span>
+          <span data-test="position-nav-state">{controller.navigationState}</span>
+          {canPrepend ? <button type="button" data-test="position-short-prepend"
+            onClick={() => window.setTimeout(() => setPrependedHeight(6000), 500)}>
+            延迟补入前文
+          </button> : null}
+        </header>
+        <div data-test="position-prepended" data-height={prependedHeight} style={{ height: prependedHeight }} />
+        <section data-reading-unit="true" data-unit-id={unit.unitId} data-ordinal={unit.ordinal}
+          style={{ height: 295.125, boxSizing: "border-box", padding: 12 }}>
+          {unit.text}
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main data-test="position-scene" data-synthetic="true" data-storage={storageMode === null ? "off" : "on"}>
+    <main data-test="position-scene" data-synthetic="true" data-storage={storageMode === null ? "off" : "on"}
+      style={{ overflowAnchor: "none" }}>
       <header
         data-test="position-header"
         style={{ position: "sticky", top: 0, height: HEADER_HEIGHT, background: "#fff", zIndex: 2 }}
@@ -313,6 +347,12 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       >
         <button type="button" data-test="position-nav-axis" onClick={navigateAxis}>
           轴定位到 u10
+        </button>
+        <button type="button" data-test="position-prepend" onClick={() => {
+          setPrependedHeight((height) => height + 46);
+          window.setTimeout(() => setPrependedHeight((height) => height + 5954), 150);
+        }}>
+          延迟补载前文
         </button>
         <button type="button" data-test="position-nav-event" onClick={navigateEvent}>
           进入事件 u15
@@ -370,6 +410,7 @@ function PositionFixture({ params }: FixtureProps): ReactElement {
       <p data-test="position-sample-note">{READING_FIXTURE_SAMPLE_NOTE}</p>
       <p data-test="position-sample-note">{READING_FIXTURE_SAMPLE_NOTE}</p>
 
+      <div data-test="position-prepended" data-height={prependedHeight} style={{ height: prependedHeight }} />
       <div data-test="position-units">
         {UNITS.map((unit) => (
           <section
@@ -413,6 +454,13 @@ const scenes: ReadingScene[] = [
     label: "定位控制器：存储不可用降级",
     synthetic: true,
     render: (params) => <PositionFixture params={params} />,
+  },
+  {
+    name: "short-window",
+    suite: "position",
+    label: "定位控制器：临时短窗口、真实边界与用户取消",
+    synthetic: true,
+    render: (params) => <PositionFixture params={params} shortWindow />,
   },
 ];
 

@@ -974,11 +974,30 @@ def _reading_unit() -> dict[str, Any]:
 def reading_chapter_candidate_model_schema() -> dict[str, Any]:
     """Return the strict model-generation subset of chapter-candidate 0.2.
 
-    The frozen 0.1 projection is reused verbatim; the second-round change is
-    the required ``reading`` block (one unit per translation block, source-local
-    refs only) and the version const.
+    Reuse the 0.1 joint shape, expose the source-calendar fields already
+    accepted by the chapter contract, and require reading annotations. The
+    first-round projection withheld these fields; reusing that restriction
+    made even an explicitly dated chapter impossible to group by regnal year
+    or month. Source dates are not Gregorian conversions: normalized month
+    and day remain unavailable, and unknown source components remain null.
     """
     schema = copy.deepcopy(chapter_candidate_model_schema())
+    event = schema["properties"]["bundle"]["properties"]["events"]["items"]
+    source_calendar = event["properties"]["time"]["anyOf"][1]["properties"]["source_calendar"]
+    fields = {
+        "era": {"type": ["string", "null"]},
+        "era_year": {"type": ["integer", "null"], "minimum": 1},
+        "season": {
+            "type": ["string", "null"],
+            "enum": ["spring", "summer", "autumn", "winter", None],
+        },
+        "month": {"type": ["integer", "null"], "minimum": 1, "maximum": 12},
+        "day": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}]},
+    }
+    source_calendar["properties"].update(fields)
+    # Strict provider objects require every property to be present. Nullable
+    # components express missing evidence without manufacturing precision.
+    source_calendar["required"] += list(fields)
     warning = schema["properties"]["warnings"]
     schema["properties"]["version"] = {"type": "string", "const": "0.2"}
     schema["properties"]["reading"] = {

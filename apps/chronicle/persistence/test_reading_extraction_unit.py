@@ -84,6 +84,56 @@ class ReadingPromptTests(unittest.TestCase):
         self.assertIn(P.PROMPT_VERSION, prompt)
         self.assertNotIn("READING ANNOTATION SHAPE", prompt)
 
+    def test_correction_keeps_reading_errors_after_many_source_anchor_failures(self) -> None:
+        # Live R2 extraction: six verbose source-anchor hints filled the repair
+        # budget before the context and translated-span errors. The known bad
+        # context selection consequently survived the only correction round.
+        errors = ["chapter: aliases: ent_023 alias '魚復' has no chapter-text support"]
+        for owner, wrong, correct, count in [
+            ("mention 'm_003'", "b_023", "b_027", 5),
+            ("mention 'm_005'", "b_023", "b_019", 6),
+            ("record_sources 'ent_002'[1]", "b_009", "b_011", 1),
+            ("record_sources 'ent_003'[1]", "b_027", "b_039", 1),
+            ("record_sources 'ent_004'[1]", "b_021", "b_019", 1),
+            ("record_sources 'ent_010'[1]", "b_011", "b_009", 1),
+        ]:
+            errors.append(
+                f"chapter: anchors: {owner} quote occurs 0 time(s) in ['{wrong}'..'{wrong}'] "
+                f"but occurrence=1 was requested; quote occurs {count} time(s) chapter-wide, "
+                f"first in block '{correct}': re-point first/last_block_id to the enclosing block(s) and recount"
+            )
+        errors.extend([
+            "chapter: record_sources: clm_001 evidence text '謙表先主為豫州刺史，屯小沛。' "
+            "must equal first selection quote '謙表先主為豫州刺史，屯小沛'",
+            "chapter: record_sources: clm_002 evidence text '漢景帝子中山靖王勝之後也。' "
+            "must equal first selection quote '漢景帝子中山靖王勝之後也'",
+            "reading_context: reading.units[6].context_entities[1].source_selections[1] "
+            "quote occurs 0 time(s) in ['b_021'..'b_021'] but occurrence=1 was requested; "
+            "quote occurs 1 time(s) chapter-wide, first in block 'b_019': "
+            "re-point first/last_block_id to the enclosing block(s) and recount",
+        ])
+        for unit, span, quote in [(2, 0, "討伐黃巾"), (3, 0, "先主遂領徐州"), (3, 1, "呂布乘虛襲取下邳")]:
+            errors.append(
+                f"reading_spans: reading.units[{unit}].event_spans[{span}].selection "
+                f"quote '{quote}' occurs 0 time(s) in its translation block but occurrence=1 was requested"
+            )
+        prompt = P.render_chapter_prompt(
+            reading_request(), validation_errors=errors,
+            previous_candidate=json.loads(reading_candidate("candidate-valid.json")),
+        )
+        diagnostics = json.loads(prompt.split("VALIDATION DIAGNOSTICS\n", 1)[1].split("\nPREVIOUS CANDIDATE", 1)[0])
+        self.assertEqual(len(diagnostics), 13)
+        self.assertLessEqual(sum(map(len, diagnostics)), 1800)
+        self.assertIn("reading.units[6].context_entities[1].source_selections[1]", diagnostics[9])
+        self.assertIn("b_021", diagnostics[9])
+        self.assertIn("b_019", diagnostics[9])
+        self.assertIn("occurrence=1", diagnostics[9])
+        self.assertIn("5 chapter matches", diagnostics[1])
+        self.assertIn("6 chapter matches", diagnostics[2])
+        self.assertTrue(all("reading_spans:" in item for item in diagnostics[-3:]))
+        # Historical 0.1 prompt/repair formatting is not changed by the R2 fix.
+        self.assertIn("diagnostic_summary:", P.compact_validation_errors(errors)[-1])
+
 
 class ReadingAcceptanceTests(unittest.TestCase):
     def test_valid_reading_product_accepted_in_one_round(self) -> None:

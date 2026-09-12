@@ -31,11 +31,11 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v2"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v4"
 
 #: Person-state (0.3) prompt template version. Bound into the producing run
 #: of every accepted 0.3 artifact so 0.1/0.2/0.3 runs stay distinguishable.
-PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v1"
+PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v2"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -174,6 +174,33 @@ READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (0.2 only; every unit is
 Add one top-level "reading" object beside bundle/translation/mentions/record_sources:
 reading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per
 translation block, in the SAME order, no missing or duplicate block_id.
+Read the whole chapter before producing the joint product. Carry its supported
+persons, places, polities and coherent events into the bundle and translation refs,
+then annotate the translated passages using those same refs. Unknown dates do not
+erase the people or places a passage clearly identifies. Empty arrays are legitimate
+only where that passage supplies no supported object or event phrase; they are not
+a shortcut for an entire biography, campaign, or annalistic chapter.
+Use natural paragraph breaks at changes of narrative time or action, usually 80-500
+Chinese characters; longer quotations may remain together. This is one whole-chapter
+response, never independent paragraph translations. Do not create an Event for each
+paragraph or turn minor details into navigation anchors.
+Paragraph length is a layout guide, NOT a chapter-length limit: create as many
+paragraphs as the complete source needs. Listing a source_block_id does not translate
+that block. Preserve the full content of speeches, letters, memorials, decrees and
+embedded annotations, including each argument and its attribution. Do not replace
+them with statements such as "群臣上表劝进" or "史书有不同记载". Those are summaries,
+not translations of the actual memorial or each cited account.
+SOURCE DATE FIELDS: in each non-null Event.time.source_calendar, return system, era,
+era_year, season, month, day, inherited_fields. Use null for unsupported components;
+season is spring|summer|autumn|winter|null, month is 1..12|null, day may preserve a
+source sexagenary label. Preserve the regnal era/year even without a Gregorian
+conversion (normalized may be null). A date heading may govern the following main
+narrative in this same chapter until an explicit transition; record context-derived
+components in inherited_fields and ground them in the actual source. Missing a
+repeated year is not by itself evidence that the chapter leaves the date unknown.
+Keep time.original_text a VERBATIM temporal expression; never stitch a new date
+phrase from separate source passages. Do not borrow dates from cited flashbacks or
+invent a Gregorian year/month/day. A genuinely undated event keeps time null.
 reading unit (field names are exact):
   block_id: the translation block this unit annotates.
   narrative_time: {mode, event_refs[], from_block_id, source_selections[]}.
@@ -181,21 +208,23 @@ reading unit (field names are exact):
       own source time is observed here, and must be non-empty and a subset of
       current_event_refs; from_block_id is null.
     mode "inherit": the block continues an earlier block's time; from_block_id names an
-      EARLIER block of THIS chapter and event_refs is empty; the chain must end at an
-      "events" block.
+      EARLIER block of THIS chapter; BOTH event_refs and current_event_refs are empty,
+      and event_roles must also be empty. The chain must end at an "events" block.
+      If this block narrates a dated event with current_event_refs, use "events"
+      instead. Inherit only a source-supported continuation, never a convenient date.
     mode "mixed":   the block deliberately observes several current events at once;
       event_refs lists every current_event_ref and there are at least two.
     mode "unknown": the block has no usable time; event_refs and current_event_refs are
       empty, from_block_id null, source_selections empty.
-    Do NOT invent Gregorian time. Keep the event's own source_calendar/original_text
-    (era/era_year/month/day/season) exactly as the source writes it; when the event has
+    Do NOT invent Gregorian time. Keep the event's own source_calendar fields and
+    verbatim original_text distinct as described above; when the event has
     no usable time keep it unknown rather than defaulting to a nearby year. A
     retrospective / foreshadow / background span never supplies the unit's current time.
     source_selections must contain 1..16 verbatim source selections for non-unknown
     modes and be empty for unknown.
   current_event_refs: ONLY the events this block is currently narrating (not every event
     mentioned); each must be an existing evt_* in this block's translation event_refs.
-  event_spans: [] or a list of {span_id, selection, status, target_ref, candidate_refs,
+  event_spans: a list of {span_id, selection, status, target_ref, candidate_refs,
     relation, source_selections}. span_id is es_001, es_002, ... Each span points at the
     exact words in THIS translation block: selection = {quote, occurrence} where quote
     is copied character-for-character from that unit's translated block text and
@@ -203,17 +232,29 @@ reading unit (field names are exact):
     no candidate_refs) | ambiguous (target_ref null, >=2 candidate_refs) | unresolved
     (target_ref null). relation is current | retrospective | foreshadow | background |
     uncertain. Spans must not overlap each other and must not rewrite the block text.
-    source_selections (1..16) support the span from the ORIGINAL source.
-  context_entities: [] or a list of {entity_ref, importance, source_selections,
+    source_selections (1..16) support the span from the ORIGINAL source. Select the
+    translated event name or short occurrence phrase (for example a supported
+    battle phrase), not a bare person's name as a proxy for that person's event.
+    Include a grounded event phrase when present; use [] if none is supported.
+  context_entities: a list of {entity_ref, importance, source_selections,
     event_roles}. entity_ref is an existing ent_* supported by this block's
     entity_refs or by a current event's participants/places; importance is primary|other.
     source_selections (1..16) prove the source supports this object in this block.
     event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref
     and participant_index is that entity's original participant position in the event
     (0-based); the program copies the role text from the participant record, so never
-    write a role string yourself.
-  A valid empty annotation is event_spans: [] and context_entities: []; never drop the
-  unit, invent a canonical ID, or move a reading annotation to a later page/request.
+    write a role string yourself. Find the event whose temp_id equals event_ref,
+    then verify event.participants[participant_index].entity_ref equals this
+    context entity_ref. Index 0 is not a default. A place in event.places is NOT a
+    participant; keep event_roles [] unless that same entity actually occurs in the
+    event's participants array. Include the main people/places actually involved
+    here, even when narrative_time is unknown or inherit (then event_roles is []).
+    Do not include every chapter entity or promote someone mentioned only as distant
+    background to primary. Use [] where this passage has no supported context entity.
+  Never drop the unit, invent a canonical ID, or move a reading annotation to a
+  later page/request. When correcting a failure, retain all supported events,
+  context entities and spans; repair the faulty references/selections rather than
+  emptying the arrays to avoid validation.
 COORDINATE / ID DISCIPLINE: the model writes only block_id, evt_*/ent_* temp refs, span
 ids (es_*) and {quote, occurrence} selections. Never write start/end offsets, unit_id,
 stream_id, canonical_id, UUIDs, or URLs — the program computes all coordinates and IDs.
@@ -221,9 +262,9 @@ READING UNIT EXAMPLE (shape only):
 {"block_id":"t_001","narrative_time":{"mode":"events","event_refs":["evt_001"],
  "from_block_id":null,"source_selections":[{"first_block_id":"b_001","last_block_id":"b_001",
  "quote":"建安十三年","occurrence":1}]},"current_event_refs":["evt_001"],
- "event_spans":[{"span_id":"es_001","selection":{"quote":"曹操","occurrence":1},
+ "event_spans":[{"span_id":"es_001","selection":{"quote":"进驻江陵","occurrence":1},
  "status":"resolved","target_ref":"evt_001","candidate_refs":[],"relation":"current",
- "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
+ "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"屯江陵",
  "occurrence":1}]}],"context_entities":[{"entity_ref":"ent_001","importance":"primary",
  "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
  "occurrence":1}],"event_roles":[{"event_ref":"evt_001","participant_index":0}]}]}'''
@@ -295,6 +336,11 @@ _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
 _WS_RE = re.compile(r"\s+")
+_ANCHOR_MISMATCH_RE = re.compile(
+    r"quote occurs (\d+) time\(s\) in (\[[^\]]+\]) but occurrence=(\d+) was requested; "
+    r"quote occurs (\d+) time\(s\) chapter-wide, first in block ('[^']+')"
+    r": re-point first/last_block_id to the enclosing block\(s\) and recount"
+)
 
 
 def _json(value: Any) -> str:
@@ -335,7 +381,9 @@ def _diagnostic_signature(value: str) -> str:
     return _INDEX_PATH_RE.sub("/*", value)
 
 
-def compact_validation_errors(errors: list[str]) -> list[str]:
+def compact_validation_errors(
+    errors: list[str], *, candidate_version: str = CANDIDATE_VERSION
+) -> list[str]:
     """Bound model-facing repair diagnostics; full history stays untouched.
 
     The complete validator report remains in the extraction attempt
@@ -358,6 +406,16 @@ def compact_validation_errors(errors: list[str]) -> list[str]:
             omitted += 1
             continue
         text = _diagnostic_signature(text)
+        # Preserve each repair location, both match counts and the correct
+        # source block hint without repeating a long generic instruction.
+        # R2 live extraction lost every reading diagnostic after repeated anchor
+        # failures exhausted this bounded prompt, so the correction could not
+        # repair a known context selection. The full report stays unchanged.
+        if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
+            text = _ANCHOR_MISMATCH_RE.sub(
+                r"quote: \1 matches in \2, occurrence=\3; \4 chapter matches, first block=\5",
+                text,
+            )
         if len(text) > _MAX_ONE_DIAGNOSTIC_CHARS:
             text = text[: _MAX_ONE_DIAGNOSTIC_CHARS - 24].rstrip() + " … [diagnostic shortened]"
         if text in seen:
@@ -505,12 +563,27 @@ def render_chapter_prompt(
     candidate_version = request_candidate_version(request)
     prompt_version = prompt_version_for(candidate_version)
     joint_guide = _joint_guide_for(candidate_version)
-    guides = ""
+    reading_guide = (
+        "\n\n" + READING_ANNOTATION_GUIDE
+        if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION)
+        else ""
+    )
     if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
-        guides += "\n\n" + READING_ANNOTATION_GUIDE
+        reading_guide += (
+            f"\nFULL-TEXT SCALE: this chapter contains {len(request['normalized_text'])} "
+            f"source characters and {len(request['required_block_ids'])} required source blocks. "
+            "A full modern-Chinese translation normally needs comparable or greater "
+            "space. A much shorter overview is not an acceptable whole-chapter product. "
+            "Complete the entire translation first, then annotate it; never trade away "
+            "source passages to fit the bundle or reading metadata into the response.\n"
+        )
     if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
-        guides += "\n\n" + PERSON_STATE_GUIDE
-    reading_guide = guides
+        reading_guide = reading_guide.replace(
+            "READING ANNOTATION SHAPE (0.2 only;",
+            "READING ANNOTATION SHAPE (0.3 inherits 0.2;",
+            1,
+        )
+        reading_guide += "\n\n" + PERSON_STATE_GUIDE
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
@@ -518,7 +591,7 @@ def render_chapter_prompt(
 
     correction = ""
     if validation_errors is not None:
-        diagnostics = compact_validation_errors(validation_errors)
+        diagnostics = compact_validation_errors(validation_errors, candidate_version=candidate_version)
         prev_chars = _translation_chars(previous_candidate)
         if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
             repaired = (
@@ -537,25 +610,37 @@ def render_chapter_prompt(
             # (e.g. 16404 chars) to a fraction (e.g. 7318). The contract is
             # unchanged — only the re-ask now names the prior full length and
             # forbids condensing it. Never a validation gate; a repair signal.
-            repaired_fields = (
-                "the joint bundle, mentions, record_sources, reading, person_states "
-                "and time fields"
-                if candidate_version == PERSON_STATE_CANDIDATE_VERSION
-                else "the joint bundle, mentions, record_sources, reading and time fields"
-            )
-            preserve = (
-                f"FIDELITY: the previous translation had {prev_chars} characters. "
-                "The corrected product MUST keep the whole translation at that "
-                "full length — faithfully translate every sentence and every "
-                "embedded annotation. Do NOT summarize, condense, shorten, or "
-                "replace any passage with an overview; only repair the listed "
-                "issues while preserving (or lengthening) the full translation.\n"
-                "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
-                "translation.blocks through unchanged (same block_ids, same order, "
-                "same full text). Do NOT rewrite, shorten, or re-summarize the "
-                "translation; the diagnostics below concern " + repaired_fields + " — repair those "
-                "and keep the translation verbatim.\n"
-            )
+            if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
+                dependent_annotations = (
+                    "dependent reading annotations and person_states"
+                    if candidate_version == PERSON_STATE_CANDIDATE_VERSION
+                    else "dependent reading annotations"
+                )
+                preserve = (
+                    f"FIDELITY: {prev_chars} characters is the previous draft's length, "
+                    "not evidence that it translates the whole chapter. Keep every "
+                    "faithful translated passage, its block_id and order. "
+                    "A reference-validation report does not certify completeness: "
+                    "check the entire source again and expand any omitted or condensed "
+                    "passages, including quoted documents and annotations. Update "
+                    f"{dependent_annotations} if expansion is necessary. Never "
+                    "shorten the translation while repairing references.\n"
+                )
+            else:
+                preserve = (
+                    f"FIDELITY: the previous translation had {prev_chars} characters. "
+                    "The corrected product MUST keep the whole translation at that "
+                    "full length — faithfully translate every sentence and every "
+                    "embedded annotation. Do NOT summarize, condense, shorten, or "
+                    "replace any passage with an overview; only repair the listed "
+                    "issues while preserving (or lengthening) the full translation.\n"
+                    "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
+                    "translation.blocks through unchanged (same block_ids, same order, "
+                    "same full text). Do NOT rewrite, shorten, or re-summarize the "
+                    "translation; the diagnostics below concern the joint bundle, "
+                    "mentions, record_sources, reading and time fields — repair those "
+                    "and keep the translation verbatim.\n"
+                )
         correction = (
             "\nCORRECTION RE-ASK\n"
             "The prior chapter product failed deterministic validation. Return one "

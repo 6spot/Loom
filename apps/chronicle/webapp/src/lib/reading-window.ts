@@ -127,39 +127,48 @@ export interface ReadingStreamEdges {
 }
 
 /**
- * 从已加载页推导真实双向边界，而不是假设“首屏就是 stream 起点”。
- * 取覆盖最小 ordinal 的页的 `has_previous`、覆盖最大 ordinal 的页的 `has_next`。
+ * Locate can leave gaps between cached pages. Load from the contiguous range
+ * containing active, not the extremes of unrelated previously read ranges.
+ * Both automatic prefetch and the HTTP cursor selection use this one rule.
  */
-export function readingStreamEdges(
+export function readingAdjacentPages(
   pages: readonly StreamPage[] | null | undefined,
-): ReadingStreamEdges {
-  let firstOrdinal: number | null = null;
-  let lastOrdinal: number | null = null;
-  let backwardPage: StreamPage | null = null;
-  let forwardPage: StreamPage | null = null;
-  for (const page of pages ?? []) {
-    const pageUnits = page?.units ?? [];
-    if (pageUnits.length === 0) continue;
-    let min = Number.POSITIVE_INFINITY;
-    let max = Number.NEGATIVE_INFINITY;
-    for (const unit of pageUnits) {
-      if (unit.ordinal < min) min = unit.ordinal;
-      if (unit.ordinal > max) max = unit.ordinal;
-    }
-    if (firstOrdinal === null || min < firstOrdinal) {
-      firstOrdinal = min;
-      backwardPage = page;
-    }
-    if (lastOrdinal === null || max > lastOrdinal) {
-      lastOrdinal = max;
-      forwardPage = page;
+  activeUnitId?: string | null,
+): { readonly previous: StreamPage | null; readonly next: StreamPage | null } {
+  const ranges = (pages ?? []).filter((page) => page?.units?.length).map((page) => ({
+    page,
+    first: Math.min(...page.units.map((unit) => unit.ordinal)),
+    last: Math.max(...page.units.map((unit) => unit.ordinal)),
+    active: page.units.some((unit) => unit.unit_id === activeUnitId),
+  })).sort((a, b) => a.first - b.first || a.last - b.last);
+  const groups: { first: number; last: number; previous: StreamPage; next: StreamPage; active: boolean }[] = [];
+  for (const range of ranges) {
+    const group = groups[groups.length - 1];
+    if (!group || range.first > group.last + 1) {
+      groups.push({ first: range.first, last: range.last, previous: range.page, next: range.page, active: range.active });
+    } else {
+      group.active ||= range.active;
+      if (range.last > group.last) {
+        group.last = range.last;
+        group.next = range.page;
+      }
     }
   }
+  const group = groups.find((item) => item.active) ?? groups[0];
+  return { previous: group?.previous ?? null, next: group?.next ?? null };
+}
+
+/** 当前连续缓存区间的真实双向边界；深链首屏不冒充 stream 起点。 */
+export function readingStreamEdges(
+  pages: readonly StreamPage[] | null | undefined,
+  activeUnitId?: string | null,
+): ReadingStreamEdges {
+  const { previous, next } = readingAdjacentPages(pages, activeUnitId);
   return {
-    firstOrdinal,
-    lastOrdinal,
-    hasPrevious: Boolean(backwardPage?.has_previous),
-    hasNext: Boolean(forwardPage?.has_next),
+    firstOrdinal: previous ? Math.min(...previous.units.map((unit) => unit.ordinal)) : null,
+    lastOrdinal: next ? Math.max(...next.units.map((unit) => unit.ordinal)) : null,
+    hasPrevious: Boolean(previous?.has_previous),
+    hasNext: Boolean(next?.has_next),
   };
 }
 
@@ -190,11 +199,11 @@ const NO_MARKERS: AutoPrefetchMarkers = { previous: null, next: null };
 
 /**
  * 决定本帧正常边界要自动请求的相邻页方向：
- *  - 只有 `autoPrefetch`（窗口未饱和）且确实还有前/后页时才请求；
+ *  - 只有 `autoPrefetch`（可以安全回收）且确实还有前/后页时才请求；
  *  - 只有 active 接近已加载边界（<= edgeUnits）时才请求，保持相邻一页缓冲；
  *  - 同一边界 ordinal 只请求一次，页真的增长后才重新武装；
  *  - 该方向正在加载时不重复请求。
- * 窗口饱和（autoPrefetch=false）时清空标记且不产生任何请求，交由显式加载。
+ * 受保护内容阻止安全回收（autoPrefetch=false）时清空标记，交由显式加载。
  */
 export function planAutoPrefetch(input: AutoPrefetchInput): AutoPrefetchPlan {
   if (!input.autoPrefetch) return { requests: [], markers: NO_MARKERS };
@@ -249,6 +258,7 @@ export interface ReadingWindowPlan {
   readonly mountedUnitIds: readonly string[];
   readonly mountedUnits: readonly ReadingUnit[];
   readonly pinnedUnitIds: readonly string[];
+  /** 超出额外保护额度的单位仍保留在 DOM；暂停预取等待用户完成操作。 */
   readonly overflowPinnedUnitIds: readonly string[];
   readonly evictedUnitIds: readonly string[];
   readonly placeholders: readonly ReadingWindowPlaceholder[];
@@ -261,6 +271,8 @@ export interface ReadingWindowPlanInput {
   readonly units: readonly ReadingUnit[];
   readonly activeUnitId?: string | null;
   readonly pinnedUnitIds?: readonly string[];
+  /** 上一帧实际挂载的单位；已经开始的操作先于新的挂载请求保留。 */
+  readonly previousMountedUnitIds?: readonly string[];
   readonly placeholderHeights?: Readonly<Record<string, number>>;
   readonly limits?: Partial<ReadingWindowLimits>;
 }
@@ -279,9 +291,10 @@ function dedupeStrings(values: readonly string[] | null | undefined): string[] {
 /**
  * 规划本帧实际渲染的 unit 与占位区：
  *  - 总量不超过 maxMountedUnits 时全部渲染；
- *  - 超出时保留 active、最多 maxPinnedUnits 个固定单位，再按 ordinal 距离补齐；
+ *  - 按 active 的 ordinal 距离保留正常窗口，窗口外的固定单位使用额外额度；
+ *  - 所有操作中的单位都保留；保护额度不足时缩小可回收部分并暂停预取；
  *  - 被移除的已测得单位输出精确占位高度，未测得的用估计值；
- *  - 一旦发生回收或固定单位溢出，停止自动预取并给出显式加载入口。
+ *  - 正常回收不阻止相邻页预取，只有保护额度不足才给出显式加载入口。
  */
 export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowPlan {
   const limits = resolveReadingWindowLimits(input.limits);
@@ -302,36 +315,40 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
   }
 
   const presentIds = new Set(units.map((unit) => unit.unit_id));
-  const requestedPinned = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
-  const pinnedUnitIds = requestedPinned.slice(0, limits.maxPinnedUnits);
-  const overflowPinnedUnitIds = requestedPinned.slice(limits.maxPinnedUnits);
+  const requestedPins = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
+  const previousMounted = new Set(input.previousMountedUnitIds ?? []);
 
   const activeUnitId =
     input.activeUnitId && presentIds.has(input.activeUnitId)
       ? input.activeUnitId
       : units[0].unit_id;
 
-  const selected = new Set<string>([activeUnitId, ...pinnedUnitIds]);
-  let truncated = false;
+  const activeOrdinal = units.find((unit) => unit.unit_id === activeUnitId)?.ordinal ?? units[0].ordinal;
+  const nearest = [...units].sort((a, b) => {
+    const distance = Math.abs(a.ordinal - activeOrdinal) - Math.abs(b.ordinal - activeOrdinal);
+    return distance || a.ordinal - b.ordinal;
+  });
+  const normalIds = new Set(nearest.slice(0, limits.maxMountedUnits).map((unit) => unit.unit_id));
+  const extraPins = requestedPins.filter((id) => !normalIds.has(id));
+  const mountedLimit = limits.maxMountedUnits + Math.min(extraPins.length, limits.maxPinnedUnits);
+  const hardLimit = limits.maxMountedUnits + limits.maxPinnedUnits;
 
-  if (units.length <= limits.maxMountedUnits) {
-    for (const unit of units) selected.add(unit.unit_id);
-  } else {
-    truncated = true;
-    const activeOrdinal = units.find((unit) => unit.unit_id === activeUnitId)?.ordinal ?? units[0].ordinal;
-    const candidates = units
-      .filter((unit) => !selected.has(unit.unit_id))
-      .sort((a, b) => {
-        const distanceA = Math.abs(a.ordinal - activeOrdinal);
-        const distanceB = Math.abs(b.ordinal - activeOrdinal);
-        if (distanceA !== distanceB) return distanceA - distanceB;
-        return a.ordinal - b.ordinal;
-      });
-    for (const unit of candidates) {
-      if (selected.size >= limits.maxMountedUnits) break;
-      selected.add(unit.unit_id);
-    }
+  // Existing operated DOM has priority. In particular, when all 140 mounted
+  // units are selected, a new navigation target must wait for capacity instead
+  // of either evicting selected text or silently mounting a 141st unit.
+  const selected = new Set(requestedPins.filter((id) => previousMounted.has(id)));
+  if (selected.size < hardLimit) selected.add(activeUnitId);
+  for (const id of requestedPins) {
+    if (selected.size >= hardLimit) break;
+    selected.add(id);
   }
+  for (const unit of nearest) {
+    if (selected.size >= mountedLimit) break;
+    selected.add(unit.unit_id);
+  }
+  const pinnedUnitIds = requestedPins.filter((id) => selected.has(id));
+  const deferredPins = requestedPins.filter((id) => !selected.has(id));
+  const overflowPinnedUnitIds = dedupeStrings([...extraPins.slice(limits.maxPinnedUnits), ...deferredPins]);
 
   const mountedUnits = units.filter((unit) => selected.has(unit.unit_id));
   const evictedUnits = units.filter((unit) => !selected.has(unit.unit_id));
@@ -346,7 +363,7 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
     };
   });
 
-  const requiresExplicitLoad = truncated || overflowPinnedUnitIds.length > 0;
+  const requiresExplicitLoad = overflowPinnedUnitIds.length > 0 || !selected.has(activeUnitId);
   return {
     mountedUnitIds: mountedUnits.map((unit) => unit.unit_id),
     mountedUnits,

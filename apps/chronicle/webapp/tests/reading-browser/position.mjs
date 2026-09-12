@@ -236,6 +236,24 @@ export async function run(ctx) {
     (await text(page, '[data-test="position-nav-state"]')) === "idle",
   );
 
+  // Loading notices and delayed prepends keep the reading point in place;
+  // subsequent user scrolling must still update active normally.
+  await page.click('[data-test="position-nav-axis"]');
+  await waitForActive(page, 10);
+  const topBeforePrepend = await page.locator(`[data-reading-unit][data-unit-id="${ru(10)}"]`)
+    .evaluate((node) => node.getBoundingClientRect().top);
+  await page.click('[data-test="position-prepend"]');
+  await page.waitForFunction(() => document.querySelector('[data-test="position-prepended"]')?.dataset.height === "6000");
+  await page.waitForTimeout(100);
+  const topAfterPrepend = await page.locator(`[data-reading-unit][data-unit-id="${ru(10)}"]`)
+    .evaluate((node) => node.getBoundingClientRect().top);
+  ctx.check("delayed-prepend-preserves-reading-point",
+    Math.abs(topAfterPrepend - topBeforePrepend) <= 3 && await activeOrdinal(page) === 10,
+    `top=${topBeforePrepend}->${topAfterPrepend}, active=${await activeOrdinal(page)}`);
+  await page.mouse.wheel(0, 500);
+  await page.waitForFunction(() => Number(document.querySelector('[data-test="position-active-unit"]')?.dataset.ordinal) > 10);
+  ctx.check("layout-preservation-does-not-lock-user-scroll", await activeOrdinal(page) > 10);
+
   ctx.check("no-page-error", pageErrors.length === 0, pageErrors.join(";"));
 
   // 11. storage 不可用：URL 定位仍可用，token 安全降级。
@@ -260,6 +278,55 @@ export async function run(ctx) {
   );
   ctx.check("storage-off-keeps-active-unit", (await activeUnitId(offPage)) === ru(12));
   ctx.check("storage-off-no-page-error", offErrors.length === 0, offErrors.join(";"));
+
+  // A locate page containing only the final paragraph cannot initially reach
+  // the requested offset. Delay its prefix beyond URL settle and keep that
+  // request until the page can reach it; a real stream edge finishes normally.
+  const shortPage = await ctx.runner.newPage({ viewport: VIEWPORT });
+  await shortPage.goto(deepLink(ctx, "short-window", { at: ru(20) }), { waitUntil: "networkidle" });
+  await waitForActive(shortPage, 20);
+  await shortPage.waitForTimeout(300);
+  ctx.check("temporary-short-window-keeps-restore-intent",
+    await text(shortPage, '[data-test="position-nav-state"]') === "restoring");
+  await shortPage.click('[data-test="position-short-prepend"]');
+  await shortPage.waitForFunction(() =>
+    document.querySelector('[data-test="position-prepended"]')?.dataset.height === "6000" &&
+    document.querySelector('[data-test="position-nav-state"]')?.textContent === "idle");
+  const alignedTop = await shortPage.locator('[data-reading-unit]').evaluate((node) => node.getBoundingClientRect().top);
+  ctx.check("short-window-restores-requested-offset-after-prefix",
+    Math.abs(alignedTop - (64 + (VIEWPORT.height - 64) * 0.3 - 2)) <= 3,
+    `top=${alignedTop}`);
+  const restoredScroll = await shortPage.evaluate(() => scrollY);
+  await shortPage.mouse.wheel(0, -200);
+  await shortPage.waitForTimeout(100);
+  ctx.check("completed-short-window-restore-releases-scroll",
+    Math.abs(await shortPage.evaluate(() => scrollY) - (restoredScroll - 200)) <= 3);
+
+  const singlePage = await ctx.runner.newPage({ viewport: VIEWPORT });
+  await singlePage.goto(deepLink(ctx, "short-window", { at: ru(0), more: "false" }), { waitUntil: "networkidle" });
+  await waitForActive(singlePage, 0);
+  await singlePage.waitForTimeout(300);
+  ctx.check("single-paragraph-real-boundary-finishes",
+    await text(singlePage, '[data-test="position-nav-state"]') === "idle" &&
+    await singlePage.evaluate(() => scrollY) === 0);
+
+  for (const input of ["wheel", "touch"]) {
+    const cancelledPage = await ctx.runner.newPage({ viewport: VIEWPORT, hasTouch: input === "touch" });
+    await cancelledPage.goto(deepLink(ctx, "short-window", { at: ru(20) }), { waitUntil: "networkidle" });
+    await waitForActive(cancelledPage, 20);
+    await cancelledPage.click('[data-test="position-short-prepend"]');
+    if (input === "wheel") await cancelledPage.mouse.wheel(0, 40);
+    else await cancelledPage.touchscreen.tap(600, 400);
+    await cancelledPage.waitForTimeout(100);
+    const userTop = await cancelledPage.locator('[data-reading-unit]').evaluate((node) => node.getBoundingClientRect().top);
+    await cancelledPage.waitForFunction(() => document.querySelector('[data-test="position-prepended"]')?.dataset.height === "6000");
+    await cancelledPage.waitForTimeout(100);
+    const finalTop = await cancelledPage.locator('[data-reading-unit]').evaluate((node) => node.getBoundingClientRect().top);
+    ctx.check(`short-window-${input}-cancels-pending-alignment`,
+      Math.abs(finalTop - userTop) <= 3 &&
+      await text(cancelledPage, '[data-test="position-nav-state"]') !== "restoring",
+      `top=${userTop}->${finalTop}`);
+  }
 
   await ctx.screenshot(page, "position-summary");
 }

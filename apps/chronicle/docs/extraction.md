@@ -267,7 +267,7 @@ state generation.
   `person_state_coverage`, `person_state_refs`, `person_state_phase`,
   `person_state_types`, `person_state_continuity`, `limits`, `canonical_id`).
 - **Fingerprints/run history.** `fingerprints` records `candidate_schema`
-  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v1`),
+  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v2`),
   `extraction_version` (`c2r3-extraction-v1`), and for 0.3 the
   `person_state_schema` / `person_state_contract` / `person_state_limits`
   (plus the reading bindings), so model/contract/limit versions stay

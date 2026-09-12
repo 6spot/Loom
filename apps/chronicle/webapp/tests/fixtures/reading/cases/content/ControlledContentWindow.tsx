@@ -86,6 +86,7 @@ export function ControlledContentWindow() {
   const [loads, setLoads] = useState(0);
   const [sourceFails, setSourceFails] = useState(false);
   const [windowRequests, setWindowRequests] = useState<string[]>([]);
+  const [pinnedUnitIds, setPinnedUnitIds] = useState<string[]>([]);
 
   const activeSourceClient = useMemo<ChapterSourceClient>(
     () =>
@@ -160,9 +161,30 @@ export function ControlledContentWindow() {
     setPages((previous) => [...previous, BULK_PAGE]);
   }, []);
 
+  const activateBulkEnd = useCallback(() => {
+    setActiveUnitId(BULK_PAGE.units[BULK_PAGE.units.length - 1].unit_id);
+  }, []);
+
+  const protectWindow = useCallback(() => {
+    const mounted = document.querySelectorAll<HTMLElement>('[data-test="reading-unit"]');
+    setPinnedUnitIds(Array.from(mounted).slice(0, 30).map((node) => node.dataset.unitId!));
+    activateBulkEnd();
+  }, [activateBulkEnd]);
+
+  const protectAllAndNavigate = useCallback(() => {
+    const mounted = Array.from(document.querySelectorAll<HTMLElement>('[data-test="reading-unit"]'));
+    const ids = mounted.map((node) => node.dataset.unitId!);
+    const target = BULK_PAGE.units.find((unit) => !ids.includes(unit.unit_id));
+    if (target) {
+      setPinnedUnitIds([target.unit_id, ...ids]);
+      setActiveUnitId(target.unit_id);
+    }
+  }, []);
+
   const reset = useCallback(() => {
     setPages([INITIAL_PAGE]);
     setActiveUnitId(INITIAL_PAGE.units[0]?.unit_id ?? null);
+    setPinnedUnitIds([]);
     setError(null);
   }, []);
 
@@ -204,6 +226,18 @@ export function ControlledContentWindow() {
         </button>
         <button type="button" data-test="content-load-bulk" onClick={loadBulk}>
           载入大批正文
+        </button>
+        <button type="button" data-test="content-active-bulk-end" onClick={activateBulkEnd}>
+          阅读已加载末段
+        </button>
+        <button type="button" data-test="content-pin-overflow" onClick={protectWindow}>
+          保护当前段落并前移窗口
+        </button>
+        <button type="button" data-test="content-pin-all" onClick={protectAllAndNavigate}>
+          保护全部已挂载正文并请求新目标
+        </button>
+        <button type="button" data-test="content-clear-pins" onClick={() => setPinnedUnitIds([])}>
+          结束保护操作
         </button>
         <button type="button" data-test="content-jump-far" onClick={jumpFar}>
           跳到远处目标
@@ -248,6 +282,7 @@ export function ControlledContentWindow() {
         pages={pages}
         activeUnitId={activeUnitId}
         chapterTitles={{ "chap-a": "卷一 · 吴书", "chap-b": "卷二 · 魏书" }}
+        pinnedUnitIds={pinnedUnitIds}
         loadingDirection={loadingDirection}
         error={error}
         callbacks={{ requestPage, onRetry }}

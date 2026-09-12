@@ -8,7 +8,7 @@
 // 本页不重写分组/定位/关联算法，也不修改 World 时间或 Runtime Timeline；URL 只
 // 由校验过的 stream/catalog/unit 字段构建。
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import PublicDialog from "../../components/PublicDialog";
@@ -42,7 +42,7 @@ import {
   type TimeGroup,
   type TimeObservation,
 } from "../../lib/reading-types";
-import { mergeReadingUnitPages } from "../../lib/reading-window";
+import { mergeReadingUnitPages, readingAdjacentPages } from "../../lib/reading-window";
 import { isSupportedHistoricalYear } from "../../lib/historical-time";
 import { readPath, readingPath } from "../../lib/routes";
 import "../../styles/reading-layout.css";
@@ -132,34 +132,6 @@ function safeLocator(streamId: string, catalog: string, unitId: string): Reading
   } catch {
     return null;
   }
-}
-
-function forwardPage(pages: readonly StreamPage[]): StreamPage | null {
-  let chosen: StreamPage | null = null;
-  let max = Number.NEGATIVE_INFINITY;
-  for (const page of pages) {
-    for (const unit of page.units ?? []) {
-      if (unit.ordinal > max) {
-        max = unit.ordinal;
-        chosen = page;
-      }
-    }
-  }
-  return chosen;
-}
-
-function backwardPage(pages: readonly StreamPage[]): StreamPage | null {
-  let chosen: StreamPage | null = null;
-  let min = Number.POSITIVE_INFINITY;
-  for (const page of pages) {
-    for (const unit of page.units ?? []) {
-      if (unit.ordinal < min) {
-        min = unit.ordinal;
-        chosen = page;
-      }
-    }
-  }
-  return chosen;
 }
 
 function ReadingPageError({ title, detail }: { title: string; detail: string }) {
@@ -267,6 +239,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const narrow = useNarrowViewport();
   const [currentStream, setCurrentStream] = useState(streamId);
   const [pages, setPages] = useState<StreamPage[]>([]);
+  const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const [detail, setDetail] = useState<ReadingStreamDetailPage | null>(null);
   const [groups, setGroups] = useState<readonly TimeGroup[]>([]);
   const [groupCursor, setGroupCursor] = useState<string | null>(null);
@@ -280,15 +253,11 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const chromeRef = useRef<HTMLDivElement | null>(null);
   const [chromeHeight, setChromeHeight] = useState(0);
 
-  const pagesRef = useRef<StreamPage[]>([]);
   const unitByIdRef = useRef<Map<string, ReadingUnit>>(new Map());
   const currentStreamRef = useRef(streamId);
   const loadingDirectionsRef = useRef<Record<ReadingDirection, boolean>>({ previous: false, next: false });
 
   const units = useMemo(() => mergeReadingUnitPages(pages), [pages]);
-  useEffect(() => {
-    pagesRef.current = pages;
-  }, [pages]);
   useEffect(() => {
     unitByIdRef.current = new Map(units.map((unit) => [unit.unit_id, unit]));
   }, [units]);
@@ -326,7 +295,11 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
    * stream 的正文/轴/详情，不能把两个 source 的 ordinal 混排成一段连续正文。
    */
   const locate = useCallback(
-    async (locator: ReadingLocator) => {
+    async (locator: ReadingLocator, signal?: AbortSignal) => {
+      if (signal?.aborted) return null;
+      // Mount the destination before waitForDom; active still belongs to the
+      // old location until the controller completes or cancels navigation.
+      setPendingUnitId(locator.unit_id);
       const stream = locator.stream_id;
       if (stream !== currentStreamRef.current) {
         currentStreamRef.current = stream;
@@ -341,7 +314,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
         catalog: locator.catalog_sha,
         unitId: locator.unit_id,
         limit: 20,
-      });
+      }, { signal });
+      if (signal?.aborted) return null;
       addPage(envelope.page);
       return { locator, unitIds: envelope.page.units.map((unit) => unit.unit_id) };
     },
@@ -370,7 +344,23 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
     resolveStart,
     unitSelector: '[data-test="reading-unit"]',
     headerHeight: chromeHeight,
+    preserveLayoutPosition: true,
+    getWindowEdges: (unitId) => {
+      const edges = readingAdjacentPages(pages, unitId);
+      return { hasPrevious: Boolean(edges.previous?.has_previous), hasNext: Boolean(edges.next?.has_next) };
+    },
   });
+
+  useLayoutEffect(() => {
+    controller.notifyLayoutChange();
+  }, [pages, loadingDirection, windowError, chromeHeight, controller.notifyLayoutChange]);
+
+  useEffect(() => {
+    if (pendingUnitId && (controller.navigationState === "interrupted" ||
+      (controller.navigationState === "idle" && (controller.activeUnitId === pendingUnitId || controller.issue)))) {
+      setPendingUnitId(null);
+    }
+  }, [pendingUnitId, controller.navigationState, controller.activeUnitId, controller.issue]);
 
   // 时间轴区段：按阅读顺序分页加载，不在浏览器重新归组。切换来源时重新取。
   useEffect(() => {
@@ -423,7 +413,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
   const requestPage = useCallback(
     (direction: ReadingDirection) => {
       if (loadingDirectionsRef.current[direction]) return;
-      const edge = direction === "next" ? forwardPage(pagesRef.current) : backwardPage(pagesRef.current);
+      const edge = readingAdjacentPages(pages, controller.activeUnitId)[direction];
       const cursor = direction === "next" ? edge?.next_cursor : edge?.prev_cursor;
       if (!cursor) return;
       loadingDirectionsRef.current[direction] = true;
@@ -445,7 +435,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           }
         });
     },
-    [client, currentStream, catalog, addPage],
+    [client, currentStream, catalog, addPage, pages, controller.activeUnitId],
   );
 
   const handleNavigation = useCallback(
@@ -555,7 +545,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
 
   const hasContent = units.length > 0;
   return (
-    <section className="rpage" data-test="reading-page" data-catalog={catalog} data-stream={currentStream}>
+    <section className="rpage" data-test="reading-page" data-catalog={catalog} data-stream={currentStream}
+      data-navigation-state={controller.navigationState}>
       <div className="rpage-compact" data-test="reading-compact-bar" ref={chromeRef}>
         <span className="rpage-compact-time" data-test="reading-compact-time">
           {narrativeTimeLabel(narrativeTime)}
@@ -589,6 +580,7 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           <ReadingWindow
             pages={pages}
             activeUnitId={controller.activeUnitId}
+            pinnedUnitIds={pendingUnitId ? [pendingUnitId] : []}
             chapterTitles={chapterTitles}
             showChapterHeadings={false}
             showSources={false}
@@ -596,6 +588,8 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
             error={windowError}
             callbacks={{ requestPage, onRetry: () => requestPage(windowError?.direction ?? "next") }}
             renderEvent={renderEvent}
+            onUnitReady={controller.notifyLayoutChange}
+            onUnitMeasured={controller.notifyLayoutChange}
           />
         </div>
         {!narrow ? (

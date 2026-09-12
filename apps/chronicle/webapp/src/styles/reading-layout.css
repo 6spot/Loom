@@ -119,6 +119,8 @@
 /* ------------------------------------------------------------- 阅读页骨架 */
 
 .rpage {
+  /* The reading controller compensates layout changes; avoid a second anchor. */
+  overflow-anchor: none;
   padding: 0 1rem 4rem;
 }
 
