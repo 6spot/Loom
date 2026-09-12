@@ -142,10 +142,6 @@ def _require_list(value: Any, description: str) -> list[Any]:
     return value
 
 
-def _is_hex64(value: Any) -> bool:
-    return isinstance(value, str) and bool(_SHA_RE.match(value))
-
-
 # ---------------------------------------------------------------------------
 # Accepted-artifact / assembly indexing (pure)
 # ---------------------------------------------------------------------------
@@ -349,10 +345,18 @@ def build_person_state_review_plan(
     person_states = assembly.get("person_states")
     if not isinstance(person_states, dict):
         raise PersistenceError("person-state assembly must carry a person_states block")
+    # Never trust the reported hash: recompute it from the actual assembled
+    # payload and fail closed when a report claims a different (older) content.
+    # Otherwise a plan could advertise the old assembled hash while preview and
+    # compilation consume tampered/new evidence.
+    assembled_hash = sha256_json(person_states)
     report = assembly.get("report") if isinstance(assembly.get("report"), dict) else {}
-    assembled_hash = report.get("person_states_sha256")
-    if not _is_hex64(assembled_hash):
-        assembled_hash = sha256_json(person_states)
+    reported_hash = report.get("person_states_sha256")
+    if reported_hash is not None and reported_hash != assembled_hash:
+        raise PersistenceConflict(
+            "assembly report person_states_sha256 does not match the actual assembled "
+            f"payload ({reported_hash!r} != {assembled_hash!r}); refusing to freeze a plan"
+        )
 
     references = _reference_maps(assembly)
     artifact_hashes: list[str] = []
@@ -560,15 +564,26 @@ def open_person_state_reviews(
 ) -> list[uuid.UUID]:
     """Open/adopt one ``stage_gate`` item per frozen chapter package.
 
-    The whole frozen plan is validated first. Existing ``person_state`` items
-    for the job are adopted only when their fingerprint and candidate coverage
-    match the plan exactly; otherwise the conflict is reported instead of
-    silently opening a second set of reviews.
+    The whole frozen plan is validated first. The job row is then locked
+    ``FOR UPDATE`` for the whole read/insert, so two concurrent open/resume
+    calls serialize on the database row: the first inserts the packages, the
+    second observes the committed items and adopts them exactly. Without this
+    lock both calls could see an empty table and insert a second item for the
+    same chapter. Existing ``person_state`` items for the job are adopted only
+    when their fingerprint, chapter packages and candidate coverage match the
+    plan exactly; otherwise the conflict is reported instead of silently
+    opening a second set of reviews.
     """
     fingerprint = validate_person_state_review_plan(plan)
     if str(plan.get("job_id")) != str(job_id):
         raise PersistenceConflict("person-state review plan job mismatch")
     with conn.transaction():
+        locked = conn.execute(
+            "SELECT 1 FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE",
+            (job_id,),
+        ).fetchone()
+        if locked is None:
+            raise PersistenceError(f"unknown job {job_id}")
         existing = _scoped_review_rows(conn, job_id)
         if existing:
             existing_keys: list[str] = []
@@ -584,6 +599,10 @@ def open_person_state_reviews(
                     )
                 chapter_ids.add(str(payload.get("chapter_id")))
                 existing_keys.extend(_payload_candidate_keys(payload))
+            if len(chapter_ids) != len(existing):
+                raise PersistenceConflict(
+                    "persisted person-state review plan has more than one package per chapter"
+                )
             if sorted(existing_keys) != sorted(plan["candidate_keys"]) or len(
                 existing_keys
             ) != len(set(existing_keys)):
@@ -1049,9 +1068,18 @@ def preview_person_state_review(
     ``decisions`` maps a ``candidate_key`` to an assessment (or a decision
     record carrying ``assessment``). The preview uses only the assembled
     evidence and the T04 compiler, so approving a start appointment can never
-    mark a later phase's tenure clear.
+    mark a later phase's tenure clear. The assembly payload is re-hashed and
+    must match the frozen ``assembled_hash``; a drifted assembly fails closed
+    instead of silently previewing different content than the plan bound.
     """
     validate_person_state_review_plan(plan)
+    person_states = assembly.get("person_states") if isinstance(assembly, dict) else None
+    if not isinstance(person_states, dict):
+        raise PersistenceError("person-state assembly must carry a person_states block")
+    if sha256_json(person_states) != plan.get("assembled_hash"):
+        raise PersistenceConflict(
+            "plan_drift: assembled payload no longer matches the frozen assembled_hash"
+        )
     assessment_by_candidate: dict[str, str] = {}
     for key, value in (decisions or {}).items():
         if isinstance(value, str):

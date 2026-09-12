@@ -216,10 +216,11 @@ def _assembly() -> dict:
         {"kind": "continuity", "origin_ref": "pc_001", "revision_ref": "pc_000001"},
         {"kind": "disagreement", "origin_ref": "pd_001", "revision_ref": "pd_000001"},
     ]
+    person_states = {"facts": []}
     return {
-        "person_states": {"facts": []},
+        "person_states": person_states,
         "evidence_manifests": [{"chapter_id": CHAPTER, "items": items}],
-        "report": {"person_states_sha256": _sha256("assembled")},
+        "report": {"person_states_sha256": sha256_json(person_states)},
     }
 
 
@@ -313,6 +314,38 @@ class PersonStateReviewPostgresTests(unittest.TestCase):
         self.assertEqual(rows[0][1]["scope"], review.REVIEW_SCOPE)
         self.assertEqual(rows[0][1]["review_mode"], review.REVIEW_MODE)
         self.assertEqual(rows[0][1]["candidate_count"], 8)
+
+    def test_concurrent_open_creates_exactly_one_package(self) -> None:
+        job_id = self._seed_job()
+        plan = self._plan(job_id)
+        barrier = threading.Barrier(2)
+        results: list[list[str]] = []
+        errors: list[str] = []
+
+        def attempt() -> None:
+            conn = psycopg.connect(self.database_url)
+            try:
+                barrier.wait(timeout=10)
+                ids = review.open_person_state_reviews(conn, job_id=job_id, plan=plan)
+                results.append([str(review_id) for review_id in ids])
+            except Exception as exc:  # noqa: BLE001 - surface any failure
+                errors.append(repr(exc))
+            finally:
+                conn.close()
+
+        threads = [threading.Thread(target=attempt) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0], results[1])
+        self.assertEqual(len(results[0]), 1)
+        count = self.conn.execute(
+            "SELECT count(*) FROM chronicle.review_items WHERE job_id = %s", (job_id,)
+        ).fetchone()[0]
+        self.assertEqual(count, 1)
 
     def test_open_rejects_a_drifted_plan(self) -> None:
         job_id = self._seed_job()

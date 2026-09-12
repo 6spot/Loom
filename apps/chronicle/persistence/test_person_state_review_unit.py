@@ -353,6 +353,21 @@ class PersonStateReviewPlanTests(unittest.TestCase):
                 base_catalog_sha=CATALOG,
             )
 
+    def test_assembly_report_hash_mismatch_fails_closed(self) -> None:
+        assembly = _assembly()
+        # Tamper the payload but keep the old report hash: the plan must not
+        # freeze a hash that no longer describes the assembled content.
+        assembly["person_states"]["facts"][0]["phase_ref"] = "ph_000002"
+        with self.assertRaises(PersistenceConflict):
+            review.build_person_state_review_plan(
+                job_id=JOB,
+                revision_id=REVISION,
+                accepted_artifacts=[_artifact()],
+                assembly=assembly,
+                resolution_hashes=["d" * 64],
+                base_catalog_sha=CATALOG,
+            )
+
     def test_missing_anchor_premise_fails_closed(self) -> None:
         artifact = _artifact()
         fact = next(
@@ -469,6 +484,19 @@ class PersonStatePreviewTests(unittest.TestCase):
         self.assertEqual(item["person_id"], "person-1")
         self.assertEqual(item["certainty"], "clear")
         self.assertTrue(item["current"])
+
+    def test_preview_rejects_drifted_assembly(self) -> None:
+        plan = _plan()
+        assembly = _assembly()
+        assembly["person_states"]["facts"][0]["phase_ref"] = "ph_000002"
+        with self.assertRaises(PersistenceConflict):
+            review.preview_person_state_review(
+                plan=plan,
+                assembly=assembly,
+                decisions={},
+                canonical_map={},
+                reading_manifest={},
+            )
 
     def test_preview_default_uncertain_is_not_clear(self) -> None:
         plan = _plan()
