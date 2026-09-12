@@ -494,6 +494,90 @@ class PersonStateManifestPlaceTests(unittest.TestCase):
         self.assertEqual(place["item_id"], unit["place_evidence"][0]["item_id"])
         self.assertEqual(1, manifest["manifest"]["counts"]["places"])
 
+    def test_manifest_rejects_place_item_bound_to_non_place_context(self) -> None:
+        revision_id = uuid.uuid4()
+        publication_id = str(uuid.uuid4())
+        place = P.example_place_state_item(
+            place_id="place_ref",
+            name="荊州",
+            dimension="administration",
+            value="荊州",
+            controller="ent_controller",
+            certainty="clear",
+            phase_ids=["ph_001"],
+            source_facts=[
+                {
+                    "chapter_publication_id": publication_id,
+                    "chapter_id": "ch_001",
+                    "revision_id": str(revision_id),
+                    "fact_ref": "pf_002",
+                    "claim_refs": [],
+                    "phase_id": "ph_001",
+                }
+            ],
+            chapter_id="ch_001",
+            fact_ref="pf_002",
+            person_ref="place_ref",
+            current=True,
+        )
+        projection = {
+            "units": [
+                {
+                    "unit_id": "ru_001",
+                    "ordinal": 0,
+                    "block_id": "block_001",
+                    "chapter_id": "ch_001",
+                    "publication_id": publication_id,
+                    "context_entities": [
+                        {
+                            "entity_ref": "place_ref",
+                            "canonical_id": "ent_polity",
+                            "kind": "polity",
+                            "name": "荊州政權",
+                        }
+                    ],
+                }
+            ]
+        }
+        catalog = {
+            "canonical_entities": [
+                {
+                    "canonical_id": "ent_polity",
+                    "canonical_name": "荊州政權",
+                    "representations": [{"bundle": "bundle", "ref": "place_ref"}],
+                }
+            ],
+            "canonical_events": [],
+        }
+        compiled = {"people": {}, "places": [place], "evidence": []}
+        with mock.patch.object(
+            R.person_state_projection,
+            "compile_person_state_projection",
+            return_value=compiled,
+        ):
+            with self.assertRaisesRegex(PersistenceError, "without a place context entity"):
+                R.build_person_state_manifest(
+                    projection=projection,
+                    catalog=catalog,
+                    bundle_label="bundle",
+                    stream_id=str(uuid.uuid4()),
+                    revision_id=revision_id,
+                    chapter_publication_ids=[publication_id],
+                    publication_by_chapter={"ch_001": publication_id},
+                    evidence={
+                        "unit_phases": [
+                            {
+                                "block_id": "block_001",
+                                "mode": "single",
+                                "phase_refs": ["ph_001"],
+                            }
+                        ],
+                        "phases": [{"phase_id": "ph_001", "label": "初"}],
+                    },
+                    assessments={},
+                    assessment_hashes=[],
+                )
+
 
 class PublicationTests(unittest.TestCase):
     def _world(self) -> tuple[dict, dict, list]:

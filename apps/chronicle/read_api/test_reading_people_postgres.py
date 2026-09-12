@@ -460,12 +460,14 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
         ]
 
     @staticmethod
-    def _place_context(place_id: str, *, entity_ref: str = "place_001") -> dict:
+    def _place_context(
+        place_id: str, *, entity_ref: str = "place_001", kind: str = "place"
+    ) -> dict:
         return {
             "entity_ref": entity_ref,
             "name": "荊州",
             "canonical_id": place_id,
-            "kind": "place",
+            "kind": kind,
             "importance": "primary",
             "source_anchor_ids": [],
             "event_roles": [],
@@ -663,6 +665,58 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
                 stream_id=stream_id,
                 unit_id="ru_place_0",
                 place_id="ent_outside",
+                catalog_sha=catalog,
+            )
+
+    def test_non_place_context_is_not_place_membership(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="polity_context")
+        place_id = "ent_polity_context"
+        ctx, stream_id = self._setup_stream(
+            self.conn,
+            label="polity_context",
+            blocks=["荊州"],
+            catalog_sha=catalog,
+            tag="v1",
+            context_by_unit={
+                "ru_polity_context_0": [
+                    self._place_context(place_id, kind="polity")
+                ]
+            },
+        )
+        item = self._place_item(ctx, place_id, fact_ref="pf_913")
+        self._persist(
+            ctx,
+            stream_id,
+            [
+                self._unit_with_places(
+                    ctx,
+                    unit_id="ru_polity_context_0",
+                    unit_ordinal=0,
+                    places=[item],
+                )
+            ],
+        )
+
+        # The store contains a compiled place row, but the reading context
+        # does not declare that id as a place. An unfiltered page is therefore
+        # an internal publication mismatch (409), not a valid place result.
+        with self.assertRaises(people.ReadingPeopleInconsistent):
+            people.unit_places(
+                self.conn,
+                stream_id=stream_id,
+                unit_id="ru_polity_context_0",
+                catalog_sha=catalog,
+            )
+
+        # Addressing the non-place id directly never turns it into a place
+        # membership and must fail as an unknown place (404).
+        with self.assertRaises(people.ReadingPeopleNotFound):
+            people.unit_place_states(
+                self.conn,
+                stream_id=stream_id,
+                unit_id="ru_polity_context_0",
+                place_id=place_id,
+                section="places",
                 catalog_sha=catalog,
             )
 

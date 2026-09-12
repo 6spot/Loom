@@ -33,8 +33,9 @@ Semantics:
   response and cursors; a supplied catalog must be visible to the stream's own
   published manifest. An older snapshot never sees a later state manifest.
 - The compiled summary members must be part of the reading unit's own
-  ``context_entities``; a manifest that lists a person outside its unit context
-  is an internal inconsistency (explicit 409), while an addressed person/place
+  ``context_entities`` with the matching ``kind`` (``person`` or ``place``);
+  a manifest that lists a person/place outside its typed unit context is an
+  internal inconsistency (explicit 409), while an addressed person/place
   outside context is a 404. Neither is silently dropped.
 - The summary / detail / evidence pages are reduced to whole leading entries so
   the serialized response stays within ``summary_max_bytes`` /
@@ -297,10 +298,10 @@ def _context_person_ids(unit: dict[str, Any]) -> set[str]:
 
 
 def _context_place_ids(unit: dict[str, Any]) -> set[str]:
-    """Return both source and canonical aliases for non-person context places."""
+    """Return both aliases for context entities explicitly typed as places."""
     place_ids: set[str] = set()
     for entity in unit.get("context_entities") or []:
-        if not isinstance(entity, dict) or entity.get("kind") == "person":
+        if not isinstance(entity, dict) or entity.get("kind") != "place":
             continue
         for key in (entity.get("canonical_id"), entity.get("entity_ref")):
             if isinstance(key, str) and key:

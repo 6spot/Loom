@@ -1639,7 +1639,7 @@ def build_person_state_manifest(
         # publish the canonical id so T09 membership checks are snapshot-bound.
         context_by_place: dict[str, dict[str, Any]] = {}
         for context in unit.get("context_entities") or []:
-            if not isinstance(context, dict) or context.get("kind") == "person":
+            if not isinstance(context, dict) or context.get("kind") != "place":
                 continue
             for key in (context.get("canonical_id"), context.get("entity_ref")):
                 if isinstance(key, str) and key:
@@ -1671,11 +1671,21 @@ def build_person_state_manifest(
                 raise PersistenceError(
                     f"reading unit {unit.get('unit_id')!r} has a place item without place_id"
                 )
-            context = context_by_place.get(raw_place_id) or {}
+            context = context_by_place.get(raw_place_id)
+            if context is None:
+                mapped_place_id = canonical_map.get(raw_place_id)
+                if isinstance(mapped_place_id, str):
+                    context = context_by_place.get(mapped_place_id)
+            if context is None:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} has a place item {raw_place_id!r} "
+                    "without a place context entity"
+                )
             place_id = context.get("canonical_id") or canonical_map.get(raw_place_id) or raw_place_id
             if not isinstance(place_id, str) or not place_id:
                 raise PersistenceError(
-                    f"reading unit {unit.get('unit_id')!r} has an unbound place {raw_place_id!r}"
+                    f"reading unit {unit.get('unit_id')!r} has an invalid place context "
+                    f"for {raw_place_id!r}"
                 )
             place["place_id"] = place_id
             if isinstance(context.get("name"), str) and context["name"]:
