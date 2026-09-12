@@ -1551,6 +1551,44 @@ def _person_state_context(projection: dict[str, Any]) -> tuple[dict[str, str], d
     return labels, names
 
 
+def _place_contexts_by_unit(
+    projection: dict[str, Any], canonical_map: dict[str, Any]
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Index typed place membership without making a phase a mention scope."""
+    result: dict[str, dict[str, dict[str, Any]]] = {}
+    kinds_by_canonical: dict[str, set[str | None]] = {}
+    for unit in projection["units"]:
+        places: dict[str, dict[str, Any]] = {}
+        for context in unit.get("context_entities") or []:
+            if not isinstance(context, dict):
+                continue
+            ref = context.get("entity_ref")
+            mapped = canonical_map.get(ref) if isinstance(ref, str) else None
+            kind = context.get("kind")
+            if isinstance(mapped, str):
+                kinds_by_canonical.setdefault(mapped, set()).add(
+                    kind if isinstance(kind, str) else None
+                )
+            if kind != "place":
+                continue
+            canonical_id = context.get("canonical_id")
+            if not isinstance(mapped, str) or not mapped or canonical_id != mapped:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} place context {ref!r} "
+                    "does not match the frozen canonical mapping"
+                )
+            # Several reviewed source refs may name one canonical place. Every
+            # ref has been checked above, so this cannot hide an identity clash.
+            places.setdefault(mapped, context)
+        result[unit["unit_id"]] = places
+    for canonical_id, kinds in kinds_by_canonical.items():
+        if "place" in kinds and kinds != {"place"}:
+            raise PersistenceError(
+                f"canonical place {canonical_id!r} has conflicting context entity kinds"
+            )
+    return result
+
+
 def build_person_state_manifest(
     *,
     projection: dict[str, Any],
@@ -1581,6 +1619,8 @@ def build_person_state_manifest(
         ]
     )
     labels, canonical_names = _person_state_context(projection)
+    place_contexts = _place_contexts_by_unit(projection, canonical_map)
+    known_place_ids = {place_id for places in place_contexts.values() for place_id in places}
     canonical_map["labels"] = labels
     chapter_publications = {
         str(chapter_id): str(publication_id)
@@ -1633,6 +1673,7 @@ def build_person_state_manifest(
             for context in unit.get("context_entities") or []
             if isinstance(context, dict) and isinstance(context.get("canonical_id"), str)
         }
+        context_by_place = place_contexts[unit["unit_id"]]
         people: list[dict[str, Any]] = []
         for person_id in sorted(compiled.get("people") or {}):
             person = compiled["people"][person_id]
@@ -1651,6 +1692,50 @@ def build_person_state_manifest(
                     "evidence": list(person.get("evidence") or []),
                 }
             )
+        place_items: list[dict[str, Any]] = []
+        place_item_ids: set[str] = set()
+        for raw_place in compiled.get("places") or []:
+            place = dict(raw_place)
+            raw_place_id = place.get("place_id")
+            if not isinstance(raw_place_id, str) or not raw_place_id:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} has a place item without place_id"
+                )
+            # T04 compiles phase facts, which may apply to several units even
+            # though only some of those units mention this place. Resolve and
+            # validate first, then select this unit's typed context membership.
+            place_id = canonical_map.get(raw_place_id)
+            if place_id is None and raw_place_id in known_place_ids:
+                place_id = raw_place_id
+            if not isinstance(place_id, str) or place_id not in known_place_ids:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} has a place item {raw_place_id!r} "
+                    "without a place context entity"
+                )
+            item_id = place.get("item_id")
+            if not isinstance(item_id, str) or not item_id:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} has a place item without item_id"
+                )
+            context = context_by_place.get(place_id)
+            if context is None:
+                continue
+            place["place_id"] = place_id
+            if isinstance(context.get("name"), str) and context["name"]:
+                place["name"] = context["name"]
+            place_items.append(place)
+            place_item_ids.add(item_id)
+        place_items.sort(key=lambda item: (item["place_id"], item["dimension"], item["item_id"]))
+        compiled_evidence = {
+            entry.get("item_id"): entry
+            for entry in compiled.get("evidence") or []
+            if isinstance(entry, dict) and isinstance(entry.get("item_id"), str)
+        }
+        place_evidence = [
+            compiled_evidence[item_id]
+            for item_id in sorted(place_item_ids)
+            if item_id in compiled_evidence
+        ]
         phase_summaries = []
         for index, phase_id in enumerate(phase_refs):
             phase = phases_by_id.get(phase_id)
@@ -1678,9 +1763,20 @@ def build_person_state_manifest(
                 "phase_mode": mode,
                 "phases": phase_summaries,
                 "people": people,
+                "places": place_items,
+                "place_evidence": place_evidence,
             }
         )
 
+    place_count = sum(len(unit["places"]) for unit in units)
+    manifest_counts = {
+        "units": len(units),
+        "people": sum(len(unit["people"]) for unit in units),
+    }
+    # Preserve the pre-place manifest payload for people-only publications;
+    # the new count is emitted once a publication actually carries place state.
+    if place_count:
+        manifest_counts["places"] = place_count
     manifest_payload = {
         "schema": "chronicle.person-state-manifest",
         "version": "0.1",
@@ -1688,10 +1784,7 @@ def build_person_state_manifest(
         "stream_id": str(stream_id),
         "revision_id": str(revision_id),
         "chapter_publications": [str(value) for value in chapter_publication_ids],
-        "counts": {
-            "units": len(units),
-            "people": sum(len(unit["people"]) for unit in units),
-        },
+        "counts": manifest_counts,
     }
     return {
         "stream_id": stream_id,
@@ -2034,6 +2127,7 @@ def persist_person_state_publication(
         "person_state_assessment_sha": assessment_sha,
         "person_state_unit_count": len(manifest["units"]),
         "person_state_person_count": int(manifest["manifest"]["counts"]["people"]),
+        "person_state_place_count": int(manifest["manifest"]["counts"].get("places", 0)),
         "person_state_disagreement_count": len(disagreements["disagreements"]),
     }
 

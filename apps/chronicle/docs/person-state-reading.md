@@ -181,20 +181,23 @@ supported 只确认该证据条目的语义；一个“明确授任”审核通�
 
 ## 6. 存储、发布与一致性
 
-唯一新迁移 `apps/chronicle/persistence/migrations/0009_chronicle_person_states.sql` 由 T05 所有。连接仍为 CHRONICLE_DATABASE_URL；不访问 Loom 数据库。
+人物状态由 `apps/chronicle/persistence/migrations/0009_chronicle_person_states.sql` 持久化；地点状态由 T05 的追加迁移 `0010_chronicle_place_states.sql` 持久化。连接仍为 CHRONICLE_DATABASE_URL；不访问 Loom 数据库。地点表不扩大 0009 中人物维度的约束。
 
 | 持久化内容 | 归属 |
 | --- | --- |
 | 评估 artifact | hash、frozen plan hash、精确候选决定及审计引用；原 accepted artifact 保持不变 |
 | stream 人物状态 manifest | stream、chapter publications、assessment hashes、compiler version、manifest hash |
 | unit 人物状态索引 | stream/unit/person、来源事实键、阶段分组、明确性／原因、摘要和完整条目索引 |
+| unit 地点状态索引 | stream/unit/place、行政归属／实际控制条目及各自来源依据；两种维度分开存储 |
 | catalog 分歧索引 | catalog hash、双方事实的来源绑定、适用阶段依据和分歧理由；不可变、可分页 |
 
 采用 product tables/indexes，不复制原文、完整译文、Entity/Claim 表或 job 状态机。物理表名与索引由 T05 按上述键实现；API/前端不依赖表名。
 
-沿用唯一 catalog advisory lock、publication_sequence、lease fencing 和 chapter/reading publication 事务：catalog、章 publication、reading stream/index、人物状态 manifest/index、本 catalog 分歧索引与 publish checkpoint 同时提交。编译、模型等待或人工等待不持长事务；提交前重验全部输入、决定、catalog 和 lease。
+沿用唯一 catalog advisory lock、publication_sequence、lease fencing 和 chapter/reading publication 事务：catalog、章 publication、reading stream/index、人物／地点状态 manifest/index、本 catalog 分歧索引与 publish checkpoint 同时提交。编译、模型等待或人工等待不持长事务；提交前重验全部输入、决定、catalog 和 lease。
 
 任一章缺 0.3、评估遗漏、键映射不完整、图矛盾、hash 漂移、未知状态值或投影超限，整个本次发布失败。相同 artifact/评估/映射/编译版本重放返回已有结果；不同 payload 不覆盖已有 stream。恢复复用 accepted 内容和审核结果，不能再调用模型“修一份”。
+
+同一来源阶段可以绑定多个阅读 unit；地点状态只进入本 unit 的 `kind=place` 上下文，不能因共用阶段而要求每段都提及同一地点。发布前校验 source ref 与冻结 canonical 映射一致；同一 canonical 的合法多个 source refs 可以共享状态，未解析或错类型的地点事实仍拒绝发布。
 
 分歧索引可以持久化不可变 manifest 与对受影响事实的索引，无需为每次 catalog 复制所有旧 stream 正文／单位。查询只做对当前 unit 的已编译资料和对应 catalog 分歧记录的有界组合，不执行历史推理或修复写入。
 
@@ -202,18 +205,22 @@ supported 只确认该证据条目的语义；一个“明确授任”审核通�
 
 主阅读直接消费 `/api/v1/public/history/paragraphs?version&at|start&limit` 的实体及状态；结论依据使用 `/api/v1/public/history/conclusions/{id}?version`。R3 扩展按版本／段落一次有界读取主要人物与地点，沿用 `history-api.ts` 的公共类型和错误规则。缓存、详情、往返都固定 `{version, paragraph_id, phase_id}`；不因同年或同一事件猜测来源 unit。当前列举状态的实现不能冒充下面的专门任期算法已经交付。
 
-下列两个计划中的 product GET 仅属于**来源阅读**，不作为主历史页的接口替代。浏览器经过 Rust，Python 使用对应 `/v0/*`：
+下列四个计划中的 product GET 仅属于**来源阅读**，不作为主历史页的接口替代。浏览器经过 Rust，Python 使用对应 `/v0/*`：
 
 | 路由 | 结果 |
 | --- | --- |
 | /api/v1/public/reading-streams/{stream_id}/units/{unit_id}/people?catalog=&limit=6&cursor= | 当前 unit 人物的阶段摘要；与 context_entities 的人物集合一致，按第二轮顺序分页 |
 | /api/v1/public/reading-streams/{stream_id}/units/{unit_id}/people/{person_id}/states?catalog=&section=identities\|changes\|evidence&phase_id=&item_id=&limit=20&cursor= | 对应人物在本段的状态、变化或一项的完整依据；按需翻页 |
+| /api/v1/public/reading-streams/{stream_id}/units/{unit_id}/places?catalog=&phase_id=&limit=20&cursor= | 当前 unit 地点的行政归属／实际控制条目；与 context_entities 的地点集合一致，按稳定 keyset 分页 |
+| /api/v1/public/reading-streams/{stream_id}/units/{unit_id}/places/{place_id}/states?catalog=&section=places\|evidence&phase_id=&item_id=&limit=20&cursor= | 对应地点的行政／控制条目或一项的完整来源依据；按需翻页 |
 
 请求中的 stream/unit/catalog 组合必须有效；person 必须属于本段 context，phase 必须属于本段绑定。未知或错配为 404；参数、重复键、错 scope cursor 为 400；已发布内容内部不一致显式返回 409，不能补读最新资料。source 文件缺失／漂移沿用现有错误。
 
-摘要每人最多预览 3 项身份和 3 项变化，只内联显示字段及依据数量／入口，必须返回各自总数／完整入口；不把首批冒充全部。主要人物默认最多 6 位，其他按需加载。人员 limit 1..50，详情 limit 1..50；summary/detail 每响应上限 128 KiB，按完整项提前停页并返回 next_cursor，不能截断结论。完整条目与第一批依据的编译大小上限为 64 KiB，超出在发布前拒绝。
+地点 source ref 只通过本 unit 已冻结的 typed context 归一到 canonical ID，条目、详情、依据及 cursor 使用同一 canonical ID。属于本段但暂无状态记载的地点返回 200 空状态页；未知地点／依据 item 仍为 404，缺失状态 manifest 为 409。空资料不生成占位状态或推断地点归属。
 
-identities/changes 只返回本段适用资料及本段经历的变化，不把未来生平装进默认展开区。phase_id 可筛选本段的一个阶段；省略时返回有序阶段分组。详情每项预览最多 16 个 evidence descriptors，并返回 evidence_count/evidence_cursor。section=evidence 要求 item_id，cursor 绑定该 item、原 section、phase、stream/unit/person/catalog/manifest；此分支每页最多 50 个描述符，不再返回其他状态。错配及混用无关参数为 400，非本段条目的 item_id 为 404。
+摘要每人最多预览 3 项身份和 3 项变化，只内联显示字段及依据数量／入口，必须返回各自总数／完整入口；不把首批冒充全部。主要人物默认最多 6 位，其他按需加载。地点的 `administration` 与 `control` 永远是两个条目维度；不从到访、参战或 participation 推导控制。人员／地点 limit 1..50，详情 limit 1..50；summary/detail 每响应上限 128 KiB，按完整项提前停页并返回 next_cursor，不能截断结论。完整条目与第一批依据的编译大小上限为 64 KiB，超出在发布前拒绝。
+
+identities/changes 只返回本段适用资料及本段经历的变化，不把未来生平装进默认展开区。地点 `section=places` 返回行政／控制条目，`section=evidence` 要求 item_id；phase_id 可筛选本段的一个阶段；省略时返回有序阶段分组。详情每项预览最多 16 个 evidence descriptors，并返回 evidence_count/evidence_cursor。section=evidence 要求 item_id，cursor 绑定该 item、原 section、phase、stream/unit/person 或 place/catalog/manifest；此分支每页最多 50 个描述符，不再返回其他状态。错配及混用无关参数为 400，非本段条目的 item_id 为 404。
 
 每份 DTO 包含 stream_id、unit_id、chapter publication_id、catalog_sha、state_manifest_sha、phase_mode/phase summaries。条目含稳定 item_id、person_id、dimension/value/relation、qualification、certainty、reasons、source fact/Claim 归属和来源入口。API 只组合已编译结果；UI 无“根据状态字段猜颜色”的第二套逻辑。
 
