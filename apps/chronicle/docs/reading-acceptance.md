@@ -85,6 +85,15 @@ gate 会：
    响应完成（含 page）计时，直到目标 active、侧栏一致且滚动位置正确稳定。
    跨过的 ordinal 数不能代替逐段推进次数。
 
+定位恢复计时从文档加载前注册的 `PerformanceObserver` 取得真实 locate 请求的
+`responseEnd`，仅保留最近 64 条定位记录；长文阅读填满浏览器默认资源计时缓冲区
+也不能丢失后续定位计时。缺少实际请求记录仍失败，不用当前时间补值。探针的
+Chromium 回归会主动填满资源缓冲区，并检查导航后不会沿用上一文档的记录：
+
+```bash
+node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
+```
+
 `manifest.json` 的 `criteria` 逐项记录
 `real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，
 `faults` 记录 6 项失败关闭（含 role/time 契约），`scale_contract` 记录合成集 DTO
