@@ -1,0 +1,229 @@
+{
+  "evidence_type": "second_round_live_retest",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "74d2f2077ea60f5773283ebcd996fa6fc543a1dc",
+  "preflight_result": "READY",
+  "prompt_version": "c2r2-chapter-prompt-v4",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "provider": {
+    "endpoint": "https://cpa.zale.net/v1/responses",
+    "chapter_model": "gpt-5.6-luna",
+    "timeout_seconds": 600,
+    "max_output_tokens": 65536,
+    "usage_tokens": null,
+    "cost": null,
+    "usage_unavailable_reason": "Provider usage envelope was not persisted by this extraction run; model text and latency are retained."
+  },
+  "environment": {
+    "isolation": "new application database and Compose project",
+    "project": "chronicle-gate-r2-74d2f20",
+    "base_url": "http://127.0.0.1:18084",
+    "image": "loom-chronicle:r2-74d2f20",
+    "source_write_path": "Studio create document, upload revision, queue job",
+    "review_decisions": 0,
+    "publication_outputs": 0
+  },
+  "source": {
+    "upload": "apps/chronicle/corpus/first-round/ingest/sanguozhi-three-chapters.md",
+    "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+    "document_id": "86345e00-2b7b-409d-8f3c-1a334028f62e",
+    "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+    "first_chapter": {
+      "chapter_id": "ch_a1a57b31542a36d7339f016c",
+      "title": "蜀書·先主傳",
+      "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+      "code_points": 12591,
+      "blocks": 86,
+      "required_blocks": 41
+    }
+  },
+  "job": {
+    "job_id": "b4d23947-f66e-4f9e-839c-9ca14577bfe8",
+    "status": "failed",
+    "attempt": 1,
+    "max_attempts": 3,
+    "created_at": "2026-09-12T00:56:30.408659+00:00",
+    "updated_at": "2026-09-12T01:10:51.366755+00:00",
+    "error": "chapter extraction failed closed (bounded retry via Studio)",
+    "open_reviews": 0,
+    "outputs": [],
+    "stages": [
+      {
+        "attempt": 1,
+        "error": null,
+        "finished_at": "2026-09-12T00:56:30.757871+00:00",
+        "stage": "prepare",
+        "started_at": "2026-09-12T00:56:30.713777+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "error": null,
+        "finished_at": "2026-09-12T00:56:30.878367+00:00",
+        "stage": "structure",
+        "started_at": "2026-09-12T00:56:30.794398+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "error": null,
+        "finished_at": "2026-09-12T00:56:31.007472+00:00",
+        "stage": "segment",
+        "started_at": "2026-09-12T00:56:30.914793+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "error": "chapter extraction failed closed (bounded retry via Studio)",
+        "finished_at": "2026-09-12T01:10:51.363949+00:00",
+        "stage": "extract",
+        "started_at": "2026-09-12T00:56:31.044052+00:00",
+        "status": "failed"
+      },
+      {
+        "attempt": 0,
+        "error": null,
+        "finished_at": null,
+        "stage": "assemble",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "error": null,
+        "finished_at": null,
+        "stage": "resolve",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "error": null,
+        "finished_at": null,
+        "stage": "publish",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "error": null,
+        "finished_at": null,
+        "stage": "present",
+        "started_at": null,
+        "status": "pending"
+      }
+    ]
+  },
+  "attempt_accounting": {
+    "job_claims": 1,
+    "studio_retries": 0,
+    "model_attempts": 2,
+    "max_correction_rounds": 1,
+    "note": "One initial model call and one correction in the first job claim; failed job was not requeued."
+  },
+  "chapter_statuses": [
+    {
+      "title": "先主傳",
+      "status": "failed"
+    },
+    {
+      "title": "周瑜傳",
+      "status": "pending"
+    },
+    {
+      "title": "魯肅傳",
+      "status": "pending"
+    },
+    {
+      "title": "資治通鑑卷65",
+      "status": "not_uploaded_in_this_run"
+    }
+  ],
+  "attempt_metrics": [
+    {
+      "kind": "initial",
+      "latency_ms": 541561,
+      "translation_code_points": 15688,
+      "translation_blocks": 28,
+      "reading_units": 28,
+      "entities": 20,
+      "events": 11,
+      "context_entity_items": 43,
+      "event_spans": 11,
+      "validation_error_count": 16,
+      "validation_passed": false
+    },
+    {
+      "kind": "correction",
+      "latency_ms": 318451,
+      "translation_code_points": 8888,
+      "translation_blocks": 1,
+      "reading_units": 1,
+      "entities": 20,
+      "events": 11,
+      "context_entity_items": 20,
+      "event_spans": 0,
+      "validation_error_count": 5,
+      "validation_passed": false
+    }
+  ],
+  "correction_diagnostics": {
+    "full_error_count": 16,
+    "sent_error_count": 14,
+    "omission_summary_sent": true,
+    "budget_code_points": 1800,
+    "charged_code_points": 1731,
+    "omitted_paths": [
+      "reading.units[19].context_entities[0].source_selections[1]",
+      "reading.units[6].context_entities[0].source_selections[1]"
+    ],
+    "note": "Full validation remains in replay; the prompt is bounded and does not include all 16 error locations."
+  },
+  "replay": {
+    "file": "candidate-live-r2-20260912-v4.json",
+    "sha256": "081534a9c72c6746c66203bf5a8d20aa018cbba42150bbddc6ab6b7dd0bd5510",
+    "preserves": [
+      "complete program-owned chapter request",
+      "both complete candidates",
+      "full validation reports",
+      "actual compact correction diagnostics",
+      "latencies and original prompt/response hashes"
+    ],
+    "omits": [
+      "duplicate rendered prompts",
+      "duplicate raw model-response text",
+      "transport envelope, credentials and connection configuration"
+    ],
+    "offline_validation_replay": "both reports exactly reproduced on 329806b without model calls"
+  },
+  "content_review": {
+    "report": "reading-review-20260912.md",
+    "independent_review": "read-only agent checked source, initial candidate and full correction candidate",
+    "result": "FAIL",
+    "confirmed_omission_examples": 3,
+    "initial_completeness": "not_certified"
+  },
+  "public_reading_validation": {
+    "status": "not_reached",
+    "reason": "The first chapter failed extraction; no artifact, review item or publication was produced."
+  },
+  "ownership_handoffs": [
+    {
+      "issue": 572,
+      "task": "C2-R2-T03",
+      "problem": "Full-chapter correction still returns wrong source selections, drops detailed translation and reading spans, and exceeds a block limit. Correctness must be checked before acceptance."
+    },
+    {
+      "issue": 586,
+      "task": "C2-R2-T17",
+      "problem": "Keep live acceptance open until four chapters, >=12 real content checks and the live browser walkthrough pass; fixture results cannot substitute."
+    }
+  ],
+  "prior_failed_evidence_preserved": [
+    "run-live-r2.json",
+    "reading-review.md"
+  ]
+}

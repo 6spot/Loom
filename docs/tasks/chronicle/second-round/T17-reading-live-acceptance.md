@@ -29,6 +29,22 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 
 ## Live acceptance status
 
+Latest retest (2026-09-12): [run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v4.json),
+[complete failed candidates](../../../../apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v4.json),
+and [independent content review](../../../../apps/chronicle/corpus/second-round/acceptance/reading-review-20260912.md).
+
+- Fresh isolated 0.2 run on `74d2f20`, prompt v4, real `gpt-5.6-luna`;
+  one job claim, one initial call and one correction, no Studio retry.
+- The first chapter failed: 28 translated blocks became one 8,888-character
+  block, exceeding 8,192; four source-anchor errors remained. Event spans
+  fell from 11 to 0. Independent review confirmed three concrete omissions.
+- No accepted chapter, review item or publication was produced in this retest.
+  The remaining two uploaded chapters are pending; 通鑑 was not uploaded in it.
+- **Not accepted.** R2 fixes in PR #663 do not close #586 or #549. Browser
+  fixture results and the pending R3 0.3 work do not certify this real content.
+
+### Previous run (2026-09-11, preserved)
+
 Evidence: `apps/chronicle/corpus/second-round/acceptance/run-live-r2.json` and
 `reading-review.md`.
 
@@ -55,6 +71,7 @@ Evidence: `apps/chronicle/corpus/second-round/acceptance/run-live-r2.json` and
 
 ## Progress Log
 
+- 2026-09-12 — Retested 0.2 prompt v4 in a fresh isolated environment; retained both rejected candidates and full validation reports. Independently confirmed three translation omissions and two omitted repair diagnostics. No publication or live acceptance claim; four-chapter/content/browser requirements remain open.
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
 - 2026-09-08 — Final gate also waits for design-preparation D01/#588. D01 delivers the reusable background skill and candidate archive only; future Studio/image-display tasks are not silently added to this acceptance scope.
 - 2026-09-11 — Ran the real-provider live acceptance on the frozen four chapters. Recorded `run-live-r2.json` and `reading-review.md`. Content acceptance failed: unresolved narrative time, no body event spans, no context entities, and fail-closed generation retries. Task remains in progress; findings require the owning leaves to fix and re-verify.
