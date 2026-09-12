@@ -31,11 +31,11 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v5"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v6"
 
 #: Person-state (0.3) prompt template version. Bound into the producing run
 #: of every accepted 0.3 artifact so 0.1/0.2/0.3 runs stay distinguishable.
-PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v3"
+PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v4"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -169,6 +169,35 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   quote, mention surface, alias, and time.original_text must reuse the exact
   source characters. A Simplified character where the source has Traditional
   (or vice versa) is a grounding failure, not a spelling variant.'''
+
+WHOLE_CHAPTER_SEMANTIC_GUIDE = r'''WHOLE-CHAPTER SEMANTIC CHECK (interpretation guidance, not additional source evidence)
+在输出前，以完整章节为一个上下文核对下面各项；只输出最终联合 JSON，不输出分析过程。
+- 区分叙事正文、史家按语、不同著作的引文、人物的书信奏表。每处“我／臣／父／其”等
+  都从该处叙述者或说话者解释，切换引文后重新确认；不得默认属于传记主人公。
+- 古文省略主语时，核对动作的施行者、承受者及评价对象，结合前后文和同章嵌注承接。
+  进军、到达、撤退、任命、归附等不能都接到最近出现的人名或主人公身上。被评价者
+  和作出评价者、上级和下属、授予者和接受者不可对调。
+- 人名简称必须沿本章已出现的全名和上下文消歧；只写名字时，不因主人公姓氏或常识
+  补出一个姓。身份能确认再用全名；不能确认则保留原称谓，并在 warnings 说明具体
+  疑点。同一人的名、字、尊称或谥号不可误当成同一交接或对话的两个人。
+- 古词按当时语境和本章注释解释，注意器物、亲属称谓、官名、虚词、被动及使动结构。
+  避免用现代最常见词义直译；若同章已说明该称谓或词义，译文必须与该说明相容。
+  不把书名、纬书或典籍类别误译成地点，也不添加原文没有的动机或因果。
+- 完整翻译每条现存嵌注，包括举证的历史事例、音读／字义解释、作者署名和不同说法。
+  保留注释在相应正文附近的归属，不能仅列出 source_block_ids 代替翻译，也不能以
+  “另有异说／作了解释”等一句话替代具体内容。保持原文的怀疑、传闻及引述口吻。
+- 通读译文核对叙事连续性：人物在何处、是哪一方军队行动、称谓是否同人、同章解释
+  是否自相矛盾。以原文为准修正理解；不得为了消除史料本身的分歧擅自改写史料。
+- 联合提取还需要有证据的事实：Event 标识发生的一件事，标题、参与者和角色不能
+  代替 Claim 中可核对的断言。逐一检查本章主要人物／地点／政权及重要事件所支持的
+  任职、归属、驻地、行动结果等事实，用现有 Claim 的 subject、predicate、object、
+  evidence 保存；证据要支持该主体和该断言，保留原文归属，不把劝进、传闻或征兆当
+  成已证实事实。没有可支持断言时允许 []，不为了凑数制造 Claim，也不为每个细节
+  新建 Event。相同对象沿用同一章内 temp_id，后续读取再选择少数导航锚点。
+- 日历成分来自章内其他语句时，保留原文有据的 era／era_year／season／month／day，
+  并在 inherited_fields 标记继承的字段。time.original_text 只能是实际连续出现的
+  原文日期表达；缩短它以修复引用时，不能忘记同步更新继承声明。
+只把当前完整原章作为事实依据；上述指引不是要求补入章外的历史知识。'''
 
 READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (0.2 only; every unit is explained by the WHOLE chapter)
 Add one top-level "reading" object beside bundle/translation/mentions/record_sources:
@@ -593,6 +622,15 @@ def render_chapter_prompt(
         if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION)
         else ""
     )
+    # Semantic guidance belongs to initial/full-chapter generation. A metadata
+    # correction has no authority to rewrite the preserved prose, even if the
+    # model notices a semantic problem in it; content review remains separate.
+    semantic_guide = (
+        "\n" + WHOLE_CHAPTER_SEMANTIC_GUIDE + "\n"
+        if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION)
+        and not preserve_translation
+        else ""
+    )
     if candidate_version in (READING_CANDIDATE_VERSION, PERSON_STATE_CANDIDATE_VERSION):
         reading_guide += (
             f"\nFULL-TEXT SCALE: this chapter contains {len(request['normalized_text'])} "
@@ -644,7 +682,10 @@ def render_chapter_prompt(
                 "actually contains its quote. Select literal, contiguous quotes; "
                 "never rewrite prose to make a reference match. Retain supported "
                 "entities, events and annotations; do not empty annotation arrays "
-                "to silence errors. This restriction "
+                "to silence errors. When repairing time.original_text, also mark "
+                "calendar fields recovered from other source phrases in "
+                "inherited_fields; shortening a fabricated date phrase does not "
+                "make its retained contextual era/year explicit. This restriction "
                 "preserves the draft during metadata repair; it does not certify "
                 "translation accuracy or completeness.\n"
             )
@@ -746,4 +787,4 @@ FULL CHAPTER TEXT (verbatim; the chapter tail below is part of the input)
 ---BEGIN CHAPTER---
 {request["normalized_text"]}
 ---END CHAPTER---
-''' + correction_after
+''' + semantic_guide + correction_after

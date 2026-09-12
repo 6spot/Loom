@@ -17,6 +17,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import chapter_extraction as X  # noqa: E402
+import chapter_prompt as P  # noqa: E402
 import reading_contract as R  # noqa: E402
 
 
@@ -74,6 +75,10 @@ class TranslationCorrectionTests(unittest.TestCase):
                 self.assertIn("METADATA CORRECTION ONLY", prompt)
                 self.assertNotIn("expand any omitted", prompt)
                 self.assertNotIn("TRANSLATION IS ALREADY CORRECT", prompt)
+                # New fidelity guidance must not instruct this protected
+                # correction to perform a second semantic prose rewrite.
+                self.assertIn(P.WHOLE_CHAPTER_SEMANTIC_GUIDE, model.prompts[0])
+                self.assertNotIn(P.WHOLE_CHAPTER_SEMANTIC_GUIDE, prompt)
 
     def test_span_can_move_to_its_actual_block_without_rewriting_prose(self) -> None:
         request, valid = base("0.2")
@@ -314,6 +319,21 @@ class CorrectionHistoryTests(unittest.TestCase):
                 fixture = load(HERE.parent / "ingestion" / "fixtures" / "chapter-correction-history" / f"legacy-{version}.json")
                 self.assertTrue(fixture["result"]["accepted"])
                 self.assertEqual(X.verify_history(fixture["result"], request=fixture["request"]), [])
+
+    def test_saved_v5_history_still_replays_after_semantic_prompt_revision(self) -> None:
+        # This real run is mechanically accepted but independently failed
+        # content review. Replaying it preserves that original structural
+        # result, not a historical-accuracy verdict or a fresh model call.
+        evidence = load(
+            HERE.parent / "corpus" / "second-round" / "acceptance"
+            / "candidate-live-r2-20260912-v5.json"
+        )
+        self.assertEqual(
+            evidence["result"]["fingerprints"]["prompt_version"],
+            "c2r2-chapter-prompt-v5",
+        )
+        self.assertTrue(evidence["result"]["accepted"])
+        self.assertEqual(X.verify_history(evidence["result"], request=evidence["request"]), [])
 
 
 if __name__ == "__main__":

@@ -31,6 +31,7 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 
 ## Progress Log
 
+- 2026-09-12 — 针对 v5 内容失败，在同一完整章 prompt 增补主体承接、引文视角、古词、嵌注完整性及有证据 Claim 抽取指导（0.2 v6／0.3 v4）。不增加调用轮次或数量门槛；仅元数据纠错继续保留正文。旧 v5/v3 历史保留原机械重放规则。提示及离线检查不能证明内容已改善，真实回归结果由独立审查记录。
 - 2026-09-12 — `20054a3` 的 0.2 prompt v5 单章真实回归：完整《先主傳》初稿加一次纠错后，7 条结构错误全部修复；41 段、15,943 字符逐段 ID／顺序／全文完全保留，历史可重放。独立内容复核仍失败，存在主体误配、古词误译及嵌注遗漏；不把机械 accepted 当作内容通过。两稿、用量与复核保存在 `apps/chronicle/corpus/second-round/acceptance/*20260912-v5*`。未写库或发布，不替代 T17 或 R3 验收。
 - 2026-09-08 — Planned under #549 with explicit upstream dependencies, implementation steps and file ownership. No feature or completion claim.
 - 2026-09-12 — 增补已复现的纠错删文、诊断遗漏及历史重放要求。离线输入保留在 `apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v4.json`；其 28 段初稿纠错后缩为 1 段的失败不因结构测试通过而解除。

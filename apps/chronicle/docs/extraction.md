@@ -203,7 +203,7 @@ per-segment call and no read-time semantic annotation.
   instead of returning translation-only success.
 - **Fingerprints/run history.** `fingerprints` records
   `candidate_schema` (`.../0.1` vs `.../0.2`), `prompt_version`
-  (`c2r1-chapter-prompt-v11` vs `c2r2-chapter-prompt-v5`),
+  (`c2r1-chapter-prompt-v11` vs `c2r2-chapter-prompt-v6`),
   `extraction_version` (`c2r2-extraction-v2` for 0.2),
   `correction_policy_version`, and — for 0.2 — `reading_schema` /
   `reading_limits`, so model/contract/limit versions stay distinguishable.
@@ -282,6 +282,31 @@ tampering. These offline checks do not replace a fresh real-provider run
 and independent source-to-translation review. The Chronicle static CI lane
 runs the correction, extraction and worker/provider unit suites.
 
+### Whole-chapter interpretation guidance
+
+The 0.2 prompt v6 and 0.3 prompt v4 add a shared fidelity guide after the
+complete source for initial generation and full-chapter structural repair.
+It asks the model to distinguish narrators and quoted speakers, resolve
+omitted subjects from the full chapter, preserve historical word meanings
+and embedded notes, and retain source-backed assertions as Claims rather
+than treating Event titles as evidence. Supported source-calendar fields
+recovered from another phrase must be declared as inherited, including
+after a date-quote correction.
+
+This is guidance within the existing joint generation call, not a new
+semantic validator, extra model review, Claim-count floor, or external
+historical source. It contains no corpus-specific names or expected answers.
+Metadata-only correction omits the prose fidelity guide and continues to
+preserve every ordered block ID and its exact text. The extraction and
+correction-policy versions are unchanged; saved prompt v5/v3 histories
+retain their original mechanical interpretation.
+
+The archived [v5 content review](../corpus/second-round/acceptance/reading-review-20260912-v5.md)
+provides concrete counterexamples and uncertain interpretations separately.
+Prompt changes require fresh complete-chapter generation and independent
+review to establish any content-quality improvement; unit tests only verify
+rendering, correction boundaries and replay.
+
 ## Whole-chapter joint translation/extraction + person states (C2-R3-T02)
 
 > 本节描述 C2-R3 生产 0.3 联合路径（Issue #620，Task C2-R3-T02）。
@@ -322,7 +347,7 @@ state generation.
   `person_state_coverage`, `person_state_refs`, `person_state_phase`,
   `person_state_types`, `person_state_continuity`, `limits`, `canonical_id`).
 - **Fingerprints/run history.** `fingerprints` records `candidate_schema`
-  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v3`),
+  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v4`),
   `extraction_version` (`c2r3-extraction-v2`), `correction_policy_version`
   (see the shared correction-integrity procedure above), and for 0.3 the
   `person_state_schema` / `person_state_contract` / `person_state_limits`

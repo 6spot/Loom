@@ -82,8 +82,12 @@ _HISTORY_PROMPT_VERSIONS = {
     ("0.3", "c2r3-extraction-v1", None): {
         "c2r3-chapter-prompt-v1", "c2r3-chapter-prompt-v2",
     },
-    ("0.2", "c2r2-extraction-v2", CORRECTION_POLICY_VERSION): {"c2r2-chapter-prompt-v5"},
-    ("0.3", "c2r3-extraction-v2", CORRECTION_POLICY_VERSION): {"c2r3-chapter-prompt-v3"},
+    ("0.2", "c2r2-extraction-v2", CORRECTION_POLICY_VERSION): {
+        "c2r2-chapter-prompt-v5", "c2r2-chapter-prompt-v6",
+    },
+    ("0.3", "c2r3-extraction-v2", CORRECTION_POLICY_VERSION): {
+        "c2r3-chapter-prompt-v3", "c2r3-chapter-prompt-v4",
+    },
 }
 
 #: Prompt template version bound into every attempt and producing run.
