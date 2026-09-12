@@ -82,7 +82,7 @@ DETAIL_SECTIONS = ("identities", "changes", "evidence")
 PLACE_SECTIONS = ("places", "evidence")
 
 #: Reserve room in a page budget for the opaque cursor and JSON envelope.
-_CURSOR_MARGIN_BYTES = 1024
+_CURSOR_MARGIN_BYTES = _store.STATE_PAGE_CURSOR_MARGIN_BYTES
 
 #: ``PersistenceError`` messages that mean a published record is internally
 #: missing even though the addressed stream/unit exists (explicit 409).
@@ -297,16 +297,30 @@ def _context_person_ids(unit: dict[str, Any]) -> set[str]:
     return person_ids
 
 
-def _context_place_ids(unit: dict[str, Any]) -> set[str]:
-    """Return both aliases for context entities explicitly typed as places."""
-    place_ids: set[str] = set()
+def _context_place_map(unit: dict[str, Any]) -> dict[str, str]:
+    """Resolve aliases through this unit's frozen, explicitly typed context."""
+    places: dict[str, str] = {}
+    other_ids: set[str] = set()
     for entity in unit.get("context_entities") or []:
-        if not isinstance(entity, dict) or entity.get("kind") != "place":
+        if not isinstance(entity, dict):
             continue
-        for key in (entity.get("canonical_id"), entity.get("entity_ref")):
-            if isinstance(key, str) and key:
-                place_ids.add(key)
-    return place_ids
+        keys = {
+            key for key in (entity.get("canonical_id"), entity.get("entity_ref"))
+            if isinstance(key, str) and key
+        }
+        if entity.get("kind") != "place":
+            other_ids.update(keys)
+            continue
+        canonical_id = entity.get("canonical_id")
+        if not isinstance(canonical_id, str) or not canonical_id:
+            raise ReadingPeopleInconsistent("place context has no canonical identity")
+        for key in keys:
+            if key in places and places[key] != canonical_id:
+                raise ReadingPeopleInconsistent("place context alias has ambiguous canonical identity")
+            places[key] = canonical_id
+    if other_ids.intersection(places):
+        raise ReadingPeopleInconsistent("place context has conflicting entity kinds")
+    return places
 
 
 # ---------------------------------------------------------------------------
@@ -523,11 +537,13 @@ def unit_places(
     limit = _validate_limit(limit, maximum=_LIMITS.page_max_limit)
     catalog = _resolve_catalog(conn, catalog_sha)
     unit = _read_unit(conn, stream_uuid, unit_id, catalog)
-    context_places = _context_place_ids(unit)
-    if place_id is not None and place_id not in context_places:
-        raise ReadingPeopleNotFound(
-            f"place {place_id!r} is not part of unit {unit_id!r} context"
-        )
+    context_places = _context_place_map(unit)
+    if place_id is not None:
+        if place_id not in context_places:
+            raise ReadingPeopleNotFound(
+                f"place {place_id!r} is not part of unit {unit_id!r} context"
+            )
+        place_id = context_places[place_id]
     page = _call_store(
         _store.list_unit_places,
         conn,
@@ -540,7 +556,7 @@ def unit_places(
         cursor=cursor,
     )
     for place in page["places"]:
-        if place["place_id"] not in context_places:
+        if place["place_id"] not in context_places.values():
             raise ReadingPeopleInconsistent(
                 f"compiled place {place['place_id']!r} is not part of unit "
                 f"{unit_id!r} context"
@@ -590,10 +606,12 @@ def unit_place_states(
     limit = _validate_limit(limit, maximum=_LIMITS.page_max_limit)
     catalog = _resolve_catalog(conn, catalog_sha)
     unit = _read_unit(conn, stream_uuid, unit_id, catalog)
-    if place_id not in _context_place_ids(unit):
+    context_places = _context_place_map(unit)
+    if place_id not in context_places:
         raise ReadingPeopleNotFound(
             f"place {place_id!r} is not part of unit {unit_id!r} context"
         )
+    place_id = context_places[place_id]
     if section == "places":
         return unit_places(
             conn,

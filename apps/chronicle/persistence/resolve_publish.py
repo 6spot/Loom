@@ -1551,6 +1551,44 @@ def _person_state_context(projection: dict[str, Any]) -> tuple[dict[str, str], d
     return labels, names
 
 
+def _place_contexts_by_unit(
+    projection: dict[str, Any], canonical_map: dict[str, Any]
+) -> dict[str, dict[str, dict[str, Any]]]:
+    """Index typed place membership without making a phase a mention scope."""
+    result: dict[str, dict[str, dict[str, Any]]] = {}
+    kinds_by_canonical: dict[str, set[str | None]] = {}
+    for unit in projection["units"]:
+        places: dict[str, dict[str, Any]] = {}
+        for context in unit.get("context_entities") or []:
+            if not isinstance(context, dict):
+                continue
+            ref = context.get("entity_ref")
+            mapped = canonical_map.get(ref) if isinstance(ref, str) else None
+            kind = context.get("kind")
+            if isinstance(mapped, str):
+                kinds_by_canonical.setdefault(mapped, set()).add(
+                    kind if isinstance(kind, str) else None
+                )
+            if kind != "place":
+                continue
+            canonical_id = context.get("canonical_id")
+            if not isinstance(mapped, str) or not mapped or canonical_id != mapped:
+                raise PersistenceError(
+                    f"reading unit {unit.get('unit_id')!r} place context {ref!r} "
+                    "does not match the frozen canonical mapping"
+                )
+            # Several reviewed source refs may name one canonical place. Every
+            # ref has been checked above, so this cannot hide an identity clash.
+            places.setdefault(mapped, context)
+        result[unit["unit_id"]] = places
+    for canonical_id, kinds in kinds_by_canonical.items():
+        if "place" in kinds and kinds != {"place"}:
+            raise PersistenceError(
+                f"canonical place {canonical_id!r} has conflicting context entity kinds"
+            )
+    return result
+
+
 def build_person_state_manifest(
     *,
     projection: dict[str, Any],
@@ -1581,6 +1619,8 @@ def build_person_state_manifest(
         ]
     )
     labels, canonical_names = _person_state_context(projection)
+    place_contexts = _place_contexts_by_unit(projection, canonical_map)
+    known_place_ids = {place_id for places in place_contexts.values() for place_id in places}
     canonical_map["labels"] = labels
     chapter_publications = {
         str(chapter_id): str(publication_id)
@@ -1633,17 +1673,7 @@ def build_person_state_manifest(
             for context in unit.get("context_entities") or []
             if isinstance(context, dict) and isinstance(context.get("canonical_id"), str)
         }
-        # T04's pure projection retains the source ``person_ref`` for place
-        # items, while the published reading context carries both that
-        # ``entity_ref`` and the canonical id.  Accept both aliases here and
-        # publish the canonical id so T09 membership checks are snapshot-bound.
-        context_by_place: dict[str, dict[str, Any]] = {}
-        for context in unit.get("context_entities") or []:
-            if not isinstance(context, dict) or context.get("kind") != "place":
-                continue
-            for key in (context.get("canonical_id"), context.get("entity_ref")):
-                if isinstance(key, str) and key:
-                    context_by_place.setdefault(key, context)
+        context_by_place = place_contexts[unit["unit_id"]]
         people: list[dict[str, Any]] = []
         for person_id in sorted(compiled.get("people") or {}):
             person = compiled["people"][person_id]
@@ -1671,30 +1701,28 @@ def build_person_state_manifest(
                 raise PersistenceError(
                     f"reading unit {unit.get('unit_id')!r} has a place item without place_id"
                 )
-            context = context_by_place.get(raw_place_id)
-            if context is None:
-                mapped_place_id = canonical_map.get(raw_place_id)
-                if isinstance(mapped_place_id, str):
-                    context = context_by_place.get(mapped_place_id)
-            if context is None:
+            # T04 compiles phase facts, which may apply to several units even
+            # though only some of those units mention this place. Resolve and
+            # validate first, then select this unit's typed context membership.
+            place_id = canonical_map.get(raw_place_id)
+            if place_id is None and raw_place_id in known_place_ids:
+                place_id = raw_place_id
+            if not isinstance(place_id, str) or place_id not in known_place_ids:
                 raise PersistenceError(
                     f"reading unit {unit.get('unit_id')!r} has a place item {raw_place_id!r} "
                     "without a place context entity"
                 )
-            place_id = context.get("canonical_id") or canonical_map.get(raw_place_id) or raw_place_id
-            if not isinstance(place_id, str) or not place_id:
-                raise PersistenceError(
-                    f"reading unit {unit.get('unit_id')!r} has an invalid place context "
-                    f"for {raw_place_id!r}"
-                )
-            place["place_id"] = place_id
-            if isinstance(context.get("name"), str) and context["name"]:
-                place["name"] = context["name"]
             item_id = place.get("item_id")
             if not isinstance(item_id, str) or not item_id:
                 raise PersistenceError(
                     f"reading unit {unit.get('unit_id')!r} has a place item without item_id"
                 )
+            context = context_by_place.get(place_id)
+            if context is None:
+                continue
+            place["place_id"] = place_id
+            if isinstance(context.get("name"), str) and context["name"]:
+                place["name"] = context["name"]
             place_items.append(place)
             place_item_ids.add(item_id)
         place_items.sort(key=lambda item: (item["place_id"], item["dimension"], item["item_id"]))

@@ -197,6 +197,8 @@ supported 只确认该证据条目的语义；一个“明确授任”审核通�
 
 任一章缺 0.3、评估遗漏、键映射不完整、图矛盾、hash 漂移、未知状态值或投影超限，整个本次发布失败。相同 artifact/评估/映射/编译版本重放返回已有结果；不同 payload 不覆盖已有 stream。恢复复用 accepted 内容和审核结果，不能再调用模型“修一份”。
 
+同一来源阶段可以绑定多个阅读 unit；地点状态只进入本 unit 的 `kind=place` 上下文，不能因共用阶段而要求每段都提及同一地点。发布前校验 source ref 与冻结 canonical 映射一致；同一 canonical 的合法多个 source refs 可以共享状态，未解析或错类型的地点事实仍拒绝发布。
+
 分歧索引可以持久化不可变 manifest 与对受影响事实的索引，无需为每次 catalog 复制所有旧 stream 正文／单位。查询只做对当前 unit 的已编译资料和对应 catalog 分歧记录的有界组合，不执行历史推理或修复写入。
 
 ## 7. 公开读取
@@ -213,6 +215,8 @@ supported 只确认该证据条目的语义；一个“明确授任”审核通�
 | /api/v1/public/reading-streams/{stream_id}/units/{unit_id}/places/{place_id}/states?catalog=&section=places\|evidence&phase_id=&item_id=&limit=20&cursor= | 对应地点的行政／控制条目或一项的完整来源依据；按需翻页 |
 
 请求中的 stream/unit/catalog 组合必须有效；person 必须属于本段 context，phase 必须属于本段绑定。未知或错配为 404；参数、重复键、错 scope cursor 为 400；已发布内容内部不一致显式返回 409，不能补读最新资料。source 文件缺失／漂移沿用现有错误。
+
+地点 source ref 只通过本 unit 已冻结的 typed context 归一到 canonical ID，条目、详情、依据及 cursor 使用同一 canonical ID。属于本段但暂无状态记载的地点返回 200 空状态页；未知地点／依据 item 仍为 404，缺失状态 manifest 为 409。空资料不生成占位状态或推断地点归属。
 
 摘要每人最多预览 3 项身份和 3 项变化，只内联显示字段及依据数量／入口，必须返回各自总数／完整入口；不把首批冒充全部。主要人物默认最多 6 位，其他按需加载。地点的 `administration` 与 `control` 永远是两个条目维度；不从到访、参战或 participation 推导控制。人员／地点 limit 1..50，详情 limit 1..50；summary/detail 每响应上限 128 KiB，按完整项提前停页并返回 next_cursor，不能截断结论。完整条目与第一批依据的编译大小上限为 64 KiB，超出在发布前拒绝。
 

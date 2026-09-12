@@ -81,6 +81,10 @@ _ITEM_ID_RE = re.compile(r"^psi_[0-9a-f]{24}$")
 #: Bumped whenever the opaque cursor payload shape changes.
 CURSOR_VERSION = 1
 
+# Shared with the read API's whole-entry response fitting. Publication checks
+# reserve the same room so an accepted descriptor can actually be read back.
+STATE_PAGE_CURSOR_MARGIN_BYTES = 1024
+
 
 class PersonStateCursorError(PersistenceError):
     """A pagination cursor is malformed or bound to a different read scope.
@@ -411,6 +415,14 @@ def _normalize_places(
         seen_items.add(item_id)
         item["evidence_count"] = len(place_evidence.get(item_id, []))
         _validate_dto("place_state_item", item, item_owner)
+        descriptors = place_evidence.get(item_id, [])
+        for position, descriptor in enumerate(descriptors):
+            _require_compiled_item_size(descriptor, f"{item_owner}.evidence[{position}]")
+        # Section 7 bounds the complete item together with its first 16
+        # descriptors; later descriptors remain accessible by bounded pages.
+        _require_compiled_item_size(
+            {"item": item, "descriptors": descriptors[:16]}, item_owner
+        )
         normalized.append(item)
 
     unknown_evidence = sorted(set(place_evidence) - seen_items)
@@ -704,6 +716,9 @@ def _normalize_manifest(conn, manifest: Any) -> dict[str, Any]:
                         f"place item {item_id!r} evidence cites publication {parsed} "
                         "outside the stream snapshot"
                     )
+        _require_place_evidence_page_sizes(
+            unit, stream_id=stream_id, catalog_sha=origin_catalog_sha
+        )
 
     unit_phases = {
         unit["unit_id"]: {"phase_mode": unit["phase_mode"], "phases": unit["phases"]}
@@ -1401,6 +1416,17 @@ def _require_unit_place(
         (stream_id, unit_id, place_id),
     ).fetchone()
     if row is None:
+        # A typed context place can legitimately have no recorded state, so
+        # there is no item-derived summary row. Check this exact reading unit,
+        # not another unit or the whole chapter, before allowing an empty page.
+        row = conn.execute(
+            """
+            SELECT 1 FROM chronicle.reading_units
+            WHERE stream_id = %s AND unit_id = %s AND context_entities @> %s
+            """,
+            (stream_id, unit_id, Jsonb([{"canonical_id": place_id, "kind": "place"}])),
+        ).fetchone()
+    if row is None:
         raise PersistenceError(
             f"unknown place {place_id!r} in stream {stream_id} unit {unit_id}"
         )
@@ -2027,6 +2053,54 @@ def list_state_item_evidence(
     }
 
 
+def _place_evidence_page(
+    *, stream_id, unit_id, catalog_sha, meta, item_id, phase_id,
+    descriptors, limit, next_cursor, has_more,
+) -> dict[str, Any]:
+    return {
+        "stream_id": str(stream_id),
+        "unit_id": unit_id,
+        "catalog_sha": catalog_sha,
+        "publication_id": str(meta["publication_id"]),
+        "state_manifest_sha": meta["manifest_sha"],
+        "item_id": item_id,
+        "section": "evidence",
+        "phase_id": phase_id,
+        "descriptors": descriptors,
+        "descriptor_count": len(descriptors),
+        "limit": limit,
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+    }
+
+
+def _require_place_evidence_page_sizes(unit, *, stream_id, catalog_sha) -> None:
+    """Reject a descriptor that cannot fit even a one-entry public page."""
+    meta = {"publication_id": unit["publication_id"], "manifest_sha": "0" * 64}
+    for item in unit["place_items"]:
+        descriptors = unit["place_evidence"].get(item["item_id"], [])
+        for ordinal, descriptor in enumerate(descriptors):
+            phase_id = descriptor["phase_id"]
+            scope = {
+                "kind": "place_state_item_evidence", "stream_id": str(stream_id),
+                "unit_id": unit["unit_id"], "place_id": item["place_id"],
+                "item_id": item["item_id"], "phase_id": phase_id,
+                "catalog_sha": catalog_sha, "manifest_sha": meta["manifest_sha"],
+            }
+            page = _place_evidence_page(
+                stream_id=stream_id, unit_id=unit["unit_id"], catalog_sha=catalog_sha,
+                meta=meta, item_id=item["item_id"], phase_id=phase_id,
+                descriptors=[descriptor], limit=50,
+                next_cursor=_encode_cursor(scope, ordinal), has_more=True,
+            )
+            limit = _contract.PersonStateLimits().evidence_max_bytes
+            if len(canonical_json_bytes(page)) + STATE_PAGE_CURSOR_MARGIN_BYTES > limit:
+                raise PersistenceError(
+                    f"place item {item['item_id']!r} descriptor {ordinal} "
+                    f"cannot fit evidence_max_bytes {limit}"
+                )
+
+
 def list_place_state_item_evidence(
     conn,
     *,
@@ -2125,21 +2199,11 @@ def list_place_state_item_evidence(
     next_cursor = None
     if has_more and rows:
         next_cursor = _encode_cursor(scope, rows[-1][9])
-    return {
-        "stream_id": str(stream_id),
-        "unit_id": unit_id,
-        "catalog_sha": effective_catalog_sha,
-        "publication_id": meta["publication_id"],
-        "state_manifest_sha": meta["manifest_sha"],
-        "item_id": item_id,
-        "section": "evidence",
-        "phase_id": phase_id,
-        "descriptors": descriptors,
-        "descriptor_count": len(descriptors),
-        "limit": limit,
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-    }
+    return _place_evidence_page(
+        stream_id=stream_id, unit_id=unit_id, catalog_sha=effective_catalog_sha,
+        meta=meta, item_id=item_id, phase_id=phase_id, descriptors=descriptors,
+        limit=limit, next_cursor=next_cursor, has_more=has_more,
+    )
 
 
 def list_catalog_disagreements(

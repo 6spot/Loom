@@ -393,6 +393,17 @@ class ErrorClassificationTests(unittest.TestCase):
                 )
             store_call.assert_not_called()
 
+    def test_place_alias_with_ambiguous_identity_is_409(self) -> None:
+        unit = _unit_with_place()
+        context = unit["context_entities"][0]
+        unit["context_entities"].append({**context, "canonical_id": OTHER_PLACE})
+        with mock.patch.object(
+            people._reading_store, "read_reading_unit", return_value=unit
+        ), mock.patch.object(people._store, "list_unit_places") as store_call:
+            with self.assertRaises(people.ReadingPeopleInconsistent):
+                people.unit_places(None, stream_id=STREAM, unit_id=UNIT, catalog_sha=SHA)
+            store_call.assert_not_called()
+
 
 class ResponseShapeAndBudgetTests(unittest.TestCase):
     def setUp(self) -> None:

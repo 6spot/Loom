@@ -668,6 +668,94 @@ class ReadingPeoplePostgresTests(unittest.TestCase):
                 catalog_sha=catalog,
             )
 
+    def test_typed_place_without_state_is_empty_not_missing(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="empty_place")
+        place_id, unit_id = "ent_empty_place", "ru_empty_place_0"
+        ctx, stream_id = self._setup_stream(
+            self.conn, label="empty_place", blocks=["甲地"], catalog_sha=catalog,
+            tag="v1", context_by_unit={unit_id: [self._place_context(place_id)]},
+        )
+        base = f"/v0/reading-streams/{stream_id}/units/{unit_id}/places"
+        status, _ = people.dispatch_reading_people(
+            self.conn, "GET", f"{base}/{place_id}/states", f"catalog={catalog}&section=places"
+        )
+        self.assertEqual(409, status, "a missing manifest is not an empty state")
+        self._persist(ctx, stream_id, [self._unit_with_places(
+            ctx, unit_id=unit_id, unit_ordinal=0, places=[],
+        )])
+        self.conn.commit()
+        self.conn.execute("SET TRANSACTION READ ONLY")
+
+        stored = store.list_unit_places(
+            self.conn, stream_id=stream_id, unit_id=unit_id,
+            place_id=place_id, catalog_sha=catalog,
+        )
+        self.assertEqual([], stored["places"])
+        for suffix in ("", f"/{place_id}/states", "/place_001/states"):
+            with self.subTest(suffix=suffix):
+                query = f"catalog={catalog}" + ("&section=places" if suffix else "")
+                status, page = people.dispatch_reading_people(self.conn, "GET", base + suffix, query)
+                self.assertEqual(200, status)
+                self.assertEqual([], page["places"])
+                self.assertFalse(page["has_more"])
+                self.assertIsNone(page["next_cursor"])
+        for suffix, query in (
+            ("/ent_absent/states", "section=places"),
+            (f"/{place_id}/states", "section=places&phase_id=ph_002"),
+            (f"/{place_id}/states", "section=evidence&item_id=psi_" + "0" * 24),
+        ):
+            with self.subTest(query=query):
+                status, _ = people.dispatch_reading_people(
+                    self.conn, "GET", base + suffix, f"catalog={catalog}&{query}"
+                )
+                self.assertEqual(404, status)
+        with self.assertRaises(PersistenceError):
+            store.list_unit_places(
+                self.conn, stream_id=stream_id, unit_id=unit_id,
+                place_id="ent_absent", catalog_sha=catalog,
+            )
+
+    def test_place_alias_uses_canonical_state_and_evidence_cursor_scope(self) -> None:
+        catalog = self._seed_catalog(self.conn, tag="place_alias")
+        place_id, unit_id = "ent_canonical_place", "ru_place_alias_0"
+        ctx, stream_id = self._setup_stream(
+            self.conn, label="place_alias", blocks=["甲地"], catalog_sha=catalog,
+            tag="v1", context_by_unit={unit_id: [self._place_context(place_id)]},
+        )
+        admin = self._place_item(ctx, place_id, fact_ref="pf_920")
+        control = self._place_item(ctx, place_id, fact_ref="pf_921", dimension="control")
+        self._persist(ctx, stream_id, [self._unit_with_places(
+            ctx, unit_id=unit_id, unit_ordinal=0, places=[admin, control],
+            place_evidence=[{"item_id": admin["item_id"], "descriptors": [
+                self._descriptor(ctx, 50), self._descriptor(ctx, 51),
+            ]}],
+        )])
+        self.conn.commit()
+        self.conn.execute("SET TRANSACTION READ ONLY")
+        kwargs = dict(stream_id=stream_id, unit_id=unit_id, catalog_sha=catalog, limit=1)
+        first = people.unit_place_states(
+            self.conn, place_id="place_001", section="places", **kwargs
+        )
+        canonical = people.unit_place_states(
+            self.conn, place_id=place_id, section="places", **kwargs
+        )
+        self.assertEqual(first, canonical)
+        second = people.unit_place_states(
+            self.conn, place_id=place_id, section="places", cursor=first["next_cursor"], **kwargs
+        )
+        self.assertEqual(["control"], [item["dimension"] for item in second["places"]])
+        self.assertFalse(second["has_more"])
+        first = people.unit_place_states(
+            self.conn, place_id=place_id, section="evidence", item_id=admin["item_id"], **kwargs
+        )
+        second = people.unit_place_states(
+            self.conn, place_id="place_001", section="evidence", item_id=admin["item_id"],
+            cursor=first["next_cursor"], **kwargs
+        )
+        self.assertEqual(1, len(second["descriptors"]))
+        self.assertNotEqual(first["descriptors"], second["descriptors"])
+        self.assertFalse(second["has_more"])
+
     def test_non_place_context_is_not_place_membership(self) -> None:
         catalog = self._seed_catalog(self.conn, tag="polity_context")
         place_id = "ent_polity_context"
