@@ -32,6 +32,7 @@ import copy
 import re
 from typing import Any
 
+import person_state_contract as _contract
 from common import PersistenceError, sha256_json
 
 #: Version of the person-state assembly step (enters the report).
@@ -73,6 +74,188 @@ _REQUIRED_PERSON_STATE_COLLECTIONS = (
     "continuities",
     "disagreements",
 )
+
+#: Allowed review-candidate kinds and the state collection / id field they bind.
+_KIND_COLLECTION = {
+    "phase": ("phases", "phase_id"),
+    "phase_order": ("phase_orders", "assertion_id"),
+    "unit_phase": ("unit_phases", "block_id"),
+    "fact": ("facts", "fact_id"),
+    "continuity": ("continuities", "assertion_id"),
+    "disagreement": ("disagreements", "assertion_id"),
+}
+
+#: Kinds whose accepted candidate always resolves at least one anchor.
+_ANCHOR_REQUIRED_KINDS = ("phase", "phase_order", "fact", "continuity", "disagreement")
+
+
+def _anchors_by_id(artifact: dict[str, Any], chapter_id: str) -> dict[str, dict[str, Any]]:
+    """Index the artifact's immutable anchor payloads, failing closed on drift."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for anchor in artifact.get("anchors") or []:
+        if not isinstance(anchor, dict):
+            raise PersistenceError(f"chapter {chapter_id!r} anchor must be a JSON object")
+        anchor_id = anchor.get("anchor_id")
+        if not isinstance(anchor_id, str) or not anchor_id:
+            raise PersistenceError(f"chapter {chapter_id!r} anchor requires an anchor_id")
+        other = by_id.get(anchor_id)
+        if other is not None and (
+            other.get("start") != anchor.get("start")
+            or other.get("end") != anchor.get("end")
+            or other.get("quote_sha256") != anchor.get("quote_sha256")
+        ):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} anchor {anchor_id!r} resolves to different "
+                "content (fail closed)"
+            )
+        by_id[anchor_id] = anchor
+    return by_id
+
+
+def _expected_phase_ids(kind: str, item: dict[str, Any]) -> list[str]:
+    if kind == "phase":
+        return sorted({item["phase_id"]})
+    if kind == "phase_order":
+        return sorted({item["earlier_phase_ref"], item["later_phase_ref"]})
+    if kind == "unit_phase":
+        return sorted({ref for ref in item.get("phase_refs") or [] if isinstance(ref, str)})
+    if kind == "fact":
+        return sorted({item["phase_ref"]})
+    if kind == "continuity":
+        return sorted(
+            ref
+            for ref in (item.get("start_phase_ref"), item.get("end_phase_ref"))
+            if isinstance(ref, str)
+        )
+    if kind == "disagreement":
+        return sorted({ref for ref in item.get("phase_refs") or [] if isinstance(ref, str)})
+    return []
+
+
+def _expected_source_fact_refs(kind: str, item: dict[str, Any]) -> list[str]:
+    if kind == "fact":
+        return [item["fact_id"]]
+    if kind == "continuity":
+        return [item["fact_ref"]] if isinstance(item.get("fact_ref"), str) else []
+    if kind == "disagreement":
+        return [ref for ref in item.get("fact_refs") or [] if isinstance(ref, str)]
+    return []
+
+
+def _validate_candidate_metadata(
+    artifact: dict[str, Any],
+    person_states: dict[str, Any],
+    chapter_id: str,
+    anchor_by_id: dict[str, dict[str, Any]],
+) -> dict[tuple[str, str], dict[str, Any]]:
+    """Require exactly one valid candidate entry for every state item.
+
+    T01 generates ``person_state_candidates`` and now binds them into the
+    accepted artifact hash; assembly re-checks the coverage and integrity so a
+    forged, truncated or edited list (missing, extra, duplicate or
+    inconsistent entry, unknown kind/anchor, wrong key or refs) rejects the
+    whole assembly instead of silently yielding empty anchor ids.
+    """
+    candidates = artifact.get("person_state_candidates")
+    if not isinstance(candidates, list):
+        raise PersistenceError(
+            f"chapter {chapter_id!r} 0.3 artifact is missing its person_state_candidates keys"
+        )
+    expected: dict[tuple[str, str], dict[str, Any]] = {}
+    for kind, (collection, id_field) in _KIND_COLLECTION.items():
+        for item in person_states[collection]:
+            item_ref = item.get(id_field)
+            if isinstance(item_ref, str) and item_ref:
+                expected[(kind, item_ref)] = item
+    seen: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} person_state_candidates entries must be objects"
+            )
+        kind = entry.get("kind")
+        if kind not in _KIND_COLLECTION:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate has unknown kind {kind!r}"
+            )
+        item_ref = entry.get("item_ref")
+        if not isinstance(item_ref, str) or not item_ref:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind!r} requires an item_ref"
+            )
+        key = (kind, item_ref)
+        if key in seen:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} repeats candidate {kind}:{item_ref} (fail closed)"
+            )
+        item = expected.get(key)
+        if item is None:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} has no matching "
+                "state item (extra candidate, fail closed)"
+            )
+        seen[key] = entry
+        anchor_ids = entry.get("anchor_ids")
+        if not isinstance(anchor_ids, list) or any(
+            not isinstance(anchor_id, str) for anchor_id in anchor_ids
+        ):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} anchor_ids must be strings"
+            )
+        if len(set(anchor_ids)) != len(anchor_ids):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} repeats an anchor id"
+            )
+        for anchor_id in anchor_ids:
+            if anchor_id not in anchor_by_id:
+                raise PersistenceError(
+                    f"chapter {chapter_id!r} candidate {kind}:{item_ref} cites anchor "
+                    f"{anchor_id!r} with no immutable payload (fail closed)"
+                )
+        if kind in _ANCHOR_REQUIRED_KINDS and not anchor_ids:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} is missing anchors"
+            )
+        expected_key = _contract.candidate_key_for(
+            kind=kind, chapter_id=chapter_id, item_ref=item_ref,
+            anchor_ids=list(anchor_ids),
+        )
+        if entry.get("candidate_key") != expected_key:
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} key does not match "
+                "its resolved anchors (inconsistent metadata, fail closed)"
+            )
+        phase_ids = entry.get("phase_ids")
+        if not isinstance(phase_ids, list) or any(
+            not isinstance(phase_id, str) for phase_id in phase_ids
+        ):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} phase_ids must be strings"
+            )
+        if sorted(set(phase_ids)) != _expected_phase_ids(kind, item):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} phase_ids do not match "
+                "the state item (inconsistent metadata, fail closed)"
+            )
+        source_fact_refs = entry.get("source_fact_refs")
+        if not isinstance(source_fact_refs, list) or any(
+            not isinstance(ref, str) for ref in source_fact_refs
+        ):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} source_fact_refs must be strings"
+            )
+        if list(source_fact_refs) != _expected_source_fact_refs(kind, item):
+            raise PersistenceError(
+                f"chapter {chapter_id!r} candidate {kind}:{item_ref} source_fact_refs do not "
+                "match the state item (inconsistent metadata, fail closed)"
+            )
+    missing = sorted(set(expected) - set(seen))
+    if missing:
+        raise PersistenceError(
+            f"chapter {chapter_id!r} is missing person-state candidate metadata for {missing}; "
+            "refusing to assemble state evidence without candidate coverage"
+        )
+    return seen
 
 
 def _require_artifact_person_states(artifact: dict[str, Any]) -> dict[str, Any]:
@@ -222,6 +405,7 @@ def assemble_person_state_evidence(
     maps_by_chapter: dict[str, dict[str, dict[str, str]]] = {}
     owner_by_revision_id: dict[str, tuple[int, str, str]] = {}
     anchors_by_item: dict[str, dict[tuple[str, str], list[str]]] = {}
+    anchor_records_by_item: dict[str, dict[tuple[str, str], list[dict[str, Any]]]] = {}
     local_to_revision: dict[str, str] = {}
 
     for chapter_index, chapter_id, artifact, person_states in ordered:
@@ -229,7 +413,18 @@ def assemble_person_state_evidence(
             name: {} for name, *_ in _ID_COLLECTIONS
         }
         chapter_maps["unit_phases"] = {}
-        anchors_by_item[chapter_id] = _anchor_ids_by_item(artifact)
+        anchor_by_id = _anchors_by_id(artifact, chapter_id)
+        candidate_entries = _validate_candidate_metadata(
+            artifact, person_states, chapter_id, anchor_by_id
+        )
+        anchors_by_item[chapter_id] = {
+            key: list(entry.get("anchor_ids") or [])
+            for key, entry in candidate_entries.items()
+        }
+        anchor_records_by_item[chapter_id] = {
+            key: [anchor_by_id[anchor_id] for anchor_id in entry.get("anchor_ids") or []]
+            for key, entry in candidate_entries.items()
+        }
         for name, id_field, prefix, _kind in _ID_COLLECTIONS:
             for position, record in enumerate(person_states[name]):
                 if not isinstance(record, dict):
@@ -280,6 +475,7 @@ def assemble_person_state_evidence(
         continuity_map = chapter_maps["continuities"]
         disagreement_map = chapter_maps["disagreements"]
         chapter_anchors = anchors_by_item[chapter_id]
+        chapter_anchor_records = anchor_records_by_item[chapter_id]
         origin_revision_id = artifact.get("revision_id")
         artifact_sha256 = artifact.get("artifact_sha256")
         manifest_items: list[dict[str, Any]] = []
@@ -292,6 +488,7 @@ def assemble_person_state_evidence(
                 "origin_ref": local,
                 "artifact_sha256": artifact_sha256,
                 "anchor_ids": list(chapter_anchors.get((kind, local), [])),
+                "anchors": copy.deepcopy(chapter_anchor_records.get((kind, local), [])),
             }
 
         # phases ---------------------------------------------------------
@@ -320,7 +517,7 @@ def assemble_person_state_evidence(
                     "origin": _origin("phase", local),
                 }
             )
-            manifest_items.append(_manifest_item("phase", local, revision_ref, chapter_anchors))
+            manifest_items.append(_manifest_item("phase", local, revision_ref, chapter_anchor_records))
 
         # phase orders ---------------------------------------------------
         for position, record in enumerate(person_states["phase_orders"]):
@@ -347,7 +544,7 @@ def assemble_person_state_evidence(
                 }
             )
             manifest_items.append(
-                _manifest_item("phase_order", local, revision_ref, chapter_anchors)
+                _manifest_item("phase_order", local, revision_ref, chapter_anchor_records)
             )
 
         # unit phases (block-bound, never re-sorted) ---------------------
@@ -376,7 +573,7 @@ def assemble_person_state_evidence(
                 }
             )
             manifest_items.append(
-                _manifest_item("unit_phase", local_block, revision_block, chapter_anchors)
+                _manifest_item("unit_phase", local_block, revision_block, chapter_anchor_records)
             )
 
         # facts ----------------------------------------------------------
@@ -443,7 +640,7 @@ def assemble_person_state_evidence(
                     "origin": _origin("fact", local),
                 }
             )
-            manifest_items.append(_manifest_item("fact", local, revision_ref, chapter_anchors))
+            manifest_items.append(_manifest_item("fact", local, revision_ref, chapter_anchor_records))
 
         # continuities ---------------------------------------------------
         for position, record in enumerate(person_states["continuities"]):
@@ -477,7 +674,7 @@ def assemble_person_state_evidence(
                 }
             )
             manifest_items.append(
-                _manifest_item("continuity", local, revision_ref, chapter_anchors)
+                _manifest_item("continuity", local, revision_ref, chapter_anchor_records)
             )
 
         # disagreements --------------------------------------------------
@@ -506,7 +703,7 @@ def assemble_person_state_evidence(
                 }
             )
             manifest_items.append(
-                _manifest_item("disagreement", local, revision_ref, chapter_anchors)
+                _manifest_item("disagreement", local, revision_ref, chapter_anchor_records)
             )
 
         manifest_items.sort(key=lambda item: (item["kind"], item["revision_ref"]))
@@ -559,37 +756,19 @@ def assemble_person_state_evidence(
 
 
 def _manifest_item(
-    kind: str, local: str, revision_ref: str, chapter_anchors: dict[tuple[str, str], list[str]]
+    kind: str,
+    local: str,
+    revision_ref: str,
+    chapter_anchor_records: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> dict[str, Any]:
+    records = list(chapter_anchor_records.get((kind, local), []))
     return {
         "kind": kind,
         "origin_ref": local,
         "revision_ref": revision_ref,
-        "anchor_ids": list(chapter_anchors.get((kind, local), [])),
+        "anchor_ids": [record["anchor_id"] for record in records],
+        "anchors": copy.deepcopy(records),
     }
-
-
-def _anchor_ids_by_item(artifact: dict[str, Any]) -> dict[tuple[str, str], list[str]]:
-    """Map ``(kind, item_ref) -> anchor_ids`` from the accepted candidate keys.
-
-    T01 resolves each person-state item's anchors from the item's own
-    ``source_selections``; those anchors are the canonical evidence for the
-    item and are preserved verbatim here. They are intentionally *not*
-    required to be a subset of the artifact's 0.1 anchor set (which is
-    collected from the non-state bundle/translation subset), so assembly
-    keeps the resolved ids without re-resolving or dropping them.
-    """
-    by_item: dict[tuple[str, str], list[str]] = {}
-    for entry in artifact.get("person_state_candidates") or []:
-        if not isinstance(entry, dict):
-            continue
-        kind = entry.get("kind")
-        item_ref = entry.get("item_ref")
-        if not isinstance(kind, str) or not isinstance(item_ref, str):
-            continue
-        resolved = [anchor_id for anchor_id in entry.get("anchor_ids") or [] if isinstance(anchor_id, str)]
-        by_item[(kind, item_ref)] = resolved
-    return by_item
 
 
 def _verify_closed_references(assembled: dict[str, list[dict[str, Any]]]) -> None:

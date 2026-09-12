@@ -1440,14 +1440,12 @@ def _validate_accepted_chapter_artifact(
             raise PersistenceError(
                 f"{owner} {version} artifact is missing artifact_sha256"
             )
-        # The accepted artifact hash binds the artifact *core*. The 0.2
-        # contract excludes ``reading_units``; the 0.3 contract additionally
-        # excludes the program-computed ``person_state_candidates`` keys, so
-        # recomputing a whole-artifact hash would silently disagree with the
-        # artifact T01 accepted.
+        # The accepted artifact hash binds the artifact *core*. ``reading_units``
+        # is excluded because its unit IDs are derived from ``artifact_sha256``;
+        # the program-computed ``person_state_candidates`` keys do not depend on
+        # that hash, so they stay inside the core and are hash-bound (C2-R3-T03
+        # review: a truncated/edited candidate list must not survive).
         excluded = {"artifact_sha256", "reading_units"}
-        if version == CHAPTER_PERSON_STATE_ARTIFACT_VERSION:
-            excluded.add("person_state_candidates")
         core = {key: value for key, value in artifact.items() if key not in excluded}
         if sha256_json(core) != accepted_sha:
             raise PersistenceError(

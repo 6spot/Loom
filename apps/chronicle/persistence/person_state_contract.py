@@ -879,16 +879,28 @@ def flatten_person_state_errors(report: dict[str, Any]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _resolve_item_anchors(
+#: Person-state collections that carry review candidates and anchors.
+#: ``(kind, collection, id field, phase-reference fields)``.
+_PERSON_STATE_CANDIDATE_GROUPS = (
+    ("phase", "phases", "phase_id", ("phase_id",)),
+    ("phase_order", "phase_orders", "assertion_id", ("earlier_phase_ref", "later_phase_ref")),
+    ("unit_phase", "unit_phases", "block_id", ("phase_refs",)),
+    ("fact", "facts", "fact_id", ("phase_ref",)),
+    ("continuity", "continuities", "assertion_id", ("start_phase_ref", "end_phase_ref")),
+    ("disagreement", "disagreements", "assertion_id", ("phase_refs",)),
+)
+
+
+def _resolve_item_anchor_records(
     item: dict[str, Any],
     request: dict[str, Any],
     request_blocks: dict[str, dict[str, Any]],
     owner: str,
-) -> list[str]:
-    anchor_ids: list[str] = []
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
     selections = item.get("source_selections")
     if not isinstance(selections, list):
-        return anchor_ids
+        return records
     for position, selection in enumerate(selections, 1):
         anchor, error = _chapter.resolve_selection(
             selection,
@@ -898,8 +910,80 @@ def _resolve_item_anchors(
         )
         if error or anchor is None:
             raise PersistenceError(f"cannot resolve person-state anchor: {error}")
-        anchor_ids.append(anchor["anchor_id"])
-    return anchor_ids
+        records.append(anchor)
+    return records
+
+
+def _resolve_item_anchors(
+    item: dict[str, Any],
+    request: dict[str, Any],
+    request_blocks: dict[str, dict[str, Any]],
+    owner: str,
+) -> list[str]:
+    return [
+        anchor["anchor_id"]
+        for anchor in _resolve_item_anchor_records(item, request, request_blocks, owner)
+    ]
+
+
+def collect_person_state_anchors(
+    candidate: dict[str, Any], request: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Resolve every person-state selection into its immutable anchor record.
+
+    The accepted artifact must carry the *payload* of every anchor its
+    ``person_state_candidates`` cite, not just the anchor id: the source
+    reader resolves a citation through this immutable anchor set. Returns a
+    deterministic, deduplicated, sorted list.
+    """
+    request_blocks = _chapter._require_request(request)
+    person_states = (
+        candidate.get("person_states")
+        if isinstance(candidate.get("person_states"), dict)
+        else {}
+    )
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for _kind, key, _id_field, _phase_fields in _PERSON_STATE_CANDIDATE_GROUPS:
+        for index, item in enumerate(person_states.get(key) or []):
+            if not isinstance(item, dict):
+                continue
+            owner = f"person_states.{key}[{index}]"
+            for anchor in _resolve_item_anchor_records(
+                item, request, request_blocks, owner
+            ):
+                anchor_id = anchor["anchor_id"]
+                if anchor_id in seen:
+                    continue
+                seen.add(anchor_id)
+                records.append(anchor)
+    records.sort(key=lambda anchor: (anchor["start"], anchor["end"], anchor["anchor_id"]))
+    return records
+
+
+def _merge_anchor_records(
+    base: list[dict[str, Any]], extra: list[dict[str, Any]], owner: str
+) -> list[dict[str, Any]]:
+    """Union anchor payload lists by id, failing closed on id/content drift."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for anchor in [*base, *extra]:
+        anchor_id = anchor["anchor_id"]
+        other = by_id.get(anchor_id)
+        if other is not None:
+            if (
+                other["start"] != anchor["start"]
+                or other["end"] != anchor["end"]
+                or other["quote_sha256"] != anchor["quote_sha256"]
+            ):
+                raise PersistenceError(
+                    f"{owner} anchor id {anchor_id!r} resolves to different content; "
+                    "refusing to accept"
+                )
+            continue
+        by_id[anchor_id] = anchor
+    return sorted(
+        by_id.values(), key=lambda anchor: (anchor["start"], anchor["end"], anchor["anchor_id"])
+    )
 
 
 def build_person_state_candidates(
@@ -910,15 +994,7 @@ def build_person_state_candidates(
     person_states = candidate.get("person_states") if isinstance(candidate.get("person_states"), dict) else {}
     chapter_id = request["chapter_id"]
     candidates: list[dict[str, Any]] = []
-    groups = (
-        ("phase", "phases", "phase_id", ("phase_id",)),
-        ("phase_order", "phase_orders", "assertion_id", ("earlier_phase_ref", "later_phase_ref")),
-        ("unit_phase", "unit_phases", "block_id", ("phase_refs",)),
-        ("fact", "facts", "fact_id", ("phase_ref",)),
-        ("continuity", "continuities", "assertion_id", ("start_phase_ref", "end_phase_ref")),
-        ("disagreement", "disagreements", "assertion_id", ("phase_refs",)),
-    )
-    for kind, key, id_field, phase_fields in groups:
+    for kind, key, id_field, phase_fields in _PERSON_STATE_CANDIDATE_GROUPS:
         for index, item in enumerate(person_states.get(key) or []):
             if not isinstance(item, dict):
                 continue
@@ -996,7 +1072,15 @@ def accept_person_state_candidate(
     subset_v01.pop("person_states", None)
     subset_v01.pop("reading", None)
     subset_v01["version"] = "0.1"
-    anchors = _chapter.collect_anchors(request, subset_v01)
+    # The 0.1 subset only anchors mentions/record_sources/translation. The
+    # person-state selections cite their own anchors, so their payloads must be
+    # unioned in; otherwise the accepted artifact advertises anchor ids the
+    # immutable source reader cannot resolve (C2-R3-T03 review).
+    anchors = _merge_anchor_records(
+        _chapter.collect_anchors(request, subset_v01),
+        collect_person_state_anchors(candidate, request),
+        "person-state acceptance",
+    )
 
     candidate_copy = copy.deepcopy(candidate)
     candidate_sha256 = sha256_json(candidate_copy)
@@ -1004,6 +1088,10 @@ def accept_person_state_candidate(
     reading_sha256 = sha256_json(reading)
     person_states = copy.deepcopy(candidate_copy.get("person_states"))
     person_states_sha256 = sha256_json(person_states)
+    # The candidate metadata is generated here and bound into artifact_sha256
+    # (unlike the reading units, its keys do not depend on the artifact hash),
+    # so a truncated/edited candidate list can never survive as accepted.
+    person_state_candidates = build_person_state_candidates(candidate_copy, request)
     core: dict[str, Any] = {
         "schema": ARTIFACT_SCHEMA,
         "version": ARTIFACT_VERSION,
@@ -1021,7 +1109,7 @@ def accept_person_state_candidate(
         "person_states": person_states,
         "person_states_sha256": person_states_sha256,
     }
-    artifact_sha256 = sha256_json(core)
+    artifact_sha256 = sha256_json({**core, "person_state_candidates": person_state_candidates})
     subset_v02 = copy.deepcopy(candidate)
     subset_v02.pop("person_states", None)
     subset_v02["version"] = "0.2"
@@ -1029,9 +1117,7 @@ def accept_person_state_candidate(
     artifact = dict(core)
     artifact["artifact_sha256"] = artifact_sha256
     artifact["reading_units"] = reading_units
-    artifact["person_state_candidates"] = build_person_state_candidates(
-        candidate_copy, request
-    )
+    artifact["person_state_candidates"] = person_state_candidates
     return artifact
 
 
@@ -2016,6 +2102,7 @@ __all__ = [
     "build_person_state_candidates",
     "candidate_key_for",
     "candidate_v03_schema",
+    "collect_person_state_anchors",
     "compile_person_state_disagreements",
     "compile_person_state_projection",
     "disagreement_id_for",

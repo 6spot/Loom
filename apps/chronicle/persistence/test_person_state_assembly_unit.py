@@ -26,6 +26,7 @@ if str(HERE) not in sys.path:
 
 import assembly as A  # noqa: E402
 import person_state_assembly as PSA  # noqa: E402
+import person_state_contract as PSC  # noqa: E402
 from common import PersistenceError, sha256_json  # noqa: E402
 
 REVISION = "rev-r3-t03"
@@ -141,7 +142,12 @@ def _person_states(anchor_counter: int) -> tuple[dict, list[dict], list[dict], i
         anchors.append(_anchor(PERSON_CHAPTER, anchor_ids[0]))
         candidates.append(
             {
-                "candidate_key": "psc_" + ("0" * 24),
+                "candidate_key": PSC.candidate_key_for(
+                    kind=kind,
+                    chapter_id=PERSON_CHAPTER,
+                    item_ref=item_ref,
+                    anchor_ids=anchor_ids,
+                ),
                 "kind": kind,
                 "item_ref": item_ref,
                 "phase_ids": list(phase_ids),
@@ -301,13 +307,13 @@ def _artifact(
         "reading_sha256": sha256_json(reading),
         "person_states": person_states,
         "person_states_sha256": sha256_json(person_states),
+        "person_state_candidates": candidates,
     }
     artifact = dict(core)
     artifact["artifact_sha256"] = sha256_json(core)
     artifact["reading_units"] = [
         _reading_unit("t_001", f"{entity_name}受任。", "ent_001")
     ]
-    artifact["person_state_candidates"] = candidates
     return artifact
 
 
@@ -574,19 +580,96 @@ class PersonStateAssemblyFailureTests(unittest.TestCase):
                 accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
             )
 
+    def test_missing_candidate_metadata_fails_closed(self) -> None:
+        # Reviewer regression: dropping a generated candidate entry must not
+        # assemble state items with empty anchor ids.
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"].pop()
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
+    def test_extra_candidate_metadata_fails_closed(self) -> None:
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"].append(
+            {
+                "candidate_key": "psc_" + "0" * 24,
+                "kind": "fact",
+                "item_ref": "pf_999",
+                "phase_ids": ["ph_001"],
+                "anchor_ids": [bad["anchors"][0]["anchor_id"]],
+                "source_fact_refs": ["pf_999"],
+            }
+        )
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
+    def test_duplicate_candidate_metadata_fails_closed(self) -> None:
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"].append(
+            copy.deepcopy(bad["person_state_candidates"][0])
+        )
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
+    def test_candidate_key_mismatch_fails_closed(self) -> None:
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"][0]["candidate_key"] = "psc_" + "0" * 24
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
+    def test_candidate_phase_ids_mismatch_fails_closed(self) -> None:
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"][0]["phase_ids"] = ["ph_999"]
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
+    def test_candidate_anchor_without_payload_fails_closed(self) -> None:
+        first, _, _ = _two_chapters()
+        bad = copy.deepcopy(first)
+        bad["person_state_candidates"][0]["anchor_ids"] = ["anc_" + "f" * 16]
+        _refresh_core(bad)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[bad], chapter_plan=_plan([bad["chapter_id"]])
+            )
+
 
 def _refresh_core(artifact: dict) -> None:
-    """Recompute the 0.3 artifact core hash after a state mutation."""
-    excluded = {"artifact_sha256", "reading_units", "person_state_candidates"}
+    """Recompute the 0.3 artifact core hash after a metadata/state mutation.
+
+    ``person_state_candidates`` is part of the core (bound as of the T03
+    review fix), so a mutation to it is reflected in the recomputed hash.
+    """
+    excluded = {"artifact_sha256", "reading_units"}
     core = {key: value for key, value in artifact.items() if key not in excluded}
     artifact["artifact_sha256"] = sha256_json(core)
 
 
 class PersonStateAnchorPreservationTests(unittest.TestCase):
     def test_cited_anchors_are_preserved_verbatim(self) -> None:
-        # T01 resolves a person-state item's anchors from its own
-        # source_selections, which need not be a subset of the artifact's
-        # 0.1 anchor list; assembly preserves the cited ids.
+        # T01 resolves each person-state item's anchors from its own
+        # source_selections and now carries their payloads in the accepted
+        # artifact; assembly preserves both the ids and the records.
         first, _, _ = _two_chapters()
         cited = first["person_state_candidates"][0]["anchor_ids"]
         result = A.assemble_chapters(
@@ -597,6 +680,10 @@ class PersonStateAnchorPreservationTests(unittest.TestCase):
             entry for entry in manifest["items"] if entry["kind"] == "phase"
         )
         self.assertEqual(cited, item["anchor_ids"])
+        self.assertEqual(cited, [record["anchor_id"] for record in item["anchors"]])
+        for record in item["anchors"]:
+            self.assertTrue(record["quote"])
+            self.assertLess(record["start"], record["end"])
 
 
 FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r3-contract"
@@ -673,6 +760,95 @@ class RealFixtureAssemblyTests(unittest.TestCase):
             sha256_json(one["person_state_evidence"]),
             sha256_json(two["person_state_evidence"]),
         )
+
+    def test_every_state_anchor_resolves_to_an_immutable_payload(self) -> None:
+        # End-to-end regression (T03 review): every anchor id a
+        # person-state candidate cites must resolve to a hash-bound anchor
+        # payload carried by the assembled artifact, not just a bare id.
+        artifact = json.loads(
+            (FIXTURES / "artifact-accepted.json").read_text(encoding="utf-8")
+        )
+        result = A.assemble_chapters(
+            accepted_artifacts=[artifact], chapter_plan=self._fixture_plan(artifact)
+        )
+        payloads = {
+            anchor["anchor_id"]: anchor
+            for anchor in result["anchors"]
+            if isinstance(anchor, dict) and isinstance(anchor.get("anchor_id"), str)
+        }
+        cited: set[str] = set()
+        for entry in artifact["person_state_candidates"]:
+            cited.update(entry["anchor_ids"])
+        self.assertTrue(cited)
+        self.assertEqual(set(), cited - set(payloads))
+        for manifest in result["person_state_evidence"]:
+            for item in manifest["items"]:
+                self.assertEqual(
+                    item["anchor_ids"],
+                    [record["anchor_id"] for record in item["anchors"]],
+                )
+                for record in item["anchors"]:
+                    payload = payloads[record["anchor_id"]]
+                    self.assertEqual(record, payload)
+                    self.assertTrue(record["quote"])
+                    self.assertLess(record["start"], record["end"])
+        fact = next(
+            record
+            for record in result["person_states"]["facts"]
+            if record["origin"]["anchors"]
+        )
+        for record in fact["origin"]["anchors"]:
+            self.assertIn(record["anchor_id"], fact["origin"]["anchor_ids"])
+            self.assertEqual(record, payloads[record["anchor_id"]])
+        # A genuinely empty candidate metadata list cannot assemble.
+        forged = copy.deepcopy(artifact)
+        forged["person_state_candidates"] = []
+        _refresh_core(forged)
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[forged], chapter_plan=self._fixture_plan(forged)
+            )
+
+
+class AcceptanceBindingTests(unittest.TestCase):
+    """Regression for the T03-review acceptance fixes that T03 depends on."""
+
+    def _accepted(self) -> dict:
+        request = json.loads(
+            (FIXTURES / "request.json").read_text(encoding="utf-8")
+        )
+        candidate = json.loads(
+            (FIXTURES / "candidate-valid.json").read_text(encoding="utf-8")
+        )
+        return PSC.accept_person_state_candidate(
+            request,
+            candidate,
+            producing_run={
+                "run_id": "r3-regression",
+                "model": "unit-test",
+                "prompt_schema_version": "0.3",
+            },
+        )
+
+    def test_accepted_artifact_carries_every_state_anchor_payload(self) -> None:
+        artifact = self._accepted()
+        payloads = {anchor["anchor_id"] for anchor in artifact["anchors"]}
+        cited: set[str] = set()
+        for entry in artifact["person_state_candidates"]:
+            cited.update(entry["anchor_ids"])
+        self.assertTrue(cited)
+        self.assertEqual(set(), cited - payloads)
+
+    def test_candidate_metadata_is_hash_bound_by_acceptance(self) -> None:
+        artifact = self._accepted()
+        tampered = copy.deepcopy(artifact)
+        tampered["person_state_candidates"] = tampered["person_state_candidates"][:-1]
+        core = {
+            key: value
+            for key, value in tampered.items()
+            if key not in ("artifact_sha256", "reading_units")
+        }
+        self.assertNotEqual(artifact["artifact_sha256"], sha256_json(core))
 
 
 class PersonStateHelperTests(unittest.TestCase):

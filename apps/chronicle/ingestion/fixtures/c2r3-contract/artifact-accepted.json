@@ -886,6 +886,62 @@
       "end": 6
     },
     {
+      "anchor_id": "anc_702b57668f66826b",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "策授瑜建威中郎將",
+      "quote_sha256": "33906a4d9bd715bde5b270f68530cd30a8969504ad5c37b7ed7de3b32f3324ba",
+      "occurrence": 1,
+      "start": 5,
+      "end": 13
+    },
+    {
+      "anchor_id": "anc_f4c35a982e4c9fdd",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_002",
+      "quote": "策授瑜建威中郎將。瑜為前部大督",
+      "quote_sha256": "6a1837c261d352293508855d3c8080ca0b3c09b61904740ac616eec1166fb82a",
+      "occurrence": 1,
+      "start": 5,
+      "end": 20
+    },
+    {
+      "anchor_id": "anc_e38268ba5bb65151",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_002",
+      "quote": "策授瑜建威中郎將。瑜為前部大督，後拜偏將軍",
+      "quote_sha256": "03dab1afc689721f70a41f484cfc8901136f34b760d69b5a4f95be9036992ba0",
+      "occurrence": 1,
+      "start": 5,
+      "end": 26
+    },
+    {
+      "anchor_id": "anc_1b8b3c8cadf23007",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_001",
+      "last_block_id": "b_001",
+      "quote": "授瑜建威中郎將",
+      "quote_sha256": "5117177a16dcf335ccf19a7b6d701c19a5af6cd1ec9501b8d56e6ac0ea3c848b",
+      "occurrence": 1,
+      "start": 6,
+      "end": 13
+    },
+    {
       "anchor_id": "anc_223b6a5c8eee9155",
       "revision_id": "rev_c2r3_demo_001",
       "chapter_id": "ch_756922e9af0d759d29d7475f",
@@ -912,6 +968,20 @@
       "occurrence": 1,
       "start": 8,
       "end": 13
+    },
+    {
+      "anchor_id": "anc_939ce973841da6e3",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "瑜為前部大督",
+      "quote_sha256": "d2d2f497324dfee0637d95eb31b785a89e4ef6eb1df6a9ea7af6f85af0ba528e",
+      "occurrence": 1,
+      "start": 14,
+      "end": 20
     },
     {
       "anchor_id": "anc_3ec46ee628d38ac8",
@@ -942,6 +1012,48 @@
       "end": 20
     },
     {
+      "anchor_id": "anc_5f24038fb8e1df78",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "後拜偏將軍",
+      "quote_sha256": "72d13c208ad5ff7143eaacee449d17aaacec8396c4c322fe44f17396f3075310",
+      "occurrence": 1,
+      "start": 21,
+      "end": 26
+    },
+    {
+      "anchor_id": "anc_8fcc8ac30eaee62a",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "後拜偏將軍，領南郡太守",
+      "quote_sha256": "cf36aca60df9392e46cde61cd0faf261fed30f9724b76e7c3a5ea9bd73ef9c9a",
+      "occurrence": 1,
+      "start": 21,
+      "end": 32
+    },
+    {
+      "anchor_id": "anc_accdf70c74ce959c",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "拜",
+      "quote_sha256": "428cf29b5093d67db77002e6cd46374bc5f84859a5aa9737ebfd8d5568f61ee5",
+      "occurrence": 1,
+      "start": 22,
+      "end": 23
+    },
+    {
       "anchor_id": "anc_7f815d848ba2a38f",
       "revision_id": "rev_c2r3_demo_001",
       "chapter_id": "ch_756922e9af0d759d29d7475f",
@@ -954,6 +1066,20 @@
       "occurrence": 1,
       "start": 23,
       "end": 26
+    },
+    {
+      "anchor_id": "anc_4ab0694342a7b925",
+      "revision_id": "rev_c2r3_demo_001",
+      "chapter_id": "ch_756922e9af0d759d29d7475f",
+      "source_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "normalized_sha256": "21dcce90913aa4e00c239aca4ce1a35be0ff1e0488ca221b2d6acb73f86b70f9",
+      "first_block_id": "b_002",
+      "last_block_id": "b_002",
+      "quote": "領南郡太守",
+      "quote_sha256": "9275c6b92c18d1ccf6d2b527398b448a17228b2a75747336bbad5229f3da4bf6",
+      "occurrence": 1,
+      "start": 27,
+      "end": 32
     },
     {
       "anchor_id": "anc_375c7e8863c3d00b",
@@ -1379,14 +1505,14 @@
     "disagreements": []
   },
   "person_states_sha256": "a8f4ba14c29cf6599c59f5865832721bab9db4fe7d711f58cfcd8cbb8735536d",
-  "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+  "artifact_sha256": "810ddced317dd6542c94bf61fd0e65edadead106473074452881daed54aa9a94",
   "reading_units": [
     {
-      "unit_id": "ru_deb900fb556d7ee57dc34676",
+      "unit_id": "ru_348778330b5e449e9ca952b7",
       "ordinal": 0,
       "block_id": "t_001",
       "text_hash": "88e42da2070161b09c09da6a64611b3900701543de861eb3dbcd287118106cbf",
-      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "artifact_sha256": "810ddced317dd6542c94bf61fd0e65edadead106473074452881daed54aa9a94",
       "narrative_time": {
         "mode": "unknown",
         "event_refs": [],
@@ -1415,11 +1541,11 @@
       ]
     },
     {
-      "unit_id": "ru_d8bb87ee048a6a66d36f5240",
+      "unit_id": "ru_1a146f158b3d3aa520161a5b",
       "ordinal": 1,
       "block_id": "t_002",
       "text_hash": "5d1f2e5af879602b7a6b6d99e5e8818016a7aecb014752c17cc7eb2a3347e1a6",
-      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "artifact_sha256": "810ddced317dd6542c94bf61fd0e65edadead106473074452881daed54aa9a94",
       "narrative_time": {
         "mode": "unknown",
         "event_refs": [],
@@ -1448,11 +1574,11 @@
       ]
     },
     {
-      "unit_id": "ru_5ff55a446e330c405f713447",
+      "unit_id": "ru_5d00c052afbdecb197079718",
       "ordinal": 2,
       "block_id": "t_003",
       "text_hash": "2d884505edcc06ced2ecb88c50417216f9e49228b993fc9beebca57cf41e10f0",
-      "artifact_sha256": "15055ed1aeafbf9802960960a6686615e149c4303326c11e790eaf6bdd36f3ac",
+      "artifact_sha256": "810ddced317dd6542c94bf61fd0e65edadead106473074452881daed54aa9a94",
       "narrative_time": {
         "mode": "unknown",
         "event_refs": [],
