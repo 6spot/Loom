@@ -198,6 +198,19 @@ export function readingPersonStateEvidencePath(
 // Query keys: snapshot + person + section + cursor are the page identity
 // ---------------------------------------------------------------------------
 
+/**
+ * The catalog that actually reaches the request: an explicit query override
+ * wins over the locator's catalog_sha, exactly as the path builders resolve it.
+ * Both path and key must agree, otherwise two requests for different snapshots
+ * would share one cache key.
+ */
+function effectiveCatalog(
+  locator: PersonStateLocator,
+  catalog: string | null | undefined,
+): string {
+  return requireCatalog(catalog) ?? locator.catalog_sha;
+}
+
 export const personStateKeys = {
   people: (locator: PersonStateLocator, query: ReadingPeopleQuery = {}) => {
     const valid = requireLocator(locator);
@@ -206,7 +219,7 @@ export const personStateKeys = {
       "person-state",
       "people",
       valid.stream_id,
-      valid.catalog_sha,
+      effectiveCatalog(valid, query.catalog),
       valid.unit_id,
       requireLimit(query.limit, 6),
       query.cursor ?? null,
@@ -223,7 +236,7 @@ export const personStateKeys = {
       "person-state",
       "states",
       valid.stream_id,
-      valid.catalog_sha,
+      effectiveCatalog(valid, query.catalog),
       valid.unit_id,
       requirePersonId(personId),
       query.section ?? "identities",
@@ -243,7 +256,7 @@ export const personStateKeys = {
       "person-state",
       "evidence",
       valid.stream_id,
-      valid.catalog_sha,
+      effectiveCatalog(valid, query.catalog),
       valid.unit_id,
       requirePersonId(personId),
       requireItemId(query.itemId),

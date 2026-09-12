@@ -124,6 +124,30 @@ describe("person-state query keys isolate snapshot, person and section", () => {
     const evidenceB = personStateKeys.evidence(LOCATOR, PERSON_A, { itemId: ITEM_B });
     expect(evidenceA).not.toEqual(evidenceB);
   });
+
+  it("uses the effective query catalog in every key so two snapshots never collide", () => {
+    // The path builders honor an explicit query catalog over the locator's
+    // catalog_sha, so the key must follow that same effective catalog.
+    expect(readingPeoplePath(LOCATOR, { catalog: CATALOG_B })).toContain(`catalog=${CATALOG_B}`);
+
+    const peopleOverride = personStateKeys.people(LOCATOR, { catalog: CATALOG_B });
+    expect(peopleOverride).toContain(CATALOG_B);
+    expect(peopleOverride).not.toEqual(personStateKeys.people(LOCATOR));
+
+    const statesOverride = personStateKeys.states(LOCATOR, PERSON_A, { catalog: CATALOG_B });
+    expect(statesOverride).toContain(CATALOG_B);
+
+    const evidenceOverride = personStateKeys.evidence(LOCATOR, PERSON_A, {
+      catalog: CATALOG_B,
+      itemId: ITEM_A,
+    });
+    expect(evidenceOverride).toContain(CATALOG_B);
+    // A different explicit catalog is still isolated from both the locator
+    // catalog and any sibling override.
+    expect(evidenceOverride).not.toEqual(
+      personStateKeys.evidence(LOCATOR, PERSON_A, { itemId: ITEM_A }),
+    );
+  });
 });
 
 describe("person-state client fetch discipline", () => {
