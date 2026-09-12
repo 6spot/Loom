@@ -29,7 +29,27 @@ Run the checks specified in the linked Issue and the current [delivery guide](..
 
 ## Live acceptance status
 
-Latest generation-only regression (2026-09-12): [run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v5.json),
+Latest same-model generation regression (2026-09-12): [run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v6.json),
+[complete request and both responses](../../../../apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v6.json),
+and [independent full-chapter review](../../../../apps/chronicle/corpus/second-round/acceptance/reading-review-20260912-v6.md).
+
+- `07c6c40`, prompt v6, real `gpt-5.6-luna`, the same complete 0.2 request.
+  Two semantic calls / two HTTP attempts; 128,583 provider-reported tokens,
+  no billed cost reported. Initial bundle was empty; the only correction
+  returned 10 entities / 6 events / 2 claims but still failed three source
+  reference checks. The joint candidate was rejected; history replays.
+- All 41 translated blocks and 13,728 characters were preserved in correction.
+  Independent review of every source/translation block still **FAILS**:
+  reversed actors and kinship, missing complete annotations and arguments,
+  wrong event place/season, and lost reading associations. Some v5 mistakes
+  improved; others remained or regressed. One sample does not establish a
+  general model or prompt quality claim.
+- No database writes, human publication decisions or browser walkthrough.
+  #586 / #549 remain unaccepted; R3 must be assessed independently.
+
+### Previous generation-only regression (v5, preserved)
+
+[Run evidence](../../../../apps/chronicle/corpus/second-round/acceptance/run-live-r2-20260912-v5.json),
 [complete request and both responses](../../../../apps/chronicle/corpus/second-round/acceptance/candidate-live-r2-20260912-v5.json),
 and [independent content review](../../../../apps/chronicle/corpus/second-round/acceptance/reading-review-20260912-v5.md).
 

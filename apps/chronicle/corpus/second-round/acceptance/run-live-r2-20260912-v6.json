@@ -1,0 +1,161 @@
+{
+  "evidence_type": "whole_chapter_generation_regression",
+  "evidence_version": 1,
+  "mode": "live",
+  "fixture_only": false,
+  "acceptance_claimed": false,
+  "candidate_commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+  "candidate_schema": "chronicle.chapter-candidate/0.2",
+  "prompt_version": "c2r2-chapter-prompt-v6",
+  "correction_policy_version": "c2-chapter-correction-v1",
+  "provider": {
+    "max_attempts": 1,
+    "max_output_tokens": 65536,
+    "max_response_bytes": 4194304,
+    "model": "gpt-5.6-luna",
+    "timeout_seconds": 1200.0,
+    "http_observations": [
+      {
+        "http_attempt": 1,
+        "status": "completed",
+        "usage": {
+          "input_tokens": 37726,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 17183,
+          "output_tokens_details": {
+            "reasoning_tokens": 480
+          },
+          "total_tokens": 54909
+        }
+      },
+      {
+        "http_attempt": 2,
+        "status": "completed",
+        "usage": {
+          "input_tokens": 53868,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 19806,
+          "output_tokens_details": {
+            "reasoning_tokens": 494
+          },
+          "total_tokens": 73674
+        }
+      }
+    ],
+    "total_usage": {
+      "input_tokens": 91594,
+      "output_tokens": 36989,
+      "total_tokens": 128583
+    },
+    "cost": null,
+    "cost_unavailable_reason": "Provider returned token usage but no billed cost; no price estimate is treated as a bill."
+  },
+  "scope": {
+    "entrypoints": [
+      "chapter_extraction.extract_chapter",
+      "model_provider.build_chapter_model"
+    ],
+    "input": "Same complete saved request as candidate-live-r2-20260912-v4.json",
+    "comparison": "Same model, source, candidate schema and correction policy as v5; prompt v6 adds whole-chapter semantic guidance. Timeout 1200 seconds and maximum 1 HTTP attempt alter transport limits only.",
+    "preflight": "Canonical live preflight READY, archived separately; configured 600-second timeout was overridden to 1200 seconds for this generation-only regression.",
+    "database_writes": false,
+    "review_decisions": 0,
+    "publications": 0,
+    "r3_validated": false,
+    "note": "Isolated generation regression only; no four-chapter Studio/upload/review/publication/browser acceptance."
+  },
+  "source": {
+    "title": "蜀書·先主傳",
+    "chapter_id": "ch_a1a57b31542a36d7339f016c",
+    "revision_id": "b7fbb75f-4289-4b23-b149-d3faa1017bff",
+    "source_sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+    "normalized_sha256": "322649ae127ec674c28cbbe7fe6b546ca59d565211f73f5a3c1e900dd7ecde1e",
+    "code_points": 12591,
+    "source_blocks": 86,
+    "required_blocks": 41
+  },
+  "calls": {
+    "semantic_calls": 2,
+    "http_attempts": 2,
+    "transport_retries": 0,
+    "correction_rounds": 1
+  },
+  "attempts": [
+    {
+      "kind": "initial",
+      "latency_ms": 324346,
+      "raw_sha256": "af09f314732800144f4d967c391c8bc1b985deadb0261e0df9559a4611ede237",
+      "prompt_sha256": "5808834e2650514aff7c84e4a4223710fdb3834d3b7bd1985a13f21cf0c5bd40",
+      "validation_errors": 1,
+      "translation_blocks": 41,
+      "translation_code_points": 13728,
+      "entities": 0,
+      "events": 0,
+      "claims": 0,
+      "reading_units": 41,
+      "event_spans": 0,
+      "context_entries": 0
+    },
+    {
+      "kind": "correction",
+      "latency_ms": 366547,
+      "raw_sha256": "7bc1d5342231b9b44efe4cc6cd24e1664c077bd1a165450a888fc9b70b36cfcf",
+      "prompt_sha256": "368d64328a0bcaeed79eeee83d62a1ac99fe29c4519e1dd973b4ae60b0bd13cc",
+      "validation_errors": 3,
+      "translation_blocks": 41,
+      "translation_code_points": 13728,
+      "entities": 10,
+      "events": 6,
+      "claims": 2,
+      "reading_units": 41,
+      "event_spans": 0,
+      "context_entries": 0
+    }
+  ],
+  "checks": {
+    "mechanical_accepted": false,
+    "error": {
+      "categories": {
+        "chapter": 3
+      },
+      "code": "validation_failed",
+      "message": "chapter extraction failed closed after 2 attempt(s): chapter: anchors: record_sources 'ent_002'[1] quote occurs 0 time(s) in ['b_009'..'b_009'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_011': re-point first/last_block_id to the enclosing block(s) and recount; chapter: anchors: record_sources 'ent_010'[1] quote occurs 0 time(s) in ['b_067'..'b_067'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_065': re-point first/last_block_id to the enclosing block(s) and recount; chapter: record_sources: clm_002 evidence text '先主复領益州牧，諸葛亮為股肱，法正為謀主，關羽、張飛、馬超為爪牙，許靖、麋竺、簡雍為賓友。' must equal first selection quote '先主复領益州牧'"
+    },
+    "correction_validation": {
+      "errors": [],
+      "mode": "preserve_translation",
+      "passed": true,
+      "policy_version": "c2-chapter-correction-v1"
+    },
+    "ordered_block_ids_and_text_unchanged": true,
+    "server_history_replay_mismatches": [],
+    "local_history_replay_mismatches": [],
+    "independent_content_review": "FAIL",
+    "content_review_file": "reading-review-20260912-v6.md",
+    "content_review_file_sha256": "b48612ae16c92211af97d98b50a384d46b6dca48d96f987833e380f14fe39af7",
+    "content_review_original_sha256": "90679bd03471dee2cfce770cdbf45198fe28260cc18084b02dfe289fc4d42a5c",
+    "local_history_replay_environment": {
+      "python": "/private/tmp/loom-chronicle-history-venv/bin/python3",
+      "version": "3.9.6",
+      "note": "Replayed with the configured Chronicle virtualenv including jsonschema and referencing. An earlier system-Python run lacked referencing; that was an environment error, not a persisted-history mismatch."
+    }
+  },
+  "evidence": {
+    "candidate_file": "candidate-live-r2-20260912-v6.json",
+    "candidate_file_sha256": "3aa9ffe4f7a68a1ae1cea223b050e779b193ee675d55f183c8bc5a11cd24e905",
+    "preflight_file": "preflight-live-r2-20260912-v6.json",
+    "preflight_file_sha256": "410735fc44b93a2f622f722251fdf682d825a66179aca660fbd364a98b08f7cf"
+  },
+  "not_verified": [
+    "Full four-chapter R2 live acceptance",
+    "Studio human review and publication of this candidate",
+    "Browser reading of this candidate",
+    "R3 0.3 person-state generation/assessment/projection/browser acceptance"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "candidate": {
+    "commit": "07c6c4044f2cfa2c4418df1b2d5e71c93772f47a",
+    "git_clean": true
+  },
+  "command": [
+    "/srv/Loom-chapter-semantics-07c6c40/apps/chronicle/acceptance/second_round_gate.py",
+    "--mode",
+    "live",
+    "--env-file",
+    "/srv/loom-data/chronicle-r2-acceptance-74d2f20/live.env",
+    "--source-pack",
+    "/srv/Loom-chapter-semantics-07c6c40/apps/chronicle/corpus/first-round/source-pack.json",
+    "--evidence-dir",
+    "/srv/loom-data/chronicle-chapter-semantics-07c6c40/preflight"
+  ],
+  "compose": {
+    "checked": true
+  },
+  "fixture_only": false,
+  "interactive_review": {
+    "auto_decisions": "refused",
+    "pause_required": true
+  },
+  "live_command": "python3 apps/chronicle/acceptance/second_round_gate.py --mode live --env-file /srv/loom-data/chronicle-r2-acceptance-74d2f20/live.env --source-pack /srv/Loom-chapter-semantics-07c6c40/apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /srv/loom-data/chronicle-chapter-semantics-07c6c40/preflight",
+  "mode": "live",
+  "no_direct_product_writes": {
+    "checked_tokens": 6,
+    "direct_product_writes": false
+  },
+  "provider": {
+    "api_key_present": true,
+    "chapter_model": "gpt-5.6-luna",
+    "endpoint": "https://cpa.zale.net/v1/responses",
+    "extraction_model": "gpt-5.6-luna",
+    "fixture_mode": false,
+    "presentation_model": "gpt-5.6-luna",
+    "timeout_seconds": "600"
+  },
+  "result": "READY",
+  "schema": "chronicle.second-round-gate-evidence",
+  "source": {
+    "manifest": "ingest-manifest.json",
+    "pack_id": "c2-r1-t02-first-round-v1",
+    "uploads": [
+      {
+        "bytes": 63266,
+        "chars": 21215,
+        "sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "upload": "ingest/sanguozhi-three-chapters.md"
+      },
+      {
+        "bytes": 31871,
+        "chars": 10715,
+        "sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
+        "upload": "ingest/zizhi-tongjian-065.md"
+      }
+    ]
+  },
+  "t17_handoff": {
+    "provider_calls_by_t16": 0,
+    "steps": [
+      "start an isolated Compose stack on a fresh CHRONICLE_DATA_DIR",
+      "upload the T02 sources through Studio and queue jobs",
+      "run the 0.2 reading chain with the live joint chapter model",
+      "resolve every blocking review interactively in Studio",
+      "run reading-flow-smoke.mjs against the running Rust/Python stack",
+      "record the T17 content acceptance; fixture PASS is not proof"
+    ]
+  },
+  "version": "0.2"
+}
