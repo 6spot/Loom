@@ -45,20 +45,21 @@ export interface AssessmentOverrideDraft {
 /**
  * Reviewer draft for one frozen chapter package. `defaultAssessment` is the
  * package-level choice ("批量确认"), `overrides` are the per-candidate_key
- * exceptions. Switching plan/item produces a fresh draft; a mismatched draft
- * is never merged.
+ * exceptions. `reviewed` records the candidates the reviewer explicitly
+ * assessed (via the bulk action or a per-item choice), so an untouched
+ * candidate stays "未审" and is never counted or submitted as supported.
+ * Switching plan/item produces a fresh draft; a mismatched draft is never
+ * merged.
  */
 export interface PersonStateReviewDraft {
   readonly planFingerprint: string;
-  /** Package-level value applied when `batchApplied` is true. */
+  /** Package-level value applied to batch-reviewed candidates. */
   readonly defaultAssessment: Assessment;
-  /**
-   * False until the reviewer performs a bulk action. While false each candidate
-   * keeps its own compiled `assessment_default`, so an un-reviewed package is
-   * never silently treated as "supported".
-   */
+  /** True once the reviewer confirmed the currently loaded candidates. */
   readonly batchApplied: boolean;
   readonly overrides: Readonly<Record<string, AssessmentOverrideDraft>>;
+  /** Explicitly reviewed candidate_keys; absent => 未审. */
+  readonly reviewed: Readonly<Record<string, true>>;
   readonly rationale: string;
 }
 
@@ -68,6 +69,7 @@ export function createDraft(review: ReviewPackage): PersonStateReviewDraft {
     defaultAssessment: review.default_assessment,
     batchApplied: false,
     overrides: {},
+    reviewed: {},
     rationale: "",
   };
 }
@@ -276,37 +278,70 @@ export function candidateFlow(candidate: ReviewCandidate): { before: string; aft
   return { before: "—", after: value };
 }
 
+/** Human-readable basis line for one candidate, no internal refs involved. */
+export interface ReadableBasisEntry {
+  readonly candidateKey: string;
+  readonly personName: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly quote: string;
+  readonly sourceLabel: string;
+  readonly attribution: string;
+}
+
+export function readableBasisEntry(candidate: ReviewCandidate): ReadableBasisEntry {
+  const flow = candidateFlow(candidate);
+  const personName = candidate.person_name ?? "未指定人物";
+  return {
+    candidateKey: candidate.candidate_key,
+    personName,
+    label: `${personName} · ${dimensionLabel(candidate.dimension)} · ${operationLabel(candidate.operation)}`,
+    detail:
+      `${flow.before} → ${flow.after}｜${predictedEffectLabel(candidate.predicted_effect)}` +
+      `｜来源：${candidate.source_label}（${attributionLabel(candidate.attribution)}）`,
+    quote: candidate.quote,
+    sourceLabel: candidate.source_label,
+    attribution: attributionLabel(candidate.attribution),
+  };
+}
+
 export interface SharedPhaseBasis {
   /** Stable 1-based display ordinal; raw refs stay in the audit detail. */
   readonly ordinal: number;
   readonly phaseRefs: readonly string[];
   readonly candidateKeys: readonly string[];
+  /** Contract-provided readable basis (person/change/effect/source/quote). */
+  readonly entries: readonly ReadableBasisEntry[];
 }
 
 /**
  * 每章包共用阶段依据单列: candidates that share the exact same phase_refs set
  * share one time basis. Order follows first appearance so the panel is stable.
+ * The main UI renders the readable `entries`; the raw `phaseRefs` are audit only.
  */
 export function sharedPhaseBasis(
   candidates: ReadonlyArray<ReviewCandidate>,
 ): SharedPhaseBasis[] {
-  const groups: Array<{ key: string; refs: string[]; candidateKeys: string[] }> = [];
+  const groups: Array<{ key: string; refs: string[]; candidateKeys: string[]; entries: ReadableBasisEntry[] }> = [];
   const byKey = new Map<string, number>();
   for (const candidate of candidates) {
     const refs = [...candidate.phase_refs].sort();
     const key = refs.join("|");
     const at = byKey.get(key);
+    const entry = readableBasisEntry(candidate);
     if (at === undefined) {
       byKey.set(key, groups.length);
-      groups.push({ key, refs, candidateKeys: [candidate.candidate_key] });
+      groups.push({ key, refs, candidateKeys: [candidate.candidate_key], entries: [entry] });
     } else {
       groups[at].candidateKeys.push(candidate.candidate_key);
+      groups[at].entries.push(entry);
     }
   }
   return groups.map((group, index) => ({
     ordinal: index + 1,
     phaseRefs: group.refs,
     candidateKeys: group.candidateKeys,
+    entries: group.entries,
   }));
 }
 
@@ -358,21 +393,33 @@ function legalAssessment(candidate: ReviewCandidate, value: Assessment): Assessm
   return candidate.allowed_assessments.includes(value) ? value : candidate.assessment_default;
 }
 
-/** Package default unless an exact candidate_key override exists. */
+/** 未审 until the reviewer picks an assessment or covers it with batch confirm. */
+export function isCandidateReviewed(
+  candidate: ReviewCandidate,
+  draft: PersonStateReviewDraft,
+): boolean {
+  return draft.reviewed[candidate.candidate_key] === true;
+}
+
+/**
+ * Effective assessment for a reviewed candidate; `null` while 未审. An
+ * un-reviewed candidate is never reported as supported.
+ */
 export function effectiveAssessment(
   candidate: ReviewCandidate,
   draft: PersonStateReviewDraft,
-): Assessment {
+): Assessment | null {
+  if (!isCandidateReviewed(candidate, draft)) return null;
   const override = draft.overrides[candidate.candidate_key];
   if (override) return legalAssessment(candidate, override.assessment);
-  if (draft.batchApplied) return legalAssessment(candidate, draft.defaultAssessment);
-  return legalAssessment(candidate, candidate.assessment_default);
+  return legalAssessment(candidate, draft.batchApplied ? draft.defaultAssessment : candidate.assessment_default);
 }
 
 export function isCandidateException(
   candidate: ReviewCandidate,
   draft: PersonStateReviewDraft,
 ): boolean {
+  if (!isCandidateReviewed(candidate, draft)) return false;
   const override = draft.overrides[candidate.candidate_key];
   if (override && override.rationale.trim().length > 0) return true;
   return effectiveAssessment(candidate, draft) !== "supported";
@@ -380,9 +427,13 @@ export function isCandidateException(
 
 export interface ReviewCoverage {
   readonly total: number;
+  /** Explicitly assessed candidates (batch-covered + per-item choices). */
+  readonly reviewed: number;
+  /** Untouched candidates; they are neither covered nor submitted. */
+  readonly unreviewed: number;
   readonly batchCovered: number;
   readonly exceptionCount: number;
-  /** Candidates carrying an explicit per-candidate_key override. */
+  /** Reviewed candidates carrying an explicit per-candidate_key override. */
   readonly explicitOverrideCount: number;
   /** Exceptions that still lack a rationale; the reviewer should add one. */
   readonly exceptionsMissingRationale: number;
@@ -392,13 +443,18 @@ export function reviewCoverage(
   candidates: ReadonlyArray<ReviewCandidate>,
   draft: PersonStateReviewDraft,
 ): ReviewCoverage {
+  let reviewed = 0;
   let batchCovered = 0;
+  let exceptionCount = 0;
   let explicitOverrideCount = 0;
   let exceptionsMissingRationale = 0;
   for (const candidate of candidates) {
+    if (!isCandidateReviewed(candidate, draft)) continue;
+    reviewed += 1;
     const override = draft.overrides[candidate.candidate_key];
     if (override) explicitOverrideCount += 1;
     if (isCandidateException(candidate, draft)) {
+      exceptionCount += 1;
       if (!override || override.rationale.trim().length === 0) exceptionsMissingRationale += 1;
     } else {
       batchCovered += 1;
@@ -406,30 +462,65 @@ export function reviewCoverage(
   }
   return {
     total: candidates.length,
+    reviewed,
+    unreviewed: candidates.length - reviewed,
     batchCovered,
-    exceptionCount: candidates.length - batchCovered,
+    exceptionCount,
     explicitOverrideCount,
     exceptionsMissingRationale,
   };
 }
 
 export function coverageSummary(coverage: ReviewCoverage): string {
-  return `批量覆盖 ${coverage.batchCovered} 项，逐项例外 ${coverage.exceptionCount} 项（共 ${coverage.total} 项）`;
+  return (
+    `已审 ${coverage.reviewed} 项（批量覆盖 ${coverage.batchCovered} 项，逐项例外 ${coverage.exceptionCount} 项）；` +
+    `未审 ${coverage.unreviewed} 项（共 ${coverage.total} 项）`
+  );
 }
 
 /**
- * Batch confirm records "supported" for these concrete candidates only. It is
- * not a person merge and does not prove permanent tenure.
+ * Batch confirm records "supported" for the currently loaded candidates only.
+ * It is not a person merge and does not prove permanent tenure.
  */
 export const BATCH_SCOPE_NOTE =
   "批量确认只记录对这些具体候选的评估，不建立人物等价，也不代表永久在任；晚期在任仍须另有适用依据。";
 
 export function batchConfirmDraft(
-  review: ReviewPackage,
   draft: PersonStateReviewDraft,
+  candidates: ReadonlyArray<ReviewCandidate>,
 ): PersonStateReviewDraft {
-  const active = resolveDraft(review, draft);
-  return { ...active, defaultAssessment: "supported", batchApplied: true, overrides: {} };
+  const reviewed = { ...draft.reviewed };
+  for (const candidate of candidates) reviewed[candidate.candidate_key] = true;
+  return { ...draft, defaultAssessment: "supported", batchApplied: true, overrides: {}, reviewed };
+}
+
+/** Explicitly assess one candidate (including "uncertain" as a real decision). */
+export function reviewCandidate(
+  draft: PersonStateReviewDraft,
+  candidate: ReviewCandidate,
+  assessment: Assessment,
+  rationale = "",
+): PersonStateReviewDraft {
+  return {
+    ...draft,
+    overrides: {
+      ...draft.overrides,
+      [candidate.candidate_key]: { assessment, rationale },
+    },
+    reviewed: { ...draft.reviewed, [candidate.candidate_key]: true },
+  };
+}
+
+/** Return one candidate to 未审: drop its override and reviewed marker. */
+export function unreviewCandidate(
+  draft: PersonStateReviewDraft,
+  candidate: ReviewCandidate,
+): PersonStateReviewDraft {
+  const overrides = { ...draft.overrides };
+  delete overrides[candidate.candidate_key];
+  const reviewed = { ...draft.reviewed };
+  delete reviewed[candidate.candidate_key];
+  return { ...draft, overrides, reviewed };
 }
 
 // ---------------------------------------------------------------------------
@@ -437,33 +528,29 @@ export function batchConfirmDraft(
 // ---------------------------------------------------------------------------
 
 /**
- * Build the frozen decision payload. The package default is the reviewer's
- * bulk choice when one was made, otherwise the plan default. Every candidate
- * whose effective assessment differs from that package default, or that
- * carries a rationale, becomes an explicit per-candidate_key override. This
- * preserves each candidate's compiled baseline instead of silently defaulting
- * un-reviewed candidates to supported.
+ * Build the frozen decision payload from the candidates that were explicitly
+ * reviewed. Un-reviewed candidates are never emitted and never become
+ * supported. The package default is the reviewer's bulk choice when one was
+ * made, otherwise the plan default; each reviewed per-item choice is emitted
+ * as an explicit candidate_key override (so an explicit "不明确" is visible in
+ * the payload even when it equals the plan default).
  */
 export function buildAssessmentOverlay(
   review: ReviewPackage,
   draft: PersonStateReviewDraft,
+  candidates: ReadonlyArray<ReviewCandidate> = review.candidates,
 ): AssessmentOverlay {
   const active = resolveDraft(review, draft);
   const packageDefault = active.batchApplied ? active.defaultAssessment : review.default_assessment;
   const overrides: AssessmentOverride[] = [];
-  for (const candidate of review.candidates) {
+  for (const candidate of candidates) {
+    if (!isCandidateReviewed(candidate, active)) continue;
     const override = active.overrides[candidate.candidate_key];
-    const assessment = override
-      ? legalAssessment(candidate, override.assessment)
-      : active.batchApplied
-        ? legalAssessment(candidate, active.defaultAssessment)
-        : legalAssessment(candidate, candidate.assessment_default);
-    const rationale = override?.rationale ?? "";
-    if (assessment === packageDefault && rationale.trim().length === 0) continue;
+    if (!override) continue;
     overrides.push({
       candidate_key: candidate.candidate_key,
-      assessment,
-      rationale,
+      assessment: legalAssessment(candidate, override.assessment),
+      rationale: override.rationale,
     });
   }
   return {

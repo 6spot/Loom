@@ -95,6 +95,64 @@
   font-size: 0.82rem;
 }
 
+.psr-basis-readable {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.psr-basis-readable li {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.4rem 0.55rem;
+  border-left: 2px solid #cdd6ce;
+  background: #f7f9f7;
+  border-radius: 4px;
+}
+
+.psr-basis-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.psr-basis-detail {
+  font-size: 0.82rem;
+  color: #55605a;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.psr-basis-quote {
+  margin: 0.15rem 0 0;
+  font-family: "Songti SC", serif;
+  font-size: 0.92rem;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.psr-review-state {
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed #b45309;
+  border-radius: 999px;
+  color: #8a3d0a;
+  font-size: 0.78rem;
+}
+
+.psr-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.psr-pagination .psr-error {
+  flex: 1 1 100%;
+}
+
+
 .psr-code {
   margin: 0.4rem 0 0;
   padding: 0.5rem;

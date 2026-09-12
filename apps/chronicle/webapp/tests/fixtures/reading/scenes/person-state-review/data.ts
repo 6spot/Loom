@@ -1,8 +1,10 @@
 // C2-R3-T12 章阶段依据审核组件 fixture 数据（仅测试使用，不进生产构建）。
 //
 // 全部为合成 DTO，只演示 T01 `ReviewPackage` 形状与 T12 组件的交互；不是真实
-// 史料译文、不是真实模型输出，也不冒充已发布内容。两个包故意复用部分
-// candidate_key，用来证明切换审核项不会沿用上一包的草稿。
+// 史料译文、不是真实模型输出，也不冒充已发布内容。
+// - A 包第一页 `has_more=true`，用页 2 证明候选分页可达且草稿按 candidate_key 隔离。
+// - B 包复用 A 的部分 candidate_key，证明切换审核项不会沿用上一包草稿。
+// - C 包 `has_more=true` 且无下一页，证明组件在候选不可达时 fail closed。
 
 import type { ReviewCandidate, ReviewPackage } from "../../../../../src/lib/person-state-types";
 
@@ -181,6 +183,8 @@ const PACKAGE_A_FILLER: ReviewCandidate[] = Array.from({ length: 14 }, (_, index
   }),
 );
 
+const PACKAGE_A_COUNT = PACKAGE_A_CANDIDATES.length + PACKAGE_A_FILLER.length + 16;
+
 export const PACKAGE_A: ReviewPackage = {
   schema: "chronicle.person-state-review",
   version: "0.1",
@@ -191,12 +195,38 @@ export const PACKAGE_A: ReviewPackage = {
   chapter_id: CHAPTER,
   catalog_sha: CATALOG,
   candidates: [...PACKAGE_A_CANDIDATES, ...PACKAGE_A_FILLER],
-  candidate_count: PACKAGE_A_CANDIDATES.length + PACKAGE_A_FILLER.length,
-  limit: 50,
+  candidate_count: PACKAGE_A_COUNT,
+  limit: 24,
   cursor: null,
+  next_cursor: "cur-a-page-2",
+  has_more: true,
+  default_assessment: "uncertain",
+};
+
+const PACKAGE_A_PAGE2_FILLER: ReviewCandidate[] = Array.from({ length: 16 }, (_, index) =>
+  candidate(200 + index, {
+    person_id: `p-page2-${index % 2}`,
+    person_name: index % 2 === 0 ? "周瑜" : "孫權",
+    dimension: index % 2 === 0 ? "office" : "affiliation",
+    value: index % 2 === 0 ? `合成後頁官職 ${index + 1}` : null,
+    relation: index % 2 === 0 ? null : "serves",
+    target: index % 2 === 0 ? null : `合成後頁對象 ${index + 1}`,
+    operation: "start",
+    phase_refs: ["ph_101"],
+    predicted_effect: "current",
+    assessment_default: "supported",
+    quote: `後頁合成原文片段 ${index + 1}`,
+    source_label: "合成後頁來源",
+  }),
+);
+
+export const PACKAGE_A_PAGE2: ReviewPackage = {
+  ...PACKAGE_A,
+  candidates: PACKAGE_A_PAGE2_FILLER,
+  limit: 16,
+  cursor: "cur-a-page-2",
   next_cursor: null,
   has_more: false,
-  default_assessment: "uncertain",
 };
 
 // Package B reuses candidate_key 1/2/5 with different compiled defaults so the
@@ -250,6 +280,25 @@ export const PACKAGE_B: ReviewPackage = {
     }),
   ],
   candidate_count: 4,
+  limit: 20,
+  cursor: null,
+  next_cursor: null,
+  has_more: false,
+  default_assessment: "uncertain",
+};
+
+// C package advertises another page that the scene never provides, so the
+// panel must fail closed instead of reviewing an incomplete set.
+export const PACKAGE_C: ReviewPackage = {
+  ...PACKAGE_A,
+  review_id: "synth-review-C",
+  plan_fingerprint: "c3".repeat(32),
+  candidates: [candidate(300, { person_id: "p-zhouyu", person_name: "周瑜" })],
+  candidate_count: 3,
+  limit: 1,
+  cursor: null,
+  next_cursor: "cur-c-page-2",
+  has_more: true,
   default_assessment: "uncertain",
 };
 

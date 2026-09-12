@@ -1,8 +1,9 @@
 // C2-R3-T12 章阶段依据审核显示/草稿 helper 单元测试（全部合成数据）。
 //
-// 覆盖 person-state-reading.md §5/§5.1 的审核纪律：评估按精确 candidate_key
-// 覆盖；默认/例外草稿有明确类型；切换计划或审核项不沿用旧值；批量确认不建立
-// 人物等价；提交 payload 只含合法的逐项例外；400/409/503/未知结果都保留草稿。
+// 覆盖 person-state-reading.md §5/§5.1 的审核纪律：未审与明确决定分开；评估按
+// 精确 candidate_key 覆盖；默认/例外草稿有明确类型；切换计划或审核项不沿用旧值；
+// 批量确认不建立人物等价；提交 payload 只含已审的逐项例外；400/409/503/未知结果
+// 都保留草稿；分页未取全时 fail closed。
 
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -23,6 +24,7 @@ import {
   effectiveAssessment,
   groupCandidatesByPerson,
   isCandidateException,
+  isCandidateReviewed,
   isDraftForReview,
   operationLabel,
   phaseBasisOrdinals,
@@ -30,11 +32,14 @@ import {
   predictedEffectNote,
   qualificationLabel,
   qualificationNote,
+  readableBasisEntry,
   reasonCodesLabel,
   resolveDraft,
+  reviewCandidate,
   reviewCoverage,
   sharedPhaseBasis,
   submitFailureMessage,
+  unreviewCandidate,
 } from "../src/lib/person-state-review-display";
 import PersonStateReviewPanel from "../src/components/studio/PersonStateReviewPanel";
 
@@ -95,7 +100,7 @@ function review(overrides: Partial<ReviewPackage> = {}): ReviewPackage {
 
 describe("labels", () => {
   it("labels every assessment and predicted effect in Chinese", () => {
-    expect(assessmentLabelOf("supported")).toContain("支持");
+    expect(ASSESSMENT_LABELS.supported).toContain("支持");
     expect(ASSESSMENT_LABELS.uncertain).toContain("存疑");
     expect(ASSESSMENT_LABELS.rejected).toContain("拒绝");
     expect(predictedEffectLabel("current")).toBe("当前身份");
@@ -126,56 +131,68 @@ describe("labels", () => {
   });
 });
 
-function assessmentLabelOf(value: Assessment): string {
-  return ASSESSMENT_LABELS[value];
-}
-
-describe("draft identity and per-candidate overrides", () => {
-  it("creates a typed draft from the package defaults", () => {
+describe("draft identity and reviewed state", () => {
+  it("creates a typed draft that starts completely 未审", () => {
     const draft = createDraft(review());
     expect(draft.planFingerprint).toBe(PLAN);
     expect(draft.defaultAssessment).toBe("uncertain");
     expect(draft.batchApplied).toBe(false);
     expect(draft.overrides).toEqual({});
+    expect(draft.reviewed).toEqual({});
     expect(draft.rationale).toBe("");
   });
 
   it("ignores a draft from another plan instead of carrying old values", () => {
-    const stale = { ...createDraft(review()), planFingerprint: "c".repeat(64), defaultAssessment: "rejected" as Assessment };
+    const stale = { ...createDraft(review()), planFingerprint: "c".repeat(64), batchApplied: true };
     expect(isDraftForReview(review(), stale)).toBe(false);
     const resolved = resolveDraft(review(), stale);
     expect(resolved.planFingerprint).toBe(PLAN);
-    expect(resolved.defaultAssessment).toBe("uncertain");
-    expect(effectiveAssessment(candidate(1), resolved)).toBe("uncertain");
+    expect(resolved.batchApplied).toBe(false);
+    expect(effectiveAssessment(candidate(1), resolved)).toBeNull();
   });
 
-  it("applies an override only to the exact candidate_key", () => {
+  it("reports an untouched candidate as 未审, never as supported", () => {
+    const a = candidate(1, { assessment_default: "supported" });
+    const draft = createDraft(review({ candidates: [a] }));
+    expect(isCandidateReviewed(a, draft)).toBe(false);
+    expect(effectiveAssessment(a, draft)).toBeNull();
+    expect(isCandidateException(a, draft)).toBe(false);
+  });
+
+  it("applies an explicit choice only to the exact candidate_key", () => {
     const a = candidate(1);
-    const b = candidate(2, { assessment_default: "supported" });
-    const draft = {
-      ...createDraft(review()),
-      overrides: { [a.candidate_key]: { assessment: "disputed" as Assessment, rationale: "来源分歧" } },
-    };
+    const b = candidate(2);
+    const draft = reviewCandidate(createDraft(review()), a, "disputed", "来源分歧");
+    expect(isCandidateReviewed(a, draft)).toBe(true);
     expect(effectiveAssessment(a, draft)).toBe("disputed");
-    expect(effectiveAssessment(b, draft)).toBe("supported");
     expect(isCandidateException(a, draft)).toBe(true);
-    expect(isCandidateException(b, draft)).toBe(false);
+    expect(isCandidateReviewed(b, draft)).toBe(false);
+    expect(effectiveAssessment(b, draft)).toBeNull();
   });
 
-  it("treats a rationale-only override as an exception", () => {
+  it("distinguishes 未审 from 明确提交 uncertain", () => {
+    const a = candidate(1, { assessment_default: "uncertain" });
+    const untouched = createDraft(review({ candidates: [a] }));
+    const decided = reviewCandidate(untouched, a, "uncertain");
+    expect(effectiveAssessment(a, untouched)).toBeNull();
+    expect(effectiveAssessment(a, decided)).toBe("uncertain");
+    expect(isCandidateException(a, decided)).toBe(true);
+    expect(coverageSummary(reviewCoverage([a], untouched))).toContain("未审 1 项");
+    expect(coverageSummary(reviewCoverage([a], decided))).toContain("未审 0 项");
+  });
+
+  it("returns a candidate to 未审 and drops its override", () => {
     const a = candidate(1);
-    const draft = {
-      ...createDraft(review()),
-      defaultAssessment: "supported" as Assessment,
-      overrides: { [a.candidate_key]: { assessment: "supported" as Assessment, rationale: "仅此来源" } },
-    };
-    expect(effectiveAssessment(a, draft)).toBe("supported");
-    expect(isCandidateException(a, draft)).toBe(true);
+    const decided = reviewCandidate(createDraft(review()), a, "supported", "手动确认");
+    const back = unreviewCandidate(decided, a);
+    expect(isCandidateReviewed(a, back)).toBe(false);
+    expect(effectiveAssessment(a, back)).toBeNull();
+    expect(back.overrides[a.candidate_key]).toBeUndefined();
   });
 
   it("falls back to the candidate default when the chosen value is not allowed", () => {
     const constrained = candidate(1, { allowed_assessments: ["uncertain", "rejected"], assessment_default: "rejected" });
-    const draft = { ...createDraft(review()), defaultAssessment: "supported" as Assessment };
+    const draft = reviewCandidate(createDraft(review()), constrained, "supported");
     expect(effectiveAssessment(constrained, draft)).toBe("rejected");
   });
 });
@@ -187,21 +204,39 @@ describe("coverage and batch confirm", () => {
     candidate(3, { person_name: "劉備", assessment_default: "disputed" }),
   ];
 
-  it("counts batch coverage against the real effective assessments", () => {
-    const draft = resolveDraft(review({ candidates }), null);
-    const coverage = reviewCoverage(candidates, draft);
+  it("starts with everything 未审 and nothing covered", () => {
+    const coverage = reviewCoverage(candidates, resolveDraft(review({ candidates }), null));
     expect(coverage.total).toBe(3);
-    expect(coverage.batchCovered).toBe(1);
-    expect(coverage.exceptionCount).toBe(2);
-    expect(coverageSummary(coverage)).toBe("批量覆盖 1 项，逐项例外 2 项（共 3 项）");
+    expect(coverage.reviewed).toBe(0);
+    expect(coverage.unreviewed).toBe(3);
+    expect(coverage.batchCovered).toBe(0);
+    expect(coverage.exceptionCount).toBe(0);
+    expect(coverageSummary(coverage)).toBe("已审 0 项（批量覆盖 0 项，逐项例外 0 项）；未审 3 项（共 3 项）");
   });
 
-  it("batch confirm covers every candidate without becoming a person merge", () => {
+  it("counts only explicitly reviewed candidates", () => {
     const current = review({ candidates });
-    const next = batchConfirmDraft(current, resolveDraft(current, null));
+    let draft = createDraft(current);
+    draft = reviewCandidate(draft, candidates[0], "supported");
+    draft = reviewCandidate(draft, candidates[1], "uncertain", "任期未明");
+    const coverage = reviewCoverage(candidates, draft);
+    expect(coverage.reviewed).toBe(2);
+    expect(coverage.unreviewed).toBe(1);
+    expect(coverage.batchCovered).toBe(1);
+    expect(coverage.exceptionCount).toBe(1);
+    expect(coverageSummary(coverage)).toBe("已审 2 项（批量覆盖 1 项，逐项例外 1 项）；未审 1 项（共 3 项）");
+  });
+
+  it("batch confirm covers every loaded candidate without becoming a person merge", () => {
+    const current = review({ candidates });
+    const next = batchConfirmDraft(createDraft(current), candidates);
     expect(next.defaultAssessment).toBe("supported");
+    expect(next.batchApplied).toBe(true);
     expect(next.overrides).toEqual({});
+    expect(next.reviewed).toEqual({ [key(1)]: true, [key(2)]: true, [key(3)]: true });
     const coverage = reviewCoverage(candidates, next);
+    expect(coverage.reviewed).toBe(3);
+    expect(coverage.unreviewed).toBe(0);
     expect(coverage.batchCovered).toBe(3);
     expect(coverage.exceptionCount).toBe(0);
     expect(BATCH_SCOPE_NOTE).toContain("不建立人物等价");
@@ -210,18 +245,15 @@ describe("coverage and batch confirm", () => {
 
   it("keeps overrides keyed precisely after a batch switch", () => {
     const current = review({ candidates });
-    const afterBatch = batchConfirmDraft(current, resolveDraft(current, null));
-    const withException = {
-      ...afterBatch,
-      overrides: { [key(2)]: { assessment: "rejected" as Assessment, rationale: "错主体" } },
-    };
+    const afterBatch = batchConfirmDraft(createDraft(current), candidates);
+    const withException = reviewCandidate(afterBatch, candidates[1], "rejected", "错主体");
     expect(effectiveAssessment(candidates[0], withException)).toBe("supported");
     expect(effectiveAssessment(candidates[1], withException)).toBe("rejected");
     expect(effectiveAssessment(candidates[2], withException)).toBe("supported");
   });
 });
 
-describe("shared phase basis and person grouping", () => {
+describe("readable shared phase basis", () => {
   it("groups candidates by exact shared phase refs and keeps stable ordinals", () => {
     const candidates = [
       candidate(1, { phase_refs: ["ph_001"] }),
@@ -240,6 +272,19 @@ describe("shared phase basis and person grouping", () => {
     expect(ordinals.get(key(3))).toBe(2);
   });
 
+  it("exposes contract-readable basis text, keeping refs out of the main line", () => {
+    const entry = readableBasisEntry(candidate(1, { predicted_effect: "current" }));
+    expect(entry.label).toContain("周瑜");
+    expect(entry.label).toContain("官职");
+    expect(entry.detail).toContain("当前身份");
+    expect(entry.detail).toContain("来源：周瑜傳");
+    expect(entry.quote).toBe("策授瑜建威中郎將");
+    expect(entry.label).not.toContain("ph_001");
+    const [group] = sharedPhaseBasis([candidate(1)]);
+    expect(group.entries).toHaveLength(1);
+    expect(group.entries[0].detail).toContain("周瑜傳");
+  });
+
   it("groups the change chain per person and never by display name collision", () => {
     const candidates = [
       candidate(1, { person_id: "p1", person_name: "周瑜" }),
@@ -255,46 +300,43 @@ describe("shared phase basis and person grouping", () => {
 });
 
 describe("submission overlay", () => {
-  it("emits only exact candidate_key overrides that differ or carry a rationale", () => {
+  it("never emits an un-reviewed candidate as supported", () => {
+    const candidates = [candidate(1, { assessment_default: "supported" }), candidate(2)];
+    const current = review({ candidates });
+    const overlay = buildAssessmentOverlay(current, createDraft(current), candidates);
+    expect(overlay.default_assessment).toBe("uncertain");
+    expect(overlay.overrides).toEqual([]);
+  });
+
+  it("emits an explicit per-item decision even when it equals the plan default", () => {
     const candidates = [candidate(1), candidate(2)];
     const current = review({ candidates });
-    const draft = {
-      ...resolveDraft(current, null),
-      defaultAssessment: "supported" as Assessment,
-      batchApplied: true,
-      overrides: {
-        [key(1)]: { assessment: "disputed" as Assessment, rationale: "分歧未决" },
-        [key(2)]: { assessment: "supported" as Assessment, rationale: "" },
-      },
-      rationale: "本包说明",
-    };
-    const overlay = buildAssessmentOverlay(current, draft);
-    expect(overlay.plan_fingerprint).toBe(PLAN);
+    let draft = createDraft(current);
+    draft = reviewCandidate(draft, candidates[0], "uncertain", "明确提交不明确");
+    draft = reviewCandidate(draft, candidates[1], "supported");
+    const overlay = buildAssessmentOverlay(current, draft, candidates);
+    expect(overlay.default_assessment).toBe("uncertain");
+    expect(overlay.overrides).toEqual([
+      { candidate_key: key(1), assessment: "uncertain", rationale: "明确提交不明确" },
+      { candidate_key: key(2), assessment: "supported", rationale: "" },
+    ]);
+  });
+
+  it("keeps batch-covered candidates on the package default and exceptions explicit", () => {
+    const candidates = [candidate(1), candidate(2)];
+    const current = review({ candidates });
+    const batch = batchConfirmDraft(createDraft(current), candidates);
+    const draft = reviewCandidate(batch, candidates[0], "disputed", "分歧未决");
+    const overlay = buildAssessmentOverlay(current, draft, candidates);
     expect(overlay.default_assessment).toBe("supported");
     expect(overlay.overrides).toEqual([
       { candidate_key: key(1), assessment: "disputed", rationale: "分歧未决" },
-    ]);
-    expect(overlay.rationale).toBe("本包说明");
-  });
-
-  it("preserves each compiled baseline as an override before any bulk action", () => {
-    const candidates = [
-      candidate(1, { assessment_default: "supported" }),
-      candidate(2, { assessment_default: "uncertain" }),
-    ];
-    const current = review({ candidates });
-    const overlay = buildAssessmentOverlay(current, createDraft(current));
-    // The plan default is uncertain; the supported candidate keeps its own
-    // baseline as an explicit positive override instead of being washed out.
-    expect(overlay.default_assessment).toBe("uncertain");
-    expect(overlay.overrides).toEqual([
-      { candidate_key: key(1), assessment: "supported", rationale: "" },
     ]);
   });
 
   it("builds an empty overlay from a mismatched draft", () => {
     const current = review();
-    const stale = { ...createDraft(current), planFingerprint: "d".repeat(64), overrides: { [key(1)]: { assessment: "disputed" as Assessment, rationale: "x" } } };
+    const stale = { ...createDraft(current), planFingerprint: "d".repeat(64), batchApplied: true };
     const overlay = buildAssessmentOverlay(current, stale);
     expect(overlay.plan_fingerprint).toBe(PLAN);
     expect(overlay.overrides).toEqual([]);
@@ -331,16 +373,19 @@ describe("panel rendering", () => {
   ];
   const current = review({ candidates });
   const noop = () => undefined;
+  const baseProps = {
+    review: current,
+    onDraftChange: noop,
+    onSubmit: async () => undefined,
+    onSkip: noop,
+    onReturn: noop,
+  };
 
   it("keeps qualifiers, reasons and predictions visible, not inside technical details", () => {
     const markup = renderToStaticMarkup(
       createElement(PersonStateReviewPanel, {
-        review: current,
+        ...baseProps,
         draft: createDraft(current),
-        onDraftChange: noop,
-        onSubmit: async () => undefined,
-        onSkip: noop,
-        onReturn: noop,
       }),
     );
     expect(markup).toContain('data-test="psr-qualification"');
@@ -349,42 +394,86 @@ describe("panel rendering", () => {
     expect(markup).toContain("任期未明");
     expect(markup).toContain('data-test="psr-effect"');
     expect(markup).toContain("此前记载");
-    expect(markup).toContain('data-test="psr-action-bar"');
-    // Internal phase refs are audit-only.
+    // Human-readable shared basis is in the main UI; refs are audit-only.
+    expect(markup).toContain('data-test="psr-basis-entry"');
+    expect(markup).toContain("周瑜傳");
     expect(markup).toContain("审计详情");
     expect(markup).not.toContain("<script");
   });
 
-  it("mounts the optional read-only source slot without owning a loader", () => {
+  it("shows 未审 and blocks submit until every candidate is reviewed", () => {
     const markup = renderToStaticMarkup(
       createElement(PersonStateReviewPanel, {
-        review: current,
+        ...baseProps,
         draft: createDraft(current),
-        onDraftChange: noop,
-        onSubmit: async () => undefined,
-        onSkip: noop,
-        onReturn: noop,
-        renderSource: (candidate) => createElement("span", null, `来源槽 ${candidate.candidate_key}`),
       }),
     );
-    expect(markup).toContain('data-test="psr-source-slot"');
-    expect(markup).toContain("来源槽");
+    expect(markup).toContain('data-test="psr-unreviewed"');
+    expect(markup).toContain("未审（请选择）");
+    expect(markup).toMatch(/data-test="psr-save-next"[^>]*data-blocked-reason="unreviewed"/);
+    expect(markup).toMatch(/data-test="psr-save-next"[^>]*disabled/);
+  });
+
+  it("enables submit once all candidates are reviewed and no page remains", () => {
+    const draft = reviewCandidate(createDraft(current), candidates[0], "supported");
+    const markup = renderToStaticMarkup(
+      createElement(PersonStateReviewPanel, {
+        ...baseProps,
+        draft,
+      }),
+    );
+    expect(markup).not.toContain('data-test="psr-unreviewed"');
+    expect(markup).toMatch(/data-test="psr-save-next"(?![^>]*disabled)/);
+  });
+
+  it("fails closed on has_more without a load callback", () => {
+    const paged = review({ has_more: true, next_cursor: "cur-2", candidate_count: 3 });
+    const markup = renderToStaticMarkup(
+      createElement(PersonStateReviewPanel, {
+        ...baseProps,
+        review: paged,
+        draft: reviewCandidate(createDraft(paged), paged.candidates[0], "supported"),
+      }),
+    );
+    expect(markup).toContain('data-test="psr-pagination-blocked"');
+    expect(markup).toMatch(/data-test="psr-save-next"[^>]*disabled/);
+  });
+
+  it("offers load-more when a callback is provided", () => {
+    const paged = review({ has_more: true, next_cursor: "cur-2", candidate_count: 3 });
+    const markup = renderToStaticMarkup(
+      createElement(PersonStateReviewPanel, {
+        ...baseProps,
+        review: paged,
+        draft: createDraft(paged),
+        onLoadMore: async () => paged,
+      }),
+    );
+    expect(markup).toContain('data-test="psr-load-more"');
+    expect(markup).not.toContain('data-test="psr-pagination-blocked"');
   });
 
   it("marks a mismatched draft and disables submit until the caller re-keys it", () => {
     const stale = { ...createDraft(current), planFingerprint: "e".repeat(64) };
     const markup = renderToStaticMarkup(
       createElement(PersonStateReviewPanel, {
-        review: current,
+        ...baseProps,
         draft: stale,
-        onDraftChange: noop,
-        onSubmit: async () => undefined,
-        onSkip: noop,
-        onReturn: noop,
       }),
     );
     expect(markup).toContain('data-test="psr-stale-draft"');
-    expect(markup).toContain('data-test="psr-save-next"');
     expect(markup).toMatch(/data-test="psr-save-next"[^>]*disabled/);
+  });
+
+  it("mounts the optional read-only source slot without owning a loader", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PersonStateReviewPanel, {
+        ...baseProps,
+        draft: createDraft(current),
+        renderSource: (item) => createElement("span", null, `来源槽 ${item.candidate_key}`),
+      }),
+    );
+    expect(markup).toContain('data-test="psr-source-slot"');
+    expect(markup).toContain("来源槽");
   });
 });

@@ -6,18 +6,25 @@
 // no sessionStorage and no HTTP client: T10/T13 wire the page, the loader and
 // the decision endpoint, and re-key the draft by (review_id, plan_fingerprint).
 //
-// Props: review / draft / onDraftChange / onSubmit / onSkip / onReturn.
+// Props: review / draft / onDraftChange / onSubmit / onSkip / onReturn, plus an
+// optional onLoadMore for candidate pages.
+// - 未审 is explicit: only a per-item choice or a batch confirmation marks a
+//   candidate reviewed, and un-reviewed candidates are neither counted as
+//   covered nor submitted. Skip keeps them 未审.
 // - The draft is controlled by the caller; the panel never carries a stale
 //   draft across a plan/item change (a mismatched fingerprint is ignored).
 // - Exceptions are keyed by the exact candidate_key, so they can not bleed
-//   across candidates, chapters or plans.
+//   across candidates, chapters, plans or candidate pages.
+// - If a package has more candidate pages than the panel can reach (has_more
+//   without onLoadMore), submission fails closed instead of silently missing
+//   candidates.
 // - A failed submit (400/409/503/unknown) keeps the draft on screen and tells
 //   the operator to re-check the server record; a late result for a package the
 //   reviewer already left never clears or overwrites the current form.
 // - Source evidence is read-only: a source-pagination failure never disables
 //   the assessment inputs.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import type { Assessment, ReviewCandidate, ReviewPackage } from "../../lib/person-state-types";
@@ -35,6 +42,7 @@ import {
   effectiveAssessment,
   groupCandidatesByPerson,
   isCandidateException,
+  isCandidateReviewed,
   isDraftForReview,
   operationLabel,
   operationNote,
@@ -45,14 +53,13 @@ import {
   qualificationNote,
   reasonCodesLabel,
   resolveDraft,
+  reviewCandidate,
   reviewCoverage,
   sharedPhaseBasis,
   submitFailureMessage,
+  unreviewCandidate,
 } from "../../lib/person-state-review-display";
-import type {
-  AssessmentOverrideDraft,
-  PersonStateReviewDraft,
-} from "../../lib/person-state-review-display";
+import type { PersonStateReviewDraft } from "../../lib/person-state-review-display";
 import "../../styles/person-state-review.css";
 
 export interface PersonStateReviewPanelProps {
@@ -63,6 +70,12 @@ export interface PersonStateReviewPanelProps {
   onSubmit: (draft: PersonStateReviewDraft) => Promise<void>;
   onSkip: () => void | Promise<void>;
   onReturn: () => void;
+  /**
+   * Load the next candidate page for the same frozen package. Required for a
+   * package whose first page has `has_more=true`; without it the panel fails
+   * closed rather than reviewing an incomplete candidate set.
+   */
+  onLoadMore?: (cursor: string) => Promise<ReviewPackage>;
   /**
    * Optional read-only source slot (T13 mounts the existing ReviewEvidencePanel
    * here). The form never owns the source loader: opening 窗口/整章原文 is a
@@ -76,7 +89,7 @@ function reviewIdentity(review: ReviewPackage): string {
 }
 
 function effectTone(effect: ReviewCandidate["predicted_effect"]): string {
-  return effect === "current" ? "current" : effect;
+  return effect;
 }
 
 export default function PersonStateReviewPanel({
@@ -86,66 +99,100 @@ export default function PersonStateReviewPanel({
   onSubmit,
   onSkip,
   onReturn,
+  onLoadMore,
   renderSource,
 }: PersonStateReviewPanelProps) {
   const identity = reviewIdentity(review);
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
+  const [extraPages, setExtraPages] = useState<ReviewPackage[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [skipped, setSkipped] = useState(false);
 
   // A new package starts with a clean form surface: no error/notice from the
-  // package the reviewer just left, and no in-flight save owns the new form.
+  // package the reviewer just left, no in-flight save owns the new form, and no
+  // candidate page from the old package remains reachable.
   useEffect(() => {
+    setExtraPages([]);
+    setLoadingMore(false);
+    setLoadError("");
     setSubmitting(false);
     setError("");
     setNotice("");
     setSkipped(false);
   }, [identity]);
 
+  const lastPage = extraPages.length ? extraPages[extraPages.length - 1] : review;
+  const allCandidates = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: ReviewCandidate[] = [];
+    for (const page of [review, ...extraPages]) {
+      for (const candidate of page.candidates) {
+        if (seen.has(candidate.candidate_key)) continue;
+        seen.add(candidate.candidate_key);
+        merged.push(candidate);
+      }
+    }
+    return merged;
+  }, [review, extraPages]);
+
   const draftBelongs = isDraftForReview(review, draft);
   const activeDraft = resolveDraft(review, draft);
-  const coverage = reviewCoverage(review.candidates, activeDraft);
-  const basis = sharedPhaseBasis(review.candidates);
-  const basisOrdinals = phaseBasisOrdinals(review.candidates);
-  const personGroups = groupCandidatesByPerson(review.candidates);
-  const overlayPreview = buildAssessmentOverlay(review, activeDraft);
+  const coverage = reviewCoverage(allCandidates, activeDraft);
+  const basis = sharedPhaseBasis(allCandidates);
+  const basisOrdinals = phaseBasisOrdinals(allCandidates);
+  const personGroups = groupCandidatesByPerson(allCandidates);
+  const overlayPreview = buildAssessmentOverlay(review, activeDraft, allCandidates);
+  const remaining = Math.max(review.candidate_count - allCandidates.length, 0);
+  const morePending = lastPage.has_more;
+  const paginationBlocked = morePending && !onLoadMore;
+  const canSubmit =
+    draftBelongs && !submitting && coverage.unreviewed === 0 && !morePending && !paginationBlocked;
 
   const updateDraft = (patch: Partial<PersonStateReviewDraft>) => {
     onDraftChange({ ...activeDraft, ...patch });
   };
 
-  const setOverride = (candidate: ReviewCandidate, patch: Partial<AssessmentOverrideDraft>) => {
-    const current = activeDraft.overrides[candidate.candidate_key] ?? {
-      assessment: effectiveAssessment(candidate, activeDraft),
-      rationale: "",
-    };
-    updateDraft({
-      overrides: {
-        ...activeDraft.overrides,
-        [candidate.candidate_key]: { ...current, ...patch },
-      },
-    });
-  };
-
-  const clearOverride = (candidate: ReviewCandidate) => {
-    const next = { ...activeDraft.overrides };
-    delete next[candidate.candidate_key];
-    updateDraft({ overrides: next });
-  };
-
   const handleBatchConfirm = () => {
-    if (submitting) return;
-    onDraftChange(batchConfirmDraft(review, activeDraft));
+    if (submitting || allCandidates.length === 0) return;
+    onDraftChange(batchConfirmDraft(activeDraft, allCandidates));
     setNotice("已批量确认为支持；这是对具体候选的评估，不代表人物合并或永久在任。");
     setError("");
   };
 
+  const loadMore = async () => {
+    if (loadingMore || !onLoadMore || !lastPage.has_more || !lastPage.next_cursor) return;
+    const key = identityRef.current;
+    const cursor = lastPage.next_cursor;
+    setLoadingMore(true);
+    setLoadError("");
+    try {
+      const page = await onLoadMore(cursor);
+      if (identityRef.current !== key) return;
+      if (page.review_id !== review.review_id || page.plan_fingerprint !== review.plan_fingerprint) {
+        setLoadError("加载到的候选属于其他审核项或计划，已忽略；请重试。");
+        return;
+      }
+      setExtraPages((current) => [...current, page]);
+    } catch (caught) {
+      if (identityRef.current !== key) return;
+      setLoadError(
+        caught instanceof Error && caught.message
+          ? `候选分页加载失败（${caught.message}）；已加载候选不受影响，可重试。`
+          : "候选分页加载失败；已加载候选不受影响，可重试。",
+      );
+    } finally {
+      if (identityRef.current === key) setLoadingMore(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (submitting) return;
+    if (!canSubmit) return;
     const key = identityRef.current;
     setSubmitting(true);
     setError("");
@@ -198,7 +245,9 @@ export default function PersonStateReviewPanel({
         </p>
         <p className="psr-meta" data-test="psr-meta">
           <span>审核项 {review.review_id}</span>
-          <span>候选 {review.candidates.length}{review.has_more ? ` / 共 ${review.candidate_count}` : ""}</span>
+          <span>
+            已加载候选 {allCandidates.length} / 共 {review.candidate_count}
+          </span>
           <span>默认评估 {assessmentLabel(review.default_assessment)}</span>
         </p>
       </header>
@@ -212,7 +261,7 @@ export default function PersonStateReviewPanel({
       <section className="psr-basis" data-test="psr-shared-basis" aria-label="共用阶段依据">
         <h2>共用阶段依据</h2>
         <p className="psr-muted">
-          同一阶段依据组下的候选共用同一条时间依据；确认某一条不代表其余阶段自动成立。
+          同一阶段依据组下的候选共用同一条时间依据；下面是该组可读的依据（人物、变化、预测效果与来源原文）。确认某一条不代表其余阶段自动成立。
         </p>
         {basis.length === 0 ? (
           <p className="psr-muted">本包没有候选。</p>
@@ -222,6 +271,15 @@ export default function PersonStateReviewPanel({
               <li key={group.ordinal} data-test="psr-basis-item" data-basis-ordinal={group.ordinal}>
                 <strong>阶段依据 {group.ordinal}</strong>
                 <span className="psr-muted">覆盖 {group.candidateKeys.length} 项候选</span>
+                <ul className="psr-basis-readable">
+                  {group.entries.map((entry) => (
+                    <li data-test="psr-basis-entry" data-basis-key={entry.candidateKey} key={entry.candidateKey}>
+                      <span className="psr-basis-label">{entry.label}</span>
+                      <span className="psr-basis-detail">{entry.detail}</span>
+                      <blockquote className="psr-basis-quote">{entry.quote}</blockquote>
+                    </li>
+                  ))}
+                </ul>
                 <details className="psr-audit">
                   <summary>审计详情 / 内部阶段引用</summary>
                   <pre className="psr-code">{JSON.stringify(group.phaseRefs, null, 2)}</pre>
@@ -238,20 +296,25 @@ export default function PersonStateReviewPanel({
           variant="outline"
           data-test="psr-batch-confirm"
           onClick={handleBatchConfirm}
-          disabled={submitting || review.candidates.length === 0}
+          disabled={submitting || allCandidates.length === 0}
         >
           批量确认为「支持」
         </Button>
         <span data-test="psr-coverage">{coverageSummary(coverage)}</span>
       </div>
       <p className="psr-muted" data-test="psr-batch-note">{BATCH_SCOPE_NOTE}</p>
+      {coverage.unreviewed > 0 ? (
+        <p className="psr-warn" role="status" data-test="psr-unreviewed">
+          还有 {coverage.unreviewed} 项未审；未审不会按支持提交。请逐项选择（包括明确提交「不明确」）或批量确认。
+        </p>
+      ) : null}
       {coverage.exceptionsMissingRationale > 0 ? (
         <p className="psr-warn" role="status" data-test="psr-missing-rationale">
           有 {coverage.exceptionsMissingRationale} 项例外尚未填写理由；理由用于区分为何明确提交不明确或拒绝。
         </p>
       ) : null}
 
-      {review.candidates.length === 0 ? (
+      {allCandidates.length === 0 ? (
         <p className="psr-empty" data-test="psr-empty">
           本包没有可审核候选；请核对生产结果后再继续。
         </p>
@@ -265,6 +328,7 @@ export default function PersonStateReviewPanel({
             <ul className="psr-list">
               {group.candidates.map((candidate) => {
                 const flow = candidateFlow(candidate);
+                const reviewed = isCandidateReviewed(candidate, activeDraft);
                 const effective = effectiveAssessment(candidate, activeDraft);
                 const exception = isCandidateException(candidate, activeDraft);
                 const override = activeDraft.overrides[candidate.candidate_key];
@@ -277,7 +341,8 @@ export default function PersonStateReviewPanel({
                     data-test="psr-candidate"
                     data-candidate-key={candidate.candidate_key}
                     data-candidate-id={candidate.candidate_key}
-                    data-assessment={effective}
+                    data-assessment={effective ?? "unreviewed"}
+                    data-reviewed={reviewed ? "true" : "false"}
                     data-exception={exception ? "true" : "false"}
                     data-certainty={candidate.assessment_default}
                     key={candidate.candidate_key}
@@ -297,6 +362,9 @@ export default function PersonStateReviewPanel({
                         <span className="psr-basis-badge" data-test="psr-basis-badge">
                           共用依据 {basisOrdinal}
                         </span>
+                      ) : null}
+                      {!reviewed ? (
+                        <span className="psr-review-state" data-test="psr-review-state">未审</span>
                       ) : null}
                     </div>
 
@@ -342,12 +410,25 @@ export default function PersonStateReviewPanel({
                         <span>逐项评估</span>
                         <select
                           data-test="psr-assessment"
-                          value={override?.assessment ?? effective}
+                          value={override?.assessment ?? ""}
                           disabled={submitting}
-                          onChange={(event) =>
-                            setOverride(candidate, { assessment: event.target.value as Assessment })
-                          }
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            if (!value) {
+                              onDraftChange(unreviewCandidate(activeDraft, candidate));
+                              return;
+                            }
+                            onDraftChange(
+                              reviewCandidate(
+                                activeDraft,
+                                candidate,
+                                value as Assessment,
+                                override?.rationale ?? "",
+                              ),
+                            );
+                          }}
                         >
+                          <option value="">未审（请选择）</option>
                           {candidate.allowed_assessments.map((option) => (
                             <option value={option} key={option}>
                               {assessmentLabel(option)}
@@ -362,20 +443,29 @@ export default function PersonStateReviewPanel({
                           data-test="psr-candidate-rationale"
                           value={override?.rationale ?? ""}
                           disabled={submitting}
-                          placeholder="填写为何明确提交不明确、分歧或拒绝；留空则随批量默认"
-                          onChange={(event) => setOverride(candidate, { rationale: event.target.value })}
+                          placeholder="填写为何明确提交不明确、分歧或拒绝"
+                          onChange={(event) =>
+                            onDraftChange(
+                              reviewCandidate(
+                                activeDraft,
+                                candidate,
+                                override?.assessment ?? candidate.assessment_default,
+                                event.target.value,
+                              ),
+                            )
+                          }
                         />
                       </label>
-                      {override ? (
+                      {reviewed ? (
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           data-test="psr-clear-override"
                           disabled={submitting}
-                          onClick={() => clearOverride(candidate)}
+                          onClick={() => onDraftChange(unreviewCandidate(activeDraft, candidate))}
                         >
-                          取消例外
+                          标为未审
                         </Button>
                       ) : null}
                     </div>
@@ -386,6 +476,34 @@ export default function PersonStateReviewPanel({
           </section>
         ))
       )}
+
+      <div className="psr-pagination" data-test="psr-pagination">
+        {morePending ? (
+          onLoadMore ? (
+            <>
+              <span className="psr-muted">还有 {remaining} 项候选未加载，全部候选可审之前不能提交。</span>
+              <Button
+                type="button"
+                variant="outline"
+                data-test="psr-load-more"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "正在加载…" : `加载更多候选（剩余 ${remaining}）`}
+              </Button>
+            </>
+          ) : (
+            <p className="psr-warn" role="alert" data-test="psr-pagination-blocked">
+              本页之外仍有候选，但未提供加载回调；为避免漏审，提交已停用。请传入完整包或提供 onLoadMore。
+            </p>
+          )
+        ) : (
+          <span className="psr-muted" data-test="psr-pagination-complete">已加载全部候选</span>
+        )}
+        {loadError ? (
+          <p className="psr-error" role="alert" data-test="psr-load-error">{loadError}</p>
+        ) : null}
+      </div>
 
       <p className="psr-muted" data-test="psr-source-note">{SOURCE_LOAD_FAILURE_NOTE}</p>
 
@@ -401,7 +519,8 @@ export default function PersonStateReviewPanel({
         />
       </label>
       <p className="psr-muted" data-test="psr-overlay-preview">
-        将提交：默认 {assessmentLabel(activeDraft.defaultAssessment)} · 例外 {overlayPreview.overrides.length} 项
+        将提交：默认 {assessmentLabel(activeDraft.defaultAssessment)} · 逐项例外 {overlayPreview.overrides.length} 项 ·
+        未审 {coverage.unreviewed} 项
       </p>
 
       {error ? (
@@ -440,7 +559,14 @@ export default function PersonStateReviewPanel({
         <Button
           type="button"
           data-test="psr-save-next"
-          disabled={submitting || !draftBelongs}
+          data-blocked-reason={
+            coverage.unreviewed > 0
+              ? "unreviewed"
+              : morePending
+                ? "more-candidates"
+                : undefined
+          }
+          disabled={!canSubmit}
           onClick={() => void handleSubmit()}
         >
           {submitting ? "保存中…" : "保存并下一项"}
