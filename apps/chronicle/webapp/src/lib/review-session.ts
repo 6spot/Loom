@@ -20,23 +20,35 @@
 //   form). Every 400/409/503, offline or unknown outcome retains the draft.
 
 import type { ReviewLinkKind, ReviewStatus } from "./studio-api";
+import { REVIEW_SCOPES, type ReviewScope as ReviewQueueScope } from "./person-state-types";
 
 export type ReviewScopeStatus = ReviewStatus | "all";
 
+/**
+ * One review session scope. `reviewScope` is the §5.1 queue-family selector
+ * (`resolution | person_state | all`). It is part of the URL, the storage key
+ * and the draft identity so a person-state draft can never be carried onto a
+ * resolution/narrative form (or the other way round).
+ */
 export interface ReviewScope {
   status: ReviewScopeStatus;
   jobId: string | null;
   linkKind: ReviewLinkKind | null;
+  reviewScope: ReviewQueueScope;
 }
 
 export interface ReviewScopeWithCurrent extends ReviewScope {
   currentId: string | null;
 }
 
+/** The Studio page's default: the R3 mixed queue asks for `all` explicitly. */
+export const DEFAULT_QUEUE_SCOPE: ReviewQueueScope = "all";
+
 export const DEFAULT_REVIEW_SCOPE: ReviewScope = {
   status: "open",
   jobId: null,
   linkKind: null,
+  reviewScope: DEFAULT_QUEUE_SCOPE,
 };
 
 export const ENTITY_DECISIONS = ["same_entity", "not_same", "uncertain"] as const;
@@ -61,19 +73,32 @@ function cleanParam(value: string | null): string | null {
   return trimmed ? trimmed : null;
 }
 
-/** Parse `?status=&job_id=&link_kind=&current=` into a scope. */
+function parseQueueScope(value: string | null): ReviewQueueScope {
+  return value && (REVIEW_SCOPES as readonly string[]).includes(value)
+    ? (value as ReviewQueueScope)
+    : DEFAULT_QUEUE_SCOPE;
+}
+
+/** `link_kind` only belongs to the resolution queue; other scopes must drop it. */
+export function scopeAllowsLinkKind(scope: ReviewQueueScope): boolean {
+  return scope === "resolution";
+}
+
+/** Parse `?status=&job_id=&link_kind=&review_scope=&current=` into a scope. */
 export function parseReviewSearch(search: string): ReviewScopeWithCurrent {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const rawStatus = cleanParam(params.get("status"));
   const rawKind = cleanParam(params.get("link_kind"));
+  const reviewScope = parseQueueScope(cleanParam(params.get("review_scope")));
   return {
     status: rawStatus && VALID_STATUSES.has(rawStatus)
       ? (rawStatus as ReviewScopeStatus)
       : "open",
     jobId: cleanParam(params.get("job_id")),
-    linkKind: rawKind && VALID_LINK_KINDS.has(rawKind)
+    linkKind: reviewScope === "resolution" && rawKind && VALID_LINK_KINDS.has(rawKind)
       ? (rawKind as ReviewLinkKind)
       : null,
+    reviewScope,
     currentId: cleanParam(params.get("current")),
   };
 }
@@ -83,7 +108,8 @@ export function buildReviewSearch(scope: ReviewScope, currentId?: string | null)
   const params = new URLSearchParams();
   params.set("status", scope.status);
   if (scope.jobId) params.set("job_id", scope.jobId);
-  if (scope.linkKind) params.set("link_kind", scope.linkKind);
+  if (scope.linkKind && scopeAllowsLinkKind(scope.reviewScope)) params.set("link_kind", scope.linkKind);
+  params.set("review_scope", scope.reviewScope);
   const current = cleanParam(currentId ?? null);
   if (current) params.set("current", current);
   return `?${params.toString()}`;
@@ -92,15 +118,23 @@ export function buildReviewSearch(scope: ReviewScope, currentId?: string | null)
 /**
  * Stable storage key for one list scope. The open-traversal cursor and the
  * all/resolved list position are stored separately (see ReviewSessionStore)
- * so a return position can never be reused as a status=open cursor.
+ * so a return position can never be reused as a status=open cursor. The queue
+ * family is part of the key so cursors/positions never cross scopes.
  */
 export function scopeKey(scope: ReviewScope): string {
-  return `${scope.status}|${scope.jobId ?? "-"}|${scope.linkKind ?? "-"}`;
+  return `${scope.status}|${scope.jobId ?? "-"}|${scope.linkKind ?? "-"}|${scope.reviewScope}`;
 }
 
-/** Draft identity: an immutable plan change must not inherit the old draft. */
-export function draftKey(reviewId: string, planFingerprint: string | null | undefined): string {
-  return `${reviewId}|${planFingerprint ?? "-"}`;
+/**
+ * Draft identity: an immutable plan change must not inherit the old draft, and
+ * a draft must never move between review_scope families.
+ */
+export function draftKey(
+  reviewId: string,
+  planFingerprint: string | null | undefined,
+  reviewScope: ReviewQueueScope = "resolution",
+): string {
+  return `${reviewScope}|${reviewId}|${planFingerprint ?? "-"}`;
 }
 
 export function isDecisionAllowed(
@@ -216,8 +250,12 @@ export class ReviewSessionStore {
     }
   }
 
-  loadDraft(reviewId: string, planFingerprint: string | null | undefined): ReviewDraftState | null {
-    const parsed = this.readJson(`draft.${draftKey(reviewId, planFingerprint)}`);
+  loadDraft(
+    reviewId: string,
+    planFingerprint: string | null | undefined,
+    reviewScope: ReviewQueueScope = "resolution",
+  ): ReviewDraftState | null {
+    const parsed = this.readJson(`draft.${draftKey(reviewId, planFingerprint, reviewScope)}`);
     if (!parsed || typeof parsed !== "object") return null;
     const record = parsed as Partial<ReviewDraftState>;
     if (typeof record.decision !== "string") return null;
@@ -238,18 +276,64 @@ export class ReviewSessionStore {
     reviewId: string,
     planFingerprint: string | null | undefined,
     draft: Omit<ReviewDraftState, "updatedAt">,
+    reviewScope: ReviewQueueScope = "resolution",
   ): void {
-    this.writeJson(`draft.${draftKey(reviewId, planFingerprint)}`, {
+    this.writeJson(`draft.${draftKey(reviewId, planFingerprint, reviewScope)}`, {
       ...draft,
       updatedAt: new Date().toISOString(),
     });
   }
 
-  clearDraft(reviewId: string, planFingerprint: string | null | undefined): void {
+  clearDraft(
+    reviewId: string,
+    planFingerprint: string | null | undefined,
+    reviewScope: ReviewQueueScope = "resolution",
+  ): void {
     try {
-      this.storage.removeItem(`${NAMESPACE}.draft.${draftKey(reviewId, planFingerprint)}`);
+      this.storage.removeItem(`${NAMESPACE}.draft.${draftKey(reviewId, planFingerprint, reviewScope)}`);
     } catch {
       // Best-effort; the caller already advanced away from this draft.
+    }
+  }
+
+  /**
+   * Person-state packages keep a different typed draft (assessments, overrides,
+   * reviewed keys). They live in their own key namespace so the resolution
+   * decision parser above can never read or apply them, and the review_scope is
+   * part of the key so the three families stay isolated.
+   */
+  loadPersonStateDraft<T>(
+    scope: ReviewScope,
+    reviewId: string,
+    planFingerprint: string | null | undefined,
+  ): T | null {
+    const parsed = this.readJson(`pstate.${draftKey(reviewId, planFingerprint, scope.reviewScope)}`);
+    return parsed && typeof parsed === "object" ? (parsed as T) : null;
+  }
+
+  savePersonStateDraft<T extends object>(
+    scope: ReviewScope,
+    reviewId: string,
+    planFingerprint: string | null | undefined,
+    draft: T,
+  ): void {
+    this.writeJson(`pstate.${draftKey(reviewId, planFingerprint, scope.reviewScope)}`, {
+      ...draft,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  clearPersonStateDraft(
+    scope: ReviewScope,
+    reviewId: string,
+    planFingerprint: string | null | undefined,
+  ): void {
+    try {
+      this.storage.removeItem(
+        `${NAMESPACE}.pstate.${draftKey(reviewId, planFingerprint, scope.reviewScope)}`,
+      );
+    } catch {
+      // Best-effort.
     }
   }
 

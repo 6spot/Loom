@@ -14,6 +14,8 @@ import ChapterSourceReference from "../../components/ChapterSourceReference";
 import PublicDialog from "../../components/PublicDialog";
 import ReadingNearbyEvents from "../../components/reading/ReadingNearbyEvents";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
+import PersonStateItems from "../../components/reading/PersonStateItems";
+import { useSourcePersonStateContext } from "../../hooks/usePersonStateContext";
 import ReadingEventTrigger from "../../components/reading/ReadingEventTrigger";
 import ReadingTimeAxis from "../../components/reading/ReadingTimeAxis";
 import ReadingWindow, { type ReadingWindowError } from "../../components/reading/ReadingWindow";
@@ -507,6 +509,12 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
 
   const activeUnit = controller.activeUnitId ? unitByIdRef.current.get(controller.activeUnitId) : undefined;
   const issue = controller.issue;
+  // Source-reading person state is keyed by the exact {stream, catalog, unit}
+  // locator of the active unit; switching units aborts the old request and a
+  // late response can never replace the new unit's summary.
+  const sourceState = useSourcePersonStateContext(
+    activeUnit ? safeLocator(currentStream, catalog, activeUnit.unit_id) : null,
+  );
 
   const axis = (
     <ReadingTimeAxis
@@ -537,6 +545,20 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
           label: `${activeUnit.chapter_id} · 原文`,
         });
       }}
+      stage={
+        <PersonStateItems
+          people={sourceState.people}
+          phases={sourceState.phases}
+          status={sourceState.status}
+          onOpenDetails={(person) => {
+            const target = controller.rememberReturnTarget();
+            onOpenEntity(person.person_id, target?.token ?? null);
+          }}
+          onRetry={sourceState.retry}
+          onLoadMorePeople={sourceState.loadMorePeople}
+          hasMorePeople={sourceState.hasMorePeople}
+        />
+      }
     >
       {(close) => <ReadingNearbyEvents units={units} activeOrdinal={controller.activeOrdinal ?? 0}
         onNavigate={(locator) => { close(); controller.navigate({ kind: "locate", locator }); }} />}

@@ -14,9 +14,11 @@ import {
   buildReviewSearch,
   parseReviewSearch,
   ReviewSessionStore,
+  scopeAllowsLinkKind,
   scopeKey,
 } from "../../lib/review-session";
 import type { ReviewScope, ReviewScopeStatus } from "../../lib/review-session";
+import type { ReviewScope as ReviewQueueScope } from "../../lib/person-state-types";
 
 function errorText(error: unknown): string {
   if (error instanceof StudioApiError) return `${error.code}: ${error.message}`;
@@ -39,6 +41,15 @@ const KIND_FILTERS: Array<{ value: ReviewScope["linkKind"]; label: string }> = [
   { value: null, label: "全部种类" },
   { value: "entity", label: "实体身份" },
   { value: "event", label: "事件发生" },
+];
+
+// §5.1 queue family. The page default is `all` (resolution + narrative +
+// person_state); switching family clears link_kind because it only belongs to
+// the resolution queue.
+const SCOPE_FILTERS: Array<{ value: ReviewQueueScope; label: string }> = [
+  { value: "all", label: "全部范围" },
+  { value: "resolution", label: "身份／综合内容" },
+  { value: "person_state", label: "阶段依据" },
 ];
 
 const PAGE_LIMIT = 50;
@@ -91,6 +102,7 @@ export default function StudioReviewPage() {
         status: scope.status as ReviewStatus | "all",
         jobId: scope.jobId,
         linkKind: scope.linkKind,
+        reviewScope: scope.reviewScope,
         limit: PAGE_LIMIT,
         cursor,
       }),
@@ -147,18 +159,38 @@ export default function StudioReviewPage() {
               </Button>
             ))}
           </div>
-          <div className="studio-filter-row" role="group" aria-label="审核种类过滤">
-            {KIND_FILTERS.map(({ value, label }) => (
+          <div className="studio-filter-row" role="group" aria-label="审核范围过滤">
+            {SCOPE_FILTERS.map(({ value, label }) => (
               <Button
-                key={label}
+                key={value}
                 size="sm"
-                variant={scope.linkKind === value ? "default" : "outline"}
-                onClick={() => applyScope({ ...scope, linkKind: value })}
+                variant={scope.reviewScope === value ? "default" : "outline"}
+                onClick={() =>
+                  applyScope({
+                    ...scope,
+                    reviewScope: value,
+                    linkKind: scopeAllowsLinkKind(value) ? scope.linkKind : null,
+                  })
+                }
               >
                 {label}
               </Button>
             ))}
           </div>
+          {scope.reviewScope === "resolution" ? (
+            <div className="studio-filter-row" role="group" aria-label="审核种类过滤">
+              {KIND_FILTERS.map(({ value, label }) => (
+                <Button
+                  key={label}
+                  size="sm"
+                  variant={scope.linkKind === value ? "default" : "outline"}
+                  onClick={() => applyScope({ ...scope, linkKind: value })}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
           <form
             className="studio-inline-form"
             onSubmit={(event) => {
@@ -196,7 +228,7 @@ export default function StudioReviewPage() {
                   <div className="studio-stack studio-stack-tight">
                     <div className="studio-row-title">
                       <Badge>{reviewStatusLabel(review.status)}</Badge>
-                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "阶段依据" : reviewLinkKindLabel(review.link_kind)}</Badge>
                       <strong>{review.document.title}</strong>
                       <span className="studio-muted">第 {review.document.revision_no} 版</span>
                       {review.review_id === currentId ? <Badge>上次位置</Badge> : null}

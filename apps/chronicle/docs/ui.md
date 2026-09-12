@@ -56,6 +56,39 @@ the exact reading locator through a same-site return token. Direct deep
 links, refresh and browser back/forward are supported. Longer-term tracks,
 map and why surfaces remain out of scope.
 
+Third round (C2-R3-T13) wires the reviewed person/place state into the real
+pages without a second controller. `/history` keeps the one
+`useReadingPosition` controller and subscribes the active composite paragraph
+through `usePersonStateContext`; the locator is `{version, paragraph_id,
+phase_id}` and the state summary is read once per paragraph, with a bounded
+(100 positions / 2 MiB) LRU cache. Switching paragraphs immediately shows the
+new paragraph's people/places and its loading state, a paragraph with no
+reviewed entities clears the panel, and a hovered retrospective event never
+switches the phase. The right column keeps the compact per-person/per-place
+rows grouped from the server-compiled `states`; only reviewed `entry_points`
+remain as navigation anchors.
+
+Person pages (`/entities/{id}`) accept the composite `version`/`para`/`phase`
+locator: the middle keeps the reader presentation, event trajectory and source
+representations, the right column shows the entity's compact state in that
+paragraph plus the paragraph's other people/places, and `HistoryReturnLink`
+returns to the original paragraph with the reading position restored from the
+same locator. When the reader arrived from source reading, the resolved
+`{stream_id, catalog_sha, unit_id}` locator feeds the T09/T10 typed client, so
+the full compiled `PersonSummary` (identity changes and experience) renders
+through the T11 `PersonStateDetails`. Direct entry never invents a current year
+or guesses a phase. On source reading pages the T11 `PersonStateItems` is
+mounted in the context panel's stage slot from the active unit's people page;
+per-person state/evidence requests stay on demand.
+
+Studio's mixed queue defaults to `review_scope=all`. URL, list cursor, open
+scan and draft keys all carry `review_scope`, so a person-state
+(`chapter_state_evidence`) draft and decision can never be reused for a
+resolution or narrative form (and the reverse). The detail page dispatches a
+`person_state` package to the T12 `PersonStateReviewPanel`; batch confirm,
+per-candidate assessments, pagination, skip and “保存并下一项” keep the same
+continuous-review behavior.
+
 Contextual surfaces can expose:
 
 - Events

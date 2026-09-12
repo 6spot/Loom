@@ -5,9 +5,10 @@ import PublicDialog from "../../components/PublicDialog";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
 import { useReadingPosition } from "../../hooks/useReadingPosition";
+import { useHistoryPersonStateContext } from "../../hooks/usePersonStateContext";
 import { historyPath, historyPositionKey, historyTime, historyTimeLabel, HISTORY_POSITION_STRATEGY,
   loadHistory, loadHistoryPage, loadHistoryConclusion,
-  type HistoryPublication, type HistoryParagraph, type HistoryPage as HistoryPageData,
+  type HistoryPublication, type HistoryEntity, type HistoryParagraph, type HistoryPage as HistoryPageData,
   type HistoryEntry } from "../../lib/history-api";
 import type { ContextEntityView } from "../../lib/reading-types";
 import "../../styles/reading-layout.css";
@@ -15,6 +16,21 @@ import "../../styles/history.css";
 
 const RELATIONS: Record<string, string> = { support: "支持", supplement: "补充", contradict: "不同说法", background: "背景", incomparable: "暂不可比较" };
 const SOURCE_RELATIONS: Record<string, string> = { same_work: "同一著作", quotes: "转引", dependent: "存在传承依赖", independent: "独立来源", unknown: "传承关系未定" };
+
+/**
+ * Phase locator + loading state for the active composite paragraph. It is the
+ * only place the main reading claims a phase: switching paragraphs shows the
+ * new phase and its loading state immediately, never the previous one.
+ */
+function PhaseStage({ status, phaseId, count }: { status: "loading" | "ready" | "empty"; phaseId: string | null; count: number }) {
+  if (status === "loading") {
+    return <p className="pstate-loading" data-test="history-phase-status" data-status="loading" role="status">正在载入本段人物与地点资料…</p>;
+  }
+  return <p className="pstate-phase" data-test="history-phase-status" data-status={status} data-phase-id={phaseId ?? ""} data-entity-count={count}>
+    {phaseId ? `阶段 ${phaseId}` : "阶段未标明"}
+    {status === "empty" ? " · 本段暂无收录人物或地点" : ""}
+  </p>;
+}
 
 function Conclusion({ version, id }: { version: string; id: string }) {
   const result = useQuery({ queryKey: ["history", version, "conclusion", id], queryFn: () => loadHistoryConclusion(version, id), staleTime: Infinity });
@@ -111,14 +127,14 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const paragraphs = useMemo(() => pages.flatMap((page) => page.paragraphs).filter((p, n, all) => all.findIndex((v) => v.id === p.id) === n).sort((a, b) => a.ordinal - b.ordinal), [pages]);
   const paragraphRef = useRef(paragraphs); paragraphRef.current = paragraphs;
   const groups = useMemo(() => new Map(pub.groups.map((g) => [g.id, g])), [pub]);
-  const contextFor = (p: HistoryParagraph): ContextEntityView[] => p.entities.map((e) => ({ entity_ref: e.id, canonical_id: e.id,
+  const contextFor = (entities: readonly HistoryEntity[]): ContextEntityView[] => entities.map((e) => ({ entity_ref: e.id, canonical_id: e.id,
     name: e.name, kind: e.kind, importance: e.importance, event_roles: [], source_anchor_ids: [] }));
 
   const controller = useReadingPosition({
     urlStrategy: HISTORY_POSITION_STRATEGY, unitSelector: "[data-history-paragraph]", headerHeight,
     getUnit: (id) => {
       const p = paragraphRef.current.find((v) => v.id === id);
-      return p ? { unitId: p.id, ordinal: p.ordinal, narrativeTime: historyTime(groups.get(p.group_id)), contextEntities: contextFor(p) } : null;
+      return p ? { unitId: p.id, ordinal: p.ordinal, narrativeTime: historyTime(groups.get(p.group_id)), contextEntities: contextFor(p.entities) } : null;
     },
     resolveStart: async () => historyPositionKey({ version: pub.version, paragraph_id: pub.first_paragraph_id }),
     locate: async (key, signal) => {
@@ -140,6 +156,11 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     if (previousSearch.current !== location.search) { previousSearch.current = location.search; controller.restoreFromUrl(); }
   }, [location.search, controller.restoreFromUrl]);
   const active = paragraphs.find((p) => p.id === controller.activeUnitId) ?? paragraphs[0];
+  const activeParagraph = active ?? null;
+  // Single subscription point for the active composite paragraph's person/place
+  // state. Switching paragraphs replaces the context synchronously (empty
+  // paragraph clears it); hover previews never change it.
+  const phaseContext = useHistoryPersonStateContext(pub.version, activeParagraph);
   const group = active ? groups.get(active.group_id) : null;
   const activeRef = useRef(active); activeRef.current = active;
 
@@ -183,12 +204,16 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const nearbyIndex = pub.entry_points.reduce((n, entry, index) => entry.ordinal <= (active?.ordinal ?? 0) ? index : n, 0);
   const nearby = pub.entry_points.slice(Math.max(0, nearbyIndex - 1), nearbyIndex + 3);
   const entriesByEvent = new Map(pub.entry_points.filter((e) => e.event_id).map((e) => [e.event_id, e]));
-  const side = <ReadingContextPanel entities={controller.contextEntities} unitId={active?.id} variant={narrow ? "panel" : "column"}
-    stateFacts={Object.fromEntries((active?.entities ?? []).map((e) => [e.id, e.states]))}
+  const side = <ReadingContextPanel entities={contextFor(phaseContext.entities)} unitId={active?.id} variant={narrow ? "panel" : "column"}
+    stateFacts={phaseContext.stateFacts}
+    stage={<PhaseStage status={phaseContext.status} phaseId={phaseContext.phaseId} count={phaseContext.entities.length} />}
     onViewEntity={(entity) => {
       if (!entity.canonicalId) return;
       const target = controller.rememberReturnTarget();
-      navigate(`/entities/${encodeURIComponent(entity.canonicalId)}?catalog=${pub.catalog_sha}${target ? `&return=${target.token}` : ""}`);
+      const locator = phaseContext.locator;
+      const paragraphId = locator?.paragraph_id ?? active?.id ?? "";
+      const phase = locator?.phase_id ? `&phase=${encodeURIComponent(locator.phase_id)}` : "";
+      navigate(`/entities/${encodeURIComponent(entity.canonicalId)}?catalog=${pub.catalog_sha}&version=${pub.version}&para=${encodeURIComponent(paragraphId)}${phase}${target ? `&return=${target.token}` : ""}`);
     }}>
     {(close) => <nav className="reading-nearby" aria-label="附近的重要事件"><h2>读到这里</h2><ol>{nearby.map((entry) => <li key={`${entry.kind}:${entry.paragraph_id}`}><button type="button" aria-current={entry === pub.entry_points[nearbyIndex] ? "location" : undefined} onClick={() => { close(); jump(entry.paragraph_id); }}>{entry.label}<small>{historyTimeLabel(entry)}</small></button></li>)}</ol></nav>}
   </ReadingContextPanel>;

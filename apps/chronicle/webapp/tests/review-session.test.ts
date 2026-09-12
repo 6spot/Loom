@@ -16,16 +16,29 @@ import {
 } from "../src/lib/review-session";
 
 describe("review scope URL round-trip", () => {
-  it("keeps status/job/kind/current in the URL and defaults safely", () => {
+  it("keeps status/job/kind/scope/current in the URL and defaults safely", () => {
     expect(parseReviewSearch("")).toEqual({
       status: "open",
       jobId: null,
       linkKind: null,
+      reviewScope: "all",
       currentId: null,
     });
-    const scope = parseReviewSearch("?status=open&job_id=job-1&link_kind=entity&current=r-9");
-    expect(scope).toEqual({ status: "open", jobId: "job-1", linkKind: "entity", currentId: "r-9" });
+    const scope = parseReviewSearch("?status=open&job_id=job-1&link_kind=entity&review_scope=resolution&current=r-9");
+    expect(scope).toEqual({
+      status: "open",
+      jobId: "job-1",
+      linkKind: "entity",
+      reviewScope: "resolution",
+      currentId: "r-9",
+    });
     expect(parseReviewSearch(buildReviewSearch(scope, scope.currentId))).toEqual(scope);
+  });
+
+  it("drops link_kind outside the resolution family", () => {
+    expect(parseReviewSearch("?review_scope=all&link_kind=entity").linkKind).toBeNull();
+    expect(parseReviewSearch("?review_scope=person_state&link_kind=event").linkKind).toBeNull();
+    expect(parseReviewSearch("?review_scope=bogus").reviewScope).toBe("all");
   });
 
   it("rejects unknown status/kind instead of carrying them into the scope", () => {
@@ -35,18 +48,20 @@ describe("review scope URL round-trip", () => {
     });
   });
 
-  it("isolates storage namespaces per scope", () => {
-    const a = scopeKey({ status: "open", jobId: "job-1", linkKind: null });
-    const b = scopeKey({ status: "open", jobId: "job-2", linkKind: null });
-    const c = scopeKey({ status: "resolved", jobId: "job-1", linkKind: null });
-    expect(new Set([a, b, c]).size).toBe(3);
+  it("isolates storage namespaces per scope, including the queue family", () => {
+    const a = scopeKey({ status: "open", jobId: "job-1", linkKind: null, reviewScope: "all" });
+    const b = scopeKey({ status: "open", jobId: "job-2", linkKind: null, reviewScope: "all" });
+    const c = scopeKey({ status: "resolved", jobId: "job-1", linkKind: null, reviewScope: "all" });
+    const d = scopeKey({ status: "open", jobId: "job-1", linkKind: null, reviewScope: "person_state" });
+    expect(new Set([a, b, c, d]).size).toBe(4);
   });
 });
 
 describe("draft isolation", () => {
-  it("keys drafts by (review_id, plan_fingerprint)", () => {
+  it("keys drafts by (review_id, plan_fingerprint, review_scope)", () => {
     expect(draftKey("r1", "fp-a")).not.toBe(draftKey("r1", "fp-b"));
     expect(draftKey("r1", "fp-a")).not.toBe(draftKey("r2", "fp-a"));
+    expect(draftKey("r1", "fp-a", "person_state")).not.toBe(draftKey("r1", "fp-a", "resolution"));
   });
 
   it("never applies an entity decision to an event review", () => {
