@@ -66,3 +66,15 @@ Studio auth 继续由 Rust front 在路由/资源检查前执行：匿名或错�
 引用依次展开“原文片段 → 前后文 → 整章”；不改变当前决定草稿，不跳回页首。请求 key 包含 review/plan/context/artifact，关闭、换项、改变组时迟到响应不能覆盖当前材料。正文和译文均作为文本渲染，引用失败保留表单和已读材料，可重试。
 
 验收必须操作实际页面：450 项以上、多 job、相同 created_at、前页处理后继续、队尾、两 tab 争用、晚提交、逐组例外、失败后刷新、只剩跳过项；以及无直接 Claim、重复引文、BOM/CRLF/扩展汉字、两个版本文字相同但来源不同。源码包含按钮文字或 fetch mock 通过不足以证明连审交互。
+
+## 6. 第三轮实施接口（T07）
+
+第三轮在同一 `GET /api/v1/studio/jobs/reviews` 队列外壳内加入 `review_scope`，不新增顶层路径；`studio_person_states.py` 负责 `payload.scope=person_state` 分支，`studio_reviews.py` 仍持有队列本身。scope 语义只来自 T01 的 `person_state_contract.normalize_review_scope` / `review_scope_covers`，代码不另定默认值。
+
+- 队列：`review_scope=resolution|person_state|all`，省略为 `resolution`（覆盖 `resolution` 与 `narrative`，既有综合 facts/prose 不因扩展消失）；`person_state` 只含阶段依据包；`all` 覆盖三类。`link_kind` 只在 `resolution` 合法，与 `person_state`/`all` 混用 400。`cursor`、`open_count`、`plan_fingerprint` 与 URL 均绑定所选 scope；换 scope 复用旧 cursor 为 400。
+- 列表项：person_state 项返回 `review_mode`、`chapter_id`、`candidate_count`、`default_assessment`、`allowed_assessments` 与包自身的 `plan_fingerprint`；`decision` 只给有界的 `{default_assessment, override_count, rationale, dismissed}`，不内联逐候选明细。
+- 详情：`GET /reviews/{review_id}` 对 person_state 返回冻结包，`candidates` 只读投影自 accepted 0.3 与不可变 anchors（人物/官职/阶段标签、原文引文、`source_label`、`attribution`、`reason_codes`），不按名称合并、不重跑模型。候选分页 `limit`（1..50，默认 20）与绑定 `(review, plan_fingerprint)` 的 `cursor`；无 artifact 时只降级为 null 标签，不伪造结论。
+- contexts：`GET /reviews/{review_id}/contexts?candidate_id=&limit=&cursor=` 按冻结 `anchor_ids` 返回描述符，`candidate_id` 限定单个候选，缺省覆盖整包；cursor 复用 `source_context` 的 group 绑定（group 即 candidate_id）。
+- sources：`GET /reviews/{review_id}/sources/{anchor_id}?view=window|chapter` 读取本包 anchor；anchor 不属于该包为 404，revision/hash/章节边界漂移或文件缺失为 409，绝不为冻结包补读新 revision。读取复用 `source_context` 的字节读取、hash 校验、code point 切片与高亮。
+- decision：`POST .../decision` 的 person_state 分支为 `{plan_fingerprint, default_assessment, overrides:[{candidate_key|candidate_id, assessment, rationale}], rationale, dismiss?}`。服务端要求显式 `default_assessment`（未审候选不得默认 `supported`）、覆盖必须命中冻结候选并带理由，提交的 `plan_fingerprint` 与冻结包不一致为 409 `plan_drift`，重复提交为 409；非法候选/评估/缺理由为 400。校验复用 T06 `normalize_person_state_decision`，身份 `same_entity`/`group_decisions` 等决议词表在 person_state 包上被拒。终态与决定同事务写入（沿用 job/review 锁），供 T08 的 `collect_person_state_assessments` 逐候选回填。
+
