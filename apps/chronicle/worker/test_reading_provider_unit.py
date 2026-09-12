@@ -1,7 +1,7 @@
 """Unit contracts for the C2-R2-T03 reading chapter provider wiring (no network).
 
-The deployment chapter provider must request the 0.2 reading structured
-output by default, keep the chapter transport envelope (4 MiB response cap,
+An explicitly selected 0.2 reading provider must request that structured
+output, keep the chapter transport envelope (4 MiB response cap,
 explicit output token budget), and return model text that the T01
 ``reading_contract`` validator accepts. The 0.1 format stays reachable for
 the preserved first-round regression path.
@@ -155,7 +155,8 @@ class ReadingProviderTests(unittest.TestCase):
         request = chapter_request()
         candidate = fixture_reading_candidate()
         provider = model_provider.build_chapter_model(
-            "chapter-live", "https://gateway.example/v1/responses"
+            "chapter-live", "https://gateway.example/v1/responses",
+            candidate_version="0.2",
         )
         payload = {
             "status": "completed",

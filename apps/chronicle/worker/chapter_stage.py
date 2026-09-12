@@ -42,6 +42,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable
 
 _HERE = Path(__file__).resolve().parent
@@ -139,6 +140,7 @@ def chapter_model_from_env(
         endpoint,
         api_key=(source.get(CHAPTER_API_KEY_ENV) or "").strip() or None,
         timeout_seconds=model_provider.timeout_from_env(source),
+        candidate_version=candidate_version_for_model(SimpleNamespace(name=chapter_name)),
     )
 
 
@@ -265,13 +267,13 @@ def plan_job_chapters(
     text and the immutable revision binding fails closed.
 
     ``candidate_version`` selects the joint candidate generation the
-    requests declare (0.1 first round, 0.2 reading annotations); it defaults
+    requests declare (0.1 first round, 0.2 reading, 0.3 person states); it defaults
     to the frozen 0.1 generation so existing callers are unchanged, while the
     worker passes the model's version through
-    :func:`candidate_version_for_model` so a live reading run plans 0.2. The
+    :func:`candidate_version_for_model` so a live run plans production 0.3. The
     request's declared version is the single signal the prompt renderer, the
     model strict format and the acceptance validator all read, so a run
-    cannot mix the 0.1 and 0.2 contracts.
+    cannot mix the registered candidate contracts.
 
     The T01 identity check requires ``normalized_sha256`` to hash to
     the request's chapter ``normalized_text``; the T03 builder carries

@@ -363,7 +363,11 @@ def write_stack_env(
     config["CHRONICLE_PORT"] = str(web_port)
     config["CHRONICLE_BIND_IP"] = "127.0.0.1"
     config["CHRONICLE_MODEL_ENDPOINT"] = endpoint
-    config["CHRONICLE_CHAPTER_MODEL"] = "gate-fixture-chapter"
+    # Use the worker's existing fixture selector so request, strict schema
+    # and this gate's reading-only response all stay on the frozen 0.2 path.
+    config["CHRONICLE_CHAPTER_MODEL"] = (
+        "gate-fixture:" + fixture_model.READING_CHAPTER_MODEL_SUFFIX
+    )
     config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
         "CHRONICLE_MODEL_TIMEOUT_SECONDS", "180"
     )
