@@ -994,6 +994,159 @@ def build_reading_chapter_candidate(
     return base
 
 
+def _person_state_block_for(
+    base: dict[str, Any], request: dict[str, Any]
+) -> dict[str, Any]:
+    """Build a deterministic 0.3 ``person_states`` block over a reading candidate.
+
+    Source-grounded and shape-valid for any chapter fixture pack: one phase
+    grounded on the first person entity's verbatim mention (when a person
+    exists), one unit-phase binding per translation block in order, and one
+    ``attest`` affiliation fact (with a supporting continuity) when a
+    non-place target entity exists. When the pack has no person entity the
+    block is a valid empty state with ``unknown`` unit bindings rather than a
+    fabricated identity. Coordinates/IDs stay program-computed; the result is
+    meant for the T01 ``person_state_contract`` validator.
+    """
+    text = _require_text(
+        request.get("normalized_text"), "fixture person-state chapter text"
+    )
+    blocks = request.get("blocks")
+    if not isinstance(blocks, list) or not blocks:
+        raise PersistenceError(
+            "fixture person-state chapter request blocks must be non-empty"
+        )
+    bundle = base["bundle"]
+    entities = [entity for entity in bundle.get("entities") or [] if isinstance(entity, dict)]
+    persons = [entity for entity in entities if entity.get("type") == "person"]
+    mentions = {
+        entity["temp_id"]: str(entity["mentions"][0]["text"])
+        for entity in entities
+        if entity.get("mentions")
+    }
+    translation_blocks = base["translation"]["blocks"]
+
+    phases: list[dict[str, Any]] = []
+    unit_phases: list[dict[str, Any]] = []
+    facts: list[dict[str, Any]] = []
+    continuities: list[dict[str, Any]] = []
+
+    phase_selection: dict[str, Any] | None = None
+    if persons:
+        subject_ref = persons[0]["temp_id"]
+        subject_mention = mentions.get(subject_ref)
+        if not subject_mention:
+            raise PersistenceError("fixture person-state subject has no mention")
+        phase_selection = _chapter_selection_for(
+            quote=subject_mention,
+            text=text,
+            blocks=blocks,
+            owner="fixture person-state phase",
+        )
+        label = str(bundle["source"]["title"]).strip()[:120] or "章内階段"
+        phases.append(
+            {
+                "phase_id": "ph_001",
+                "label": label,
+                "event_refs": [{"kind": "event", "ref": "evt_001"}],
+                "source_selections": [phase_selection],
+            }
+        )
+        target = next(
+            (
+                entity
+                for entity in entities
+                if entity.get("type") in ("polity", "organization")
+                and entity["temp_id"] != subject_ref
+            ),
+            None,
+        )
+        if target is None:
+            target = next(
+                (
+                    entity
+                    for entity in entities
+                    if entity.get("type") == "person" and entity["temp_id"] != subject_ref
+                ),
+                None,
+            )
+        if target is not None:
+            facts.append(
+                {
+                    "fact_id": "pf_001",
+                    "person_ref": {"kind": "entity", "ref": subject_ref},
+                    "dimension": "affiliation",
+                    "value_ref": None,
+                    "relation": "serves",
+                    "target_ref": {"kind": "entity", "ref": target["temp_id"]},
+                    "operation": "attest",
+                    "qualification": "ordinary",
+                    "phase_ref": "ph_001",
+                    "claim_refs": [],
+                    "source_selections": [phase_selection],
+                    "attribution": "narrator",
+                }
+            )
+            continuities.append(
+                {
+                    "assertion_id": "pc_001",
+                    "fact_ref": "pf_001",
+                    "start_phase_ref": "ph_001",
+                    "end_phase_ref": None,
+                    "source_selections": [phase_selection],
+                }
+            )
+
+    for translation_block in translation_blocks:
+        event_refs = {
+            ref.get("ref")
+            for ref in translation_block.get("event_refs") or []
+            if isinstance(ref, dict)
+        }
+        if phase_selection is not None and "evt_001" in event_refs:
+            unit_phases.append(
+                {
+                    "block_id": translation_block["block_id"],
+                    "mode": "single",
+                    "phase_refs": ["ph_001"],
+                    "source_selections": [phase_selection],
+                }
+            )
+        else:
+            unit_phases.append(
+                {
+                    "block_id": translation_block["block_id"],
+                    "mode": "unknown",
+                    "phase_refs": [],
+                    "source_selections": [],
+                }
+            )
+    return {
+        "phases": phases,
+        "phase_orders": [],
+        "unit_phases": unit_phases,
+        "facts": facts,
+        "continuities": continuities,
+        "disagreements": [],
+    }
+
+
+def build_person_state_chapter_candidate(
+    request: dict[str, Any], spec: dict[str, Any]
+) -> dict[str, Any]:
+    """Build a deterministic 0.3 person-state candidate for one fixture chapter.
+
+    Reuses the frozen 0.2 reading candidate and adds the third-round
+    ``person_states`` block, so translation, C0 records, reading annotations
+    and person-state facts are generated together from one whole-chapter
+    request.
+    """
+    base = build_reading_chapter_candidate(request, spec)
+    base["version"] = "0.3"
+    base["person_states"] = _person_state_block_for(base, request)
+    return base
+
+
 def _chapter_header_lines(prompt: str, marker: str, description: str) -> str:
     """Return the JSON paragraph following a production prompt marker."""
     start = prompt.find(marker)
@@ -1244,5 +1397,46 @@ def models_from_reading_chapter_fixture_pack(
     version = _require_text(payload.get("model_version"), "chapter fixture model_version")
     return FixtureReadingChapterModel(
         name=f"fixture:{version}:{READING_CHAPTER_MODEL_SUFFIX}",
+        chapters=tuple(payload["chapters"]),
+    )
+
+
+#: Suffix distinguishing the 0.3 person-state fixture provider name.
+PERSON_STATE_CHAPTER_MODEL_SUFFIX = "person-state-chapter"
+
+
+@dataclass(frozen=True)
+class FixturePersonStateChapterModel(FixtureReadingChapterModel):
+    """Deterministic 0.3 joint + reading + person-state candidate provider.
+
+    Same request parsing and fail-closed chapter binding as the 0.2 fixture,
+    but each chapter emits ``chronicle.chapter-candidate / 0.3`` with a
+    person_states block over the whole chapter. Acceptance runs the T01
+    ``person_state_contract`` validator, never a weaker parallel check.
+    """
+
+    #: Explicit version so version-selection wiring can bind 0.3 without
+    #: re-deriving it from the provider name.
+    candidate_version = "0.3"
+
+    def build_for_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(request, dict):
+            raise PersistenceError("fixture person-state chapter request must be an object")
+        chapter_id = request.get("chapter_id")
+        if not isinstance(chapter_id, str) or not chapter_id:
+            raise PersistenceError(
+                "fixture person-state chapter request requires chapter_id"
+            )
+        return build_person_state_chapter_candidate(request, self.spec_for(chapter_id))
+
+
+def models_from_person_state_chapter_fixture_pack(
+    path: Path | str,
+) -> FixturePersonStateChapterModel:
+    """Load one explicit development 0.3 person-state chapter fixture pack."""
+    payload = _load_chapter_pack(path)
+    version = _require_text(payload.get("model_version"), "chapter fixture model_version")
+    return FixturePersonStateChapterModel(
+        name=f"fixture:{version}:{PERSON_STATE_CHAPTER_MODEL_SUFFIX}",
         chapters=tuple(payload["chapters"]),
     )

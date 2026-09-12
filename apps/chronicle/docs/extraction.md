@@ -226,3 +226,67 @@ Unit suites: `persistence/test_reading_extraction_unit.py`,
 `worker/test_reading_model_schema_unit.py`,
 `worker/test_reading_provider_unit.py`; the 0.1 first-round regression
 suites above stay in place.
+
+## Whole-chapter joint translation/extraction + person states (C2-R3-T02)
+
+> 本节描述 C2-R3 生产 0.3 联合路径（Issue #620，Task C2-R3-T02）。
+> 契约权威见 [person-state-reading.md](person-state-reading.md) §§3–4；本节只说明
+> 生成/provider 落点，不复制规范。上文 C2-R1 0.1 与 C2-R2 0.2 小节保持不变。
+
+New production emits `chronicle.chapter-candidate / 0.3` — the frozen 0.2
+reading joint product plus one `person_states` block — in the *same*
+whole-chapter request. There is no per-segment state call and no read-time
+state generation.
+
+- **Single version registration.** `persistence/chapter_contract.py` extends
+  its registry to `CANDIDATE_VERSIONS = ("0.1", "0.2", "0.3")`,
+  `ARTIFACT_VERSIONS = ("0.1", "0.2", "0.3")`, `PRODUCTION_CANDIDATE_VERSION
+  = "0.3"`, `PRODUCTION_ARTIFACT_VERSION = "0.3"` and the 0.3 schema
+  paths/IDs. 0.1/0.2 stay frozen and retrievable; no second registry is
+  created.
+- **One whole-chapter call + at most one whole-chapter correction.**
+  `chapter_prompt.render_chapter_prompt` renders the reading guide plus the
+  person-state guide on top of the joint guide (phase facts/evidence/reading
+  binding, parent/quotation subject discipline, shared chapter-local refs,
+  action role vs. lasting state, recommendation/posthumous attest-only,
+  `unassessed` candidates and local-ref/ID discipline). Both the initial and
+  the correction prompt carry the full normalized text; a correction still
+  requires one complete regenerated chapter product (never only the state
+  array).
+- **T01 validator reused, not duplicated.** `chapter_extraction.extract_chapter`
+  dispatches by request version: 0.1 → `chapter_contract`, 0.2 →
+  `reading_contract`, 0.3 → the T01
+  `person_state_contract.validate_person_state_candidate` /
+  `accept_person_state_candidate` (which itself reuses the frozen 0.2 reading
+  validator on the subset). A 0.3 request can never silently downgrade; an
+  unregistered version fails closed as `unsupported_candidate_version` before
+  any model call. Missing `person_states`, capacity/truncation and unknown
+  enums reject the whole joint product.
+- **Consumer-side error categories.** A full-validation failure records
+  `error.categories` (`schema_validation`, `reading`,
+  `person_state_coverage`, `person_state_refs`, `person_state_phase`,
+  `person_state_types`, `person_state_continuity`, `limits`, `canonical_id`).
+- **Fingerprints/run history.** `fingerprints` records `candidate_schema`
+  (`.../0.3`), `prompt_version` (`c2r3-chapter-prompt-v1`),
+  `extraction_version` (`c2r3-extraction-v1`), and for 0.3 the
+  `person_state_schema` / `person_state_contract` / `person_state_limits`
+  (plus the reading bindings), so model/contract/limit versions stay
+  distinguishable.
+- **Provider/fixture parity.** `worker/extraction_model_schema.py` keeps the
+  frozen 0.1/0.2 projections and adds
+  `person_state_chapter_candidate_model_schema()` with the required
+  `person_states` block; `chapter_candidate_text_format()` now returns the
+  production 0.3 format and `chapter_candidate_text_format_for(version)`
+  selects 0.1/0.2/0.3. `model_provider.build_chapter_model(...)` defaults to
+  0.3 and keeps the 4 MiB response cap / explicit output-token budget.
+  `fixture_model.build_person_state_chapter_candidate` /
+  `models_from_person_state_chapter_fixture_pack` emit the same 0.3 shape from
+  one whole-chapter request.
+- **Still worker-owned.** Model run identity, lease-fenced persistence, the
+  atomic publish transaction, and the worker's `schema_versions` selection
+  (including `chapter_stage`) remain with the production/publication task
+  (T08); this task delivers the generation and provider layer only.
+
+Unit suites: `persistence/test_person_state_extraction_unit.py`,
+`worker/test_person_state_provider_unit.py`; the transport-retry and 0.1/0.2
+regression suites above stay in place.

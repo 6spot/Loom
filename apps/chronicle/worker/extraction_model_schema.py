@@ -998,8 +998,289 @@ def reading_chapter_candidate_model_schema() -> dict[str, Any]:
     return schema
 
 
+# ---------------------------------------------------------------------------
+# Person-state chapter candidate projection (C2-R3-T02)
+# ---------------------------------------------------------------------------
+# Strict Responses projection of ``chronicle.chapter-candidate / 0.3``: the
+# second-round reading product above plus the third-round ``person_states``
+# block. It reuses the frozen 0.1/0.2 projection and adds only person-state
+# shapes; the T01 ``person_state_contract`` validator remains the acceptance
+# authority. Program-bound values (canonical UUIDs, supported/certainty
+# verdicts, stream/unit/publication IDs, URLs, hashes) are absent by
+# construction. Cross-field unit-phase/operation/qualification consistency is
+# enforced by the validator, not by the generation projection.
+
+#: The wire format name is shared with the earlier projections (Responses
+#: constraints are identified by name; the emitted candidate carries the
+#: authoritative version). This avoids a parallel provider format.
+PERSON_STATE_CHAPTER_CANDIDATE_FORMAT_NAME = CHAPTER_CANDIDATE_FORMAT_NAME
+
+_PS_PHASE_REF = {"type": "string", "pattern": "^ph_[0-9]{3,}$"}
+_PS_FACT_REF = {"type": "string", "pattern": "^pf_[0-9]{3,}$"}
+
+
+def _person_state_typed_ref(kind: str) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["kind", "ref"],
+        "properties": {
+            "kind": {"type": "string", "const": kind},
+            "ref": {"type": "string", "minLength": 1},
+        },
+    }
+
+
+def _person_state_selection_list(*, min_items: int = 1) -> dict[str, Any]:
+    return {
+        "type": "array",
+        "items": _chapter_selection(),
+        "minItems": min_items,
+        "maxItems": 16,
+    }
+
+
+def _person_state_phase() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["phase_id", "label", "event_refs", "source_selections"],
+        "properties": {
+            "phase_id": {"type": "string", "pattern": "^ph_[0-9]{3,}$"},
+            "label": {"type": "string", "minLength": 1, "maxLength": 120},
+            "event_refs": {
+                "type": "array",
+                "items": _person_state_typed_ref("event"),
+                "maxItems": 16,
+            },
+            "source_selections": _person_state_selection_list(),
+        },
+    }
+
+
+def _person_state_phase_order() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "assertion_id",
+            "earlier_phase_ref",
+            "later_phase_ref",
+            "source_selections",
+        ],
+        "properties": {
+            "assertion_id": {"type": "string", "pattern": "^po_[0-9]{3,}$"},
+            "earlier_phase_ref": _PS_PHASE_REF,
+            "later_phase_ref": _PS_PHASE_REF,
+            "source_selections": _person_state_selection_list(),
+        },
+    }
+
+
+def _person_state_unit_phase() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["block_id", "mode", "phase_refs", "source_selections"],
+        "properties": {
+            "block_id": {"type": "string", "minLength": 1},
+            "mode": {
+                "type": "string",
+                "enum": ["single", "process", "ambiguous", "unknown"],
+            },
+            "phase_refs": {
+                "type": "array",
+                "items": _PS_PHASE_REF,
+                "maxItems": 8,
+            },
+            "source_selections": {
+                "type": "array",
+                "items": _chapter_selection(),
+                "maxItems": 16,
+            },
+        },
+    }
+
+
+def _person_state_fact() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "fact_id",
+            "person_ref",
+            "dimension",
+            "value_ref",
+            "relation",
+            "target_ref",
+            "operation",
+            "qualification",
+            "phase_ref",
+            "claim_refs",
+            "source_selections",
+            "attribution",
+        ],
+        "properties": {
+            "fact_id": {"type": "string", "pattern": "^pf_[0-9]{3,}$"},
+            "person_ref": _person_state_typed_ref("entity"),
+            "dimension": {"type": "string", "enum": ["office", "title", "affiliation"]},
+            "value_ref": {
+                "anyOf": [_person_state_typed_ref("entity"), {"type": "null"}]
+            },
+            "relation": {
+                "anyOf": [
+                    {"type": "string", "enum": ["serves", "attached_to"]},
+                    {"type": "null"},
+                ]
+            },
+            "target_ref": {
+                "anyOf": [_person_state_typed_ref("entity"), {"type": "null"}]
+            },
+            "operation": {"type": "string", "enum": ["start", "end", "attest"]},
+            "qualification": {
+                "type": "string",
+                "enum": [
+                    "ordinary",
+                    "recommendation",
+                    "self_designation",
+                    "posthumous",
+                    "reported",
+                ],
+            },
+            "phase_ref": _PS_PHASE_REF,
+            "claim_refs": {
+                "type": "array",
+                "items": _person_state_typed_ref("claim"),
+                "maxItems": 16,
+            },
+            "source_selections": _person_state_selection_list(),
+            "attribution": {
+                "type": "string",
+                "enum": ["narrator", "quotation", "annotation", "hearsay"],
+            },
+        },
+    }
+
+
+def _person_state_continuity() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "assertion_id",
+            "fact_ref",
+            "start_phase_ref",
+            "end_phase_ref",
+            "source_selections",
+        ],
+        "properties": {
+            "assertion_id": {"type": "string", "pattern": "^pc_[0-9]{3,}$"},
+            "fact_ref": _PS_FACT_REF,
+            "start_phase_ref": _PS_PHASE_REF,
+            "end_phase_ref": {
+                "anyOf": [dict(_PS_PHASE_REF), {"type": "null"}]
+            },
+            "source_selections": _person_state_selection_list(),
+        },
+    }
+
+
+def _person_state_disagreement() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "assertion_id",
+            "topic",
+            "fact_refs",
+            "phase_refs",
+            "source_selections",
+        ],
+        "properties": {
+            "assertion_id": {"type": "string", "pattern": "^pd_[0-9]{3,}$"},
+            "topic": {"type": "string", "minLength": 1, "maxLength": 200},
+            "fact_refs": {
+                "type": "array",
+                "items": _PS_FACT_REF,
+                "minItems": 2,
+                "maxItems": 16,
+            },
+            "phase_refs": {
+                "type": "array",
+                "items": _PS_PHASE_REF,
+                "maxItems": 16,
+            },
+            "source_selections": _person_state_selection_list(),
+        },
+    }
+
+
+def person_state_chapter_candidate_model_schema() -> dict[str, Any]:
+    """Return the strict model-generation subset of chapter-candidate 0.3.
+
+    The frozen 0.1/0.2 reading projection is reused verbatim; the third-round
+    change is the required ``person_states`` block (locally closed phase/fact
+    refs and source selections only) and the version const.
+    """
+    schema = copy.deepcopy(reading_chapter_candidate_model_schema())
+    schema["properties"]["version"] = {"type": "string", "const": "0.3"}
+    schema["properties"]["person_states"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "phases",
+            "phase_orders",
+            "unit_phases",
+            "facts",
+            "continuities",
+            "disagreements",
+        ],
+        "properties": {
+            "phases": {
+                "type": "array",
+                "items": _person_state_phase(),
+                "maxItems": 512,
+            },
+            "phase_orders": {
+                "type": "array",
+                "items": _person_state_phase_order(),
+                "maxItems": 1024,
+            },
+            "unit_phases": {
+                "type": "array",
+                "items": _person_state_unit_phase(),
+                "maxItems": 512,
+            },
+            "facts": {
+                "type": "array",
+                "items": _person_state_fact(),
+                "maxItems": 512,
+            },
+            "continuities": {
+                "type": "array",
+                "items": _person_state_continuity(),
+                "maxItems": 1024,
+            },
+            "disagreements": {
+                "type": "array",
+                "items": _person_state_disagreement(),
+                "maxItems": 1024,
+            },
+        },
+    }
+    schema["required"] = list(schema["required"]) + ["person_states"]
+    return schema
+
+
 def chapter_candidate_text_format_for(candidate_version: str) -> dict[str, Any]:
     """Return the strict chapter-candidate output format for one version."""
+    if candidate_version == "0.3":
+        return {
+            "type": "json_schema",
+            "name": PERSON_STATE_CHAPTER_CANDIDATE_FORMAT_NAME,
+            "schema": person_state_chapter_candidate_model_schema(),
+            "strict": True,
+        }
     if candidate_version == "0.2":
         return {
             "type": "json_schema",
@@ -1018,5 +1299,5 @@ def chapter_candidate_text_format_for(candidate_version: str) -> dict[str, Any]:
 
 
 def chapter_candidate_text_format() -> dict[str, Any]:
-    """Return the production (0.2 reading) chapter-candidate output format."""
-    return chapter_candidate_text_format_for("0.2")
+    """Return the production (0.3 person-state) chapter-candidate format."""
+    return chapter_candidate_text_format_for("0.3")
