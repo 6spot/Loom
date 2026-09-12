@@ -284,6 +284,48 @@ method/error mapping, snapshot overlay suppression) and
 served through the same `source_context` reader and public source
 route).
 
+## Source person-state reading (C2-R3-T10)
+
+The R3 source-reading person/state surface (`person-state-reading.md` §7)
+extends the second-round reading boundary with two product GETs. The domain
+queries live in `reading_people.py` (SELECT-only over the T05 person-state
+store) and are dispatched by the same public Python router under the
+`/v0/reading-streams` prefix; the Rust `/api/v1/public/reading-streams/{*rest}`
+forwarder passes the whole subpath through unchanged. The main-reading
+`{version, paragraph_id, phase_id}` composite locator is not replaced by the
+source `{stream_id, catalog_sha, unit_id}` locator.
+
+```text
+GET /v0/reading-streams/{stream_id}/units/{unit_id}/people?catalog=&limit=6&cursor=
+GET /v0/reading-streams/{stream_id}/units/{unit_id}/people/{person_id}/states?catalog=&section=identities|changes|evidence&phase_id=&item_id=&limit=20&cursor=
+```
+
+- The summary/state/evidence pages are one T01 DTO page
+  (`unit_people_page` / `person_state_page` / `state_evidence_page`) carrying
+  `stream_id`, `unit_id`, `catalog_sha`, `publication_id` and
+  `state_manifest_sha`, so a cursor and response stay pinned to one immutable
+  snapshot. An omitted `catalog` resolves the newest published snapshot once
+  and echoes it; a supplied catalog must be visible to the stream's own
+  manifest (an older snapshot never sees a later state manifest).
+- `limit` is `1..50`; `section` is required on the states route and
+  `section=evidence` requires `item_id` (`phase_id`/`item_id` on any other
+  section is a `400`). Unknown/repeated parameters, a malformed catalog/UUID
+  and a cursor bound to another scope are `400 bad_request`.
+- Unknown stream/unit/person/item/phase and a snapshot-invisible catalog are
+  `404 not_found`; only persons present in the reading unit's own
+  `context_entities` are served, and a manifest that lists an outside person
+  is an explicit `409 inconsistent` (never silently dropped). Non-GET is
+  `405 method_not_allowed`.
+- Responses are reduced to whole leading entries inside the
+  `summary_max_bytes` / `detail_max_bytes` / `evidence_max_bytes` budgets with
+  a `next_cursor` to the rest; a single item over `compiled_item_max_bytes`
+  (64 KiB) is rejected before a page is served. The summary previews at most 3
+  identities/3 changes per person and reports the full counts/entry points.
+
+Tests: `test_person_state_router_postgres.py` (route wiring through the shared
+router, parameter/method/error mapping, snapshot-scoped cursor rejection) on
+top of the T09 domain suite `test_reading_people_postgres.py`.
+
 ## Verification dataset
 
 The dedicated `Chronicle` GitHub Actions workflow loads the retained C0-T7/C0-T8 golden artifacts into an isolated PostgreSQL 18 database before read-model tests. The contract verifies Red Cliffs de-duplication and source evidence, Jiangling related-but-distinct navigation, 曹操 aggregation, uncertain same-name place separation, place-to-Event navigation, and HTTP error behavior without Luna/model calls.

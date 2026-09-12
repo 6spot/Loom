@@ -44,6 +44,8 @@ GET /api/v1/public/entities/{id}          -> upstream /v0/entities/{id}
 GET /api/v1/public/coverage               -> upstream /v0/coverage (C1-T14)
 GET /api/v1/public/historical-moment      -> upstream /v0/historical-moment (C1-T15)
 GET /api/v1/public/reading-streams*       -> upstream /v0/reading-streams* (C2-R2-T09)
+GET /api/v1/public/reading-streams/{stream}/units/{unit}/people[/{person}/states]
+                                          -> upstream /v0/reading-streams/... (C2-R3-T10)
 GET /api/v1/public/reading-events/*       -> upstream /v0/reading-events/* (C2-R2-T09)
 GET /v0/...                               legacy C0 compat, same upstream mapping
 GET /api/v1/studio/status                 privileged, admin auth required
@@ -71,7 +73,15 @@ same kind of thin forwarder: the whole subpath and its `catalog`/`stream`/
 `unit`/`cursor` query pass through unchanged to the Python `/v0/reading-*`
 contract under the existing 8 MiB upstream response cap, and the optional
 `catalog` on the Event/Entity details is forwarded without Rust reading the
-reading index. Studio document and job routes accept
+reading index. C2-R3-T10 adds the source person-state product GETs
+(`.../units/{unit}/people` and
+`.../units/{unit}/people/{person}/states?section=identities|changes|evidence`)
+under the same wildcard forwarder—Rust validates only the HTTP shape (GET,
+typed `405` otherwise) and never serves or caches person-state content itself.
+The matching Studio person-state *decision* stays on the authenticated
+`GET+POST /api/v1/studio/jobs/reviews/*` proxy: a browser cannot bypass Rust
+to reach the sidecar's `/api/v1/studio/jobs/reviews/{id}/decision`. Studio
+document and job routes accept
 `GET` and `POST` only (other methods get typed `405`); request bodies up to
 the proxy ceiling are forwarded to the sidecar, which enforces the real
 per-file upload limit (documents) and a 64 KiB job-request cap (jobs).

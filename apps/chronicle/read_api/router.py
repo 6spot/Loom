@@ -10,6 +10,7 @@ from historical_moment import build_historical_moment
 from read_common import ReadModelError, ReadModelNotFound
 from reader_chapters import CHAPTERS_PREFIX, dispatch_chapters
 from reader_presentation import latest_reader_presentation
+from reading_people import dispatch_reading_people
 from reader_streams import (
     ReadingStreamBadRequest,
     ReadingStreamError,
@@ -303,6 +304,16 @@ def dispatch(
                     detail=detail,
                 )
             return 200, _scoped_detail(repo.entity_detail(canonical_id, catalog_sha=catalog))
+
+        # C2-R3-T10: the T09 source-reading person-state routes are owned by
+        # ``reading_people`` (summary/states/evidence) and share this public
+        # router. Dispatch them before the generic reading-streams matcher,
+        # which would otherwise treat the deeper ``units/.../people`` path as
+        # an unknown subroute. A matched route returns its own status/DTO/error
+        # mapping; a non-matching path returns None and falls through unchanged.
+        reading_people = dispatch_reading_people(repo.conn, method, path, raw_query)
+        if reading_people is not None:
+            return reading_people
 
         reading_streams = _reading_streams(repo, path, raw_query)
         if reading_streams is not None:
