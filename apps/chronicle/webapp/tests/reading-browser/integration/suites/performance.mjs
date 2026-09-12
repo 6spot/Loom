@@ -13,6 +13,7 @@ import { p95 } from "../runner.mjs";
 const UNIT = '[data-test="reading-unit"]';
 const RUNS = 5;
 const ACTIVE_SAMPLES_PER_RUN = 15;
+const CONSECUTIVE_ADVANCES_PER_RUN = 1000;
 const SCROLL_SECONDS = 30;
 const FIXED_VIEWPORT = { width: 1440, height: 900 };
 
@@ -87,6 +88,8 @@ async function continuousScroll(page, seconds) {
   const deadline = started + seconds * 1000;
   const mountedSamples = [];
   const ordinals = [];
+  const checkpoints = [];
+  let checkpointAt = started;
   let wheels = 0;
   while (Date.now() < deadline) {
     await page.mouse.wheel(0, 1200);
@@ -101,6 +104,10 @@ async function continuousScroll(page, seconds) {
     });
     mountedSamples.push(state.mounted);
     if (state.active !== null && Number.isFinite(state.active)) ordinals.push(state.active);
+    if (Date.now() >= checkpointAt) {
+      checkpoints.push({ elapsed_ms: Date.now() - started, ordinal: state.active });
+      checkpointAt = Date.now() + 5000;
+    }
     await page.waitForTimeout(80);
   }
   return {
@@ -111,7 +118,61 @@ async function continuousScroll(page, seconds) {
     mounted_min: mountedSamples.length ? Math.min(...mountedSamples) : 0,
     active_ordinal_min: ordinals.length ? Math.min(...ordinals) : null,
     active_ordinal_max: ordinals.length ? Math.max(...ordinals) : null,
+    checkpoints,
   };
+}
+
+// Each step scrolls to the next real paragraph and waits for the production
+// controller to select it. Counting ordinal distance alone would miss a reader
+// that jumps ahead or stops loading after its first virtual window.
+async function advanceConsecutiveUnits(page, count) {
+  return await page.evaluate(async (wanted) => {
+    const activeOrdinal = () => {
+      const active = document.querySelector('[data-test="reading-unit"][data-active="true"]');
+      return active ? Number(active.getAttribute("data-ordinal")) : null;
+    };
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    const started = performance.now();
+    const first = activeOrdinal();
+    let current = first;
+    let completed = 0;
+    let mountedMax = 0;
+    let stalledAt = null;
+    for (let index = 0; index < wanted; index += 1) {
+      const nextOrdinal = current + 1;
+      const deadline = performance.now() + 5000;
+      let scrolled = false;
+      while (performance.now() < deadline) {
+        mountedMax = Math.max(mountedMax, document.querySelectorAll('[data-test="reading-unit"]').length);
+        const next = document.querySelector(`[data-test="reading-unit"][data-ordinal="${nextOrdinal}"]`);
+        if (next && !scrolled) {
+          const header = document.querySelector(".site-header")?.getBoundingClientRect().height ?? 0;
+          const compact = document.querySelector('[data-test="reading-compact-bar"]')?.getBoundingClientRect().height ?? 0;
+          const reference = header + compact + (innerHeight - header - compact) * 0.3;
+          const rect = next.getBoundingClientRect();
+          window.scrollBy(0, rect.top + Math.min(20, rect.height / 2) - reference);
+          scrolled = true;
+        }
+        if (scrolled && activeOrdinal() === nextOrdinal) break;
+        await frame();
+      }
+      if (activeOrdinal() !== nextOrdinal) {
+        stalledAt = { expected: nextOrdinal, active: activeOrdinal(), target_mounted: scrolled };
+        break;
+      }
+      completed += 1;
+      current = nextOrdinal;
+    }
+    return {
+      requested_steps: wanted,
+      completed_adjacent_steps: completed,
+      first_ordinal: first,
+      last_ordinal: current,
+      mounted_max: mountedMax,
+      duration_ms: Math.round(performance.now() - started),
+      stalled_at: stalledAt,
+    };
+  }, count);
 }
 
 async function waitForUnit(page, unitId, timeout = 30000) {
@@ -131,7 +192,9 @@ async function runOnce(runner, baseUrl, scaleStream) {
   try {
     await page.goto(readingUrl(baseUrl, scaleStream), { waitUntil: "domcontentloaded" });
     await page.waitForSelector(UNIT, { timeout: 30000 });
+    await page.waitForSelector(`${UNIT}[data-active="true"]`, { timeout: 30000 });
     await installProbes(page);
+    const consecutive = await advanceConsecutiveUnits(page, CONSECUTIVE_ADVANCES_PER_RUN);
     const { samples, timeouts } = await measureActiveUpdates(
       page,
       ACTIVE_SAMPLES_PER_RUN,
@@ -150,6 +213,7 @@ async function runOnce(runner, baseUrl, scaleStream) {
       request_counts: { ...requests },
       mounted_units: mountedUnits,
       window_progression: progression,
+      consecutive_advances: consecutive,
     };
     // Restore latency (warms locate/page data, then measures restore).
     await page.goto(readingUrl(baseUrl, scaleStream, scaleStream.last_unit_id), {
@@ -209,6 +273,7 @@ export async function run(ctx) {
       restore_ms: observed.restore_ms,
       mounted_units: observed.mounted_units,
       window_progression: observed.window_progression,
+      consecutive_advances: observed.consecutive_advances,
       long_tasks_ms: observed.long_tasks_ms,
       max_long_task_ms: observed.max_long_task_ms,
       request_counts: observed.request_counts,
@@ -216,6 +281,13 @@ export async function run(ctx) {
     };
     runs.push(run);
     runner.info(`run_${index + 1}`, run);
+
+    runner.check(
+      `run-${index + 1}-1000-consecutive-advances`,
+      observed.consecutive_advances.completed_adjacent_steps === CONSECUTIVE_ADVANCES_PER_RUN &&
+        observed.consecutive_advances.stalled_at === null,
+      `run ${index + 1} stopped before 1000 adjacent paragraph advances: ${JSON.stringify(observed.consecutive_advances)}`,
+    );
 
     runner.check(
       `run-${index + 1}-active-samples`,
@@ -234,7 +306,7 @@ export async function run(ctx) {
     );
     runner.check(
       `run-${index + 1}-mounted-window-budget`,
-      observed.window_progression.mounted_max <= limits.mounted_max_units,
+      Math.max(observed.window_progression.mounted_max, observed.consecutive_advances.mounted_max) <= limits.mounted_max_units,
       `run ${index + 1} mounted window reached ${observed.window_progression.mounted_max} > ${limits.mounted_max_units}`,
     );
     runner.check(
@@ -248,6 +320,13 @@ export async function run(ctx) {
         observed.window_progression.active_ordinal_min !== null &&
         observed.window_progression.active_ordinal_max > observed.window_progression.active_ordinal_min,
       `run ${index + 1} window did not advance: ${JSON.stringify(observed.window_progression)}`,
+    );
+    const checkpoints = observed.window_progression.checkpoints;
+    runner.check(
+      `run-${index + 1}-sustained-scroll-progress`,
+      checkpoints.length >= 6 && checkpoints.every((point, i) =>
+        point.ordinal !== null && (i === 0 || point.ordinal > checkpoints[i - 1].ordinal)),
+      `run ${index + 1} stopped advancing during the 30-second scroll: ${JSON.stringify(checkpoints)}`,
     );
     runner.check(
       `run-${index + 1}-long-task-budget`,
@@ -286,6 +365,7 @@ export async function run(ctx) {
     viewport: `${FIXED_VIEWPORT.width}x${FIXED_VIEWPORT.height}`,
     runs: RUNS,
     active_samples_per_run: ACTIVE_SAMPLES_PER_RUN,
+    consecutive_advances_per_run: CONSECUTIVE_ADVANCES_PER_RUN,
     continuous_scroll_seconds: SCROLL_SECONDS,
   });
   runner.info("runs", runs);

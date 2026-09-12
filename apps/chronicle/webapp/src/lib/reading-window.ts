@@ -190,11 +190,11 @@ const NO_MARKERS: AutoPrefetchMarkers = { previous: null, next: null };
 
 /**
  * 决定本帧正常边界要自动请求的相邻页方向：
- *  - 只有 `autoPrefetch`（窗口未饱和）且确实还有前/后页时才请求；
+ *  - 只有 `autoPrefetch`（可以安全回收）且确实还有前/后页时才请求；
  *  - 只有 active 接近已加载边界（<= edgeUnits）时才请求，保持相邻一页缓冲；
  *  - 同一边界 ordinal 只请求一次，页真的增长后才重新武装；
  *  - 该方向正在加载时不重复请求。
- * 窗口饱和（autoPrefetch=false）时清空标记且不产生任何请求，交由显式加载。
+ * 受保护内容阻止安全回收（autoPrefetch=false）时清空标记，交由显式加载。
  */
 export function planAutoPrefetch(input: AutoPrefetchInput): AutoPrefetchPlan {
   if (!input.autoPrefetch) return { requests: [], markers: NO_MARKERS };
@@ -249,6 +249,7 @@ export interface ReadingWindowPlan {
   readonly mountedUnitIds: readonly string[];
   readonly mountedUnits: readonly ReadingUnit[];
   readonly pinnedUnitIds: readonly string[];
+  /** 超出额外保护额度的单位仍保留在 DOM；暂停预取等待用户完成操作。 */
   readonly overflowPinnedUnitIds: readonly string[];
   readonly evictedUnitIds: readonly string[];
   readonly placeholders: readonly ReadingWindowPlaceholder[];
@@ -279,9 +280,10 @@ function dedupeStrings(values: readonly string[] | null | undefined): string[] {
 /**
  * 规划本帧实际渲染的 unit 与占位区：
  *  - 总量不超过 maxMountedUnits 时全部渲染；
- *  - 超出时保留 active、最多 maxPinnedUnits 个固定单位，再按 ordinal 距离补齐；
+ *  - 按 active 的 ordinal 距离保留正常窗口，窗口外的固定单位使用额外额度；
+ *  - 所有操作中的单位都保留；保护额度不足时缩小可回收部分并暂停预取；
  *  - 被移除的已测得单位输出精确占位高度，未测得的用估计值；
- *  - 一旦发生回收或固定单位溢出，停止自动预取并给出显式加载入口。
+ *  - 正常回收不阻止相邻页预取，只有保护额度不足才给出显式加载入口。
  */
 export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowPlan {
   const limits = resolveReadingWindowLimits(input.limits);
@@ -302,35 +304,29 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
   }
 
   const presentIds = new Set(units.map((unit) => unit.unit_id));
-  const requestedPinned = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
-  const pinnedUnitIds = requestedPinned.slice(0, limits.maxPinnedUnits);
-  const overflowPinnedUnitIds = requestedPinned.slice(limits.maxPinnedUnits);
+  const pinnedUnitIds = dedupeStrings(input.pinnedUnitIds).filter((id) => presentIds.has(id));
 
   const activeUnitId =
     input.activeUnitId && presentIds.has(input.activeUnitId)
       ? input.activeUnitId
       : units[0].unit_id;
 
-  const selected = new Set<string>([activeUnitId, ...pinnedUnitIds]);
-  let truncated = false;
+  const activeOrdinal = units.find((unit) => unit.unit_id === activeUnitId)?.ordinal ?? units[0].ordinal;
+  const nearest = [...units].sort((a, b) => {
+    const distance = Math.abs(a.ordinal - activeOrdinal) - Math.abs(b.ordinal - activeOrdinal);
+    return distance || a.ordinal - b.ordinal;
+  });
+  const normalIds = new Set(nearest.slice(0, limits.maxMountedUnits).map((unit) => unit.unit_id));
+  const extraPins = pinnedUnitIds.filter((id) => !normalIds.has(id));
+  const overflowPinnedUnitIds = extraPins.slice(limits.maxPinnedUnits);
+  const mountedLimit = limits.maxMountedUnits + Math.min(extraPins.length, limits.maxPinnedUnits);
 
-  if (units.length <= limits.maxMountedUnits) {
-    for (const unit of units) selected.add(unit.unit_id);
-  } else {
-    truncated = true;
-    const activeOrdinal = units.find((unit) => unit.unit_id === activeUnitId)?.ordinal ?? units[0].ordinal;
-    const candidates = units
-      .filter((unit) => !selected.has(unit.unit_id))
-      .sort((a, b) => {
-        const distanceA = Math.abs(a.ordinal - activeOrdinal);
-        const distanceB = Math.abs(b.ordinal - activeOrdinal);
-        if (distanceA !== distanceB) return distanceA - distanceB;
-        return a.ordinal - b.ordinal;
-      });
-    for (const unit of candidates) {
-      if (selected.size >= limits.maxMountedUnits) break;
-      selected.add(unit.unit_id);
-    }
+  // Do not truncate the protected set: that would destroy a selection or an
+  // open reference. With a full allowance, reclaim ordinary units first.
+  const selected = new Set<string>([activeUnitId, ...pinnedUnitIds]);
+  for (const unit of nearest) {
+    if (selected.size >= mountedLimit) break;
+    selected.add(unit.unit_id);
   }
 
   const mountedUnits = units.filter((unit) => selected.has(unit.unit_id));
@@ -346,7 +342,7 @@ export function planReadingWindow(input: ReadingWindowPlanInput): ReadingWindowP
     };
   });
 
-  const requiresExplicitLoad = truncated || overflowPinnedUnitIds.length > 0;
+  const requiresExplicitLoad = overflowPinnedUnitIds.length > 0;
   return {
     mountedUnitIds: mountedUnits.map((unit) => unit.unit_id),
     mountedUnits,

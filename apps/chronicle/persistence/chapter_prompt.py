@@ -31,7 +31,7 @@ PROMPT_VERSION = "c2r1-chapter-prompt-v11"
 #: Reading-annotation (0.2) prompt template version. Bound into the
 #: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
 #: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v3"
+READING_PROMPT_VERSION = "c2r2-chapter-prompt-v4"
 
 #: Joint candidate marker the model must emit (T01 contract).
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
@@ -170,6 +170,12 @@ Use natural paragraph breaks at changes of narrative time or action, usually 80-
 Chinese characters; longer quotations may remain together. This is one whole-chapter
 response, never independent paragraph translations. Do not create an Event for each
 paragraph or turn minor details into navigation anchors.
+Paragraph length is a layout guide, NOT a chapter-length limit: create as many
+paragraphs as the complete source needs. Listing a source_block_id does not translate
+that block. Preserve the full content of speeches, letters, memorials, decrees and
+embedded annotations, including each argument and its attribution. Do not replace
+them with statements such as "群臣上表劝进" or "史书有不同记载". Those are summaries,
+not translations of the actual memorial or each cited account.
 SOURCE DATE FIELDS: in each non-null Event.time.source_calendar, return system, era,
 era_year, season, month, day, inherited_fields. Use null for unsupported components;
 season is spring|summer|autumn|winter|null, month is 1..12|null, day may preserve a
@@ -223,7 +229,11 @@ reading unit (field names are exact):
     event_roles: [{event_ref, participant_index}] where event_ref is a current_event_ref
     and participant_index is that entity's original participant position in the event
     (0-based); the program copies the role text from the participant record, so never
-    write a role string yourself. Include the main people/places actually involved
+    write a role string yourself. Find the event whose temp_id equals event_ref,
+    then verify event.participants[participant_index].entity_ref equals this
+    context entity_ref. Index 0 is not a default. A place in event.places is NOT a
+    participant; keep event_roles [] unless that same entity actually occurs in the
+    event's participants array. Include the main people/places actually involved
     here, even when narrative_time is unknown or inherit (then event_roles is []).
     Do not include every chapter entity or promote someone mentioned only as distant
     background to primary. Use [] where this passage has no supported context entity.
@@ -250,6 +260,11 @@ _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
 _MAX_ONE_DIAGNOSTIC_CHARS = 280
 _INDEX_PATH_RE = re.compile(r"/(?:0|[1-9][0-9]*)(?=/|:|$)")
 _WS_RE = re.compile(r"\s+")
+_ANCHOR_MISMATCH_RE = re.compile(
+    r"quote occurs (\d+) time\(s\) in (\[[^\]]+\]) but occurrence=(\d+) was requested; "
+    r"quote occurs (\d+) time\(s\) chapter-wide, first in block ('[^']+')"
+    r": re-point first/last_block_id to the enclosing block\(s\) and recount"
+)
 
 
 def _json(value: Any) -> str:
@@ -290,7 +305,9 @@ def _diagnostic_signature(value: str) -> str:
     return _INDEX_PATH_RE.sub("/*", value)
 
 
-def compact_validation_errors(errors: list[str]) -> list[str]:
+def compact_validation_errors(
+    errors: list[str], *, candidate_version: str = CANDIDATE_VERSION
+) -> list[str]:
     """Bound model-facing repair diagnostics; full history stays untouched.
 
     The complete validator report remains in the extraction attempt
@@ -313,6 +330,16 @@ def compact_validation_errors(errors: list[str]) -> list[str]:
             omitted += 1
             continue
         text = _diagnostic_signature(text)
+        # Preserve each repair location, both match counts and the correct
+        # source block hint without repeating a long generic instruction.
+        # R2 live extraction lost every reading diagnostic after repeated anchor
+        # failures exhausted this bounded prompt, so the correction could not
+        # repair a known context selection. The full report stays unchanged.
+        if candidate_version == READING_CANDIDATE_VERSION:
+            text = _ANCHOR_MISMATCH_RE.sub(
+                r"quote: \1 matches in \2, occurrence=\3; \4 chapter matches, first block=\5",
+                text,
+            )
         if len(text) > _MAX_ONE_DIAGNOSTIC_CHARS:
             text = text[: _MAX_ONE_DIAGNOSTIC_CHARS - 24].rstrip() + " … [diagnostic shortened]"
         if text in seen:
@@ -455,6 +482,15 @@ def render_chapter_prompt(
         if candidate_version == READING_CANDIDATE_VERSION
         else ""
     )
+    if candidate_version == READING_CANDIDATE_VERSION:
+        reading_guide += (
+            f"\nFULL-TEXT SCALE: this chapter contains {len(request['normalized_text'])} "
+            f"source characters and {len(request['required_block_ids'])} required source blocks. "
+            "A full modern-Chinese translation normally needs comparable or greater "
+            "space. A much shorter overview is not an acceptable whole-chapter product. "
+            "Complete the entire translation first, then annotate it; never trade away "
+            "source passages to fit the bundle or reading metadata into the response.\n"
+        )
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
@@ -462,7 +498,7 @@ def render_chapter_prompt(
 
     correction = ""
     if validation_errors is not None:
-        diagnostics = compact_validation_errors(validation_errors)
+        diagnostics = compact_validation_errors(validation_errors, candidate_version=candidate_version)
         prev_chars = _translation_chars(previous_candidate)
         if candidate_version == READING_CANDIDATE_VERSION:
             repaired = "the joint bundle, mentions, record_sources and reading annotations"
@@ -483,13 +519,25 @@ def render_chapter_prompt(
                 "embedded annotation. Do NOT summarize, condense, shorten, or "
                 "replace any passage with an overview; only repair the listed "
                 "issues while preserving (or lengthening) the full translation.\n"
-                "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
-                "translation.blocks through unchanged (same block_ids, same order, "
-                "same full text). Do NOT rewrite, shorten, or re-summarize the "
-                "translation; the diagnostics below concern the joint bundle, "
-                "mentions, record_sources, reading and time fields — repair those "
-                "and keep the translation verbatim.\n"
             )
+            if candidate_version == READING_CANDIDATE_VERSION:
+                preserve += (
+                    "Keep every faithful translated passage, its block_id and order. "
+                    "A reference-validation report does not certify completeness: "
+                    "check the entire source again and expand any omitted or condensed "
+                    "passages, including quoted documents and annotations. Update "
+                    "dependent reading annotations if expansion is necessary. Never "
+                    "shorten the translation while repairing references.\n"
+                )
+            else:
+                preserve += (
+                    "TRANSLATION IS ALREADY CORRECT: copy the PREVIOUS CANDIDATE's "
+                    "translation.blocks through unchanged (same block_ids, same order, "
+                    "same full text). Do NOT rewrite, shorten, or re-summarize the "
+                    "translation; the diagnostics below concern the joint bundle, "
+                    "mentions, record_sources, reading and time fields — repair those "
+                    "and keep the translation verbatim.\n"
+                )
         correction = (
             "\nCORRECTION RE-ASK\n"
             "The prior chapter product failed deterministic validation. Return one "

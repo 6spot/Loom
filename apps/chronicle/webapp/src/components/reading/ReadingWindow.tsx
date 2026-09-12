@@ -174,6 +174,7 @@ export default function ReadingWindow({
   const [expandedSources, setExpandedSources] = useState<Record<string, string>>({});
   const [focusedUnitId, setFocusedUnitId] = useState<string | null>(null);
   const [selectionPinned, setSelectionPinned] = useState<readonly string[]>([]);
+  const windowRef = useRef<HTMLDivElement>(null);
 
   const units = useMemo(() => mergeReadingUnitPages(pages), [pages]);
   const headings = useMemo(
@@ -236,8 +237,7 @@ export default function ReadingWindow({
     });
   }, []);
 
-  // 正常边界自动预取相邻一页（前后双向）。窗口饱和时 planAutoPrefetch 不产生
-  // 任何请求，只保留显式加载入口。
+  // 正常回收后继续双向预取相邻一页；只有受保护内容阻止安全回收时才暂停。
   const streamEdges = useMemo(() => readingStreamEdges(pages), [pages]);
   const autoMarkersRef = useRef<AutoPrefetchMarkers>({ previous: null, next: null });
   const requestPage = callbacks?.requestPage;
@@ -262,12 +262,17 @@ export default function ReadingWindow({
       const selection = typeof window === "undefined" ? null : window.getSelection();
       const next = new Set<string>();
       if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
-        for (const node of [selection.anchorNode, selection.focusNode]) {
-          const element =
-            node instanceof HTMLElement ? node : (node?.parentElement ?? null);
-          const unitElement = element?.closest?.('[data-test="reading-unit"]') ?? null;
-          const unitId = unitElement?.getAttribute("data-unit-id");
-          if (unitId) next.add(unitId);
+        // A selection can cover many paragraphs. Protect the interior as well
+        // as the endpoints; scan only this window's bounded, mounted DOM.
+        const mounted = windowRef.current?.querySelectorAll<HTMLElement>('[data-test="reading-unit"]');
+        for (const element of mounted ?? []) {
+          for (let index = 0; index < selection.rangeCount; index += 1) {
+            if (selection.getRangeAt(index).intersectsNode(element)) {
+              const unitId = element.getAttribute("data-unit-id");
+              if (unitId) next.add(unitId);
+              break;
+            }
+          }
         }
       }
       const nextList = [...next];
@@ -305,6 +310,7 @@ export default function ReadingWindow({
 
   return (
     <div
+      ref={windowRef}
       className="rcw-window"
       data-test="reading-window"
       data-mounted={plan.mountedUnitIds.length}
@@ -315,7 +321,7 @@ export default function ReadingWindow({
       {plan.requiresExplicitLoad ? (
         <div className="rcw-paused" data-test="reading-paused" role="status">
           <p className="rcw-paused-text">
-            已暂停自动预取：当前正文窗口已达上限，你正在阅读的段落仍保留。
+            已暂停自动预取：请先完成文字选择或收起部分引用，正在操作的段落会保留。
           </p>
           <div className="rcw-manual-controls" data-test="reading-load-more">
             <button

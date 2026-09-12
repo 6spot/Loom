@@ -19,7 +19,7 @@ Canonical contracts: [continuous reading](../../../../apps/chronicle/docs/contin
 
 - [ ] 跨章正文顺序、内容与 source 引用完全一致，没有每段重新摘要或卡片墙。
 - [ ] 重复页不重复内容；上方窗口移除不会让当前段明显跳位，焦点/选择/引用单位不会消失。
-- [ ] 正常 mounted units <=120、最多 20 个固定单位，超出时停止自动预取且可手动继续。
+- [ ] 正常 mounted units <=120，操作中的单位最多额外保留 20 个；正常回收继续自动预取，仅不能安全回收时暂停并提供手动入口，不移除正在操作的 DOM。
 - [ ] 引用失败不清正文，关闭回到触发点；320px 宽和 200% 字号可阅读。
 
 ## Verification requirements

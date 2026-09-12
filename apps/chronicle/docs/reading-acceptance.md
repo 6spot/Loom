@@ -73,7 +73,9 @@ gate 会：
 7. 运行 `reading-flow-smoke.mjs --suite all`：多 stream、版本固定、事件预览
    hover/keyboard/touch、角色、时间轴、导航负例、触屏面板、reduced-motion、
    200% 字体、四 viewport、44px、对比度、unknown/missing role/time 负例；性能在
-   固定 Chromium/viewport 下执行 5 次，记录每次与总体的 active/restore p95。
+   固定 Chromium/viewport 下执行 5 次，每次先逐段推进 1,000 次，确认每次相邻
+   active unit 更新且挂载数有界，再连续滚动 30 秒，每 5 秒检查仍在前进；
+   记录每次与总体的 active/restore p95。跨过的 ordinal 数不能代替逐段推进次数。
 
 `manifest.json` 的 `criteria` 逐项记录
 `real_stack_offline_chain/negative_faults/browser_interaction/performance_budget`，

@@ -58,9 +58,9 @@
       "category": "time-sequence-same-source",
       "synthetic": false,
       "title": "周瑜傳同章時間推進：十三年春→其年九月→遇於赤壁",
-      "question": "周瑜傳「十三年春」「其年九月」「遇於赤壁」是否構成同一敘事起點內連續、可繼承的年份？",
-      "observation": "周瑜傳以「十三年春」起，接「其年九月，曹公入荊州…」，再接「遇於赤壁」；三段同章、同一年、按敘事順序排列，後段可沿用前段年份（inherit）而不另造公曆時間。",
-      "expected_reading_behavior": "同一 stream 內聯續 units 可共享 year_key；「其年九月」承接「十三年春」的年份並新增九月 period_key；事件段以 current_event_refs 表示所在事件，不由前端按年份重排。",
+      "question": "周瑜傳「十三年春」「其年九月」「遇於赤壁」的年份如何承接，月份是否同樣有據？",
+      "observation": "周瑜傳這一階段先記「十三年春」，再記「其年九月，曹公入荊州」，後記「遇於赤壁」；三處同章、按原文敘事順序排列，年份可依承接依據保留，但赤壁句未明示月份。",
+      "expected_reading_behavior": "有明確年份的本段事件須保留該來源時間；「其年九月」承接十三年並新增史料九月 period_key，不把九月機械賦給赤壁。日期字段承接不等同整段 narrative_time.mode=inherit；有 current_event_refs 時按 events/mixed 契約處理。正文不按年份重排，同年而月份未明確時使用該年的獨立區段。",
       "refs": [
         {
           "source_key": "zhou-yu",
@@ -94,8 +94,8 @@
       "synthetic": false,
       "title": "周瑜傳戰後時間推進：又進南郡→拜偏將軍領南郡太守",
       "question": "赤壁之後周瑜傳是否明確推進到戰後南郡階段？",
-      "observation": "「瑜與程普又進南郡」「權拜瑜偏將軍，領南郡太守」承接赤壁戰後，時間與地點（南郡/江陵）均較前段後移，屬敘事時間推進而非回溯。",
-      "expected_reading_behavior": "軸僅在 period_key 改變時新建區段；戰後段用本段 current_event_refs，不把赤壁事件年份平移到戰後。",
+      "observation": "「瑜與程普又進南郡」「權拜瑜偏將軍，領南郡太守」依次敘述赤壁後的南郡作戰及任命，屬敘事推進；這兩句本身沒有明示新的年份或月份。",
+      "expected_reading_behavior": "保留作戰與任命的原文順序及本段 current_event_refs；用各事件自身的來源時間，僅在編譯所得 period_key 改變時新建區段。不憑「戰後」推定新年月，也不以赤壁 canonical 聚合年份代替；沒有可用時間時顯示未明確。",
       "refs": [
         {
           "source_key": "zhou-yu",
@@ -117,12 +117,12 @@
     },
     {
       "id": "R2C03",
-      "category": "retrospective-block",
+      "category": "early-narrative-time",
       "synthetic": false,
-      "title": "周瑜傳回溯：初，孫堅與義兵討董卓",
-      "question": "周瑜傳「初，孫堅與義兵討董卓…」是否為回溯鋪陳而非當前敘事時間？",
-      "observation": "「初」引出周瑜與孫策同年、徙家於舒的早年背景，時間早於前文十三年主線；正確閱讀應標為回溯（relation=retrospective），不改變當前 narrative_time。",
-      "expected_reading_behavior": "回溯 span 不參與 narrative_time；軸不回退到董卓討伐年份；回溯事件僅作可預覽的旁及，hover/預覽不改 active unit。",
+      "title": "周瑜傳篇首早年敘事：初，孫堅與義兵討董卓",
+      "question": "周瑜傳「初，孫堅與義兵討董卓…」位於何處，如何依本段內容判斷主敘事與旁及？",
+      "observation": "此句在篇首家世敘述之後、首次「建安三年」之前，引出孫堅徙家於舒及周瑜、孫策早年交往；前文尚無十三年主線，不能把它拼作赤壁段的旁及。",
+      "expected_reading_behavior": "保留篇首位置，依實際分段區分主敘事與旁及，不因「初」字強制整段 relation=retrospective。當前段用本來源有據時間，無可用時間則顯示未明確；旁及的回溯/預敘/背景 span 不參與 narrative_time。整段主敘事回到早年時可顯示回溯，預覽開啟則不改 active unit。",
       "refs": [
         {
           "source_key": "zhou-yu",
@@ -140,8 +140,8 @@
       "synthetic": false,
       "title": "通鑑回溯：初，魯肅聞劉表卒",
       "question": "通鑑卷65「初，魯肅聞劉表卒」在編年體中是回溯還是當下記事？",
-      "observation": "「初」於編年記事中補敘魯肅聞劉表卒而為孫權畫策，屬回溯倒插；其後方接當下荊州/赤壁主線。",
-      "expected_reading_behavior": "回溯段時間不參與主敘事；回到主線後時間軸接回原編年位置，不把兩次出現的年份全局合併。",
+      "observation": "此句緊接「冬，十月，癸未朔，日有食之」之後，補敘此前魯肅聞劉表卒、向孫權畫策及出使的經過，後接荊州/赤壁記事；它位於通鑑本卷赤壁段之前。",
+      "expected_reading_behavior": "補敘不自動繼承相鄰十月；保留原文可確認的年份及實際精度。整段主敘事轉入此前事件時，按本段 current 事件的來源時間顯示，允許軸回溯；旁及的回溯/預敘/背景 span 不參與 narrative_time。回到後續主線仍按連續 key 分組，不全局合併同年。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -159,8 +159,8 @@
       "synthetic": false,
       "title": "跨來源同一事件：赤壁遭遇（周瑜傳↔通鑑卷65）",
       "question": "周瑜傳「遇於赤壁」與通鑑「進，與操遇於赤壁」是否同一事件、可顯式切換來源並返回？",
-      "observation": "兩來源記同一赤壁遭遇戰；通鑑補「時操軍眾已有疾疫」細節。閱讀時以同一已確認事件切換 A→B 並保存返回位置，不在前端混編兩書正文。",
-      "expected_reading_behavior": "跨來源切換顯式顯示來源切換並保存返回 locator；B 軸不延長 A 軸；返回 A 恢復原 unit 而非首段。",
+      "observation": "兩來源均記赤壁遭遇及曹軍患病：周瑜傳有「時曹公軍眾已有疾病」，通鑑有「時操軍眾已有疾疫」。兩處可供事件身份審核與來源對照，不能僅憑記載數量宣稱獨立互證。",
+      "expected_reading_behavior": "同一 canonical Event 經審核確認後，跨來源切換顯式顯示來源並保存返回 locator；B 軸不延長 A 軸，兩側時間各用本來源觀察；返回 A 恢復原 unit 而非首段，不在前端混編兩書正文。",
       "refs": [
         {
           "source_key": "zhou-yu",
@@ -182,12 +182,12 @@
     },
     {
       "id": "R2C06",
-      "category": "cross-source-same-appointment",
+      "category": "cross-source-event-granularity",
       "synthetic": false,
-      "title": "跨來源同一任命：周瑜、程普為左右督",
-      "question": "通鑑「遂以周瑜、程普為左右督」與周瑜傳「權遂遣瑜及程普等與備並力逆曹公」是否為同一任命？",
-      "observation": "人名、職事（左右督）、協同對象（與備並力）三者一致，可作跨書同人/同事件核對點；最終 canonical 身份歸併仍走審核，不由核對點自動合併。",
-      "expected_reading_behavior": "targets 以 relation=current 定位發生段落；同名事件先以 canonical ID 區分，不按顯示名稱查找任意 Event。",
+      "title": "跨來源遣軍與任命：周瑜、程普協同劉備",
+      "question": "通鑑「遂以周瑜、程普為左右督」與周瑜傳「權遂遣瑜及程普等與備並力逆曹公」共同支持哪些行動，是否具有相同事件粒度？",
+      "observation": "兩處均記周瑜、程普與劉備協同抗曹；通鑑明載左右督任命，周瑜傳所引句只記遣軍，全章未載「左右督」。不能把任命與遣軍預設為同一粒度的事件；最終 canonical 身份歸併仍走審核。",
+      "expected_reading_behavior": "targets 按已審核的 canonical ID 列出位置，以 relation=current 定位發生段落；未確認同一的任命/遣軍不自動合併，也不按顯示名稱查找任意 Event。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -211,10 +211,10 @@
       "id": "R2C07",
       "category": "place-ambiguity",
       "synthetic": false,
-      "title": "地點層級歧義：南郡/江陵須保留 uncertain",
+      "title": "地點層級區分：南郡/江陵不自動等同",
       "question": "通鑑「追操至南郡」與「留…守江陵」能否直接等同為同一地點？",
-      "observation": "「南郡」為郡名、「江陵」為城名，同段相鄰但指稱層級不同；無更強原文依據時必須保留 uncertain，不因同屬荊州戰場自動合併。",
-      "expected_reading_behavior": "context_entities 的地點不冒充人物所在；不確定關聯顯示無明確關聯，不填整章地點。",
+      "observation": "「南郡」與「江陵」指稱層級不同，相鄰出現不證明是同一地點；身份關係由審核決定，保留不同對象或尚未確認的關係，不強制所有結果為 uncertain。",
+      "expected_reading_behavior": "context_entities 可展示本段有原文支持的南郡、江陵及各自事件角色；事件地點不證明所有參與人物都在當地。只有缺失/未知的關聯顯示無明確關聯，不因身份未合併而清空有據 context，也不填整章地點。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -236,12 +236,12 @@
     },
     {
       "id": "R2C08",
-      "category": "annotation-not-body",
+      "category": "annotation-attribution",
       "synthetic": false,
-      "title": "嵌注歸屬：先主傳《典略》注不得當正文",
+      "title": "嵌注歸屬：先主傳《典略》世系記載",
       "question": "「〈《典略》曰：備本臨邑侯枝屬也。〉」是正文斷言還是裴注轉述？",
-      "observation": "以〈〉包裹的裴松之引《典略》置於世系敘述後；譯文與閱讀斷言必須保留「《典略》記載」歸屬，不得改寫為正文斷言。",
-      "expected_reading_behavior": "注文可作 source_selection 與 context 依據，但不得作為正文 current_event_refs/主敘事斷言；原文視圖仍可展開。",
+      "observation": "以〈〉包裹的裴松之引《典略》置於世系敘述後；譯文與抽取必須保留「《典略》記載」歸屬，不得抹去轉引層次而改寫為原作者的無歸屬斷言。",
+      "expected_reading_behavior": "完整譯出並保留《典略》歸屬，可作有歸屬的 Claim、source_selection 與 context 依據；本句世系記載不支持憑空生成當年事件或時間。不要求包含此注的整個 unit 清空其他有據 current_event_refs，原文視圖仍可展開。",
       "refs": [
         {
           "source_key": "xianzhu-liubei",
@@ -255,12 +255,12 @@
     },
     {
       "id": "R2C09",
-      "category": "annotation-not-body",
+      "category": "annotation-attribution",
       "synthetic": false,
       "title": "嵌注歸屬：周瑜傳《江表傳》注",
       "question": "周瑜傳「《江表傳》曰：策又給瑜鼓吹…」的歸屬層為何？",
       "observation": "同為〈〉嵌注記孫策優禮周瑜，與正文「授建威中郎將，即與兵二千人」分屬不同來源層；譯文須分層保留。",
-      "expected_reading_behavior": "注文作為回溯/背景 relation 時不參與 narrative_time；來源摘錄保有原文入口與歸屬。",
+      "expected_reading_behavior": "完整保留《江表傳》歸屬與原文入口；來源層次不自動決定時間 relation，同期優禮記載可按本段事件處理。其中回溯/預敘/背景 span 不參與 narrative_time，不因屬於注文而一律排除事件或 Claim。",
       "refs": [
         {
           "source_key": "zhou-yu",
@@ -274,12 +274,12 @@
     },
     {
       "id": "R2C10",
-      "category": "context-only-no-claim",
+      "category": "speech-context-attribution",
       "synthetic": false,
-      "title": "無直接 Claim：卷65馬超僅背景提及",
-      "question": "卷65「馬超、韓遂尚在關西，為操後患」能否作馬超本人的直接事迹？",
-      "observation": "此句是魯肅勸孫權抗曹時的戰略背景鋪陳；馬超在本卷無出場動作與時間地點包裹的直接斷言，僅能作 event_context 提及。",
-      "expected_reading_behavior": "context_entities 可列馬超為 other 提及並帶來源，但不得造 direct claim；事件地點不證明參與人物在當地。",
+      "title": "發言歸屬與背景提及：周瑜論馬超",
+      "question": "卷65「馬超、韓遂尚在關西，為操後患」是誰的判斷，能否證明馬超在議事或赤壁現場？",
+      "observation": "此句在「瑜至，謂權曰」的發言內，是周瑜向孫權陳述的戰略背景。本卷此前另有「操表騰為衛尉，以其子超為偏將軍，統其眾」，不能據所選發言宣稱全卷馬超沒有直接記載。",
+      "expected_reading_behavior": "本段 context_entities 可列馬超為有來源的 other 提及，不能由此生成其到場議事或參加赤壁的事跡。若記錄戰略判斷的 Claim，須保留周瑜發言歸屬；本卷其他有據任官事件/Claim 可照常抽取。事件地點不證明所有被提及人物在當地，參與事件的關聯證據不冒充人物本人的 direct_claim。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -297,8 +297,8 @@
       "synthetic": false,
       "title": "時間軸年分組：建安十一年/十二年/十三年三個年標題",
       "question": "通鑑卷65三個年號小標是否為三個可獨立分組的年份邊界？",
-      "observation": "卷首紀首後依序出現「建安十一年」「建安十二年」「建安十三年」三個年標題；每個年標題開啟新 year_key 區段，同卷跨年不全局合併。",
-      "expected_reading_behavior": "year_key 改變才新建區段；同年只顯示一次年標題；傳統年號（regnal）key 不與公曆精確月互等。",
+      "observation": "卷首紀首後依序出現「建安十一年」「建安十二年」「建安十三年」三個年標題；相關敘事須保留這些明確的來源年份，標題數量不等於整卷時間區段數。",
+      "expected_reading_behavior": "period_key 改變即新建區段；僅連續相同 year_key 不重印年標題。同年換月、未知段或回溯後返回均可能增加區段，不全局合併同年，也不要求全卷恰好三組。傳統年/月與經驗證轉換的公曆時間分組不同，不把史料月份當公曆月份。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -331,9 +331,9 @@
       "category": "commentary-attribution",
       "synthetic": false,
       "title": "史論歸屬：習鑿齒論曰",
-      "question": "通鑑「習鑿齒論曰…」是當時記事還是後世史論？",
-      "observation": "是東晉習鑿齒對曹操的評論，置於建安十三年記事之後；譯文與抽取須標為論述歸屬，不得作建安十三年當事人同期言論。",
-      "expected_reading_behavior": "史論作為後世評述，不產生建安十三年 current_event_refs；不因相鄰而同化其時間。",
+      "question": "通鑑所選「習鑿齒論曰：昔齊桓…」是當時記事還是後世史論？",
+      "observation": "所選句是習鑿齒對曹操的評論，夾在張松出使與曹操追念田疇功勞的記事之間；譯文與抽取須保留論述歸屬，不得作建安十三年當事人同期言論。所選原文沒有給出評論日期。",
+      "expected_reading_behavior": "史論自身不產生建安十三年當事人同期發言的 current_event_refs，也不因相鄰記事而獲得其時間；無據評論日期保留未知。不要求包含史論的整個 unit 清空附近有據的當前事件，依實際分段與主敘事判斷。",
       "refs": [
         {
           "source_key": "zztj-065",
@@ -351,8 +351,8 @@
       "synthetic": false,
       "title": "跨章復現：赤壁（先主傳↔周瑜傳）",
       "question": "赤壁是否在先主傳與周瑜傳兩章同時記載？",
-      "observation": "先主傳「與曹公戰於赤壁，大破之」與周瑜傳「遇於赤壁」互證；同一事件出現在兩章、兩個 stream/章邊界，不自動合併為一個連續 stream。",
-      "expected_reading_behavior": "章邊界是內容邊界，不繼承上一章時間；兩側各自明確且相同分組才可連續；同 snapshot 兩來源可互跳。",
+      "observation": "先主傳「與曹公戰於赤壁，大破之」與周瑜傳「遇於赤壁」均可供赤壁記載對照。依第一輪 source-pack.json，三國志三傳同次上傳，發布為同一 revision 的同一 stream；通鑑卷65另屬一個 stream。",
+      "expected_reading_behavior": "同一 stream 內按章順序連續閱讀；章邊界不自動繼承上一章時間，兩側各自明確且相同分組才可連續。事件身份經審核確認後，可在同一 snapshot 定位至兩章各自的 current target；此處不冒充跨 stream 切換。",
       "refs": [
         {
           "source_key": "xianzhu-liubei",
@@ -377,7 +377,7 @@
       "category": "appellation-coreference",
       "synthetic": false,
       "title": "同章稱謂共指：先主/備、公瑾、子敬",
-      "question": "四位主要人物的名/字在各自章內是否共指同一人？",
+      "question": "三位主要人物的名、字或稱謂在各自章內是否共指同一人？",
       "observation": "先主傳「先主姓劉，諱備」確立先主=劉備；周瑜傳「周瑜字公瑾」與卷末「孤念公瑾」共指；魯肅傳「魯肅字子敬」與「子敬，孤持鞍下馬相迎」共指。",
       "expected_reading_behavior": "context 以 canonical ID 去重但保留各條來源；同名不同人不得因顯示名稱合併；長期關係/官職不在本輪推斷。",
       "refs": [
@@ -438,7 +438,7 @@
       "title": "首尾完整：四章開篇與兩部尾部",
       "question": "四個凍結章的頭部與兩部尾部是否連續可定位、注文未截斷？",
       "observation": "先主傳、周瑜傳、魯肅傳均起於偏移 0；通鑑卷首為站點卷題接原典紀首；先主傳尾〈〉閉合完整；通鑑卷末正文完整。",
-      "expected_reading_behavior": "正文可按 ordinal 連續閱讀至章尾；尾段不被站點授權橫幅污染；注文閉合才可作完成判斷。",
+      "expected_reading_behavior": "正文可按 ordinal 完整閱讀至章尾，注文內容及歸屬不截斷，尾段不被站點授權橫幅污染。首尾 refs 是定位檢查點，仍須核對整章完整性；譯文不以照抄原文〈〉符號作唯一完成判斷，章題也不必生成敘事事件。",
       "refs": [
         {
           "source_key": "xianzhu-liubei",
@@ -505,10 +505,10 @@
       "id": "R2N02",
       "category": "synthetic-negative",
       "synthetic": true,
-      "title": "合成負例：把《典略》注文當正文斷言",
+      "title": "合成負例：把《典略》注文改成無歸屬斷言",
       "question": "「劉備本為臨邑侯枝屬」可作先主傳正文斷言嗎？",
-      "observation": "否。原文此意僅見於〈《典略》曰：備本臨邑侯枝屬也。〉裴注；合成場景故意把它升為正文斷言，用以驗證注文/正文分層拒絕。禁止引用為史料發現。",
-      "expected_reading_behavior": "注文只能作歸屬來源；若場景斷言其為正文 current_event_refs 必須判為 synthetic 並拒絕。",
+      "observation": "否。原文此意見於〈《典略》曰：備本臨邑侯枝屬也。〉裴注；合成場景故意刪去轉引歸屬，冒充正文原作者斷言，用以驗證來源分層。禁止把合成斷言引用為史料發現。",
+      "expected_reading_behavior": "拒絕刪去《典略》歸屬的斷言及憑此世系句編造的當年事件；正常帶歸屬的注文、Claim 和原文入口完整保留，不把所有注文或含注 unit 一律排除於 current 事件之外。",
       "negative_probe": "劉備本為臨邑侯枝屬",
       "refs": [
         {
@@ -525,10 +525,10 @@
       "id": "R2N03",
       "category": "synthetic-negative",
       "synthetic": true,
-      "title": "合成負例：用 canonical 事件聚合年份覆蓋回溯段",
-      "question": "能否用赤壁事件的聚合最小/最大年份作周瑜傳回溯段 narrative_time？",
-      "observation": "否。回溯段屬周瑜早年背景，用事件聚合年份覆蓋會把敘事時間講成發生時間；合成場景故意這樣標註，用以驗證回溯不參與時間且不採用聚合年份。禁止引用為史料發現。",
-      "expected_reading_behavior": "回溯 span 不參與 narrative_time；當前段用本來源觀察，不用 canonical Event 聚合年份代替。",
+      "title": "合成負例：用赤壁聚合年份覆蓋篇首早年敘事",
+      "question": "能否用赤壁事件的聚合最小/最大年份作周瑜傳篇首「初，孫堅…」的 narrative_time？",
+      "observation": "否。所選早年敘事位於十三年記事之前；合成場景故意用赤壁 canonical 聚合年份替代本段來源時間，必須拒絕。此負例不預設整個早年段只能作 retrospective span，禁止把合成標註引用為史料發現。",
+      "expected_reading_behavior": "當前段用本來源有據觀察，不用 canonical Event 聚合年份代替；旁及的回溯/預敘/背景 span 不參與 narrative_time，整段主敘事回到早年時仍按自身時間顯示，無據時間保留未知。",
       "negative_probe": "retrospective_uses_canonical_event_year",
       "refs": [
         {
