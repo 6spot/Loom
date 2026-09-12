@@ -27,7 +27,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Button } from "../ui/button";
-import type { Assessment, ReviewCandidate, ReviewPackage } from "../../lib/person-state-types";
+import type { Assessment, PhaseSummary, ReviewCandidate, ReviewPackage } from "../../lib/person-state-types";
 import {
   BATCH_SCOPE_NOTE,
   SOURCE_LOAD_FAILURE_NOTE,
@@ -41,6 +41,7 @@ import {
   dimensionLabel,
   effectiveAssessment,
   groupCandidatesByPerson,
+  hasUnreviewedRationale,
   isCandidateException,
   isCandidateReviewed,
   isDraftForReview,
@@ -55,6 +56,7 @@ import {
   resolveDraft,
   reviewCandidate,
   reviewCoverage,
+  setCandidateRationale,
   sharedPhaseBasis,
   submitFailureMessage,
   unreviewCandidate,
@@ -76,6 +78,12 @@ export interface PersonStateReviewPanelProps {
    * closed rather than reviewing an incomplete candidate set.
    */
   onLoadMore?: (cursor: string) => Promise<ReviewPackage>;
+  /**
+   * Contract-readable phase summaries for this unit (PhaseSummary.label /
+   * ordinal / mode). When supplied, the shared-basis section shows the real
+   * 阶段标签 instead of only internal refs; refs stay in the audit detail.
+   */
+  phases?: readonly PhaseSummary[];
   /**
    * Optional read-only source slot (T13 mounts the existing ReviewEvidencePanel
    * here). The form never owns the source loader: opening 窗口/整章原文 is a
@@ -100,6 +108,7 @@ export default function PersonStateReviewPanel({
   onSkip,
   onReturn,
   onLoadMore,
+  phases,
   renderSource,
 }: PersonStateReviewPanelProps) {
   const identity = reviewIdentity(review);
@@ -144,7 +153,7 @@ export default function PersonStateReviewPanel({
   const draftBelongs = isDraftForReview(review, draft);
   const activeDraft = resolveDraft(review, draft);
   const coverage = reviewCoverage(allCandidates, activeDraft);
-  const basis = sharedPhaseBasis(allCandidates);
+  const basis = sharedPhaseBasis(allCandidates, phases);
   const basisOrdinals = phaseBasisOrdinals(allCandidates);
   const personGroups = groupCandidatesByPerson(allCandidates);
   const overlayPreview = buildAssessmentOverlay(review, activeDraft, allCandidates);
@@ -270,6 +279,16 @@ export default function PersonStateReviewPanel({
             {basis.map((group) => (
               <li key={group.ordinal} data-test="psr-basis-item" data-basis-ordinal={group.ordinal}>
                 <strong>阶段依据 {group.ordinal}</strong>
+                {group.phaseLabel ? (
+                  <span className="psr-basis-phase" data-test="psr-basis-phase" data-phase-mode={group.phaseMode ?? ""}>
+                    阶段：{group.phaseLabel}
+                    {group.phaseOrdinal != null ? `（顺序 ${group.phaseOrdinal}）` : ""}
+                  </span>
+                ) : (
+                  <span className="psr-muted" data-test="psr-basis-phase-missing">
+                    未提供可读阶段标签；请由调用方传入契约 phases。
+                  </span>
+                )}
                 <span className="psr-muted">覆盖 {group.candidateKeys.length} 项候选</span>
                 <ul className="psr-basis-readable">
                   {group.entries.map((entry) => (
@@ -410,7 +429,7 @@ export default function PersonStateReviewPanel({
                         <span>逐项评估</span>
                         <select
                           data-test="psr-assessment"
-                          value={override?.assessment ?? ""}
+                          value={effective ?? ""}
                           disabled={submitting}
                           onChange={(event) => {
                             const value = event.target.value;
@@ -445,17 +464,15 @@ export default function PersonStateReviewPanel({
                           disabled={submitting}
                           placeholder="填写为何明确提交不明确、分歧或拒绝"
                           onChange={(event) =>
-                            onDraftChange(
-                              reviewCandidate(
-                                activeDraft,
-                                candidate,
-                                override?.assessment ?? candidate.assessment_default,
-                                event.target.value,
-                              ),
-                            )
+                            onDraftChange(setCandidateRationale(activeDraft, candidate, event.target.value))
                           }
                         />
                       </label>
+                      {!reviewed && hasUnreviewedRationale(candidate, activeDraft) ? (
+                        <span className="psr-rationale-only" data-test="psr-rationale-only">
+                          仅填理由，尚未选择评估：不会标记已审，也不会提交。
+                        </span>
+                      ) : null}
                       {reviewed ? (
                         <Button
                           type="button"

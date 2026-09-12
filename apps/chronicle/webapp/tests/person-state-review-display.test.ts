@@ -8,7 +8,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Assessment, ReviewCandidate, ReviewPackage } from "../src/lib/person-state-types";
+import type { Assessment, PhaseSummary, ReviewCandidate, ReviewPackage } from "../src/lib/person-state-types";
 import {
   ASSESSMENT_LABELS,
   BATCH_SCOPE_NOTE,
@@ -23,6 +23,7 @@ import {
   dimensionScope,
   effectiveAssessment,
   groupCandidatesByPerson,
+  hasUnreviewedRationale,
   isCandidateException,
   isCandidateReviewed,
   isDraftForReview,
@@ -37,6 +38,7 @@ import {
   resolveDraft,
   reviewCandidate,
   reviewCoverage,
+  setCandidateRationale,
   sharedPhaseBasis,
   submitFailureMessage,
   unreviewCandidate,
@@ -190,6 +192,33 @@ describe("draft identity and reviewed state", () => {
     expect(back.overrides[a.candidate_key]).toBeUndefined();
   });
 
+  it("never marks a candidate reviewed from a rationale alone", () => {
+    const a = candidate(1, { assessment_default: "supported" });
+    const onlyRationale = setCandidateRationale(createDraft(review({ candidates: [a] })), a, "只是备注");
+    expect(isCandidateReviewed(a, onlyRationale)).toBe(false);
+    expect(effectiveAssessment(a, onlyRationale)).toBeNull();
+    expect(hasUnreviewedRationale(a, onlyRationale)).toBe(true);
+    expect(isCandidateException(a, onlyRationale)).toBe(false);
+    const overlay = buildAssessmentOverlay(review({ candidates: [a] }), onlyRationale, [a]);
+    expect(overlay.overrides).toEqual([]);
+    // Choosing an assessment afterwards keeps the typed reason and marks已审.
+    const decided = reviewCandidate(onlyRationale, a, "supported", onlyRationale.overrides[a.candidate_key].rationale);
+    expect(isCandidateReviewed(a, decided)).toBe(true);
+    expect(effectiveAssessment(a, decided)).toBe("supported");
+    expect(hasUnreviewedRationale(a, decided)).toBe(false);
+  });
+
+  it("keeps the batch assessment when a reason is added to a batch-covered row", () => {
+    const a = candidate(1, { assessment_default: "uncertain" });
+    const batch = batchConfirmDraft(createDraft(review({ candidates: [a] })), [a]);
+    const withReason = setCandidateRationale(batch, a, "补充说明");
+    expect(effectiveAssessment(a, withReason)).toBe("supported");
+    const overlay = buildAssessmentOverlay(review({ candidates: [a] }), withReason, [a]);
+    expect(overlay.overrides).toEqual([
+      { candidate_key: key(1), assessment: "supported", rationale: "补充说明" },
+    ]);
+  });
+
   it("falls back to the candidate default when the chosen value is not allowed", () => {
     const constrained = candidate(1, { allowed_assessments: ["uncertain", "rejected"], assessment_default: "rejected" });
     const draft = reviewCandidate(createDraft(review()), constrained, "supported");
@@ -210,11 +239,14 @@ describe("coverage and batch confirm", () => {
     expect(coverage.reviewed).toBe(0);
     expect(coverage.unreviewed).toBe(3);
     expect(coverage.batchCovered).toBe(0);
+    expect(coverage.perItemSupported).toBe(0);
     expect(coverage.exceptionCount).toBe(0);
-    expect(coverageSummary(coverage)).toBe("已审 0 项（批量覆盖 0 项，逐项例外 0 项）；未审 3 项（共 3 项）");
+    expect(coverageSummary(coverage)).toBe(
+      "已审 0 项（批量覆盖 0 项，逐项 supported 0 项，逐项例外 0 项）；未审 3 项（共 3 项）",
+    );
   });
 
-  it("counts only explicitly reviewed candidates", () => {
+  it("counts only explicitly reviewed candidates and separates batch from per-item", () => {
     const current = review({ candidates });
     let draft = createDraft(current);
     draft = reviewCandidate(draft, candidates[0], "supported");
@@ -222,9 +254,26 @@ describe("coverage and batch confirm", () => {
     const coverage = reviewCoverage(candidates, draft);
     expect(coverage.reviewed).toBe(2);
     expect(coverage.unreviewed).toBe(1);
-    expect(coverage.batchCovered).toBe(1);
+    expect(coverage.batchCovered).toBe(0);
+    expect(coverage.perItemSupported).toBe(1);
     expect(coverage.exceptionCount).toBe(1);
-    expect(coverageSummary(coverage)).toBe("已审 2 项（批量覆盖 1 项，逐项例外 1 项）；未审 1 项（共 3 项）");
+    expect(coverageSummary(coverage)).toBe(
+      "已审 2 项（批量覆盖 0 项，逐项 supported 1 项，逐项例外 1 项）；未审 1 项（共 3 项）",
+    );
+  });
+
+  it("keeps batch coverage separate from a per-item supported choice", () => {
+    const current = review({ candidates });
+    const batch = batchConfirmDraft(createDraft(current), candidates);
+    expect(reviewCoverage(candidates, batch).batchCovered).toBe(3);
+    const withPerItem = reviewCandidate(batch, candidates[0], "supported");
+    const coverage = reviewCoverage(candidates, withPerItem);
+    expect(coverage.batchCovered).toBe(2);
+    expect(coverage.perItemSupported).toBe(1);
+    expect(coverage.exceptionCount).toBe(0);
+    expect(coverageSummary(coverage)).toBe(
+      "已审 3 项（批量覆盖 2 项，逐项 supported 1 项，逐项例外 0 项）；未审 0 项（共 3 项）",
+    );
   });
 
   it("batch confirm covers every loaded candidate without becoming a person merge", () => {
@@ -283,6 +332,22 @@ describe("readable shared phase basis", () => {
     const [group] = sharedPhaseBasis([candidate(1)]);
     expect(group.entries).toHaveLength(1);
     expect(group.entries[0].detail).toContain("周瑜傳");
+  });
+
+  it("consumes contract PhaseSummary labels for the shared basis", () => {
+    const phases: PhaseSummary[] = [
+      { phase_id: "ph_001", label: "建安三年 · 授建威中郎將", ordinal: 0, mode: "single" },
+      { phase_id: "ph_002", label: "建安十三年 · 拜偏將軍", ordinal: 1, mode: "process" },
+    ];
+    const candidates = [candidate(1, { phase_refs: ["ph_001"] }), candidate(2, { phase_refs: ["ph_002"] })];
+    const groups = sharedPhaseBasis(candidates, phases);
+    expect(groups[0].phaseLabel).toBe("建安三年 · 授建威中郎將");
+    expect(groups[0].phaseMode).toBe("single");
+    expect(groups[0].phaseOrdinal).toBe(0);
+    expect(groups[1].phaseLabel).toContain("建安十三年");
+    expect(groups[1].phaseMode).toBe("process");
+    const [noPhases] = sharedPhaseBasis(candidates);
+    expect(noPhases.phaseLabel).toBeNull();
   });
 
   it("groups the change chain per person and never by display name collision", () => {
@@ -379,6 +444,7 @@ describe("panel rendering", () => {
     onSubmit: async () => undefined,
     onSkip: noop,
     onReturn: noop,
+    phases: [{ phase_id: "ph_001", label: "建安三年 · 授建威中郎將", ordinal: 0, mode: "single" as const }],
   };
 
   it("keeps qualifiers, reasons and predictions visible, not inside technical details", () => {
@@ -397,8 +463,23 @@ describe("panel rendering", () => {
     // Human-readable shared basis is in the main UI; refs are audit-only.
     expect(markup).toContain('data-test="psr-basis-entry"');
     expect(markup).toContain("周瑜傳");
+    // Contract PhaseSummary label is shown as the phase/time basis.
+    expect(markup).toContain('data-test="psr-basis-phase"');
+    expect(markup).toContain("建安三年 · 授建威中郎將");
     expect(markup).toContain("审计详情");
     expect(markup).not.toContain("<script");
+  });
+
+  it("does not review a candidate whose only input is a rationale", () => {
+    const markup = renderToStaticMarkup(
+      createElement(PersonStateReviewPanel, {
+        ...baseProps,
+        draft: setCandidateRationale(createDraft(current), candidates[0], "仅备注"),
+      }),
+    );
+    expect(markup).toContain('data-test="psr-rationale-only"');
+    expect(markup).toContain('data-test="psr-unreviewed"');
+    expect(markup).toMatch(/data-test="psr-save-next"[^>]*disabled/);
   });
 
   it("shows 未审 and blocks submit until every candidate is reviewed", () => {

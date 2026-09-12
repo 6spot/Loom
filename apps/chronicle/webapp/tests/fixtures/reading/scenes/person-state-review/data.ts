@@ -6,7 +6,7 @@
 // - B 包复用 A 的部分 candidate_key，证明切换审核项不会沿用上一包草稿。
 // - C 包 `has_more=true` 且无下一页，证明组件在候选不可达时 fail closed。
 
-import type { ReviewCandidate, ReviewPackage } from "../../../../../src/lib/person-state-types";
+import type { PhaseSummary, ReviewCandidate, ReviewPackage } from "../../../../../src/lib/person-state-types";
 
 const CATALOG = "ca".repeat(32);
 const CHAPTER = "ch_0123456789abcdef01234567";
@@ -303,3 +303,18 @@ export const PACKAGE_C: ReviewPackage = {
 };
 
 export const PACKAGES: readonly ReviewPackage[] = [PACKAGE_A, PACKAGE_B];
+
+// Contract-readable phase summaries (PhaseSummary) for the synthetic unit.
+// T13/T10 supply these from the same frozen package; the panel shows the label
+// in the main shared-basis section and keeps ph_### refs in the audit detail.
+export const PHASES: readonly PhaseSummary[] = [
+  { phase_id: "ph_001", label: "建安三年 · 授建威中郎將", ordinal: 0, mode: "single" },
+  { phase_id: "ph_002", label: "建安十三年 · 拜偏將軍領南郡太守", ordinal: 1, mode: "process" },
+  { phase_id: "ph_003", label: "赤壁戰時 · 為前部大督", ordinal: 2, mode: "single" },
+  { phase_id: "ph_004", label: "初平四年 · 去楷歸謙", ordinal: 0, mode: "single" },
+  { phase_id: "ph_005", label: "建安二十四年 · 上還印綬", ordinal: 3, mode: "ambiguous" },
+  { phase_id: "ph_006", label: "建安十三年 · 置丞相", ordinal: 4, mode: "single" },
+  { phase_id: "ph_101", label: "後頁 · 前期", ordinal: 5, mode: "single" },
+  { phase_id: "ph_102", label: "後頁 · 後期", ordinal: 6, mode: "single" },
+  { phase_id: "ph_300", label: "C 包 · 階段", ordinal: 0, mode: "unknown" },
+];

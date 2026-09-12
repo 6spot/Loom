@@ -9,7 +9,7 @@ import PersonStateReviewPanel from "../../../../../src/components/studio/PersonS
 import { createDraft, coverageSummary, reviewCoverage } from "../../../../../src/lib/person-state-review-display";
 import type { PersonStateReviewDraft } from "../../../../../src/lib/person-state-review-display";
 import type { ReviewCandidate, ReviewPackage } from "../../../../../src/lib/person-state-types";
-import { PACKAGE_A, PACKAGE_A_PAGE2, PACKAGE_C, PACKAGES } from "./data";
+import { PACKAGE_A, PACKAGE_A_PAGE2, PACKAGE_C, PACKAGES, PHASES } from "./data";
 import "../../../../../src/styles/person-state-review.css";
 import "./harness.css";
 
@@ -222,6 +222,7 @@ export default function ReviewScene() {
         onSkip={onSkip}
         onReturn={onReturn}
         onLoadMore={onLoadMore}
+        phases={PHASES}
         renderSource={(candidate) => <SourceViewer candidate={candidate} />}
       />
     </main>

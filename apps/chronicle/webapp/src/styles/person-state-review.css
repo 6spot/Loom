@@ -117,6 +117,25 @@
   font-weight: 600;
 }
 
+.psr-basis-phase {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid #8aa08a;
+  border-radius: 999px;
+  background: #eef5ec;
+  color: #2f4a2c;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.psr-rationale-only {
+  align-self: center;
+  padding: 0.1rem 0.45rem;
+  border: 1px dashed #b45309;
+  border-radius: 999px;
+  color: #8a3d0a;
+  font-size: 0.78rem;
+}
+
 .psr-basis-detail {
   font-size: 0.82rem;
   color: #55605a;

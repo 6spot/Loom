@@ -25,6 +25,8 @@ import type {
   Attribution,
   PlaceDimension,
   PredictedEffect,
+  PhaseSummary,
+  PersonPhaseMode,
   Qualification,
   ReasonCode,
   ReviewCandidate,
@@ -310,17 +312,38 @@ export interface SharedPhaseBasis {
   readonly ordinal: number;
   readonly phaseRefs: readonly string[];
   readonly candidateKeys: readonly string[];
+  /** Contract-readable phase label (PhaseSummary.label), when supplied. */
+  readonly phaseLabel: string | null;
+  readonly phaseMode: PersonPhaseMode | null;
+  readonly phaseOrdinal: number | null;
   /** Contract-provided readable basis (person/change/effect/source/quote). */
   readonly entries: readonly ReadableBasisEntry[];
+}
+
+function resolvePhaseSummary(
+  refs: ReadonlyArray<string>,
+  phases: ReadonlyArray<PhaseSummary> | null | undefined,
+): PhaseSummary | null {
+  if (!phases || phases.length === 0) return null;
+  const byRef = new Map(phases.map((phase) => [phase.phase_id, phase]));
+  for (const ref of refs) {
+    const found = byRef.get(ref);
+    if (found) return found;
+  }
+  return null;
 }
 
 /**
  * 每章包共用阶段依据单列: candidates that share the exact same phase_refs set
  * share one time basis. Order follows first appearance so the panel is stable.
- * The main UI renders the readable `entries`; the raw `phaseRefs` are audit only.
+ * `phases` are the contract's readable `PhaseSummary` entries for this unit (the
+ * same fields used by the reading summaries); matching is by exact local phase
+ * ref. The main UI renders `phaseLabel` + the readable `entries`; raw `phaseRefs`
+ * are audit only.
  */
 export function sharedPhaseBasis(
   candidates: ReadonlyArray<ReviewCandidate>,
+  phases?: ReadonlyArray<PhaseSummary> | null,
 ): SharedPhaseBasis[] {
   const groups: Array<{ key: string; refs: string[]; candidateKeys: string[]; entries: ReadableBasisEntry[] }> = [];
   const byKey = new Map<string, number>();
@@ -337,12 +360,22 @@ export function sharedPhaseBasis(
       groups[at].entries.push(entry);
     }
   }
-  return groups.map((group, index) => ({
-    ordinal: index + 1,
-    phaseRefs: group.refs,
-    candidateKeys: group.candidateKeys,
-    entries: group.entries,
-  }));
+  return groups.map((group, index) => {
+    const summary = resolvePhaseSummary(group.refs, phases);
+    const labels = group.refs
+      .map((ref) => phases?.find((phase) => phase.phase_id === ref)?.label)
+      .filter((label): label is string => Boolean(label && label.trim()));
+    const phaseLabel = summary?.label?.trim() ? labels.join("、") : null;
+    return {
+      ordinal: index + 1,
+      phaseRefs: group.refs,
+      candidateKeys: group.candidateKeys,
+      phaseLabel,
+      phaseMode: summary?.mode ?? null,
+      phaseOrdinal: summary?.ordinal ?? null,
+      entries: group.entries,
+    };
+  });
 }
 
 /** Map candidate_key → shared basis ordinal for row badges. */
@@ -431,7 +464,11 @@ export interface ReviewCoverage {
   readonly reviewed: number;
   /** Untouched candidates; they are neither covered nor submitted. */
   readonly unreviewed: number;
+  /** Reviewed by the bulk action without a per-item override. */
   readonly batchCovered: number;
+  /** Explicit per-item "supported" choices without a rationale. */
+  readonly perItemSupported: number;
+  /** Reviewed candidates that are not a plain supported decision. */
   readonly exceptionCount: number;
   /** Reviewed candidates carrying an explicit per-candidate_key override. */
   readonly explicitOverrideCount: number;
@@ -445,6 +482,7 @@ export function reviewCoverage(
 ): ReviewCoverage {
   let reviewed = 0;
   let batchCovered = 0;
+  let perItemSupported = 0;
   let exceptionCount = 0;
   let explicitOverrideCount = 0;
   let exceptionsMissingRationale = 0;
@@ -456,6 +494,8 @@ export function reviewCoverage(
     if (isCandidateException(candidate, draft)) {
       exceptionCount += 1;
       if (!override || override.rationale.trim().length === 0) exceptionsMissingRationale += 1;
+    } else if (override) {
+      perItemSupported += 1;
     } else {
       batchCovered += 1;
     }
@@ -465,6 +505,7 @@ export function reviewCoverage(
     reviewed,
     unreviewed: candidates.length - reviewed,
     batchCovered,
+    perItemSupported,
     exceptionCount,
     explicitOverrideCount,
     exceptionsMissingRationale,
@@ -473,8 +514,8 @@ export function reviewCoverage(
 
 export function coverageSummary(coverage: ReviewCoverage): string {
   return (
-    `已审 ${coverage.reviewed} 项（批量覆盖 ${coverage.batchCovered} 项，逐项例外 ${coverage.exceptionCount} 项）；` +
-    `未审 ${coverage.unreviewed} 项（共 ${coverage.total} 项）`
+    `已审 ${coverage.reviewed} 项（批量覆盖 ${coverage.batchCovered} 项，逐项 supported ${coverage.perItemSupported} 项，` +
+    `逐项例外 ${coverage.exceptionCount} 项）；未审 ${coverage.unreviewed} 项（共 ${coverage.total} 项）`
   );
 }
 
@@ -509,6 +550,39 @@ export function reviewCandidate(
     },
     reviewed: { ...draft.reviewed, [candidate.candidate_key]: true },
   };
+}
+
+/**
+ * Record an exception rationale without ever marking the candidate reviewed.
+ * Typing only a reason must not produce an assessment: an 未审 candidate keeps
+ * no effective value and is never submitted. For an already reviewed candidate
+ * the rationale attaches to its existing (or batch) assessment.
+ */
+export function setCandidateRationale(
+  draft: PersonStateReviewDraft,
+  candidate: ReviewCandidate,
+  rationale: string,
+): PersonStateReviewDraft {
+  const existing = draft.overrides[candidate.candidate_key];
+  const assessment = existing?.assessment ?? effectiveAssessment(candidate, draft) ?? candidate.assessment_default;
+  return {
+    ...draft,
+    overrides: {
+      ...draft.overrides,
+      [candidate.candidate_key]: { assessment, rationale },
+    },
+  };
+}
+
+/** True when the reviewer has typed a reason but not chosen an assessment yet. */
+export function hasUnreviewedRationale(
+  candidate: ReviewCandidate,
+  draft: PersonStateReviewDraft,
+): boolean {
+  return (
+    !isCandidateReviewed(candidate, draft) &&
+    (draft.overrides[candidate.candidate_key]?.rationale.trim().length ?? 0) > 0
+  );
 }
 
 /** Return one candidate to 未审: drop its override and reviewed marker. */

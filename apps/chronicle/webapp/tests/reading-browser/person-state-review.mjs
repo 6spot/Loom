@@ -12,6 +12,7 @@ export const WIDE = { width: 1440, height: 900 };
 const KEY = (seed) => `psc_${seed.toString(16).padStart(24, "0")}`;
 const k1 = KEY(1);
 const k2 = KEY(2);
+const k3 = KEY(3);
 const k6 = KEY(6);
 
 function reviewId(page) {
@@ -48,6 +49,14 @@ export async function run(ctx) {
   ctx.info("page1_candidate_count", candidateCount);
   ctx.check("person-groups", (await page.locator('[data-test="psr-person"]').count()) >= 3);
   ctx.check("shared-phase-basis", (await page.locator('[data-test="psr-basis-item"]').count()) >= 2);
+  ctx.check("basis-phase-label", (await page.locator('[data-test="psr-basis-phase"]').count()) >= 2);
+  const phaseLabelText = await page.locator('[data-test="psr-basis-phase"]').first().innerText();
+  ctx.check(
+    "basis-phase-readable",
+    phaseLabelText.includes("阶段：") && /建安|赤壁|初平|後頁/.test(phaseLabelText) && !phaseLabelText.includes("ph_0"),
+    phaseLabelText,
+  );
+  ctx.check("basis-phase-missing-none", (await page.locator('[data-test="psr-basis-phase-missing"]').count()) === 0);
   const basisEntries = await page.locator('[data-test="psr-basis-entry"]').count();
   ctx.check("basis-has-readable-entries", basisEntries === candidateCount, `entries=${basisEntries}`);
   const firstBasisText = await page.locator('[data-test="psr-basis-entry"]').first().innerText();
@@ -74,7 +83,7 @@ export async function run(ctx) {
   ctx.check("unreviewed-badge-visible", (await page.locator('[data-test="psr-review-state"]').count()) === candidateCount);
   ctx.check(
     "initial-coverage-unreviewed",
-    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项例外 0 项）；未审 24 项（共 24 项）",
+    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项 supported 0 项，逐项例外 0 项）；未审 24 项（共 24 项）",
     await coverage(page),
   );
   ctx.check("unreviewed-warning", await page.locator('[data-test="psr-unreviewed"]').isVisible());
@@ -93,6 +102,28 @@ export async function run(ctx) {
   ctx.check("source-chapter-visible", await sourceHost.locator('[data-test="psr-source-chapter-text"]').isVisible());
   ctx.check("source-view-keeps-unreviewed", (await sourceHost.getAttribute("data-assessment")) === "unreviewed");
 
+  // 3b. 仅填写理由不得标记已审，也不得产生 supported 提交。
+  const rationaleOnly = page.locator(`[data-candidate-key="${k3}"]`);
+  await rationaleOnly.locator('[data-test="psr-candidate-rationale"]').fill("只填理由，不选评估");
+  ctx.check("rationale-only-not-reviewed", (await rationaleOnly.getAttribute("data-reviewed")) === "false");
+  ctx.check("rationale-only-assessment-unreviewed", (await rationaleOnly.getAttribute("data-assessment")) === "unreviewed");
+  ctx.check(
+    "rationale-only-select-unselected",
+    (await rationaleOnly.locator('[data-test="psr-assessment"]').inputValue()) === "",
+  );
+  ctx.check("rationale-only-indicator", await rationaleOnly.locator('[data-test="psr-rationale-only"]').isVisible());
+  ctx.check("rationale-only-submit-blocked", !(await page.locator('[data-test="psr-save-next"]').isEnabled()));
+  ctx.check(
+    "rationale-only-not-submitted",
+    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项 supported 0 项，逐项例外 0 项）；未审 24 项（共 24 项）",
+    await coverage(page),
+  );
+  await rationaleOnly.locator('[data-test="psr-candidate-rationale"]').fill("");
+  await rationaleOnly.locator('[data-test="psr-assessment"]').selectOption("supported");
+  ctx.check("select-marks-reviewed", (await rationaleOnly.getAttribute("data-reviewed")) === "true");
+  await rationaleOnly.locator('[data-test="psr-assessment"]').selectOption("");
+  ctx.check("revert-to-unreviewed", (await rationaleOnly.getAttribute("data-reviewed")) === "false");
+
   // 4. 候选分页：取全后全部候选可达且仍为未审。
   await loadAllCandidates(page);
   await page.waitForFunction(
@@ -104,7 +135,7 @@ export async function run(ctx) {
   ctx.check("load-more-recorded", (await lastAction(page)).startsWith("load-more:synth-review-A"));
   ctx.check(
     "coverage-after-load-all",
-    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项例外 0 项）；未审 40 项（共 40 项）",
+    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项 supported 0 项，逐项例外 0 项）；未审 40 项（共 40 项）",
     await coverage(page),
   );
   ctx.check("pagination-complete", await page.locator('[data-test="psr-pagination-complete"]').isVisible());
@@ -113,7 +144,7 @@ export async function run(ctx) {
   await page.locator('[data-test="psr-batch-confirm"]').click();
   ctx.check(
     "batch-covers-all",
-    (await coverage(page)) === "已审 40 项（批量覆盖 40 项，逐项例外 0 项）；未审 0 项（共 40 项）",
+    (await coverage(page)) === "已审 40 项（批量覆盖 40 项，逐项 supported 0 项，逐项例外 0 项）；未审 0 项（共 40 项）",
     await coverage(page),
   );
   const allSupported = await page.$$eval('[data-test="psr-candidate"]', (nodes) =>
@@ -132,7 +163,7 @@ export async function run(ctx) {
   ctx.check("exception-marked", (await exception.getAttribute("data-exception")) === "true");
   ctx.check(
     "exception-count-updates",
-    (await coverage(page)) === "已审 40 项（批量覆盖 39 项，逐项例外 1 项）；未审 0 项（共 40 项）",
+    (await coverage(page)) === "已审 40 项（批量覆盖 39 项，逐项 supported 0 项，逐项例外 1 项）；未审 0 项（共 40 项）",
     await coverage(page),
   );
   const untouched = page.locator(`[data-candidate-key="${k1}"]`);
@@ -150,6 +181,11 @@ export async function run(ctx) {
   await explicitUncertain.locator('[data-test="psr-clear-override"]').click();
   ctx.check("mark-unreviewed-again", (await explicitUncertain.getAttribute("data-assessment")) === "unreviewed");
   await page.locator(`[data-candidate-key="${k2}"] [data-test="psr-assessment"]`).selectOption("supported");
+  ctx.check(
+    "per-item-supported-counted",
+    (await coverage(page)) === "已审 40 项（批量覆盖 38 项，逐项 supported 1 项，逐项例外 1 项）；未审 0 项（共 40 项）",
+    await coverage(page),
+  );
 
   // 8. 键盘：批量按钮可聚焦并用 Enter 触发；评估下拉可聚焦。
   await page.locator('[data-test="psr-batch-confirm"]').focus();
@@ -186,7 +222,7 @@ export async function run(ctx) {
   ctx.check("save-advances", true);
   ctx.check(
     "next-item-all-unreviewed",
-    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项例外 0 项）；未审 4 项（共 4 项）",
+    (await coverage(page)) === "已审 0 项（批量覆盖 0 项，逐项 supported 0 项，逐项例外 0 项）；未审 4 项（共 4 项）",
     await coverage(page),
   );
   ctx.check("next-item-clears-rationale", (await bKey1.locator('[data-test="psr-candidate-rationale"]').inputValue()) === "");
