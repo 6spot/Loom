@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "observed_at": "2026-09-13T09:33:25.864613+00:00",
+  "jobs_unchanged_after_ui_deploy": [
+    {
+      "name": "source",
+      "job_id": "7f786015-724f-438f-b560-7a220f1a476f",
+      "status": "completed",
+      "attempt": 6,
+      "output_count": 30,
+      "unchanged_fields": [
+        "status",
+        "attempt",
+        "max_attempts",
+        "output_count",
+        "open_reviews",
+        "stages",
+        "chunks"
+      ]
+    },
+    {
+      "name": "narrative",
+      "job_id": "fe51307c-b5dd-47fe-8b6c-9330b57e0222",
+      "status": "completed",
+      "attempt": 5,
+      "output_count": 4,
+      "unchanged_fields": [
+        "status",
+        "attempt",
+        "max_attempts",
+        "output_count",
+        "open_reviews",
+        "stages",
+        "chunks"
+      ]
+    }
+  ]
+}

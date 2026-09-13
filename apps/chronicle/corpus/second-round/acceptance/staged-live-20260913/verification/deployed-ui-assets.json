@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "deployed_commit": "a9d478afd579e992566f6fdea6629ff45981c7f7",
+  "base_url": "http://127.0.0.1:8092",
+  "assets_match_committed_build": [
+    {
+      "asset": "index.js",
+      "bytes": 404641,
+      "sha256": "f54953a1f308c97a1a1b929b7e3850e5077d3e69db9aa4654283b3bc12d9f877"
+    },
+    {
+      "asset": "index.css",
+      "bytes": 62571,
+      "sha256": "ead5e9ceabea180510da159280fe87af398ca800414b25c62bacd139930c95e8"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "review_id": "a960da18-cf4d-4782-a910-acc90596c1ac",
+  "reviewer": "authorized acceptance agent acting as operator",
+  "original_candidate_sha": "7e62fc741c56a63b4df91e81f23ba0fba72c33f60e2d13c78de5000f57118907",
+  "approved_content_sha": "11dd597746268726de9ab2772910a2c013f4545e52a55b76605112a17165bd8d",
+  "original_paragraphs": 34,
+  "approved_paragraphs": 35,
+  "approved_phases": 33,
+  "entry_points": 3,
+  "rationale": [
+    "整章逐段通读；保留全部批准阶段与家属结尾。",
+    "沿用模型纠错已分开的刘备遣使段，不把原历九月用于整个战事。",
+    "正文移除底本校勘和编辑检查口吻；江夏太守疑文保留在状态与深层依据。",
+    "恢复二桥婚姻、孙权出兵后援与曹操书信的有归属叙述。",
+    "明确内容和存疑内容拆自然片段；死亡本身不因卒地对应不明而全部变灰。",
+    "主要人物按当段内容筛选，展示官职/效力而非行为；地点单列已有状态。",
+    "仅保留三个重要导航入口；小事仍留正文。",
+    "保留回顾与家属分支的未知先后，不补未明年月或把计划写成已实现。"
+  ]
+}

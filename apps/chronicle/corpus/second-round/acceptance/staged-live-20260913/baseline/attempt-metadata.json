@@ -1,0 +1,172 @@
+[
+  {
+    "original_output_sha256": "cb6028c516fb37520b6608cc56501521fa34f6249c2c5635e63609f8564e2287",
+    "created_at": "2026-09-13T02:12:35.243555+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "translation",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 1,
+      "version": "0.1",
+      "chunk_id": "96226676-51c3-460b-aa99-3af93789994b",
+      "node_key": "d7c47f4da30765e15b01f05d06e345ffe66abc236cc1ff73f50eb19baec2bedb",
+      "retry_of": null,
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T02:12:35.248425+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "response_format": "text",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "0a6060acb076a27cb04f359303a2dd6856806cd61153bcb65313f7ec08ac6051",
+      "request_fingerprint": "d3dd8010acc92ee2756f69d9fe21a5bf5c71712cfdae2558ea5de5bf8a5c2385",
+      "pipeline_fingerprint": "23a9c42555d0c40fb59471db524993f77436248a5dbb722ff3e6bf8740363e62",
+      "prompt_code_points": 16486
+    }
+  },
+  {
+    "original_output_sha256": "3ddb35fdf9c5e0562d6e2bdd3e7912bf4da7c078f2f8f46cb725424368538d02",
+    "created_at": "2026-09-13T02:12:35.318529+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "extraction",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 1,
+      "version": "0.1",
+      "chunk_id": "96226676-51c3-460b-aa99-3af93789994b",
+      "node_key": "425c873da496a7a88895c75569ad4c3abc41d0db4849433ca4e0917cbce8311a",
+      "retry_of": null,
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T02:12:35.322756+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "fe7f32ee6d4cd926ded5cc4136150b28685a95383c209f889406fd37d7a49464",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "368a9416a4eb9cb11f8d29676fa72565089bec2f885c19a0127d8b6c7965a7ac",
+      "request_fingerprint": "d3dd8010acc92ee2756f69d9fe21a5bf5c71712cfdae2558ea5de5bf8a5c2385",
+      "pipeline_fingerprint": "23a9c42555d0c40fb59471db524993f77436248a5dbb722ff3e6bf8740363e62",
+      "prompt_code_points": 31754
+    }
+  },
+  {
+    "original_output_sha256": "eefb92bfd8fff790e19249ebdf14bc0e89f85f0d5663aa69216c83f17de7e0ff",
+    "created_at": "2026-09-13T02:16:43.648002+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "extraction",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 2,
+      "version": "0.1",
+      "chunk_id": "96226676-51c3-460b-aa99-3af93789994b",
+      "node_key": "425c873da496a7a88895c75569ad4c3abc41d0db4849433ca4e0917cbce8311a",
+      "retry_of": "62121c3c9e178d56160ab1196d4c312744b78972bc75b268b7d46aaeb351c961",
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T02:16:43.655413+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "fe7f32ee6d4cd926ded5cc4136150b28685a95383c209f889406fd37d7a49464",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "368a9416a4eb9cb11f8d29676fa72565089bec2f885c19a0127d8b6c7965a7ac",
+      "request_fingerprint": "d3dd8010acc92ee2756f69d9fe21a5bf5c71712cfdae2558ea5de5bf8a5c2385",
+      "pipeline_fingerprint": "23a9c42555d0c40fb59471db524993f77436248a5dbb722ff3e6bf8740363e62",
+      "prompt_code_points": 75219
+    }
+  },
+  {
+    "original_output_sha256": "3f6c706c83f770c9229721ae68750d65acb662b37d12f7ebb3ad49da790ef35e",
+    "created_at": "2026-09-13T02:19:42.605984+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "linking",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 1,
+      "version": "0.1",
+      "chunk_id": "96226676-51c3-460b-aa99-3af93789994b",
+      "node_key": "11e8ee6af4cb50356abc82f31b75a5754a3faaa0fe8b488f47998ba73b7a09cb",
+      "retry_of": null,
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T02:19:42.624667+00:00",
+      "input_sha256": "4ef88ebb10c2043f1ed7e725d607e95bcba55650245a8a9f30789283496a4704",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "70ff43b19bc12d4fa6ffb57df1d71fbb18dbed558447548204e386164c9603de",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "a0568c4a8e73a69c240dbc84625dafacb7396835aeaa174333f251bffd0eca46",
+      "request_fingerprint": "d3dd8010acc92ee2756f69d9fe21a5bf5c71712cfdae2558ea5de5bf8a5c2385",
+      "pipeline_fingerprint": "23a9c42555d0c40fb59471db524993f77436248a5dbb722ff3e6bf8740363e62",
+      "prompt_code_points": 64586
+    }
+  },
+  {
+    "original_output_sha256": "1efc4e2e9b031c3a55e1b034727356b9a5479703f7617c17dbe0cae1fac599d1",
+    "created_at": "2026-09-13T02:22:54.641435+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "linking",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 2,
+      "version": "0.1",
+      "chunk_id": "96226676-51c3-460b-aa99-3af93789994b",
+      "node_key": "11e8ee6af4cb50356abc82f31b75a5754a3faaa0fe8b488f47998ba73b7a09cb",
+      "retry_of": "ce838a3817eed7d8b1f7b731573c67e6e856453353ce261e1b9f6fbb60ce6bf8",
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T02:22:54.667499+00:00",
+      "input_sha256": "4ef88ebb10c2043f1ed7e725d607e95bcba55650245a8a9f30789283496a4704",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "70ff43b19bc12d4fa6ffb57df1d71fbb18dbed558447548204e386164c9603de",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "a0568c4a8e73a69c240dbc84625dafacb7396835aeaa174333f251bffd0eca46",
+      "request_fingerprint": "d3dd8010acc92ee2756f69d9fe21a5bf5c71712cfdae2558ea5de5bf8a5c2385",
+      "pipeline_fingerprint": "23a9c42555d0c40fb59471db524993f77436248a5dbb722ff3e6bf8740363e62",
+      "prompt_code_points": 95986
+    }
+  }
+]

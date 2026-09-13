@@ -1,0 +1,435 @@
+{
+  "reviewer": "authorized acceptance agent acting as operator",
+  "original_candidate_sha256": "8bc48167f344df3c423db274053bd0e02f2a2e1a9eca2d51fbb481fb8bd749d1",
+  "accepted_sha256": "f7afa773ee87053ba78337c6c70d8dfd7b27572ba2e191a658981884fbc094dc",
+  "original_phase_count": 12,
+  "phase_count": 33,
+  "original_conclusion_count": 35,
+  "conclusion_count": 64,
+  "prose_prompt_characters": 167098,
+  "max_prompt_characters": 180000,
+  "context_sha256": "21e3ab63beb808591b6a0e387b1c8c762d61b378c3211e58382dc22f6bb52f03",
+  "changes": [
+    {
+      "id": "conclusion_001",
+      "operation": "revise",
+      "rationale": "景子忠不是另一个从祖父；家世为早年背景，不能作为周瑜官职。",
+      "before_sha256": "8a92f49615e48c289e768d655c4cdf1c86b1412768dbb4c720d895c46cfb14c1",
+      "after_sha256": "56d09e90a127ae6f0bfba6a5d768832c64e27ee9ce5e29cd6f585e3916f420ca"
+    },
+    {
+      "id": "conclusion_002",
+      "operation": "revise",
+      "rationale": "战事不与后来的袁胤任命共用阶段。",
+      "before_sha256": "1501b65830063f66215fc1074285f5710aaa3537287ec95a23f17822b31f6da0",
+      "after_sha256": "1c0737df5258bd03231ba28f68fb2012b33a1f5f5980c46819211eca1b20df2c"
+    },
+    {
+      "id": "conclusion_003",
+      "operation": "revise",
+      "rationale": "袁胤取代周尚发生于周瑜还镇丹杨后，不能向前泄漏。",
+      "before_sha256": "6f309b94989d79ac4840ecff77fdb1fc2a7f0727bbbe06e63120ed39db15240a",
+      "after_sha256": "fd5ff0ddcf095e1d6925c5a55ab08aa8a69cf1d123f8f05318e58f2a924bce5e"
+    },
+    {
+      "id": "conclusion_004",
+      "operation": "revise",
+      "rationale": "居巢长只用于任职阶段；返吴及授新职另段，不把任职起点强定198。",
+      "before_sha256": "13d32e1f8a65b31d8d8f0845726df40094ccd3b7a0fca0ed31de761a0cc25d97",
+      "after_sha256": "4f3834ac7fb4aa71022566fbd5ce9a3b81361ae56dd9ce78102aa56ef8e76e66"
+    },
+    {
+      "id": "conclusion_005",
+      "operation": "revise",
+      "rationale": "加入直接包含建安三年、东归及授职的锚点，终止居巢长的显示。",
+      "before_sha256": "d4f244655529e2dc274ef296f72d3f969393b67d4faffb621198bc176a8f876c",
+      "after_sha256": "27a88c58eaa8f953c2bd60cd4bae594a0712fe7d5ae400aaae32735b6052b215"
+    },
+    {
+      "id": "conclusion_006",
+      "operation": "revise",
+      "rationale": "保留牛渚与后领春谷长的先后；春谷不与中护军共阶段。",
+      "before_sha256": "74b3e8b6092be566d45f6cd885338ef8d7e47845cbfae1592a534a6aa7992100",
+      "after_sha256": "f045c294b0be800f29b44ec795be622b1f85b504ef8655883c0693e55d570a5e"
+    },
+    {
+      "id": "conclusion_007",
+      "operation": "revise",
+      "rationale": "明确的中护军与含底本疑文的江夏太守分开；补完整任命语境。",
+      "before_sha256": "b17b6d588dcc5b17accbf28ec8c690bbf1ccd0118eb498334394e9dc12ce542b",
+      "after_sha256": "742827f16b313dc3d758de740645d02a6dc0ee8014114a940e5b7a82f90e92e6"
+    },
+    {
+      "id": "conclusion_008",
+      "operation": "revise",
+      "rationale": "保留已审来源的“領導江夏太守”疑文，不改抄为正常文本；官职不等于辖治。",
+      "before_sha256": "96300681a4f6a3240db3076d3564f4a965df4d392c2e0a85d6f64283768a0674",
+      "after_sha256": "5ab4669d708afce016ce6b8a4661b5c36b634a05e97c97978e8f74d3de4cdc87"
+    },
+    {
+      "id": "conclusion_009",
+      "operation": "revise",
+      "rationale": "孙策去世和孙权统事的主阶段固定建安五年；不混入注引建安七年。",
+      "before_sha256": "a9834e40b99d93ed9a0acc6f77902cf5217ab04e9548735a72c319865288dc02",
+      "after_sha256": "893902bc123d28d0cc6a6750931e9c7e6e4334813cf6fe354b1df0cc66293f4a"
+    },
+    {
+      "id": "conclusion_010",
+      "operation": "revise",
+      "rationale": "中护军只绑定此处明确在任的掌事阶段。",
+      "before_sha256": "2dfe08ae24f8e5dfe2fcebe994dd22552ed8cfaea4b11281cde0268de3af3d00",
+      "after_sha256": "a4cb2c50f93195b42d95221e998372571ce09459169d6a7b66128493f71bb52b"
+    },
+    {
+      "id": "conclusion_011",
+      "operation": "revise",
+      "rationale": "使用正文明确的建安十一年。",
+      "before_sha256": "a35e754005013ce053c99aebf6bf37eaa5a0c2577618c7e0329c0ad3176f1098",
+      "after_sha256": "b08cc1e89b52a000633435883e18d1a981323417fd6dcabfe5de7693ca492858"
+    },
+    {
+      "id": "conclusion_012",
+      "operation": "revise",
+      "rationale": "同段年序；纠正简繁混字，不增任职。",
+      "before_sha256": "5de43080397ddbe4ed920d35d022c61993b3e3313b41f485bbc54cbb9250475d",
+      "after_sha256": "565478b9905d1bfe34b44516cddb1e9af1e7533351dd27b8c1b156b3a80adffa"
+    },
+    {
+      "id": "conclusion_013",
+      "operation": "revise",
+      "rationale": "前部大督限定春季讨江夏，不延续到九月或赤壁。",
+      "before_sha256": "0662ccff6fd92937eb561643dcb0cfe604e5ef9c7ac9c033452c828d2fcb5dd2",
+      "after_sha256": "63ff68f02305b3a2e1ef71ed0eb12330a8c2248869c322d12d42a7acd2e7bed9"
+    },
+    {
+      "id": "conclusion_014",
+      "operation": "revise",
+      "rationale": "九月是曹操入荆州的原历月份；水军是刘琮投降所交，不额外套用到所有战事。",
+      "before_sha256": "6406b9dfe1fa1f1809559d597c8d48190c4f58acdbb7f167d46d97f006740a9c",
+      "after_sha256": "a641055e46b3c9eb510a53a9ff3aea9766ace912869717106821e0c05f7c7937"
+    },
+    {
+      "id": "conclusion_015",
+      "operation": "revise",
+      "rationale": "补足群臣迎曹语境，分别呈现建言及军力估计，不把发言当客观人数核验。",
+      "before_sha256": "35a98409a27c2761f97ffb0505d226715aff8caf5e193ef9141eb84b79e3abd2",
+      "after_sha256": "53b96acc8bc9d6e0497005ad27d45b90adbca3f8cc9da8696e29ba05385eedaf"
+    },
+    {
+      "id": "conclusion_016",
+      "operation": "revise",
+      "rationale": "单句“君言当击”不独立支撑出兵准备，使用完整决策和准备记录。",
+      "before_sha256": "d47f3e9d77afb5e213f975574dcac3eaaa270f48b5755abae4c1a7e5d4c3edc3",
+      "after_sha256": "9c66864865487a6d3962599c468ce9e36fea1ae553d432e77654853180faeaa1"
+    },
+    {
+      "id": "conclusion_017",
+      "operation": "revise",
+      "rationale": "原稿主体错连全琮；“闇同”是不谋而合。正文未提鲁肃并非否认；不能造冲突。",
+      "before_sha256": "c2d3937e60d95417afe717db42929e94b3342418bda3d72017973201351c4c23",
+      "after_sha256": "8a3fbc7b1925d88eceeb5afd14f2391ff71b59c82fe2761c866eb9eedce113e6"
+    },
+    {
+      "id": "conclusion_018",
+      "operation": "revise",
+      "rationale": "原引文不含刘备此前败绩和孙权遣军；改用完整原文，合兵留到赤壁段。",
+      "before_sha256": "e4418575cd60e724c0b94f767be12296238fea552e21b0dbc6622e8d35a73b22",
+      "after_sha256": "05e71c2142a16ede1c9de672a5fc56530f1debba415d05da1a2d3beb9c8ce8f9"
+    },
+    {
+      "id": "conclusion_019",
+      "operation": "revise",
+      "rationale": "保留主要战斗过程，不删除少数导航以外的细节；火攻与曹操事后自称另条。",
+      "before_sha256": "fb184284f62d42f8f7021344f88d2e285c48aeacbff76e0b0c05a9312fda428d",
+      "after_sha256": "63baede7438f9c871eb618ac500ed099113db587550100c6b383caa6410c0802"
+    },
+    {
+      "id": "conclusion_020",
+      "operation": "revise",
+      "rationale": "退保南郡、留曹仁守江陵及曹操北归单独分期，不把九月/208硬套后续。",
+      "before_sha256": "3223f54f69925da77d7bb7f6841cbc23c01dce4ace30159092146f741a78a394",
+      "after_sha256": "f091dab6b7fd41f90da7cb86dac70d05621ea971da5f87bed4c65708c996c3dd"
+    },
+    {
+      "id": "conclusion_021",
+      "operation": "revise",
+      "rationale": "短引文未含程普及渡屯北岸，换完整南郡段。",
+      "before_sha256": "19357fb23f7e1106eeafa05aa923da322d5613d05558595db0319c669cdcacf8",
+      "after_sha256": "6319eb317344f367929cd3cf3471626c5454fb3e6451779ad1c36abcb5eff672"
+    },
+    {
+      "id": "conclusion_022",
+      "operation": "revise",
+      "rationale": "主要主体改为受伤并巡营的周瑜；时间仍未详。",
+      "before_sha256": "a0401194c1eca1da4aaf1444aae59209d9f5a4f8e8e87edb3e85b226d2aae389",
+      "after_sha256": "92286fb74ab3d0b57eef34d5d72f432484c0c4dadf0ae50387e16e7013dfec3c"
+    },
+    {
+      "id": "conclusion_023",
+      "operation": "revise",
+      "rationale": "与南郡作战拆阶段；兼任不合并为一个职位。",
+      "before_sha256": "9d4471ba838c0bc7f3e0e840dbdefa633e5ac64481d89eba64489b0b34826571",
+      "after_sha256": "3860d3cae30ef1f676e354ca2c2af89f4a4a62d08987fa5c9701f14527ec23a3"
+    },
+    {
+      "id": "conclusion_024",
+      "operation": "revise",
+      "rationale": "南郡太守与偏将军分项，在死亡前结束显示。",
+      "before_sha256": "7ee088d6163e62f9ee4fea832f09663922cde04c2290c96a37475449a6b3af39",
+      "after_sha256": "ff13a703b475eab0d0bb5b3bfaa6f2032f199f7810e0a36b8ff9ce66b5e26e21"
+    },
+    {
+      "id": "conclusion_025",
+      "operation": "revise",
+      "rationale": "正文删除审核口吻；地点控制只表示周瑜军屯据。",
+      "before_sha256": "bc8593d0c83980de96d88ead277cf2700b7c91110469a36543da88b01ad46b58",
+      "after_sha256": "65962e7cc8dd91591b9ee7fc0b4bff5e4faef2650739e1edf2fe1ac0648525b0"
+    },
+    {
+      "id": "conclusion_026",
+      "operation": "revise",
+      "rationale": "完整原文锚点补足关张主体、刘备来见孙权与建议未采纳的语境。",
+      "before_sha256": "2c7f27746c793b72888e5212573a81fd29e5d6768fc010d5346a989fb5d090ab",
+      "after_sha256": "f30c1b1c3baf13646a9a0892ed9f58223a43fbb28a34ee631f0b886f41bdfaa9"
+    },
+    {
+      "id": "conclusion_027",
+      "operation": "revise",
+      "rationale": "刘璋益州牧属于取蜀计划背景，不错挂到前一阶段；移除未被单句引文支持的附带内容。",
+      "before_sha256": "4dc333d26e320e9b3f878b409eae41d5f1eea98f7331bbe209bcdc32185503b1",
+      "after_sha256": "f6b6b8835efcb619d540ca32cb82897fc46877ae17359a8bcb9f7caddca97590"
+    },
+    {
+      "id": "conclusion_028",
+      "operation": "revise",
+      "rationale": "计划与病卒拆开；奮威未具名，不按常识补孙瑜或宣称取蜀已经完成。",
+      "before_sha256": "d97c3d647b713042c10f9d324c32863b6fa04218d22246e2532d43a186ac796e",
+      "after_sha256": "21fc56fd7208a70377fb3f5acb49e56478c34bd7f4c496d5aa47c793649d7653"
+    },
+    {
+      "id": "conclusion_029",
+      "operation": "revise",
+      "rationale": "病卒和年龄明确；地理校案另列存疑，不把整个人物死亡灰化。",
+      "before_sha256": "a517dfbf0aad404709a80014250d051109892a41aaca8c13344d5db6bd3ecd58",
+      "after_sha256": "2621eff5932e637303eb45c28964612f7ce884ff35bb1c196d127a426a1122f5"
+    },
+    {
+      "id": "conclusion_030",
+      "operation": "revise",
+      "rationale": "举哀放在病卒之后，不展示生前现任。",
+      "before_sha256": "201af710b28d3e19313fb9a57cd4005e4cd2b76c2e6e23c12bea453d3a76838c",
+      "after_sha256": "63b4d9b0b22479679ce5e30ea34e18a7aac2c06e0868fe7ba8deab109a3c2c05"
+    },
+    {
+      "id": "conclusion_031",
+      "operation": "revise",
+      "rationale": "初拜兴业都尉不套229或239，不与失爵复爵同阶段。",
+      "before_sha256": "e32e4b4190d5b212e1883260c8267cf2a0173cf214ee94f5d95a7660935e457b",
+      "after_sha256": "4d3c7477fd199c07da96c521489a39fdae457bf3011b37cf7a1445991754a27a"
+    },
+    {
+      "id": "conclusion_032",
+      "operation": "revise",
+      "rationale": "封侯与后来获罪分开，爵位只在受封阶段显示。",
+      "before_sha256": "cd532bee5c60b41123a76452e53fa075d8539d6779d2d65c2fb69c4a38393cad",
+      "after_sha256": "12928b479f405d28698499c0623f1bbdae5bbd3a633423bdbb99086bb52b4937"
+    },
+    {
+      "id": "conclusion_033",
+      "operation": "revise",
+      "rationale": "239年的首次上疏与后续批准/死亡分开，补奏疏全文，保留说话归属。",
+      "before_sha256": "af8fdf835855aa3db1efa8d0645d42b4fd907f9c23ac864469350cb4dccec3ac",
+      "after_sha256": "fff87b87b2dc2d349eed6f53ada25ce0235f62dcb86be27fb66138ff86f7f125"
+    },
+    {
+      "id": "conclusion_034",
+      "operation": "revise",
+      "rationale": "周峻任职与死亡拆开；不能因书写在周胤之后就定为239以后。",
+      "before_sha256": "aee31bd7b17df73ee9b3fb2acd84d96bc9375dace32e4f936d6768810fb062d1",
+      "after_sha256": "77b25c7c7856cae6ae084fde508e58f9f57c512e366deb58bbbcae83acd3bac8"
+    },
+    {
+      "id": "conclusion_035",
+      "operation": "revise",
+      "rationale": "补周峻死亡的完整锚点；孙权所闻性行保留归属，不当成独立鉴定。",
+      "before_sha256": "905f86b5cbd9e654cac81b52ae6b9bb60cac1013570e0bb66bd5c8ad659f230a",
+      "after_sha256": "1c5d14ba148a1236341365555907208d6dd12dd90e3bd8fc3206d51ceb2a461b"
+    },
+    {
+      "id": "added_friendship",
+      "operation": "add",
+      "rationale": "补回原稿遗漏的交游与迁居，不把友好关系当政治效力。",
+      "after_sha256": "4c4429b846177c0d8d5f629fe810a76701ca96ed5b90536c5e63cf39ce8851d5"
+    },
+    {
+      "id": "added_sunshang_office",
+      "operation": "add",
+      "rationale": "探访、随孙策东进到袁胤替代是同一连续段；只绑定替代前的两段，不在替代后继续显示。",
+      "after_sha256": "d497f5ffdfba94f5a34f10a0040597a363da6313be61c7287fb21421fd3d2759"
+    },
+    {
+      "id": "added_sunce_allegiance",
+      "operation": "add",
+      "rationale": "根据直接军令、授职及连续随军语境枚举五阶段；不跨袁术任职或孙策死亡。",
+      "after_sha256": "08b1b385ee365cf3fb9bf3fd6fe80b6904ed932832d29dfb0adedd3e79aa39c3"
+    },
+    {
+      "id": "added_wan_campaign",
+      "operation": "add",
+      "rationale": "补回正文军事、婚姻与驻守脉络；进讨江夏不等于已经控制江夏。",
+      "after_sha256": "fe1833ea54cdf7599ec4fc33b8fc54d0abcb71b6ea89fd10b14a58c76caa3a53"
+    },
+    {
+      "id": "added_zhangzhao_office",
+      "operation": "add",
+      "rationale": "本段直接给职名，不从参与廷议推算后来的持续任期。",
+      "after_sha256": "537ddb19fefb2835163d01c34c082489e087d4e85a23ae4452eefae4b9af26f9"
+    },
+    {
+      "id": "added_sunquan_allegiance",
+      "operation": "add",
+      "rationale": "各列阶段分别有掌事、臣礼、称将军请命、受命出军、授职或批准计划的直接语境；不按参加同场战斗推导，也不覆盖病卒及后世回顾。",
+      "after_sha256": "2646ad27085bc616c8f7e49a0028811c7d7db27509cd350dc25d9e22c890ff78"
+    },
+    {
+      "id": "added_hostage",
+      "operation": "add",
+      "rationale": "这是裴注转引的有归属叙述；202由建安七年换算，不把它塞入200年孙策去世段。",
+      "after_sha256": "1c775cc0a23a186cd74e9f55b25a642a49f7cdb221d2d0a992ab8de008a0fe24"
+    },
+    {
+      "id": "added_huangzu_office",
+      "operation": "add",
+      "rationale": "正文在派遣语句中直接标明任职，只用于此时。",
+      "after_sha256": "fa6f0207d237053d90b90a27e7021e492241231e988588b90ade62741577e38c"
+    },
+    {
+      "id": "added_caocao_title",
+      "operation": "add",
+      "rationale": "明确范围是廷议中的当时称谓，不补造任命日期或据此延长任期。",
+      "after_sha256": "584abf5e8a67ed490425ad49c280b01be42ecc050a219f83d99231d5836e62eb"
+    },
+    {
+      "id": "added_jiangdong_control",
+      "operation": "add",
+      "rationale": "只据明确“割据江东”的带归属转述展示，不扩为全部荆州或后来吴国疆界。",
+      "after_sha256": "e81a391afa1e547877d5be73ee8de776a30df7054371d9dba263761ab437bbe7"
+    },
+    {
+      "id": "added_huanggai_allegiance",
+      "operation": "add",
+      "rationale": "正文直接称瑜部将黄盖；诈降信不是实际改投曹操。",
+      "after_sha256": "a6f58350d0cb9f771efc05f8be295042374139cf7c5fac9736c22bcf184ed06a"
+    },
+    {
+      "id": "added_caocao_letter",
+      "operation": "add",
+      "rationale": "确有此带归属的记载，但它是曹操事后自述，不足以断定焚船退军的全部实际经过；与正文的黄盖火攻不能未经核对合成唯一原因。信件具体日期未详，不给曹操增加后来状态。",
+      "after_sha256": "ab376f5038f3f5fc79a964ffda79a77093cd79fb166280cb9e4e2d10c88387d4"
+    },
+    {
+      "id": "added_caoren_allegiance",
+      "operation": "add",
+      "rationale": "明确的留守命令和连续作战，而不是仅凭同场出现推导；任职名称未见，不补将军官号。",
+      "after_sha256": "2bcbb9ab4240377b1ffe8d73ef873fbd33f91c88242749b30a737a5800dfbe15"
+    },
+    {
+      "id": "added_jiangling_before",
+      "operation": "add",
+      "rationale": "直接留守记录；与后来周瑜屯据分阶段，不把整个南郡战事视为控制权始终不变。",
+      "after_sha256": "249d0b3e3e842f9b7c32c778facbba14e90e0cc176af07df3879bc02521250ff"
+    },
+    {
+      "id": "added_liubei_left",
+      "operation": "add",
+      "rationale": "两项兼任拆开；不把此处官职提前用于赤壁。",
+      "after_sha256": "fc47072dffa0ecbe4fed692ffc20eca4d5b103d188fcabe45dbc1e07d79aac41"
+    },
+    {
+      "id": "added_liubei_jing",
+      "operation": "add",
+      "rationale": "原文直接在任记载，不由牧号推断控制全部荆州。",
+      "after_sha256": "88f530f423aa394d820fe9801d51ee29d6193e688c6b17537b43d1c1792be7f6"
+    },
+    {
+      "id": "added_yizhou_admin",
+      "operation": "add",
+      "rationale": "职名对应行政治理，不因此断言益州各地实际控制，也不把计划视为孙权已取得益州。",
+      "after_sha256": "99f00e2b1f5d16660f70fb96cf9a64c47e71c7656c6277692582d485fc646379"
+    },
+    {
+      "id": "added_baqiu",
+      "operation": "add",
+      "rationale": "保留注者“应在”的地理判断，不把注者时代的“今”当现代地名，也不合并两处巴丘。",
+      "after_sha256": "a2fa09cb207ca80943285197ab6f513b3d2a1c433595f2964787796810f80b7d"
+    },
+    {
+      "id": "added_personality",
+      "operation": "add",
+      "rationale": "正文性情与注引交游分别保留归属；回顾阶段不伪作死后新事件，也不挂生前官职。",
+      "after_sha256": "0126e92e43864698f33a1e41e1393e463c3f60bb29eeb727b79814bd718c88ff"
+    },
+    {
+      "id": "added_jianggan",
+      "operation": "add",
+      "rationale": "仅作为来源有归属的生前交游，具体日期未详；不补盗书情节，也不把此处未具名主君强解为特定时期任职。",
+      "after_sha256": "922e018dbedf9fe6f39f7c0b1d0fcf1b76f39cb9bd7335cb04e4e27bddee117a"
+    },
+    {
+      "id": "added_music",
+      "operation": "add",
+      "rationale": "补回正文性情之后的音乐段；没有确定日期，作为生前回顾，不据书写顺序制造死后活动。",
+      "after_sha256": "bb69d23cdc28b133be479e924ba98cd87d2bbddf743e3f0450919fd67f0caec2"
+    },
+    {
+      "id": "added_children",
+      "operation": "add",
+      "rationale": "完整家属段的明载关系；不补婚姻年月或未具名公主的身份。",
+      "after_sha256": "070393c1ce72a1ba7c90e401954d90d79a5a96875664bcc803791c5578caface"
+    },
+    {
+      "id": "added_xun_office",
+      "operation": "add",
+      "rationale": "任职在死亡前另阶段显示；“有瑜风”是传文评价。",
+      "after_sha256": "8c4bb155ba70641ebbcda674dd90dfc144769a0bb92eef66231dc4d5f768fca8"
+    },
+    {
+      "id": "added_xun_death",
+      "operation": "add",
+      "rationale": "正文记早卒，没有给出日期；死后不再显示骑都尉为现任。",
+      "after_sha256": "d3fdad5c096ec2d77813fa345509c8bf17e88e78b697f011a6d622589c716f4a"
+    },
+    {
+      "id": "added_yin_exile",
+      "operation": "add",
+      "rationale": "原文“后以罪徙”只证明在受封之后；不将迁徙、失爵都硬定于229。",
+      "after_sha256": "c057182df283716fab5ee3e68fcc853c1bc17bc736e62899c335626e33b0ddc4"
+    },
+    {
+      "id": "added_yin_loss",
+      "operation": "add",
+      "rationale": "保留为239年奏疏对既有状态的说法；实际失爵日期与任免文书未见，不向前挂到整个受封/迁徙期。",
+      "after_sha256": "0c4e7f5ef890883877aaf9d08da898c607065debdfb4a6d7e9b7220d2baf0239"
+    },
+    {
+      "id": "added_yin_end",
+      "operation": "add",
+      "rationale": "原文只到获准、会病死；不宣布复职手续已实施，不在病死阶段挂都乡侯或已失爵现任状态。后续具体日期未详。",
+      "after_sha256": "c95cecb75fc70bb9556c7e7802e0a9fab19aa90ea00ee3dc8f3ea4fa58e63bb9"
+    },
+    {
+      "id": "added_visit",
+      "operation": "add",
+      "rationale": "探访与少年家世分阶段，避免在少年交游早期提前显示周尚任职。",
+      "after_sha256": "149023dbce1d6b0ba785a96f14a116314c5504125ccfb27cf9b4f163514c1443"
+    },
+    {
+      "id": "added_niuzhu",
+      "operation": "add",
+      "rationale": "出备牛渚在领春谷长之前单列阶段，不让后来的春谷长身份覆盖此前。",
+      "after_sha256": "4fa119a3d74a278bd07e15023182fe07c47bf9be2554eeb34c3884b7472ae0f3"
+    }
+  ],
+  "all_frozen_evidence_verified": true,
+  "phase_order_notes": "未知日期为null；回顾及两支家属链间关系为uncertain；正文需明确回顾而不把书序冒作严格历史先后。赤壁208沿用同章建安十三年抗曹连续语境，不继承九月；曹军北归以后的日期均未强补。"
+}

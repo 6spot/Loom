@@ -1,0 +1,1999 @@
+{
+  "candidate_sha": "8bc48167f344df3c423db274053bd0e02f2a2e1a9eca2d51fbb481fb8bd749d1",
+  "decision": "approve",
+  "rationale": "验收代理作为已授权操作员逐条对照完整《周瑜传》及222个冻结原文锚点修订。分离任免、季节、病卒和家属阶段；修正周忠亲属关系、鲁肃主体、闇同释义及错引；补正文后半和可核对的当时状态；保留底本疑文、注者/书信/奏疏归属及不确定日期。全部最终结论均已逐项审读。此次只有一个来源，是操作员修订后的流程验收，不是多源独立印证、专业史学审定或模型自动通过。原始候选与修改说明另存，未删除旧结果。",
+  "content": {
+    "conclusions": [
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": null,
+        "evidence": [
+          {
+            "id": "e_35e637019576d68fcbbb9681",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "以正文首段的家世、籍贯及仪容记载为据；注引家族逸事不扩为本人的经历。"
+          }
+        ],
+        "id": "conclusion_001",
+        "phase_ids": [
+          "p_early"
+        ],
+        "question": "周瑜的籍贯及早年家世为何？",
+        "reason": "完整传文直接记载籍贯、父亲官职及家世。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜字公瑾，是庐江舒人，身材高大、相貌出众。父亲周异做过洛阳令；从祖父周景及周景之子周忠都曾任汉太尉。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-78c2-a79a-c221b37aa310",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_4f1253b684c834e5b10fffc9",
+            "note": "完整引文包含迎接孙策、连续军事行动、刘繇败走及周瑜还镇丹杨。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_002",
+        "phase_ids": [
+          "p_east"
+        ],
+        "question": "周瑜是否曾随孙策攻取江东诸地？",
+        "reason": "原文按先后连续叙述迎接、参战、攻取地点和返回丹杨。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜在历阳率兵迎接准备东渡的孙策，随其攻取横江、当利，在秣陵击败笮融、薛礼，又攻下湖孰、江乘，进入曲阿。刘繇败走，孙策部众增至数万人；孙策认为凭这些兵力足以攻取吴会、平定山越，便让周瑜返回丹杨驻守。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7b7f-94e7-5de23998e327",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_20fd089b773267355a33e1ba",
+            "note": "引文明确记载袁胤代周尚为丹杨太守。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_003",
+        "phase_ids": [
+          "p_shouchun"
+        ],
+        "question": "袁胤是否取代周尚担任丹杨太守？",
+        "reason": "原文明确使用“代尚为太守”。",
+        "subject_id": "01a09988-8a04-74bf-a1f8-91f61ab4c42a",
+        "text": "周瑜还镇丹杨不久，袁术派从弟袁胤代周尚为丹杨太守，周瑜与周尚一同回到寿春。",
+        "value": "丹杨太守"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-766c-8ebb-edc7362b1745",
+        "evidence": [
+          {
+            "id": "e_9b7b9632af022f803d70ee7e",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "明确获准为居巢长；此处未载独立任职日期。"
+          }
+        ],
+        "id": "conclusion_004",
+        "phase_ids": [
+          "p_juchao"
+        ],
+        "question": "周瑜在袁术麾下担任何职并如何东归？",
+        "reason": "原文明确记载请求任职、获准及返吴过程。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "袁术想让周瑜做将领，周瑜认为袁术最终不会有所成就，便请求担任居巢长，打算借道东归，袁术答应了。",
+        "value": "居巢长"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7ba7-94ab-412da1ee11b7",
+        "evidence": [
+          {
+            "id": "e_0f0661f89deaf41747228687",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "直接连接东归、建安三年与孙策授职。"
+          },
+          {
+            "id": "e_5aa5aee35893e180b0863cb2",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "兵马数量。"
+          },
+          {
+            "id": "e_abc6f91f8d684e5d526b24a1",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文记年龄二十四及周郎之称。"
+          }
+        ],
+        "id": "conclusion_005",
+        "phase_ids": [
+          "p_return"
+        ],
+        "question": "周瑜何时被孙策授予建威中郎将？",
+        "reason": "来源将该任命紧接建安三年周瑜返吴叙述。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "建安三年，周瑜从居巢回到吴地。孙策亲自迎接，授他建威中郎将，给兵二千、骑五十。周瑜当时二十四岁，吴地人称他周郎。",
+        "value": "建威中郎将"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": null,
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_abc6f91f8d684e5d526b24a1",
+            "note": "完整引文记载周瑜出备牛渚后领春谷长。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_006",
+        "phase_ids": [
+          "p_chungu"
+        ],
+        "question": "周瑜是否兼任春谷长？",
+        "reason": "正文明确先出备牛渚、后领春谷长，年份未详；出镇另阶段，本条职务只在后领春谷的本阶段展示。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "出镇牛渚以后，周瑜领春谷长。",
+        "value": "春谷长"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": null,
+        "evidence": [
+          {
+            "id": "e_936ded9acacde6c42d1fb348",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "包括孙策欲取荆州及任周瑜为中护军。"
+          }
+        ],
+        "id": "conclusion_007",
+        "phase_ids": [
+          "p_wan"
+        ],
+        "question": "周瑜是否担任中护军并领江夏太守？",
+        "reason": "正文“以瑜为中护军”完整明确；不把紧邻的疑文并入本条明确职务。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "孙策准备进取荆州，任命周瑜为中护军。",
+        "value": "中护军"
+      },
+      {
+        "certainty": "uncertain",
+        "dimension": "office",
+        "event_id": null,
+        "evidence": [
+          {
+            "id": "e_3b417eba94087225761d8e3f",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "原样“領導江夏太守”，保留疑文。"
+          },
+          {
+            "id": "e_d190f58b841ec50048f233c3",
+            "relation": "supplement",
+            "attribution": "裴松之对江夏及巴丘的案语",
+            "note": "案语明言当时未定江夏，限制行政和控制推断。"
+          }
+        ],
+        "id": "conclusion_008",
+        "phase_ids": [
+          "p_wan"
+        ],
+        "question": "周瑜是否领江夏太守？",
+        "reason": "底本原样为“領導江夏太守”，不能静默订作“领江夏太守”；裴松之又指出孙策此时尚未定江夏。任职释读与实际辖治分别存疑，不据此赋予江夏控制权。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "这一时期的底本在周瑜任中护军后，紧接写有“領導江夏太守”，可能还涉及兼领江夏太守，但文字有疑。",
+        "value": "江夏太守（底本文字有疑）"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7c21-81bb-dcc0a86be487",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_4531e34cbf2ccd9f4de25862",
+            "note": "引文明确记载建安五年孙策去世及孙权统事。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_009",
+        "phase_ids": [
+          "p_sunquan"
+        ],
+        "question": "孙策去世后孙权是否接掌政事？",
+        "reason": "原文明确以“策薨。权统事”记载继承变化。",
+        "subject_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+        "text": "建安五年孙策去世，孙权接掌政事。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7fcf-b5a5-9d77397fdc30",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_3acf1f1ee381484d79d5e59f",
+            "note": "引文明确记载周瑜留吴、以中护军与张昭共掌众事。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_010",
+        "phase_ids": [
+          "p_sunquan"
+        ],
+        "question": "孙策去世后周瑜担任何种职务？",
+        "reason": "原文明确将中护军身份与共同掌事联系在孙策去世之后。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜赴孙策之丧后留在吴，以中护军身份与长史张昭共同掌管众事。",
+        "value": "中护军"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7759-908d-e3144f463437",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_ac505cc5ac8add99bdf1218c",
+            "note": "完整引文记载督军、斩首及俘获人数。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_011",
+        "phase_ids": [
+          "p_206"
+        ],
+        "question": "周瑜是否在建安十一年讨平麻保二屯？",
+        "reason": "原文明确标出建安十一年及战果。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "建安十一年，周瑜督率孙瑜等讨伐麻、保二屯，斩其首领并俘获一万余人。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7cd9-b768-6e40547d5d80",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_7e25bd14efd8f8e66f35e65a",
+            "note": "引文直接记载黄祖遣鄧龙入柴桑及周瑜生擒鄧龙。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_012",
+        "phase_ids": [
+          "p_206"
+        ],
+        "question": "周瑜是否生擒鄧龙？",
+        "reason": "原文明确记载派兵、追击、生擒和押送。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "江夏太守黄祖派将领邓龙率数千人进入柴桑，周瑜追击，生擒邓龙并送往吴地。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7314-ac73-7656c50c3cb1",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_a984843989880b4fa5e70478",
+            "note": "引文明确记载建安十三年春及前部大督职务。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_013",
+        "phase_ids": [
+          "p_spring"
+        ],
+        "question": "周瑜何时任前部大督？",
+        "reason": "原文直接给出“十三年春”的时间和职务。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "建安十三年春，孙权讨江夏，周瑜担任前部大督。",
+        "value": "前部大督"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-797d-a14d-8c960eee4b10",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_4bd0f8026bb6205b3ca90a12",
+            "note": "完整引文记载曹操入荆州、刘琮举众降及曹操所得军力。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_014",
+        "phase_ids": [
+          "p_jingzhou"
+        ],
+        "question": "曹操入荆州后刘琮是否率众投降？",
+        "reason": "正文给出九月、受降和军力转移；数十万为传文所述数量，不是独立统计。",
+        "subject_id": "01a09988-8a04-7288-8dff-1b8cb96a93b6",
+        "text": "建安十三年九月，曹操进入荆州，刘琮率众投降。曹操取得其水军，水陆兵力号称数十万，孙权部下听说后十分恐惧。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+        "evidence": [
+          {
+            "id": "e_f6df3a4858a1f97f99dc22eb",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文中群臣迎降意见的完整语境。"
+          },
+          {
+            "id": "e_a68ff67cbddfbfc25a5c3b14",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "周瑜的判断与请求；保留为发言而非逐项客观核验。"
+          }
+        ],
+        "id": "conclusion_015",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "question": "周瑜是否主张抗击曹操？",
+        "reason": "周瑜的完整陈说明确反对迎降并提出兵力与进驻地点。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "孙权召集部属问计，群臣认为曹操借汉廷名义征伐，又得到荆州水军，长江之险已不足独恃，主张迎降。周瑜反对，指出曹操北方未稳、马超韩遂仍在关西，北军不长于水战，严寒中马缺饲草，远来将士也容易因水土不服患病。他请求精兵三万人进驻夏口，迎击曹军。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+        "evidence": [
+          {
+            "id": "e_f1cff43797f3d2695226a35d",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文中的赞同。"
+          },
+          {
+            "id": "e_34ad979c88bb8871b9b31e25",
+            "relation": "supplement",
+            "attribution": "裴松之注引《江表传》",
+            "note": "注引《江表传》中的选兵、军资和先发后援安排。"
+          }
+        ],
+        "id": "conclusion_016",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "question": "孙权是否采纳周瑜抗曹主张？",
+        "reason": "孙权在原文中明确说“君言当击，甚与孤合”。",
+        "subject_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+        "text": "孙权赞同周瑜迎击曹操的意见。裴注引《江表传》又记，孙权已选三万人并备妥船粮，命周瑜、鲁肃、程普先行，自己接续发兵运粮作后援。",
+        "value": null
+      },
+      {
+        "certainty": "uncertain",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+        "evidence": [
+          {
+            "id": "e_34ad979c88bb8871b9b31e25",
+            "relation": "support",
+            "attribution": "裴松之案语",
+            "note": "裴松之本人案语，不将其误记为《江表传》作者结论。"
+          },
+          {
+            "id": "e_a68ff67cbddfbfc25a5c3b14",
+            "relation": "background",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "本传叙周瑜反驳迎降，不以未提及鲁肃作为反证。"
+          }
+        ],
+        "id": "conclusion_017",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "question": "抗曹计划是否只能归功于周瑜？",
+        "reason": "明确保留为裴松之的先后判断；本传集中写周瑜，但没有明言鲁肃未参与，现有单章不足独立证明谁最先建言。",
+        "subject_id": "01a09988-8a04-7017-8abc-0120e4b98b77",
+        "text": "裴松之认为抗曹之计先由鲁肃提出：鲁肃劝孙权召回当时出使鄱阳的周瑜，周瑜回来后的意见与鲁肃不谋而合；他批评本传未交代鲁肃先前的谋划。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-74cd-8fd9-c41437a5a535",
+        "evidence": [
+          {
+            "id": "e_543459f1ded7817e7f84f4fd",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "本段开头包含刘备败走、当阳相遇、夏口与遣诸葛亮。"
+          }
+        ],
+        "id": "conclusion_018",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "question": "刘备是否遣诸葛亮出使孙权？",
+        "reason": "原文连续记载当阳相遇、进驻夏口、遣使和合兵。",
+        "subject_id": "01a09988-8a04-7255-980c-bba704a589b6",
+        "text": "刘备被曹操击败后，准备向南渡江；他在当阳与鲁肃相遇，共同商议对策，随后进驻夏口，派诸葛亮前去拜见孙权。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_543459f1ded7817e7f84f4fd",
+            "note": "完整引文叙述赤壁交战、黄盖火攻方案及曹军败退。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_019",
+        "phase_ids": [
+          "p_redcliff"
+        ],
+        "question": "赤壁火攻的基本过程为何？",
+        "reason": "原文同时记载联军构成、黄盖建议、诈降准备、点火及曹军败退。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "孙权派周瑜、程普等与刘备合力迎战，在赤壁遇到曹军。曹军已有疾病，初战失利后退驻江北，周瑜等在南岸。黄盖认为敌众我寡、难以持久，见曹军船舰首尾相接，便建议火攻。他备下装有柴草、浇过油脂的战船，覆帷幕、建旗号，先致书曹操诈降，又把轻便小船系在大船后。曹军以为黄盖来降，争相观望；黄盖纵火，烈风将火势带到岸上营寨，烟焰冲天，曹军人马烧死、溺死者甚多，遂败退。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7251-8d1f-0376547e08fb",
+        "evidence": [
+          {
+            "id": "e_7ab7a6bf3d2c16c2da67ffcc",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "败退并还保南郡。"
+          },
+          {
+            "id": "e_ab021cb2b7f2b2c75f2c15b8",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "追击、留曹仁与北归。"
+          }
+        ],
+        "id": "conclusion_020",
+        "phase_ids": [
+          "p_retreat"
+        ],
+        "question": "曹操败退后是否亲自北归并留下曹仁守江陵？",
+        "reason": "原文明确区分曹仁守江陵与曹操北归。",
+        "subject_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+        "text": "曹军败退后退保南郡，刘备与周瑜等继续追击；曹操留下曹仁等守江陵城，自己向北撤回。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-76da-8351-5ac685db50c5",
+        "evidence": [
+          {
+            "id": "e_d745a9d4913c82d3f9c103d1",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "完整正文支撑进军、对峙、救援及渡屯；不把注引吴录的建议当作已全部实施。"
+          }
+        ],
+        "id": "conclusion_021",
+        "phase_ids": [
+          "p_nan_battle"
+        ],
+        "question": "周瑜是否在南郡战事中解救甘宁并击退曹仁？",
+        "reason": "原文按军事行动顺序记载据夷陵、被围、救援及交战。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜、程普继续进军南郡，与曹仁隔江对峙。周瑜先派甘宁据守夷陵，曹仁分兵围攻，甘宁告急。周瑜采纳吕蒙之计，留下凌统守后方，自己与吕蒙救援甘宁。解围后，周瑜渡江屯在北岸，约定日期交战。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7c0a-b8d9-c24b6131fd29",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_16502e973f0890018806193d",
+            "note": "完整引文包含受伤、激励军士和曹仁退兵。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_022",
+        "phase_ids": [
+          "p_nan_battle"
+        ],
+        "question": "周瑜中箭后曹仁是否退兵？",
+        "reason": "原文明确叙述受伤、曹仁进逼、周瑜整军及曹仁退兵的先后关系。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜在交战中被流箭射中右胁，曹仁听闻其卧病后进逼军阵；周瑜起身巡视军营、激励将士，曹仁因此退兵。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7e99-a199-75b2b72a2938",
+        "evidence": [
+          {
+            "id": "e_8f1489f287aecb6d6e4f5867",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "偏将军任命。"
+          },
+          {
+            "id": "e_f1287bdbf25d1774373fafa4",
+            "relation": "supplement",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "同一连贯段落中的在任谋划及返江陵语境。"
+          }
+        ],
+        "id": "conclusion_023",
+        "phase_ids": [
+          "p_nan_office",
+          "p_shu_plan"
+        ],
+        "question": "周瑜是否被任命为偏将军？",
+        "reason": "明确任命后，正文连续叙其荆州谋划、请取蜀及返江陵准备，期间无新身份转换；仅覆盖这两段连续职务活动，不延伸到病卒、回顾或家属段。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "南郡战事后，孙权任命周瑜为偏将军。",
+        "value": "偏将军"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7e99-a199-75b2b72a2938",
+        "evidence": [
+          {
+            "id": "e_8f1489f287aecb6d6e4f5867",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "太守、奉邑及江陵。"
+          },
+          {
+            "id": "e_f1287bdbf25d1774373fafa4",
+            "relation": "supplement",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "在任谋划至返江陵的完整连续语境。"
+          }
+        ],
+        "id": "conclusion_024",
+        "phase_ids": [
+          "p_nan_office",
+          "p_shu_plan"
+        ],
+        "question": "周瑜是否领南郡太守并屯据江陵？",
+        "reason": "正文明确领南郡太守及屯江陵，连续在任谋划仍归返江陵；只绑定任职及紧接的取蜀计划，不跨病卒阶段。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "孙权任命周瑜领南郡太守，并使其屯据江陵；下雋、汉昌、刘阳、州陵被列为其奉邑。",
+        "value": "南郡太守"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "control",
+        "event_id": "01a09988-8a05-7e99-a199-75b2b72a2938",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_8f1489f287aecb6d6e4f5867",
+            "note": "原文明确使用“屯据江陵”。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_025",
+        "phase_ids": [
+          "p_nan_office"
+        ],
+        "question": "江陵在该阶段是否由周瑜军屯据？",
+        "reason": "按地点状态记录军事据守，不将行动或职务扩大为个人领土所有。",
+        "subject_id": "01a09988-8a05-7dbd-86e9-d6f30006ec38",
+        "text": "周瑜领南郡太守期间，军队屯据江陵。",
+        "value": "周瑜军屯据"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7ba8-8603-69f6db752128",
+        "evidence": [
+          {
+            "id": "e_f1287bdbf25d1774373fafa4",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "周瑜奏疏及孙权的未采纳理由。"
+          }
+        ],
+        "id": "conclusion_026",
+        "phase_ids": [
+          "p_nan_office"
+        ],
+        "question": "周瑜是否建议孙权控制刘备及其部将？",
+        "reason": "原文明确记载建议内容及孙权不采纳的理由。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "刘备到京拜见孙权，周瑜上疏建议把刘备安置在吴，以宫室、美人和玩好牵住他，再把关羽、张飞分置别处，交由将领统领征战。他担心三人一起得到土地便难以约束。孙权考虑曹操仍在北方，需要广纳英雄，又担心难以突然控制刘备，没有采纳。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": null,
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_7e7dc82779b4a3896240aeea",
+            "note": "引文明确记载“刘璋为益州牧”。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_027",
+        "phase_ids": [
+          "p_shu_plan"
+        ],
+        "question": "刘璋在周瑜提出取蜀计划时担任何职？",
+        "reason": "原文直接给出刘璋职务及相关背景。",
+        "subject_id": "01a09988-8a04-7074-a081-4db860a5cc2c",
+        "text": "周瑜提出取蜀计划时，刘璋任益州牧。",
+        "value": "益州牧"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7079-b424-e19f28b8c015",
+        "evidence": [
+          {
+            "id": "e_f1287bdbf25d1774373fafa4",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "刘璋与张鲁背景、曹操新败及赴京提出方略。"
+          },
+          {
+            "id": "e_b9ff58aa04bbdcf6c2e06648",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "取蜀、留守、结援、襄阳及批准的原话。"
+          }
+        ],
+        "id": "conclusion_028",
+        "phase_ids": [
+          "p_shu_plan"
+        ],
+        "question": "周瑜提出的取蜀计划是否实际完成？",
+        "reason": "正文明确是提议与许可，未载蜀地已取得；“奋威”没有姓名，不推定具体人。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "益州面临张鲁侵扰。周瑜到京见孙权，认为曹操新败、正忧心内部，提出与称作“奋威”的将领共同进取蜀地，再兼并张鲁，留奋威守蜀、与马超结援；自己回来后与孙权据襄阳逼迫曹操，进图北方。孙权同意了这个方略。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7b07-aa75-2d2a4d1dc52e",
+        "evidence": [
+          {
+            "id": "e_a296883ca30c98ab4bfd62ab",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "返江陵准备行装、道于巴丘病卒。"
+          },
+          {
+            "id": "e_22b25028c2bd30f7390db881",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "终年三十六。"
+          }
+        ],
+        "id": "conclusion_029",
+        "phase_ids": [
+          "p_death"
+        ],
+        "question": "周瑜在哪里、以何年龄去世？",
+        "reason": "正文直接记病卒与三十六岁；未补公元卒年，卒地的现代/后世地名对应另条处理。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "text": "周瑜返回江陵准备行装，途经巴丘时病逝，终年三十六岁。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7ed7-9280-dc8126a6d431",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_fed41fb8052ffc7d30eb8663",
+            "note": "引文明确记载孙权举哀、芜湖迎丧及费用供给。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_030",
+        "phase_ids": [
+          "p_mourning"
+        ],
+        "question": "孙权如何处理周瑜丧事？",
+        "reason": "原文直接记载举哀、迎丧及供给。",
+        "subject_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+        "text": "孙权穿素服为周瑜举哀，并在灵柩运回吴地途中到芜湖迎接，丧事所需费用由其供给。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": null,
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_49c0e524342ef3ebbb00488c",
+            "note": "完整引文记载周胤拜兴业都尉、授兵千人及屯公安。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_031",
+        "phase_ids": [
+          "p_yin_initial"
+        ],
+        "question": "周胤早期担任何职？",
+        "reason": "原文在周胤家属叙述中明确给出职务、兵力和驻地。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "text": "周胤起初拜兴业都尉，娶宗室女子为妻，获授一千名士兵并屯驻公安。",
+        "value": "兴业都尉"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "title",
+        "event_id": "01a09988-8a05-7c40-8d92-056fdd8507f3",
+        "evidence": [
+          {
+            "id": "e_f54e4af6453190f38a51cfbb",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "原文只锚定封爵。"
+          }
+        ],
+        "id": "conclusion_032",
+        "phase_ids": [
+          "p_yin_title"
+        ],
+        "question": "周胤何时被封为都乡侯？",
+        "reason": "原文明确黄龙元年（229）封爵；不把后来的迁徙也定为本年。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "text": "黄龙元年，周胤受封都乡侯。",
+        "value": "都乡侯"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-7990-a67c-fe196127903f",
+        "evidence": [
+          {
+            "id": "e_ca8d2bf10b7d8d65021a2bec",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "上疏纪年与人名。"
+          },
+          {
+            "id": "e_27cb10b93976f6a9d5aac6f3",
+            "relation": "support",
+            "attribution": "陈寿正文所录诸葛瑾、步骘奏疏",
+            "note": "请复及功劳评价、誓言论据。"
+          },
+          {
+            "id": "e_2b72479ad2eb7d88ddafd809",
+            "relation": "support",
+            "attribution": "陈寿正文所录孙权答复",
+            "note": "孙权初次拒绝立即恢复及所述理由。"
+          }
+        ],
+        "id": "conclusion_033",
+        "phase_ids": [
+          "p_yin_petition"
+        ],
+        "question": "群臣是否请求恢复周胤的兵爵？",
+        "reason": "赤乌二年为239，锚点包含纪年、奏疏及答复；功劳评价和对周胤的指责分别保留为奏疏/孙权所述。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "text": "赤乌二年，诸葛瑾、步骘联名上疏，请孙权顾念周瑜冒矢石、击败曹操和曹仁的功劳，宽免周胤，恢复兵权与爵位。他们援引汉高祖封爵誓言，主张功臣后裔也应得到照顾。孙权答复说并未忘记周瑜，只因周胤屡经告诫仍不改过，暂不愿立即恢复，若能改过则仍有余地。",
+        "value": null
+      },
+      {
+        "certainty": "clear",
+        "dimension": "office",
+        "event_id": "01a09988-8a05-7333-be5c-e58cc021f689",
+        "evidence": [
+          {
+            "attribution": "陈寿《三国志·吴书·周瑜传》",
+            "id": "e_871615b0fbfa08e9a349c077",
+            "note": "引文直接记载周峻因周瑜元功任偏将军并领吏士千人。",
+            "relation": "support"
+          }
+        ],
+        "id": "conclusion_034",
+        "phase_ids": [
+          "p_jun"
+        ],
+        "question": "周峻是否因周瑜功勋任偏将军？",
+        "reason": "原文明确任职及人数，未载日期，也未证明与周胤陈情的先后；死亡另阶段。",
+        "subject_id": "01a09988-8a04-7d6c-bf60-903744aa5e9f",
+        "text": "周瑜的侄子周峻因周瑜的功勋获任偏将军，统领一千名吏士。",
+        "value": "偏将军"
+      },
+      {
+        "certainty": "clear",
+        "dimension": "event_detail",
+        "event_id": "01a09988-8a05-74e4-bd6f-29d66fd4b181",
+        "evidence": [
+          {
+            "id": "e_eea0af25828118bbd7260784",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "完整末段，含峻卒及孙权答辞。"
+          }
+        ],
+        "id": "conclusion_035",
+        "phase_ids": [
+          "p_hu"
+        ],
+        "question": "孙权是否拒绝任用周护为将？",
+        "reason": "完整末段证明父子关系、死亡先后、请求与拒绝；关于性行的判断是孙权答复所述。",
+        "subject_id": "01a09988-8a04-75ea-aa81-ac68a5733739",
+        "text": "周峻去世后，全琮上表请求任用周峻之子周护为将。孙权说，自己原也想起用周护，但听说他性情行为危险，担心任用会招祸，因而作罢；他仍表示念念不忘周瑜。",
+        "value": null
+      },
+      {
+        "id": "added_friendship",
+        "question": "孙坚参加讨伐董卓的义军时，把家眷迁到舒。孙策与周瑜同年，二人尤其要好；周瑜让出道南大宅给孙策住，彼此以家人般的礼节相待，互通有无。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": "01a09988-8a05-7c42-837d-26bb2a8a3b9c",
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_early"
+        ],
+        "text": "孙坚参加讨伐董卓的义军时，把家眷迁到舒。孙策与周瑜同年，二人尤其要好；周瑜让出道南大宅给孙策住，彼此以家人般的礼节相待，互通有无。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "补回原稿遗漏的交游与迁居，不把友好关系当政治效力。",
+        "evidence": [
+          {
+            "id": "e_35e637019576d68fcbbb9681",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文中迁居、交游、让宅和省周尚。"
+          }
+        ]
+      },
+      {
+        "id": "added_sunshang_office",
+        "question": "周瑜探访时，从父周尚任丹杨太守；这在袁胤取代他之前。",
+        "subject_id": "01a09988-8a04-7df6-8b51-6b914fba6f41",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_visit",
+          "p_east"
+        ],
+        "text": "周瑜探访时，从父周尚任丹杨太守；这在袁胤取代他之前。",
+        "value": "丹杨太守",
+        "certainty": "clear",
+        "reason": "探访、随孙策东进到袁胤替代是同一连续段；只绑定替代前的两段，不在替代后继续显示。",
+        "evidence": [
+          {
+            "id": "e_4346b26b00fe2dc97e570c56",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "明确周尚任职。"
+          },
+          {
+            "id": "e_35e637019576d68fcbbb9681",
+            "relation": "supplement",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "完整顺序及后续替代边界。"
+          }
+        ]
+      },
+      {
+        "id": "added_sunce_allegiance",
+        "question": "在随孙策东征、返吴受任及其后转战的这些阶段，周瑜听从孙策军令并为其领兵。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "allegiance",
+        "phase_ids": [
+          "p_east",
+          "p_return",
+          "p_niuzhu",
+          "p_chungu",
+          "p_wan"
+        ],
+        "text": "在随孙策东征、返吴受任及其后转战的这些阶段，周瑜听从孙策军令并为其领兵。",
+        "value": "孙策",
+        "certainty": "clear",
+        "reason": "根据直接军令、授职及连续随军语境枚举五阶段；不跨袁术任职或孙策死亡。",
+        "evidence": [
+          {
+            "id": "e_4f1253b684c834e5b10fffc9",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "随军及奉命还镇。"
+          },
+          {
+            "id": "e_5aa5aee35893e180b0863cb2",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "孙策授职给兵。"
+          },
+          {
+            "id": "e_d190f58b841ec50048f233c3",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "后领春谷、中护军及随孙策转战。"
+          }
+        ]
+      },
+      {
+        "id": "added_wan_campaign",
+        "question": "周瑜随孙策攻克皖，孙策娶桥公长女，周瑜娶其次女。此后又到寻阳附近击败刘勋、进讨江夏，返回平定豫章、庐陵，周瑜留下镇守巴丘。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": "01a09988-8a05-791a-94e6-8aba97619b26",
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_wan"
+        ],
+        "text": "周瑜随孙策攻克皖，孙策娶桥公长女，周瑜娶其次女。此后又到寻阳附近击败刘勋、进讨江夏，返回平定豫章、庐陵，周瑜留下镇守巴丘。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "补回正文军事、婚姻与驻守脉络；进讨江夏不等于已经控制江夏。",
+        "evidence": [
+          {
+            "id": "e_d190f58b841ec50048f233c3",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文的攻皖、二桥与后续战事。"
+          }
+        ]
+      },
+      {
+        "id": "added_zhangzhao_office",
+        "question": "孙权接掌政事、周瑜留吴共同掌事时，张昭任长史。",
+        "subject_id": "01a09988-8a04-7a15-bea9-d911f3d3a41e",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_sunquan"
+        ],
+        "text": "孙权接掌政事、周瑜留吴共同掌事时，张昭任长史。",
+        "value": "长史",
+        "certainty": "clear",
+        "reason": "本段直接给职名，不从参与廷议推算后来的持续任期。",
+        "evidence": [
+          {
+            "id": "e_3acf1f1ee381484d79d5e59f",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "长史张昭与中护军周瑜共掌众事。"
+          }
+        ]
+      },
+      {
+        "id": "added_sunquan_allegiance",
+        "question": "周瑜在孙权接掌政事后执臣礼；在议质、讨江夏、抗曹及南郡任职、提出取蜀方略的这些阶段，明确为孙权掌事、领军或请命。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "allegiance",
+        "phase_ids": [
+          "p_sunquan",
+          "p_hostage",
+          "p_spring",
+          "p_decision",
+          "p_redcliff",
+          "p_nan_office",
+          "p_shu_plan"
+        ],
+        "text": "周瑜在孙权接掌政事后执臣礼；在议质、讨江夏、抗曹及南郡任职、提出取蜀方略的这些阶段，明确为孙权掌事、领军或请命。",
+        "value": "孙权",
+        "certainty": "clear",
+        "reason": "各列阶段分别有掌事、臣礼、称将军请命、受命出军、授职或批准计划的直接语境；不按参加同场战斗推导，也不覆盖病卒及后世回顾。",
+        "evidence": [
+          {
+            "id": "e_3acf1f1ee381484d79d5e59f",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "孙权统事后掌事。"
+          },
+          {
+            "id": "e_4531e34cbf2ccd9f4de25862",
+            "relation": "support",
+            "attribution": "正文及裴注引《江表传》",
+            "note": "注引议质。"
+          },
+          {
+            "id": "e_a984843989880b4fa5e70478",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "讨江夏任前部大督。"
+          },
+          {
+            "id": "e_792311a05006e6668fa219d7",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "廷议请为将军出战及明确遣军。"
+          },
+          {
+            "id": "e_18b61ff94e11d86c1cc4c590",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "孙权遣周瑜程普与刘备合兵。"
+          },
+          {
+            "id": "e_f1287bdbf25d1774373fafa4",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "授职与请命。"
+          },
+          {
+            "id": "e_46246e50bd002fff52effbe5",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文明确执臣节。"
+          }
+        ]
+      },
+      {
+        "id": "added_hostage",
+        "question": "据《江表传》，建安七年曹操要求孙权送子弟为人质。周瑜认为，一旦送质，孙权便会受曹氏制约，不如守住父兄留下的基业、静观局势。孙权的母亲赞同周瑜，劝孙权像对待兄长一样对待他，孙权于是没有送质。",
+        "subject_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_hostage"
+        ],
+        "text": "据《江表传》，建安七年曹操要求孙权送子弟为人质。周瑜认为，一旦送质，孙权便会受曹氏制约，不如守住父兄留下的基业、静观局势。孙权的母亲赞同周瑜，劝孙权像对待兄长一样对待他，孙权于是没有送质。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "这是裴注转引的有归属叙述；202由建安七年换算，不把它塞入200年孙策去世段。",
+        "evidence": [
+          {
+            "id": "e_4531e34cbf2ccd9f4de25862",
+            "relation": "support",
+            "attribution": "裴松之注引《江表传》",
+            "note": "完整《江表传》引文、纪年、议论和结果。"
+          }
+        ]
+      },
+      {
+        "id": "added_huangzu_office",
+        "question": "派邓龙进军柴桑时，黄祖任江夏太守。",
+        "subject_id": "01a09988-8a04-7cf8-902e-8188c701380d",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_206"
+        ],
+        "text": "派邓龙进军柴桑时，黄祖任江夏太守。",
+        "value": "江夏太守",
+        "certainty": "clear",
+        "reason": "正文在派遣语句中直接标明任职，只用于此时。",
+        "evidence": [
+          {
+            "id": "e_7e25bd14efd8f8e66f35e65a",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "江夏太守黄祖。"
+          }
+        ]
+      },
+      {
+        "id": "added_caocao_title",
+        "question": "抗曹廷议中，群臣和周瑜都以“汉相”称曹操，同时批评他借朝廷名义征伐。",
+        "subject_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "text": "抗曹廷议中，群臣和周瑜都以“汉相”称曹操，同时批评他借朝廷名义征伐。",
+        "value": "汉相（廷议称谓）",
+        "certainty": "clear",
+        "reason": "明确范围是廷议中的当时称谓，不补造任命日期或据此延长任期。",
+        "evidence": [
+          {
+            "id": "e_f6df3a4858a1f97f99dc22eb",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "群臣言托名汉相。"
+          },
+          {
+            "id": "e_a68ff67cbddfbfc25a5c3b14",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "周瑜同样以汉相论曹操。"
+          }
+        ]
+      },
+      {
+        "id": "added_jiangdong_control",
+        "question": "周瑜在廷议中说，孙权承接父兄基业，割据江东。",
+        "subject_id": "01a09988-8a05-7520-935e-7d8d5e60de82",
+        "event_id": null,
+        "dimension": "control",
+        "phase_ids": [
+          "p_decision"
+        ],
+        "text": "周瑜在廷议中说，孙权承接父兄基业，割据江东。",
+        "value": "孙权（据周瑜廷议）",
+        "certainty": "clear",
+        "reason": "只据明确“割据江东”的带归属转述展示，不扩为全部荆州或后来吴国疆界。",
+        "evidence": [
+          {
+            "id": "e_a68ff67cbddfbfc25a5c3b14",
+            "relation": "support",
+            "attribution": "陈寿正文所录周瑜廷议",
+            "note": "周瑜对孙权势力范围的当时陈述。"
+          }
+        ]
+      },
+      {
+        "id": "added_huanggai_allegiance",
+        "question": "赤壁交战时，黄盖是周瑜的部将。",
+        "subject_id": "01a09988-8a04-7a07-a0f4-b0bc9e990d2f",
+        "event_id": null,
+        "dimension": "allegiance",
+        "phase_ids": [
+          "p_redcliff"
+        ],
+        "text": "赤壁交战时，黄盖是周瑜的部将。",
+        "value": "周瑜所部",
+        "certainty": "clear",
+        "reason": "正文直接称瑜部将黄盖；诈降信不是实际改投曹操。",
+        "evidence": [
+          {
+            "id": "e_543459f1ded7817e7f84f4fd",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文的部将归属及先书报曹公欺以欲降。"
+          }
+        ]
+      },
+      {
+        "id": "added_caocao_letter",
+        "question": "《江表传》另载，曹操后来写信给孙权，称赤壁时军中有病，是自己焚船退走，才让周瑜徒得声名。",
+        "subject_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_redcliff"
+        ],
+        "text": "《江表传》另载，曹操后来写信给孙权，称赤壁时军中有病，是自己焚船退走，才让周瑜徒得声名。",
+        "value": null,
+        "certainty": "uncertain",
+        "reason": "确有此带归属的记载，但它是曹操事后自述，不足以断定焚船退军的全部实际经过；与正文的黄盖火攻不能未经核对合成唯一原因。信件具体日期未详，不给曹操增加后来状态。",
+        "evidence": [
+          {
+            "id": "e_46246e50bd002fff52effbe5",
+            "relation": "support",
+            "attribution": "裴松之注引《江表传》所载曹操致孙权书",
+            "note": "引文包含写信者、收信者及完整话语归属。"
+          },
+          {
+            "id": "e_543459f1ded7817e7f84f4fd",
+            "relation": "background",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文火攻是另一个叙述角度，不以单章重复当独立印证。"
+          }
+        ]
+      },
+      {
+        "id": "added_caoren_allegiance",
+        "question": "曹操北归时留下曹仁等守江陵，曹仁随后与周瑜等对峙作战。",
+        "subject_id": "01a09988-8a04-72ec-833a-7907184f9945",
+        "event_id": null,
+        "dimension": "allegiance",
+        "phase_ids": [
+          "p_retreat",
+          "p_nan_battle"
+        ],
+        "text": "曹操北归时留下曹仁等守江陵，曹仁随后与周瑜等对峙作战。",
+        "value": "曹操",
+        "certainty": "clear",
+        "reason": "明确的留守命令和连续作战，而不是仅凭同场出现推导；任职名称未见，不补将军官号。",
+        "evidence": [
+          {
+            "id": "e_bac105e59729ecddcc1dc060",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "曹操留曹仁与随后隔江对峙。"
+          }
+        ]
+      },
+      {
+        "id": "added_jiangling_before",
+        "question": "曹操北归时，江陵城由他留下的曹仁等守卫。",
+        "subject_id": "01a09988-8a05-7dbd-86e9-d6f30006ec38",
+        "event_id": null,
+        "dimension": "control",
+        "phase_ids": [
+          "p_retreat"
+        ],
+        "text": "曹操北归时，江陵城由他留下的曹仁等守卫。",
+        "value": "曹仁等（曹操所部）",
+        "certainty": "clear",
+        "reason": "直接留守记录；与后来周瑜屯据分阶段，不把整个南郡战事视为控制权始终不变。",
+        "evidence": [
+          {
+            "id": "e_ab021cb2b7f2b2c75f2c15b8",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "曹公留曹仁等守江陵城。"
+          }
+        ]
+      },
+      {
+        "id": "added_liubei_left",
+        "question": "周瑜领南郡太守、刘备到京见孙权这一时期，刘备以左将军身份兼领荆州牧。",
+        "subject_id": "01a09988-8a04-7255-980c-bba704a589b6",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_nan_office"
+        ],
+        "text": "周瑜领南郡太守、刘备到京见孙权这一时期，刘备以左将军身份兼领荆州牧。",
+        "value": "左将军",
+        "certainty": "clear",
+        "reason": "两项兼任拆开；不把此处官职提前用于赤壁。",
+        "evidence": [
+          {
+            "id": "e_ae39b0d3e22eb36c112fc622",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "左将军领荆州牧并治公安。"
+          }
+        ]
+      },
+      {
+        "id": "added_liubei_jing",
+        "question": "刘备当时兼领荆州牧，以公安为治所。",
+        "subject_id": "01a09988-8a04-7255-980c-bba704a589b6",
+        "event_id": null,
+        "dimension": "office",
+        "phase_ids": [
+          "p_nan_office"
+        ],
+        "text": "刘备当时兼领荆州牧，以公安为治所。",
+        "value": "荆州牧",
+        "certainty": "clear",
+        "reason": "原文直接在任记载，不由牧号推断控制全部荆州。",
+        "evidence": [
+          {
+            "id": "e_ae39b0d3e22eb36c112fc622",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "领荆州牧治公安。"
+          }
+        ]
+      },
+      {
+        "id": "added_yizhou_admin",
+        "question": "提出取蜀计划时，益州的州牧是刘璋。",
+        "subject_id": "01a09988-8a05-778c-9455-61adea93d74d",
+        "event_id": null,
+        "dimension": "administration",
+        "phase_ids": [
+          "p_shu_plan"
+        ],
+        "text": "提出取蜀计划时，益州的州牧是刘璋。",
+        "value": "刘璋（益州牧）",
+        "certainty": "clear",
+        "reason": "职名对应行政治理，不因此断言益州各地实际控制，也不把计划视为孙权已取得益州。",
+        "evidence": [
+          {
+            "id": "e_7e7dc82779b4a3896240aeea",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "是时刘璋为益州牧。"
+          }
+        ]
+      },
+      {
+        "id": "added_baqiu",
+        "question": "裴松之认为，周瑜病卒的巴丘应在他所说的巴陵，与周瑜早年镇守的巴丘名同而地异。",
+        "subject_id": "01a09988-8a05-77c8-a276-abc41c6922ac",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_death"
+        ],
+        "text": "裴松之认为，周瑜病卒的巴丘应在他所说的巴陵，与周瑜早年镇守的巴丘名同而地异。",
+        "value": null,
+        "certainty": "uncertain",
+        "reason": "保留注者“应在”的地理判断，不把注者时代的“今”当现代地名，也不合并两处巴丘。",
+        "evidence": [
+          {
+            "id": "e_829e25b5d64c62aad971a098",
+            "relation": "support",
+            "attribution": "裴松之案语",
+            "note": "注者明确同名异地且使用推断语气。"
+          },
+          {
+            "id": "e_d190f58b841ec50048f233c3",
+            "relation": "supplement",
+            "attribution": "裴松之案语",
+            "note": "早先驻守巴丘的对应案语。"
+          }
+        ]
+      },
+      {
+        "id": "added_personality",
+        "question": "周瑜性情宽宏，大多能得到他人的好感，早先与程普关系不睦。《江表传》说，程普仗着年长屡次凌辱周瑜，周瑜谦让而不计较，程普后来敬服他，说与周公瑾交往如饮醇酒，不知不觉便醉了。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_recollection"
+        ],
+        "text": "周瑜性情宽宏，大多能得到他人的好感，早先与程普关系不睦。《江表传》说，程普仗着年长屡次凌辱周瑜，周瑜谦让而不计较，程普后来敬服他，说与周公瑾交往如饮醇酒，不知不觉便醉了。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "正文性情与注引交游分别保留归属；回顾阶段不伪作死后新事件，也不挂生前官职。",
+        "evidence": [
+          {
+            "id": "e_46246e50bd002fff52effbe5",
+            "relation": "support",
+            "attribution": "陈寿正文及裴注引《江表传》",
+            "note": "正文性度恢廓及《江表传》所述程普交游。"
+          }
+        ]
+      },
+      {
+        "id": "added_jianggan",
+        "question": "《江表传》还记曹操派蒋干拜访周瑜。周瑜招待他，又带他观看营中军资器械，表示自己与知己之主外有君臣之义、内有骨肉之恩，不会因游说改变。蒋干回去后称赞周瑜气度高远，言辞无法离间。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": "01a09988-8a05-7a57-8357-d62635843945",
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_recollection"
+        ],
+        "text": "《江表传》还记曹操派蒋干拜访周瑜。周瑜招待他，又带他观看营中军资器械，表示自己与知己之主外有君臣之义、内有骨肉之恩，不会因游说改变。蒋干回去后称赞周瑜气度高远，言辞无法离间。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "仅作为来源有归属的生前交游，具体日期未详；不补盗书情节，也不把此处未具名主君强解为特定时期任职。",
+        "evidence": [
+          {
+            "id": "e_46246e50bd002fff52effbe5",
+            "relation": "support",
+            "attribution": "裴松之注引《江表传》",
+            "note": "完整蒋干访周瑜的注引叙述。"
+          }
+        ]
+      },
+      {
+        "id": "added_music",
+        "question": "周瑜从年轻时就精于音乐，即使喝过几杯酒，也能听出演奏中的差错，一听出来便回头看，因而有“曲有误，周郎顾”的歌谣。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_recollection"
+        ],
+        "text": "周瑜从年轻时就精于音乐，即使喝过几杯酒，也能听出演奏中的差错，一听出来便回头看，因而有“曲有误，周郎顾”的歌谣。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "补回正文性情之后的音乐段；没有确定日期，作为生前回顾，不据书写顺序制造死后活动。",
+        "evidence": [
+          {
+            "id": "e_ba25934800681d3b5358414a",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "完整音乐与歌谣记载。"
+          }
+        ]
+      },
+      {
+        "id": "added_children",
+        "question": "周瑜有两个儿子和一个女儿，女儿嫁给太子孙登，长子周循娶了公主。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_family"
+        ],
+        "text": "周瑜有两个儿子和一个女儿，女儿嫁给太子孙登，长子周循娶了公主。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "完整家属段的明载关系；不补婚姻年月或未具名公主的身份。",
+        "evidence": [
+          {
+            "id": "e_c44cda33b14132ff8019a109",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "两个儿子一个女儿、女配太子登及循尚公主。"
+          }
+        ]
+      },
+      {
+        "id": "added_xun_office",
+        "question": "周循获任骑都尉，颇有周瑜的风范。",
+        "subject_id": "01a09988-8a04-7d7b-b494-7994fe35b6c0",
+        "event_id": "01a09988-8a05-7433-adba-5bfba9368d71",
+        "dimension": "office",
+        "phase_ids": [
+          "p_xun"
+        ],
+        "text": "周循获任骑都尉，颇有周瑜的风范。",
+        "value": "骑都尉",
+        "certainty": "clear",
+        "reason": "任职在死亡前另阶段显示；“有瑜风”是传文评价。",
+        "evidence": [
+          {
+            "id": "e_e02ea09afd7c88d46688325f",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "骑都尉及有瑜风。"
+          }
+        ]
+      },
+      {
+        "id": "added_xun_death",
+        "question": "周循早逝。",
+        "subject_id": "01a09988-8a04-7d7b-b494-7994fe35b6c0",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_xun_death"
+        ],
+        "text": "周循早逝。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "正文记早卒，没有给出日期；死后不再显示骑都尉为现任。",
+        "evidence": [
+          {
+            "id": "e_e02ea09afd7c88d46688325f",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "原文早卒。"
+          }
+        ]
+      },
+      {
+        "id": "added_yin_exile",
+        "question": "周胤受封以后，因罪被迁到庐陵郡。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_yin_exile"
+        ],
+        "text": "周胤受封以后，因罪被迁到庐陵郡。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "原文“后以罪徙”只证明在受封之后；不将迁徙、失爵都硬定于229。",
+        "evidence": [
+          {
+            "id": "e_66d9ae7603516c7174927528",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "受封以后迁徙的先后。"
+          }
+        ]
+      },
+      {
+        "id": "added_yin_loss",
+        "question": "诸葛瑾、步骘的奏疏称，周胤已经“降为匹夫”，请求恢复他的兵权和爵位。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "event_id": null,
+        "dimension": "title",
+        "phase_ids": [
+          "p_yin_petition"
+        ],
+        "text": "诸葛瑾、步骘的奏疏称，周胤已经“降为匹夫”，请求恢复他的兵权和爵位。",
+        "value": "已失爵（据奏疏）",
+        "certainty": "uncertain",
+        "reason": "保留为239年奏疏对既有状态的说法；实际失爵日期与任免文书未见，不向前挂到整个受封/迁徙期。",
+        "evidence": [
+          {
+            "id": "e_27cb10b93976f6a9d5aac6f3",
+            "relation": "support",
+            "attribution": "陈寿正文所录诸葛瑾、步骘奏疏",
+            "note": "降为匹夫及还兵复爵的完整奏疏。"
+          }
+        ]
+      },
+      {
+        "id": "added_yin_end",
+        "question": "诸葛瑾、步骘接连上表，朱然、全琮也为周胤求情，孙权终于答应，可周胤恰在这时病死。",
+        "subject_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+        "event_id": "01a09988-8a05-7990-a67c-fe196127903f",
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_yin_end"
+        ],
+        "text": "诸葛瑾、步骘接连上表，朱然、全琮也为周胤求情，孙权终于答应，可周胤恰在这时病死。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "原文只到获准、会病死；不宣布复职手续已实施，不在病死阶段挂都乡侯或已失爵现任状态。后续具体日期未详。",
+        "evidence": [
+          {
+            "id": "e_1040dc1e9d0e6cf36994da48",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "接连上表、加入求情、批准和病死。"
+          }
+        ]
+      },
+      {
+        "id": "added_visit",
+        "question": "周瑜的从父周尚任丹杨太守，周瑜前往探望他。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_visit"
+        ],
+        "text": "周瑜的从父周尚任丹杨太守，周瑜前往探望他。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "探访与少年家世分阶段，避免在少年交游早期提前显示周尚任职。",
+        "evidence": [
+          {
+            "id": "e_c7a0b53de6b555db0aa2c259",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "从父尚为太守及往省之。"
+          }
+        ]
+      },
+      {
+        "id": "added_niuzhu",
+        "question": "周瑜在庐江素有恩信，于是被派出镇守牛渚。",
+        "subject_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "event_id": null,
+        "dimension": "event_detail",
+        "phase_ids": [
+          "p_niuzhu"
+        ],
+        "text": "周瑜在庐江素有恩信，于是被派出镇守牛渚。",
+        "value": null,
+        "certainty": "clear",
+        "reason": "出备牛渚在领春谷长之前单列阶段，不让后来的春谷长身份覆盖此前。",
+        "evidence": [
+          {
+            "id": "e_abc6f91f8d684e5d526b24a1",
+            "relation": "support",
+            "attribution": "陈寿《三国志·周瑜传》正文",
+            "note": "正文以恩信著于庐江、出备牛渚、后领春谷长。"
+          }
+        ]
+      }
+    ],
+    "phases": [
+      {
+        "id": "p_early",
+        "label": "舒县的少年交游",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_35e637019576d68fcbbb9681",
+          "e_1ec66033f8ed8029f5ae7f51"
+        ]
+      },
+      {
+        "id": "p_visit",
+        "label": "探访丹杨",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_c7a0b53de6b555db0aa2c259"
+        ]
+      },
+      {
+        "id": "p_east",
+        "label": "随孙策渡江",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_4f1253b684c834e5b10fffc9"
+        ]
+      },
+      {
+        "id": "p_shouchun",
+        "label": "丹杨太守更替",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_20fd089b773267355a33e1ba"
+        ]
+      },
+      {
+        "id": "p_juchao",
+        "label": "借居巢东归之前",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_9b7b9632af022f803d70ee7e"
+        ]
+      },
+      {
+        "id": "p_return",
+        "label": "重返吴地",
+        "year": 198,
+        "period": "建安三年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_0f0661f89deaf41747228687",
+          "e_5aa5aee35893e180b0863cb2"
+        ]
+      },
+      {
+        "id": "p_niuzhu",
+        "label": "出镇牛渚",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_abc6f91f8d684e5d526b24a1"
+        ]
+      },
+      {
+        "id": "p_chungu",
+        "label": "牛渚与春谷",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_abc6f91f8d684e5d526b24a1"
+        ]
+      },
+      {
+        "id": "p_wan",
+        "label": "攻皖与转战江夏",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_936ded9acacde6c42d1fb348",
+          "e_d190f58b841ec50048f233c3"
+        ]
+      },
+      {
+        "id": "p_sunquan",
+        "label": "孙权接掌江东",
+        "year": 200,
+        "period": "建安五年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_4531e34cbf2ccd9f4de25862",
+          "e_3acf1f1ee381484d79d5e59f"
+        ]
+      },
+      {
+        "id": "p_hostage",
+        "label": "不送任子的商议",
+        "year": 202,
+        "period": "建安七年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_4531e34cbf2ccd9f4de25862"
+        ]
+      },
+      {
+        "id": "p_206",
+        "label": "麻保二屯与柴桑",
+        "year": 206,
+        "period": "建安十一年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_ac505cc5ac8add99bdf1218c",
+          "e_7e25bd14efd8f8e66f35e65a"
+        ]
+      },
+      {
+        "id": "p_spring",
+        "label": "江夏之役",
+        "year": 208,
+        "period": "建安十三年春",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_a984843989880b4fa5e70478"
+        ]
+      },
+      {
+        "id": "p_jingzhou",
+        "label": "曹军进入荆州",
+        "year": 208,
+        "period": "建安十三年九月（原历）",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_4bd0f8026bb6205b3ca90a12"
+        ]
+      },
+      {
+        "id": "p_decision",
+        "label": "抗曹商议与联络",
+        "year": 208,
+        "period": "建安十三年，九月以后",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_792311a05006e6668fa219d7",
+          "e_da66632540048f3c4dd35b09"
+        ]
+      },
+      {
+        "id": "p_redcliff",
+        "label": "赤壁交战",
+        "year": 208,
+        "period": "建安十三年，月日未详",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_792311a05006e6668fa219d7",
+          "e_543459f1ded7817e7f84f4fd"
+        ]
+      },
+      {
+        "id": "p_retreat",
+        "label": "曹军退保南郡并北归",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_7ab7a6bf3d2c16c2da67ffcc",
+          "e_ab021cb2b7f2b2c75f2c15b8"
+        ]
+      },
+      {
+        "id": "p_nan_battle",
+        "label": "南郡作战",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_d745a9d4913c82d3f9c103d1"
+        ]
+      },
+      {
+        "id": "p_nan_office",
+        "label": "周瑜屯据江陵",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_8f1489f287aecb6d6e4f5867",
+          "e_f1287bdbf25d1774373fafa4"
+        ]
+      },
+      {
+        "id": "p_shu_plan",
+        "label": "取蜀方略",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_b9ff58aa04bbdcf6c2e06648",
+          "e_f1287bdbf25d1774373fafa4"
+        ]
+      },
+      {
+        "id": "p_death",
+        "label": "周瑜病卒",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_a296883ca30c98ab4bfd62ab",
+          "e_22b25028c2bd30f7390db881"
+        ]
+      },
+      {
+        "id": "p_mourning",
+        "label": "迎喪与追念",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_fed41fb8052ffc7d30eb8663",
+          "e_f1287bdbf25d1774373fafa4"
+        ]
+      },
+      {
+        "id": "p_recollection",
+        "label": "生前交游与性情",
+        "year": null,
+        "period": "回顾，具体年月未详",
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_46246e50bd002fff52effbe5",
+          "e_ba25934800681d3b5358414a"
+        ]
+      },
+      {
+        "id": "p_family",
+        "label": "周瑜家属",
+        "year": null,
+        "period": "家属纪事，具体年月未详",
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_c44cda33b14132ff8019a109"
+        ]
+      },
+      {
+        "id": "p_xun",
+        "label": "周循任职",
+        "year": null,
+        "period": "具体年月未详",
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_e02ea09afd7c88d46688325f"
+        ]
+      },
+      {
+        "id": "p_xun_death",
+        "label": "周循早逝",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_e02ea09afd7c88d46688325f"
+        ]
+      },
+      {
+        "id": "p_yin_initial",
+        "label": "周胤早期任职",
+        "year": null,
+        "period": "黄龙元年受封以前",
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_49c0e524342ef3ebbb00488c",
+          "e_ca1df52f10e19b50607c9509"
+        ]
+      },
+      {
+        "id": "p_yin_title",
+        "label": "周胤受封",
+        "year": 229,
+        "period": "黄龙元年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_f54e4af6453190f38a51cfbb"
+        ]
+      },
+      {
+        "id": "p_yin_exile",
+        "label": "周胤获罪迁徙",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_66d9ae7603516c7174927528"
+        ]
+      },
+      {
+        "id": "p_yin_petition",
+        "label": "群臣为周胤陈情",
+        "year": 239,
+        "period": "赤乌二年",
+        "relation_to_previous": "after",
+        "basis": [
+          "e_ca8d2bf10b7d8d65021a2bec",
+          "e_27cb10b93976f6a9d5aac6f3",
+          "e_2b72479ad2eb7d88ddafd809"
+        ]
+      },
+      {
+        "id": "p_yin_end",
+        "label": "获准复爵与周胤病故",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_1040dc1e9d0e6cf36994da48"
+        ]
+      },
+      {
+        "id": "p_jun",
+        "label": "周峻任职",
+        "year": null,
+        "period": "另一支家属纪事，年代未详",
+        "relation_to_previous": "uncertain",
+        "basis": [
+          "e_871615b0fbfa08e9a349c077"
+        ]
+      },
+      {
+        "id": "p_hu",
+        "label": "周峻身后与周护",
+        "year": null,
+        "period": null,
+        "relation_to_previous": "after",
+        "basis": [
+          "e_eea0af25828118bbd7260784"
+        ]
+      }
+    ],
+    "schema": "chronicle.source-corroboration",
+    "source_relations": [],
+    "title": "江东的兴起与赤壁前后",
+    "version": "0.1"
+  },
+  "reviewed_conclusion_ids": [
+    "conclusion_001",
+    "conclusion_002",
+    "conclusion_003",
+    "conclusion_004",
+    "conclusion_005",
+    "conclusion_006",
+    "conclusion_007",
+    "conclusion_008",
+    "conclusion_009",
+    "conclusion_010",
+    "conclusion_011",
+    "conclusion_012",
+    "conclusion_013",
+    "conclusion_014",
+    "conclusion_015",
+    "conclusion_016",
+    "conclusion_017",
+    "conclusion_018",
+    "conclusion_019",
+    "conclusion_020",
+    "conclusion_021",
+    "conclusion_022",
+    "conclusion_023",
+    "conclusion_024",
+    "conclusion_025",
+    "conclusion_026",
+    "conclusion_027",
+    "conclusion_028",
+    "conclusion_029",
+    "conclusion_030",
+    "conclusion_031",
+    "conclusion_032",
+    "conclusion_033",
+    "conclusion_034",
+    "conclusion_035",
+    "added_friendship",
+    "added_sunshang_office",
+    "added_sunce_allegiance",
+    "added_wan_campaign",
+    "added_zhangzhao_office",
+    "added_sunquan_allegiance",
+    "added_hostage",
+    "added_huangzu_office",
+    "added_caocao_title",
+    "added_jiangdong_control",
+    "added_huanggai_allegiance",
+    "added_caocao_letter",
+    "added_caoren_allegiance",
+    "added_jiangling_before",
+    "added_liubei_left",
+    "added_liubei_jing",
+    "added_yizhou_admin",
+    "added_baqiu",
+    "added_personality",
+    "added_jianggan",
+    "added_music",
+    "added_children",
+    "added_xun_office",
+    "added_xun_death",
+    "added_yin_exile",
+    "added_yin_loss",
+    "added_yin_end",
+    "added_visit",
+    "added_niuzhu"
+  ]
+}

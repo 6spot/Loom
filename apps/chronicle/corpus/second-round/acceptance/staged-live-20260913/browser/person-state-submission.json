@@ -1,0 +1,142 @@
+{
+  "mode": "live",
+  "review_id": "64b744b7-cfe2-4fc3-a899-c05072e3c844",
+  "checks": [
+    {
+      "name": "frozen_plan_matches_inspected_package",
+      "ok": true
+    },
+    {
+      "name": "first_page_has_20_candidates",
+      "ok": true
+    },
+    {
+      "name": "incomplete_unreviewed_package_cannot_submit",
+      "ok": true
+    },
+    {
+      "name": "all_84_candidates_loaded_once",
+      "ok": true
+    },
+    {
+      "name": "all_loaded_but_unreviewed_still_cannot_submit",
+      "ok": true
+    },
+    {
+      "name": "mobile_390_no_horizontal_overflow",
+      "ok": true,
+      "detail": {
+        "width": 390,
+        "scrollWidth": 390,
+        "bodyWidth": 390
+      }
+    },
+    {
+      "name": "mobile_390_all_actions_reachable",
+      "ok": true,
+      "detail": [
+        {
+          "label": "返回队列",
+          "x": 45.625,
+          "y": 426.609375,
+          "right": 135.625,
+          "bottom": 470.609375,
+          "width": 90,
+          "height": 44
+        },
+        {
+          "label": "暂时跳过",
+          "x": 142.8125,
+          "y": 426.609375,
+          "right": 232.8125,
+          "bottom": 470.609375,
+          "width": 90,
+          "height": 44
+        },
+        {
+          "label": "保存并下一项",
+          "x": 240,
+          "y": 426.609375,
+          "right": 358,
+          "bottom": 470.609375,
+          "width": 118,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "name": "mobile_320_no_horizontal_overflow",
+      "ok": true,
+      "detail": {
+        "width": 320,
+        "scrollWidth": 320,
+        "bodyWidth": 320
+      }
+    },
+    {
+      "name": "mobile_320_all_actions_reachable",
+      "ok": true,
+      "detail": [
+        {
+          "label": "返回队列",
+          "x": 100.8125,
+          "y": 375.203125,
+          "right": 190.8125,
+          "bottom": 419.203125,
+          "width": 90,
+          "height": 44
+        },
+        {
+          "label": "暂时跳过",
+          "x": 198,
+          "y": 375.203125,
+          "right": 288,
+          "bottom": 419.203125,
+          "width": 90,
+          "height": 44
+        },
+        {
+          "label": "保存并下一项",
+          "x": 170,
+          "y": 426.390625,
+          "right": 288,
+          "bottom": 470.390625,
+          "width": 118,
+          "height": 44
+        }
+      ]
+    },
+    {
+      "name": "all_84_explicitly_reviewed",
+      "ok": true
+    },
+    {
+      "name": "eight_uncertain_assessments_preserved",
+      "ok": true
+    },
+    {
+      "name": "fully_reviewed_package_can_submit",
+      "ok": true
+    },
+    {
+      "name": "no_page_errors_before_submit",
+      "ok": true
+    },
+    {
+      "name": "decision_submission_accepted",
+      "ok": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "name": "all_assessments_and_reasons_submitted",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "submitted": true,
+  "final_url": "http://127.0.0.1:8092/studio/review/64b744b7-cfe2-4fc3-a899-c05072e3c844?review_scope=all&job_id=7f786015-724f-438f-b560-7a220f1a476f",
+  "captured_at": "2026-09-13T06:49:46.959Z",
+  "ok": true
+}

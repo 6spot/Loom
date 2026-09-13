@@ -1,0 +1,17 @@
+{
+  "sources": [
+    {
+      "frozen_states": 675,
+      "distinct_states": 98,
+      "distinct_provenance": 27
+    }
+  ],
+  "frozen_context_sha256": "21e3ab63beb808591b6a0e387b1c8c762d61b378c3211e58382dc22f6bb52f03",
+  "prose_prompt_characters": 155416,
+  "complete_previous_response_characters": 16023,
+  "correction_prompt_characters": 171874,
+  "budget": 180000,
+  "all_provenance_round_trips": true,
+  "complete_sources_preserved": true,
+  "frozen_context_unchanged": true
+}

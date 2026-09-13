@@ -1,0 +1,76 @@
+{
+  "schema": "chronicle.reading-layout-regression",
+  "version": "0.1",
+  "ok": true,
+  "fix_pr": "https://github.com/6spot/Loom/pull/700",
+  "commit": "a9d478afd579e992566f6fdea6629ff45981c7f7",
+  "before": {
+    "width": 320,
+    "wanted_paragraph_ordinal": 16,
+    "observed_paragraph_ordinal": 15,
+    "synthetic_regression": "mobile-regression-before.log",
+    "live_diagnostic": "mobile-anchor-before-fix.json",
+    "live_report": "mobile-visual-before-fix.json"
+  },
+  "after": {
+    "synthetic_regression": "mobile-regression-after.log",
+    "covered": [
+      "direct locator",
+      "refresh",
+      "axis jump",
+      "320px to 390px resize",
+      "backward and forward wheel scroll",
+      "navigation cancellation",
+      "asynchronous previous/next pages"
+    ],
+    "reading_components": [
+      {
+        "suite": "harness",
+        "ok": true,
+        "checks": 26
+      },
+      {
+        "suite": "content",
+        "ok": true,
+        "checks": 46
+      },
+      {
+        "suite": "axis",
+        "ok": true,
+        "checks": 48
+      },
+      {
+        "suite": "position",
+        "ok": true,
+        "checks": 49
+      },
+      {
+        "suite": "events",
+        "ok": true,
+        "checks": 81
+      },
+      {
+        "suite": "context",
+        "ok": true,
+        "checks": 22
+      }
+    ],
+    "unit_tests": 337,
+    "server_tests": 59,
+    "rust_version": "1.97.1",
+    "build": true,
+    "dist_smoke": true,
+    "fmt": true,
+    "clippy": true
+  },
+  "capture_note": {
+    "full_page_capture_changed_layout": true,
+    "observation": "A phase change occurred after full-page screenshot and before keyboard focus; this affected the next entity navigation in the measurement run. Final live evidence uses actual viewports and retains the same phase/return assertions.",
+    "unchanged_keyboard_assertions_with_viewport_capture": 5
+  },
+  "review": {
+    "method": "open-code-review-delegate rules and host review",
+    "independent": false,
+    "unresolved_blocking_findings": []
+  }
+}

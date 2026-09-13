@@ -1,0 +1,1615 @@
+{
+  "schema": "chronicle.reading-component-harness",
+  "version": "0.1",
+  "task": "C2-R2-T02",
+  "base_url": "http://127.0.0.1:5199",
+  "requested_suite": "all",
+  "ok": true,
+  "results": [
+    {
+      "suite": "harness",
+      "ok": true,
+      "checks": [
+        {
+          "name": "registry-loaded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "registry-built-for-task",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "registry-lists-all-suites",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "registry-has-base-scene",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "registry-base-scenes-synthetic",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unknown-scene-explicit-failure",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "base-scene-mounts",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "base-scene-labeled-synthetic",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "units-rendered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "time-groups-rendered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-entities-rendered",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-span-statuses-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "active-unit-updates",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "controlled-failure-explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "failure-keeps-loaded-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "controlled-blank-explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "blank-adds-no-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "controlled-late-loading-shown",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "controlled-late-resolves",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "late-appended-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "duplicate-page-deduped",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text-after-load",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "narrow-320-no-horizontal-overflow",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-injected-script-or-img",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registry_suites": {
+          "harness": [
+            "base-reading-window (synthetic)"
+          ],
+          "content": [
+            "content-window (synthetic)"
+          ],
+          "axis": [
+            "axis-hierarchy (synthetic)",
+            "axis-calendars (synthetic)",
+            "axis-retrograde (synthetic)",
+            "axis-pagination (synthetic)",
+            "axis-many (synthetic)"
+          ],
+          "position": [
+            "main (synthetic)",
+            "storage-off (synthetic)",
+            "short-window (synthetic)"
+          ],
+          "events": [
+            "events-resolved (synthetic)",
+            "events-repeat (synthetic)",
+            "events-multi-target (synthetic)",
+            "events-mention-only (synthetic)",
+            "events-uncertain (synthetic)",
+            "events-late (synthetic)",
+            "events-failure (synthetic)",
+            "events-targets-failure (synthetic)",
+            "events-reduced-motion (synthetic)"
+          ],
+          "context": [
+            "active-unit (synthetic)",
+            "event-roles (synthetic)",
+            "compact-panel (synthetic)"
+          ]
+        },
+        "initial_units_checked": 3,
+        "loaded_units_checked": 5
+      }
+    },
+    {
+      "suite": "content",
+      "ok": true,
+      "checks": [
+        {
+          "name": "content-scene-mounts",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "auto-prefetch-both-directions",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "auto-prefetch-extends-both-ends",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "chapter-headings-only-at-verifiable-boundaries",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-span-statuses-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "duplicate-next-deduped",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "duplicate-previous-deduped",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "failure-explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "failure-keeps-loaded-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "retry-recovers-with-content",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "active-unit-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-panel-opens-on-demand",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-expands-and-paginates",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-expansion-pins-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-close-returns-focus-to-trigger",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "content-still-present-after-source",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-failure-explicit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-failure-keeps-content",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source-failure-close-keeps-content",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "bulk-bounded-mounted",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "bulk-placeholders-reserve-space",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "active-unit-survives-bulk",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "recycled-window-keeps-auto-prefetch",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "recycled-window-does-not-pause",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "overflow-keeps-every-protected-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "overflow-reclaims-ordinary-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "protected-overflow-stops-auto-prefetch",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "manual-load-keeps-window-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "manual-load-requested",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "full-protection-setup-has-140-units",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "full-protection-defers-new-target",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "released-pins-resume-auto-prefetch",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "released-capacity-mounts-deferred-active",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "selection-made",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "selection-pins-interior-and-endpoints",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "selection-survives-window-recycle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "selection-text-preserved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "selection-window-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "far-page-starts-mid-chapter",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mid-page-start-shows-no-false-heading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-change-keeps-active",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-large-no-overflow",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "narrow-320-no-horizontal-overflow",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "narrow-font-readable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registered_scenes": [
+          {
+            "suite": "content",
+            "name": "content-window",
+            "label": "连续正文窗口：跨章顺序、双向加载、有界回收、固定单位与按需原文",
+            "synthetic": true
+          }
+        ],
+        "mounted_after_bulk": 120,
+        "auto_requests": "previous,next,next,next,previous,next,next"
+      }
+    },
+    {
+      "suite": "axis",
+      "ok": true,
+      "checks": [
+        {
+          "name": "同年共享年标题、换年才新增",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "月标记逐区段出现且未知不继承",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未知区段只有一个独立条目",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未知区段精度为 unknown",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未知区段不重印年标题",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "active 区段被标记",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "一组多段共用轴体并显示段数",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "点击发出精确 unit locator",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locator 含 stream 与 catalog",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locator 不是年份",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "无未捕获页面异常",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "史料历月使用来源标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "公历月使用公历标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "传统八月不显示为公历八月",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "近似精度固定标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "年段精度固定标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "多源分歧固定标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "闰月为独立区段",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "闰月保留原始历法标签",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "闰月不与普通八月合并",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "叙事顺序未被按年份重排",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "回退年份被标记为倒叙",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未知区段不误标倒叙",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "分页前只有第一页区段",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "分页前年标题 1 个",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "存在有界分页入口",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "分页后追加区段",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "跨页同月只一个语义区段（年标题 2 个）",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "跨页同月显示为延续",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "onLoadGroups 调用一次",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "加载完后分页入口消失",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "1,000 个区段全部渲染",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "长轴窄屏无横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "320px: 正文在轴下方（真单列）",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "320px: 正文与轴同列起点",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "320px: 正文不横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px: 正文在轴下方（真单列）",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px: 正文与轴同列起点",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px: 正文不横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "窄屏出现轴入口",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "窄屏默认折叠",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "折叠时区段不可见",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "展开后面板可见",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "展开后区段可见",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Escape 关闭面板",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Escape 返回焦点到入口",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "方向键移动焦点",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "键盘选择发出精确 locator",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registered_scenes": [
+          {
+            "suite": "axis",
+            "name": "axis-hierarchy",
+            "label": "年/月层级：同年共享年标题、换月、换年与未知区段",
+            "synthetic": true
+          },
+          {
+            "suite": "axis",
+            "name": "axis-calendars",
+            "label": "历法与精度：来源历月、公历、近似、年段、多源分歧、闰月 opaque",
+            "synthetic": true
+          },
+          {
+            "suite": "axis",
+            "name": "axis-retrograde",
+            "label": "倒叙：已知年份回退只标记不重排，未知不改最大年",
+            "synthetic": true
+          },
+          {
+            "suite": "axis",
+            "name": "axis-pagination",
+            "label": "有界分组分页：跨页同月延续与换年标题",
+            "synthetic": true
+          },
+          {
+            "suite": "axis",
+            "name": "axis-many",
+            "label": "1,000 个区段的长轴渲染与窄屏溢出",
+            "synthetic": true
+          }
+        ],
+        "hierarchy_year_headers": [
+          "建安十三年",
+          "建安14年"
+        ],
+        "hierarchy_periods": [
+          "史料八月",
+          "史料九月",
+          "（月份未明确）",
+          "时间未明确"
+        ],
+        "source_period": "史料八月",
+        "gregorian_period": "公元208年8月",
+        "many_group_overflow_320": 0
+      }
+    },
+    {
+      "suite": "position",
+      "ok": true,
+      "checks": [
+        {
+          "name": "deep-link-locates-far-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "deep-link-actually-scrolls",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "deep-link-time-context-consistent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "refresh-restores-same-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "natural-scroll-no-history-growth",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "natural-scroll-replaces-url",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "natural-scroll-persists-relative-offset",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "explicit-nav-pushes-history",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview-keeps-active-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview-keeps-narrative-time",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview-does-not-push-history",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "back-restores-previous-locator",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "forward-restores-next-locator",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unknown-clears-narrative-time",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unknown-clears-context",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "return-tokens-unpredictable-and-distinct",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "multi-level-return-first",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "multi-level-return-second",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "stale-locate-response-ignored",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "user-interrupt-returns-to-idle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "invalid-token-falls-back",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "invalid-token-no-external-jump",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "invalid-token-keeps-active-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delayed-start-does-not-override-later-nav",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delayed-start-resolves-idle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delayed-start-no-issue",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locate-failure-explicit-issue",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locate-failure-returns-idle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locate-failure-preserves-active",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "locate-failure-preserves-url",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "cancel-during-loadwindow-keeps-active-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "cancel-during-loadwindow-does-not-commit-target-url",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "cancel-during-loadwindow-url-matches-active",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "cancel-during-loadwindow-no-issue",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "cancel-during-loadwindow-settles-idle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "delayed-prepend-preserves-reading-point",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "layout-preservation-does-not-lock-user-scroll",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "storage-off-deep-link-still-works",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "storage-off-reports-unavailable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "storage-off-token-degrades",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "storage-off-keeps-active-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "storage-off-no-page-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "temporary-short-window-keeps-restore-intent",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "short-window-restores-requested-offset-after-prefix",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "completed-short-window-restore-releases-scroll",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "single-paragraph-real-boundary-finishes",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "short-window-wheel-cancels-pending-alignment",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "short-window-touch-cancels-pending-alignment",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registered_scenes": [
+          {
+            "suite": "position",
+            "name": "main",
+            "label": "定位控制器：深链接/返回栈/旧响应/预览",
+            "synthetic": true
+          },
+          {
+            "suite": "position",
+            "name": "storage-off",
+            "label": "定位控制器：存储不可用降级",
+            "synthetic": true
+          },
+          {
+            "suite": "position",
+            "name": "short-window",
+            "label": "定位控制器：临时短窗口、真实边界与用户取消",
+            "synthetic": true
+          }
+        ],
+        "deep_link_url": "/tests/fixtures/reading/index.html?case=position%2Fmain&stream=01890a5d-ac96-774b-bcce-b302099a8057&catalog=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc&at=ru_000000000000000000000014",
+        "preview_count": "1"
+      }
+    },
+    {
+      "suite": "events",
+      "ok": true,
+      "checks": [
+        {
+          "name": "结构化 segments 逐字拼回原译文",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未交互前不预取 preview/targets",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "hover 打开预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "打开来源标记为 hover",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "预览显示事件名",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "预览有来源归属",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "预览有译文摘录",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "指针进入卡片不闪退",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "指针离开后关闭",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "查看事件发出 event 导航",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "查看事件带 canonical event id",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "查看事件返回当前阅读 locator",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "查看事件后预览关闭",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "唯一 current 直接定位",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "定位使用 target 正文位置",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "定位不是按名称/首个字符串",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "无未捕获页面异常",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "重复词场景 segments 拼回原译文",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "只有两次事件 occurrence 可触发",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "两次 occurrence 各自绑定不同事件与 span",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "正文中普通文本「赤壁」不成为事件链接",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "只加载被触发的事件，不预取另一个",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "第一次 occurrence 预览事件名",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "第二次 occurrence 预览另一个事件",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "多来源时间分歧显式呈现",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "来源总数多于已取回时如实标注",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "多 current 时定位先要选择",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "选择器处于定位模式",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "定位选择器只列 current",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未选择前不跳转",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "选择第二个 current 跳到该位置",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "没有默认取第一个 current",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "其他记载为 other 模式",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "current 与 mention 分组",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mention 与 current 明确分开",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "选择其他来源发出 source 导航",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "只有回溯提及时不自动跳转",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "如实提示暂无发生段落",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "定位模式无 current 选项",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "其他记载仍可查看提及",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "查看提及发出 source 导航",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未确认 span segments 拼回原译文",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未确认词没有可操作链接",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未确认词全部显示为不确定",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "不确定原因来自 status / 无 canonical 目标",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "不确定提示对读屏可见",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "点击未确认词不打开预览、不静默跳转",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未确认词不触发任何加载",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "慢请求先显示自己的预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "切换到第二个事件",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "迟到的旧响应不覆盖新预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "同一时刻只有一个预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "迟到后名称仍为新事件",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "关闭后迟到响应不重开预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "载入失败显示错误",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "失败时触发词与正文仍可用",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "错误信息可见",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "重试后恢复内容",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "重试确实重新请求",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview 成功仍显示事件名",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview 成功仍显示来源摘录",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "targets 失败有可访问错误区",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "提供显式重试按钮",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "preview 内容未被 targets 失败清空",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "错误态点击定位会重试",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "targets 未就绪前不跳转",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "重试确实重新请求 targets",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "重试后错误消失",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "恢复后位置可选",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "恢复后定位到 target 正文位置",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "无未捕获页面异常",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "键盘 focus 打开预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Tab 进入卡片按钮",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Escape 关闭预览",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "Escape 焦点回到触发词",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "触屏打开预览面板",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "首次 tap 不离开正文",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "触屏面板无横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "触屏可关闭面板",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "reduced-motion 标记来自 prop",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "reduced-motion 不做位移动画",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registered_scenes": [
+          {
+            "suite": "events",
+            "name": "events-resolved",
+            "label": "单个 resolved 事件词：按需预览、查看事件、定位发生位置",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-repeat",
+            "label": "重复译文词：同一词两次 occurrence 各自绑定，普通文本不触发",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-multi-target",
+            "label": "多 current 目标：必须选择来源/章/位置，mention 单独标注",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-mention-only",
+            "label": "只有回溯提及：不自动跳转，如实提示暂无发生段落",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-uncertain",
+            "label": "未确认事件词：ambiguous / unresolved 不冒充唯一链接",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-late",
+            "label": "快速切换与迟到响应：旧响应不覆盖新预览",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-failure",
+            "label": "载入失败保留正文并可重试",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-targets-failure",
+            "label": "preview 成功但 targets 失败：显式错误与可访问重试",
+            "synthetic": true
+          },
+          {
+            "suite": "events",
+            "name": "events-reduced-motion",
+            "label": "reduced-motion：开合不做位移动画",
+            "synthetic": true
+          }
+        ],
+        "resolved_counts": {
+          "preview": 1,
+          "target": 1,
+          "detail": "{\"evt_000000000000000000000001\":{\"preview\":1,\"target\":1}}"
+        },
+        "resolved_name": "赤壁之戰"
+      }
+    },
+    {
+      "suite": "context",
+      "ok": true,
+      "checks": [
+        {
+          "name": "默认只显示主要人物",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "同一身份只占一行并保留各来源引用",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "无状态数据时明确缺失，不把事件角色当身份",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "姓名进入对象详情",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "次要人物仍可展开查看",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "同名不同身份不会合并",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "地点逐行独立且不猜测控制权",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "无关联的新片段清空旧资料",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "回读恢复当前段并重置次要项展开",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "未确认身份仍可查原文，来源不伪造",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "没有依据就没有原文入口",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "参与角色不会推导为官职",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "只有已核对阶段资料可以展示身份",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "明确性逐项标记而非整个人物变灰",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "存疑有文字提示，不只靠颜色",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "切换资料时不沿用后来头衔",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px 面板有焦点约束",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px 无横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "390px Escape 关闭并恢复焦点",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "900px 面板有焦点约束",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "900px 无横向溢出",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "900px Escape 关闭并恢复焦点",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "registered_scenes": [
+          {
+            "suite": "context",
+            "name": "active-unit",
+            "label": "随 active unit 切换/清空/恢复的人物地点分栏",
+            "synthetic": true
+          },
+          {
+            "suite": "context",
+            "name": "event-roles",
+            "label": "多事件角色与地点事件角色（不冒充长期官职/人物位置）",
+            "synthetic": true
+          },
+          {
+            "suite": "context",
+            "name": "compact-panel",
+            "label": "窄屏按需人物地点面板（打开/关闭焦点）",
+            "synthetic": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,312 @@
+{
+  "schema": "chronicle.history-directory",
+  "version": "0.1",
+  "publication": {
+    "version": "9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff",
+    "catalog_sha": "22b70383e3fc5a966abaa1523d05fb6d7d1c222e4176626857f4f4b01028ca97",
+    "title": "江东的兴起与赤壁前后",
+    "paragraph_count": 35,
+    "first_paragraph_id": "hp_42b6b2ec3f7dc539c1c7b8a0",
+    "groups": [
+      {
+        "id": "hg_23557d90047b0cc6848fe771",
+        "year": null,
+        "count": 1,
+        "label": "舒县的少年交游",
+        "period": null,
+        "first_paragraph_id": "hp_42b6b2ec3f7dc539c1c7b8a0"
+      },
+      {
+        "id": "hg_f09a4d8d2f3157643cda280b",
+        "year": null,
+        "count": 1,
+        "label": "探访丹杨",
+        "period": null,
+        "first_paragraph_id": "hp_9470ca01c932d85133a2f76d"
+      },
+      {
+        "id": "hg_335ae3dc27237d84feeb9c5a",
+        "year": null,
+        "count": 1,
+        "label": "随孙策渡江",
+        "period": null,
+        "first_paragraph_id": "hp_b8d99fecf152b8a8a0caff74"
+      },
+      {
+        "id": "hg_2ba6ecb5e3acdaef94387a67",
+        "year": null,
+        "count": 1,
+        "label": "丹杨太守更替",
+        "period": null,
+        "first_paragraph_id": "hp_e09749460d5bc1e3783e456f"
+      },
+      {
+        "id": "hg_9d01525415b3c8bb2b48f76a",
+        "year": null,
+        "count": 1,
+        "label": "借居巢东归之前",
+        "period": null,
+        "first_paragraph_id": "hp_70652efd4d9c40ef95b1735e"
+      },
+      {
+        "id": "hg_abb392fc574fe10fd281c374",
+        "year": 198,
+        "count": 1,
+        "label": "重返吴地",
+        "period": "建安三年",
+        "first_paragraph_id": "hp_51d55f25d465b4edfb77d487"
+      },
+      {
+        "id": "hg_ca2bbfaf45a429b275a41a44",
+        "year": null,
+        "count": 1,
+        "label": "出镇牛渚",
+        "period": null,
+        "first_paragraph_id": "hp_e0427d93f746070878d4d93f"
+      },
+      {
+        "id": "hg_c67702a4b9345c4ecb55035e",
+        "year": null,
+        "count": 1,
+        "label": "牛渚与春谷",
+        "period": null,
+        "first_paragraph_id": "hp_d9f2a74990bbb61c391cb21b"
+      },
+      {
+        "id": "hg_737da261d5fd1a77269fb9e3",
+        "year": null,
+        "count": 1,
+        "label": "攻皖与转战江夏",
+        "period": null,
+        "first_paragraph_id": "hp_ab06a41a46c004de76b4026d"
+      },
+      {
+        "id": "hg_4142e414412e0e4aae53d3d3",
+        "year": 200,
+        "count": 1,
+        "label": "孙权接掌江东",
+        "period": "建安五年",
+        "first_paragraph_id": "hp_ed6b5673ede6b201da551129"
+      },
+      {
+        "id": "hg_26d02866dc80ea926dd510f1",
+        "year": 202,
+        "count": 1,
+        "label": "不送任子的商议",
+        "period": "建安七年",
+        "first_paragraph_id": "hp_1393b1b9ca23c7cd9826aa20"
+      },
+      {
+        "id": "hg_ce770e2009a243142919fa03",
+        "year": 206,
+        "count": 1,
+        "label": "麻保二屯与柴桑",
+        "period": "建安十一年",
+        "first_paragraph_id": "hp_12f24fd84689ae2a7d0c0a70"
+      },
+      {
+        "id": "hg_90e0f922c42d43b77a20d430",
+        "year": 208,
+        "count": 1,
+        "label": "江夏之役",
+        "period": "建安十三年春",
+        "first_paragraph_id": "hp_c2377b37969b642acfca3167"
+      },
+      {
+        "id": "hg_1db33f7022b8e3449d8f4108",
+        "year": 208,
+        "count": 1,
+        "label": "曹军进入荆州",
+        "period": "建安十三年九月（原历）",
+        "first_paragraph_id": "hp_49fc45e85c5499c4801e6466"
+      },
+      {
+        "id": "hg_08cadab191a4c9e89403cf19",
+        "year": 208,
+        "count": 2,
+        "label": "抗曹商议与联络",
+        "period": "建安十三年，九月以后",
+        "first_paragraph_id": "hp_c2cd7db8bb615185617e3494"
+      },
+      {
+        "id": "hg_b8feffb89b475fa0a63b2e28",
+        "year": 208,
+        "count": 2,
+        "label": "赤壁交战",
+        "period": "建安十三年，月日未详",
+        "first_paragraph_id": "hp_56e464ca4a9c46614b7e7f32"
+      },
+      {
+        "id": "hg_48bcb8831c531e0177d468a8",
+        "year": null,
+        "count": 1,
+        "label": "曹军退保南郡并北归",
+        "period": null,
+        "first_paragraph_id": "hp_89d4fcdf695ea603b0482a53"
+      },
+      {
+        "id": "hg_379eaa6196d05c8be5337aee",
+        "year": null,
+        "count": 1,
+        "label": "南郡作战",
+        "period": null,
+        "first_paragraph_id": "hp_8b7d61c9d4c7a3b14b86dc93"
+      },
+      {
+        "id": "hg_17c7049093f2335f3ff565d8",
+        "year": null,
+        "count": 1,
+        "label": "周瑜屯据江陵",
+        "period": null,
+        "first_paragraph_id": "hp_4d2be371c53c6fd45da3bff9"
+      },
+      {
+        "id": "hg_9cde2bf4cfae4d132e1b1e8e",
+        "year": null,
+        "count": 1,
+        "label": "取蜀方略",
+        "period": null,
+        "first_paragraph_id": "hp_401cd3a3d1ed07a87544af23"
+      },
+      {
+        "id": "hg_313cdf644428b0f4f36e97cc",
+        "year": null,
+        "count": 1,
+        "label": "周瑜病卒",
+        "period": null,
+        "first_paragraph_id": "hp_faec288bb4be0738843c0dde"
+      },
+      {
+        "id": "hg_55d0fe9e0ab46a9584445438",
+        "year": null,
+        "count": 1,
+        "label": "迎喪与追念",
+        "period": null,
+        "first_paragraph_id": "hp_1afb3ec154e2ae7b1adc651a"
+      },
+      {
+        "id": "hg_17f16b45847478e12560b218",
+        "year": null,
+        "count": 1,
+        "label": "生前交游与性情",
+        "period": "回顾，具体年月未详",
+        "first_paragraph_id": "hp_38749747405f7e5a2bd8a159"
+      },
+      {
+        "id": "hg_3f5f2da0c5185ca5de4f5179",
+        "year": null,
+        "count": 1,
+        "label": "周瑜家属",
+        "period": "家属纪事，具体年月未详",
+        "first_paragraph_id": "hp_fb6789964d57bdd116208c5f"
+      },
+      {
+        "id": "hg_03644e3c54216e73041838df",
+        "year": null,
+        "count": 1,
+        "label": "周循任职",
+        "period": "具体年月未详",
+        "first_paragraph_id": "hp_fd247ed7b1b78991f7cb3533"
+      },
+      {
+        "id": "hg_06ab70c5b3d126810eccabbf",
+        "year": null,
+        "count": 1,
+        "label": "周循早逝",
+        "period": null,
+        "first_paragraph_id": "hp_06a9c7e142f74d603979ceb4"
+      },
+      {
+        "id": "hg_109a77ab0c63535ceb90503f",
+        "year": null,
+        "count": 1,
+        "label": "周胤早期任职",
+        "period": "黄龙元年受封以前",
+        "first_paragraph_id": "hp_ef6db57421b538dd6dd96dc9"
+      },
+      {
+        "id": "hg_3e6ecbae2b1fc954c823c8e4",
+        "year": 229,
+        "count": 1,
+        "label": "周胤受封",
+        "period": "黄龙元年",
+        "first_paragraph_id": "hp_a4d1bd5ef54472c88b7aded5"
+      },
+      {
+        "id": "hg_df1f5c332b63d87dc902821b",
+        "year": null,
+        "count": 1,
+        "label": "周胤获罪迁徙",
+        "period": null,
+        "first_paragraph_id": "hp_dd2a4038547c6d7453360281"
+      },
+      {
+        "id": "hg_6b819779673dda6a20d065d8",
+        "year": 239,
+        "count": 1,
+        "label": "群臣为周胤陈情",
+        "period": "赤乌二年",
+        "first_paragraph_id": "hp_c2dc62085468807970150f94"
+      },
+      {
+        "id": "hg_e495778efccbb079c38a98d4",
+        "year": null,
+        "count": 1,
+        "label": "获准复爵与周胤病故",
+        "period": null,
+        "first_paragraph_id": "hp_09be6545350048da96197a6f"
+      },
+      {
+        "id": "hg_3da4fd584c67f9cf982bd224",
+        "year": null,
+        "count": 1,
+        "label": "周峻任职",
+        "period": "另一支家属纪事，年代未详",
+        "first_paragraph_id": "hp_3d3cf410675e67821f0b81f0"
+      },
+      {
+        "id": "hg_47724928ba1f7cb414160286",
+        "year": null,
+        "count": 1,
+        "label": "周峻身后与周护",
+        "period": null,
+        "first_paragraph_id": "hp_1ff10ca288444b03f49859c3"
+      }
+    ],
+    "entry_points": [
+      {
+        "kind": "event",
+        "label": "孙策渡江与江东的兴起",
+        "reason": "从渡江切入孙策经营江东及周瑜的早期经历，继续阅读仍通向后续历史。",
+        "event_id": "01a09988-8a05-78c2-a79a-c221b37aa310",
+        "paragraph_id": "hp_b8d99fecf152b8a8a0caff74",
+        "ordinal": 2,
+        "year": null,
+        "period": null,
+        "excerpt": "孙策准备渡江东进，周瑜在历阳带兵迎接。随后，他随孙策攻取横江、当利，在秣陵击败笮融、薛礼，又攻下湖孰、江乘，进军曲阿。刘繇败走，孙策部众增至数万人。孙策认为凭这些兵力足以攻取吴会、平定山越，便让周瑜返回丹杨驻守。"
+      },
+      {
+        "kind": "event",
+        "label": "赤壁之战",
+        "reason": "联军迎击与火攻是本次叙事的主要转折；入口定位实际交战段，战前商议及战后发展都保留可读。",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "paragraph_id": "hp_56e464ca4a9c46614b7e7f32",
+        "ordinal": 16,
+        "year": 208,
+        "period": "建安十三年，月日未详",
+        "excerpt": "孙权派周瑜、程普等与刘备合力迎战，在赤壁遇到曹军。曹军已有疾病，初战失利后退驻江北，周瑜等在南岸。黄盖认为敌众我寡、难以持久，见曹军船舰首尾相接，便建议火攻。他备下装有柴草、浇过油脂的战船，覆上帷幕、立起旗号，先写信给曹操诈降，又把轻便小船系在大船后。曹军以为黄盖来降，争相观望。黄盖纵火，烈风将火势带到岸上营寨，烟焰冲"
+      },
+      {
+        "kind": "period",
+        "label": "南郡争夺",
+        "reason": "连接夷陵救援、周瑜受伤、曹仁退兵与江陵任职，展示赤壁后荆州局势的发展，不为每次任免另设入口。",
+        "event_id": null,
+        "paragraph_id": "hp_8b7d61c9d4c7a3b14b86dc93",
+        "ordinal": 19,
+        "year": null,
+        "period": null,
+        "excerpt": "周瑜、程普继续进军南郡，与曹仁隔江对峙。周瑜先派甘宁据守夷陵，曹仁分兵围攻，甘宁告急。周瑜采纳吕蒙之计，留下凌统守后方，自己与吕蒙救援甘宁。解围后，周瑜渡江屯在北岸，约定日期交战。他在交战中被流箭射中右胁，曹仁听闻其卧病后进逼军阵；周瑜起身巡视军营、激励将士，曹仁因此退兵。"
+      }
+    ]
+  }
+}
