@@ -119,6 +119,20 @@ def _narrative_context() -> dict:
 
 
 class FixtureCandidateTests(unittest.TestCase):
+    def test_stack_env_preserves_the_global_timeout_without_a_gate_default(self):
+        for value in (None, "", "900"):
+            with self.subTest(timeout=value), tempfile.TemporaryDirectory() as tmp:
+                directory = Path(tmp)
+                source = directory / "source.env"
+                source.write_text("" if value is None else f"CHRONICLE_MODEL_TIMEOUT_SECONDS={value}\n", encoding="utf-8")
+                output = G.write_stack_env(source, directory / "stack.env",
+                    endpoint="http://127.0.0.1:12345/v1/responses", web_port=8092)
+                config = G.load_env_file(output)
+                self.assertEqual(config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS"), value)
+                model = chapter_stage.chapter_model_from_env(config)
+                expected = float(value) if value else model_provider.DEFAULT_MODEL_TIMEOUT_SECONDS
+                self.assertEqual(model.timeout_seconds, expected)
+
     def test_stack_env_to_provider_and_worker_accepts_person_state_fixture(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)

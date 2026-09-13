@@ -14,7 +14,7 @@ from pathlib import Path
 
 import chapter_production as protocol
 from chapter_models import ChapterModels
-from model_provider import ModelProviderError
+from model_provider import DEFAULT_MODEL_TIMEOUT_SECONDS, ModelProviderError
 
 FIXTURES = Path(__file__).resolve().parent.parent / "ingestion" / "fixtures" / "c2r3-contract"
 ORIGINAL_REQUEST = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
@@ -123,8 +123,8 @@ class ScriptedModels:
         review_slots = tuple(f"reviewer_{index}" for index in range(reviewers))
         profiles = {slot: {
             "model": "staged-fixture-" + slot, "endpoint": "http://fixture.invalid/v1/responses",
-            "api_key_env": "CHRONICLE_TEST_UNUSED_KEY", "timeout_seconds": 10,
-            "total_timeout_seconds": 10, "max_output_tokens": 65536,
+            "api_key_env": "CHRONICLE_TEST_UNUSED_KEY", "timeout_seconds": DEFAULT_MODEL_TIMEOUT_SECONDS,
+            "max_output_tokens": 65536,
             "max_response_bytes": 4194304, "response_format": "json_object",
         } for slot in ("executor", *review_slots)}
         steps = {step: review_slots if step == "review" else ("executor",)

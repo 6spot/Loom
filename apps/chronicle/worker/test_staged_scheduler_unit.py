@@ -32,7 +32,7 @@ class StagedSchedulerTests(unittest.TestCase):
         runner.models = SimpleNamespace(
             steps={"translation": tuple(providers)}, max_parallel=1, max_step_attempts=2,
             model_for=lambda step, slot: providers[slot],
-            config_for=lambda step, slot: {"model": slot, "total_timeout_seconds": 5},
+            config_for=lambda step, slot: {"model": slot},
         )
         runner._heartbeat = heartbeat
         return runner
@@ -63,7 +63,7 @@ class StagedSchedulerTests(unittest.TestCase):
     def test_lost_lease_signals_active_transport_without_waiting_for_deadline(self):
         entered = threading.Event()
         stopped = threading.Event()
-        def observed(prompt, *, total_timeout_seconds, cancelled):
+        def observed(prompt, *, cancelled):
             entered.set()
             until = time.monotonic() + 3
             while time.monotonic() < until:

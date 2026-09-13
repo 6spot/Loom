@@ -94,15 +94,13 @@ class Runner:
 
     def _invoke(self, step, slot, prompt, cancelled):
         model = self.models.model_for(step, slot)
-        config = self.models.config_for(step, slot)
         started = time.monotonic()
         try:
             if cancelled.is_set():
                 raise ModelProviderError("model attempt cancelled before dispatch")
             observed = getattr(model, "complete_with_receipt", None)
             if callable(observed):
-                raw, receipt = observed(prompt, total_timeout_seconds=config["total_timeout_seconds"],
-                                        cancelled=cancelled.is_set)
+                raw, receipt = observed(prompt, cancelled=cancelled.is_set)
             else:  # Explicit in-process test injection, never an env fallback.
                 raw = model.complete(prompt)
                 receipt = {"status": "completed", "model": model.name, "usage": None,

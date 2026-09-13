@@ -10,10 +10,12 @@ the code default.
 
 from __future__ import annotations
 
+import os
 import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 PERSISTENCE = HERE.parent / "persistence"
@@ -24,6 +26,7 @@ for path in (HERE, PERSISTENCE):
 
 import chapter_stage as S  # noqa: E402
 import model_provider as M  # noqa: E402
+import narrative_stage  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 
@@ -67,7 +70,7 @@ class ChapterModelTimeoutTests(unittest.TestCase):
         self.assertEqual(45.5, model.timeout_seconds)
 
     def test_invalid_timeout_fails_closed(self) -> None:
-        for bad in ("0", "-3", "not-a-number"):
+        for bad in ("0", "-3", "not-a-number", "nan", "inf", "-inf"):
             with self.assertRaises(PersistenceError, msg=bad):
                 S.chapter_model_from_env(
                     live_env({"CHRONICLE_MODEL_TIMEOUT_SECONDS": bad})
@@ -79,6 +82,27 @@ class ChapterModelTimeoutTests(unittest.TestCase):
         )
         self.assertEqual(12.5, M.timeout_from_env(
             {"CHRONICLE_MODEL_TIMEOUT_SECONDS": "12.5"}))
+
+    def test_all_production_entries_share_the_global_timeout(self) -> None:
+        for value in ("45.5", "900", "2400"):
+            env = live_env({
+                "CHRONICLE_MODEL_TIMEOUT_SECONDS": value,
+                "CHRONICLE_EXTRACTION_MODEL": "extract",
+                "CHRONICLE_PRESENTATION_MODEL": "present",
+                "CHRONICLE_NARRATIVE_MODEL": "narrative",
+                "CHRONICLE_CHAPTER_REVIEW_MODELS": "review-a,review-b",
+            })
+            with self.subTest(timeout=value), mock.patch.dict(os.environ, env, clear=True):
+                staged = S.chapter_model_from_env()
+                providers = [*M.models_from_env(), narrative_stage.model_from_env(),
+                    S.chapter_model_from_env(live_env({
+                        "CHRONICLE_CHAPTER_MODEL": "fixture:chapter",
+                        "CHRONICLE_MODEL_TIMEOUT_SECONDS": value})),
+                    M.build_chapter_model("joint", env["CHRONICLE_MODEL_ENDPOINT"]),
+                    M.ResponsesHTTPModel(name="direct", endpoint=env["CHRONICLE_MODEL_ENDPOINT"]),
+                    *staged.providers.values()]
+                for provider in providers:
+                    self.assertEqual(float(value), provider.timeout_seconds, provider.name)
 
 
 class ChapterModelVersionTests(unittest.TestCase):

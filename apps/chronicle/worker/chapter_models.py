@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,12 +68,6 @@ def _integer(value, label, minimum, maximum):
     return value
 
 
-def _seconds(value, label):
-    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value) or not 0 < value <= 1800:
-        raise PersistenceError(f"{label} must be a finite positive number at most 1800")
-    return float(value)
-
-
 def from_env(env, *, limits) -> ChapterModels:
     """Names/endpoints are configuration; credential values never enter a hash."""
     config_path = str(env.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG") or "").strip()
@@ -108,11 +101,16 @@ def from_env(env, *, limits) -> ChapterModels:
     steps = config.get("steps")
     if not isinstance(profiles, dict) or not 1 <= len(profiles) <= 12 or not isinstance(steps, dict) or set(steps) != set(protocol.STEPS):
         raise PersistenceError("chapter config must define 1..12 model profiles and all six steps")
+    timeout = timeout_from_env(env)
     safe = {}
     keys = {}
     for slot, profile in profiles.items():
+        if isinstance(profile, dict) and {"timeout_seconds", "total_timeout_seconds"} & set(profile):
+            raise PersistenceError(
+                "model timeouts are global; remove timeout_seconds/total_timeout_seconds "
+                "from model profiles and set CHRONICLE_MODEL_TIMEOUT_SECONDS")
         if not isinstance(slot, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", slot) or not isinstance(profile, dict) or set(profile) - {
-            "model", "endpoint", "api_key_env", "timeout_seconds", "total_timeout_seconds",
+            "model", "endpoint", "api_key_env",
             "max_output_tokens", "response_format"}:
             raise PersistenceError("invalid model profile; credentials must use api_key_env")
         name = profile.get("model")
@@ -129,14 +127,13 @@ def from_env(env, *, limits) -> ChapterModels:
         key_env = profile.get("api_key_env", "CHRONICLE_MODEL_API_KEY")
         if not isinstance(key_env, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*", key_env):
             raise PersistenceError("api_key_env must name an environment variable")
-        timeout = _seconds(profile.get("timeout_seconds", timeout_from_env(env)), "timeout_seconds")
-        total = _seconds(profile.get("total_timeout_seconds", min(timeout, 360)), "total_timeout_seconds")
         output = _integer(profile.get("max_output_tokens", limits.max_output_tokens), "max_output_tokens", 1, limits.max_output_tokens)
         response_format = profile.get("response_format", "json_object")
         if response_format not in ("json_object", "text"):
             raise PersistenceError("response_format must be json_object or text")
         safe[slot] = {"model": name.strip(), "endpoint": endpoint, "api_key_env": key_env,
-                      "timeout_seconds": timeout, "total_timeout_seconds": total,
+                      # Effective global value, retained only for the audit snapshot.
+                      "timeout_seconds": timeout,
                       "max_output_tokens": output, "max_response_bytes": limits.max_response_bytes,
                       "response_format": response_format}
         keys[slot] = env.get(key_env) or None
@@ -153,7 +150,7 @@ def from_env(env, *, limits) -> ChapterModels:
             profile = safe[slot]
             providers[(step, slot)] = ResponsesHTTPModel(
                 name=profile["model"], endpoint=profile["endpoint"], api_key=keys[slot],
-                timeout_seconds=profile["timeout_seconds"], max_output_tokens=profile["max_output_tokens"],
+                timeout_seconds=timeout, max_output_tokens=profile["max_output_tokens"],
                 max_response_bytes=profile["max_response_bytes"], max_attempts=1,
                 text_format=None if step == "translation" or profile["response_format"] == "text"
                 else {"type": "json_object"}, candidate_version="0.4")
