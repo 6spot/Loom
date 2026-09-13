@@ -1,0 +1,94 @@
+{
+  "decision": "accept",
+  "plan_fingerprint": "7ee0058b3b0543602d99e4c199d4f3dace45502450340afcd455686d78a92544",
+  "candidate_sha256": "a069c7f3bbe850414cd96e24d47c32bc9fba78ee4152b4c9ba31d22882c46f83",
+  "history_sha256": "c1e56c7b165836e0a58aacedc3a811a2814bd6f7bcc6ced24db2bc6b10785f74",
+  "rationale": "验收代理对本次已保存的关联成功稿逐段对照固定完整原章及全部历史意见，通过操作员例外入口原样接受。完整古文及裴注保留，19段连续白话正文未插入译者注释；京保留地名，联合用兵错译、前部大督、返江陵途中病卒、二君及封国誓言等修订已落实。孙瑜与未具名奋威分开；袁胤与周胤分开；早期驻地巴丘与卒地保留原注区分，不把巴陵推测写为确定别名。升堂拜母的省略主语保留疑问；曹操焚船自述与本传火攻叙事保留来源和分歧；同份联名奏疏不能按两条Claim计为独立见证。本次没有取得新一轮模型复核；这不是自动模型通过，也不是史学专家签字。pf_011疑文须在人物状态依据审核标为uncertain；pf_026失爵按奏疏quotation保存，不强定终止日期。后续依据与综合两次审核不得跳过。",
+  "issue_dispositions": [
+    {
+      "issue_id": "opinion_37c80491fcec5a2a35234464",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。原文“升堂拜母”省略主语，先后模型对具体人物解读相反。本次删除“带孙策拜见自己的母亲”这一额外断言，也不把反方向解读写死；正文保留登堂拜母、互通有无的交往，warnings保留歧义及理由。不是以模型投票确定亲属关系。"
+    },
+    {
+      "issue_id": "opinion_ed2ac85a0e32333fdaf83b1e",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_001改为伯叔辈亲属周尚，不将从父明确说成父亲之弟；袁胤相应称族弟，保留父辈/同族关系而不补造支系。"
+    },
+    {
+      "issue_id": "opinion_aa877b1b839d91058c213e5c",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。m_017按本句“袁術遣從弟胤”解析为ent_009袁胤，status=resolved，candidate_refs清空；与后文周胤仍为不同人物。"
+    },
+    {
+      "issue_id": "opinion_32f2a10ca14ec9c1a41771be",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_004保留原职名“前部大督”，去掉无来源的“都”字；ent_077保持原样。"
+    },
+    {
+      "issue_id": "opinion_6b1bb907a23cbafc6f111332",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_011改为曹操暂时不能与孙权交兵相争，保留双方敌对关系，不再误译为联合用兵。"
+    },
+    {
+      "issue_id": "opinion_6a09efe19a675e8e7e20999a",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。新增ent_101“奋威将军（未具名）”，以b_017中奮威为逐字依据，作为evt_021计划共同进军及留守者。新增孙瑜只依据b_007，不接受AI修订中无据的奋威=孙瑜、孙权宗室关系。新关联必须按这两个对象分别生成。"
+    },
+    {
+      "issue_id": "opinion_0037e58816e4c7b9373fb715",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_011改为“同马超结盟，互为援助”，不把结援误说成组成一支援军。"
+    },
+    {
+      "issue_id": "opinion_fbd62d04a42b0d52039dee91",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_011删除无据的家人范围，诏令译为所属宾客不得查问，仍保留为孙权的诏令引述。"
+    },
+    {
+      "issue_id": "opinion_b690a2b8f73907e5d15ee1c0",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_015按奏疏责其未珍惜恩福而纵欲获罪的语境译成“本该珍惜这份福分、立功报效，却放纵情欲”；不把希望立功当作被批评的错误，也不擅定其真实内心意图。"
+    },
+    {
+      "issue_id": "opinion_477a2081a9c7ede5ff52b50f",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。tr_017把二君恢复为诸葛瑾、步骘两位上疏者，译成孙权对公瑾的情义与二位相同，删除两位兄长的虚构关系。"
+    },
+    {
+      "issue_id": "opinion_de344cb55bcf514d3b5533fa",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。新增clm_012保留步骘作为共同请求者，clm_009和clm_012都补入联名上疏的原文依据，并明确两条记录来自同一奏疏，不能当作两份独立来源互证。"
+    },
+    {
+      "issue_id": "opinion_aabbaa5923d83220eb02f95c",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。删除错接的pd_001人物状态分歧。pf_017效力孙权、pf_018偏将军仍完整保留；曹操书信clm_008与本传火攻资料保留并标注为待综合facts审核的战役叙述分歧，不能混入身份状态争议。"
+    },
+    {
+      "issue_id": "opinion_349b6d76f8407b90233dcdbd",
+      "disposition": "source_uncertainty",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。底本“領導江夏太守”及原有疑文告警完整保留。pf_011只作本段任职记载attest，不确定具体取得时点；新增warning明确此项须在后续person_state依据审核中标记uncertain。qualification=ordinary是事实限定类别，不表示证据已获supported；不能制造非法qualification。正文保留通顺译文，不插入译者注释，依用户要求将文字疑问放在依据层。"
+    },
+    {
+      "issue_id": "opinion_51d737506a0b1e4678ff66f8",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。补入有本章逐字依据的笮融、薛礼、刘繇、刘勋、孙瑜，以及历阳、横江、当利、秣陵、湖孰、江乘、曲阿、寻阳；更新相应事件参与者和地点。主阅读仍只显示重要人物，提取中有记录不意味着每个细节都成为导航锚点。"
+    },
+    {
+      "issue_id": "issue_c5d6e60c9b525f709ad96d3b",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。拒绝自动补丁中的非法qualification=uncertain。当前提交采用合法ordinary并将该记载改为attest，实际明确性由后续依据审核assessment表达，原自动补丁及此错误留存。"
+    },
+    {
+      "issue_id": "issue_55a1c45549c8cbf969984177",
+      "disposition": "resolved",
+      "rationale": "已对照本次保存的新候选及完整原章复核，确认修订已体现。不接受空fact_refs的状态分歧记录。该分歧本就错接事件叙述与人物身份，删除该条记录，保留真实状态事实与曹操书信，并将战役问题交给综合facts审核。"
+    },
+    {
+      "issue_id": "issue_77d40fe22d6b4e2c08663628",
+      "disposition": "resolved",
+      "rationale": "保留输入超限与本轮未调用复核模型的事实。验收代理已在操作员例外路径逐段核对完整原章、19段新稿、实体事件与27条阶段事实，并逐项核对全部旧意见；本决定仅是该固定版本的操作员内容接受，不冒充Sol再次复核或独立史学专家审核。不截断历史，不修改冻结预算。人物阶段依据仍须后续逐项评估，来源出版与综合facts/prose仍分别审核。"
+    }
+  ]
+}

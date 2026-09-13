@@ -1,0 +1,88 @@
+{
+  "mode": "live",
+  "checks": [
+    {
+      "name": "approved_facts_readonly",
+      "ok": true
+    },
+    {
+      "name": "operator_revision_is_displayed",
+      "ok": true
+    },
+    {
+      "name": "wrong_subject_corrected",
+      "ok": true
+    },
+    {
+      "name": "end_of_chapter_retained",
+      "ok": true
+    },
+    {
+      "name": "readonly_1440_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "name": "readonly_1440_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 178,
+        "y": 717.734375,
+        "width": 1084,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "readonly_390_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "name": "readonly_390_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 8,
+        "y": 731.515625,
+        "width": 374,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "readonly_320_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 320,
+        "scroll": 320
+      }
+    },
+    {
+      "name": "readonly_320_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 8,
+        "y": 731.515625,
+        "width": 304,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "readonly_does_not_write",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/2c5701bd-09b4-45c2-b522-c125fc913496"
+    }
+  ],
+  "captured_at": "2026-09-13T07:34:49.642Z",
+  "ok": true
+}

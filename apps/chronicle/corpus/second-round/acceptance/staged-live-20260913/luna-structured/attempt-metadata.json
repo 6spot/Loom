@@ -1,0 +1,138 @@
+[
+  {
+    "original_output_sha256": "a72cde70ca363f5bf2f0f924759b9a170567b0fb54dd655affa7c7cc3c0ad4b4",
+    "created_at": "2026-09-13T04:13:30.242619+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "translation",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 1,
+      "version": "0.1",
+      "chunk_id": "30d6898e-ae1e-4b3c-91af-5b8df3b1cd76",
+      "node_key": "d847e7fb0c6a5f028a555a198ae428dbbd095ea8a90ff2cc749e234118340f30",
+      "retry_of": null,
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T04:13:30.247790+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "response_format": "text",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "1e952ffb21c949d51a5921a222d0b6510aaf8b0c10aee951a1a3c6b01868e95e",
+      "request_fingerprint": "3da288dc824c5bc553b390b0f200a76779a2c6d5b96025f5d0dff9feec5c9925",
+      "pipeline_fingerprint": "a194c50bf837218b6539bebff2d73bf2c062f4645d6e5359d8aef3cb1fa981aa",
+      "prompt_code_points": 27570
+    }
+  },
+  {
+    "original_output_sha256": "f9035646f7c6c03a997df512b56290a3e72710775598880a5c972c0ff08b3d41",
+    "created_at": "2026-09-13T04:13:30.315440+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "extraction",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 1,
+      "version": "0.1",
+      "chunk_id": "30d6898e-ae1e-4b3c-91af-5b8df3b1cd76",
+      "node_key": "bc4ca47e2846a0e25b971adf2ef082acc1fe63d45a487e8ed250f232680cd770",
+      "retry_of": null,
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T04:13:30.322551+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "fe7f32ee6d4cd926ded5cc4136150b28685a95383c209f889406fd37d7a49464",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "18c0a65a596146b064beae2beb6ec0c8687504b818a15485c0ca8671614325d7",
+      "request_fingerprint": "3da288dc824c5bc553b390b0f200a76779a2c6d5b96025f5d0dff9feec5c9925",
+      "pipeline_fingerprint": "a194c50bf837218b6539bebff2d73bf2c062f4645d6e5359d8aef3cb1fa981aa",
+      "prompt_code_points": 43134
+    }
+  },
+  {
+    "original_output_sha256": "6c640a2b889e7a07cd54cbb805501b32af62560dd47f8d6b757c88d6747a3c85",
+    "created_at": "2026-09-13T04:14:47.900014+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "extraction",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 2,
+      "version": "0.1",
+      "chunk_id": "30d6898e-ae1e-4b3c-91af-5b8df3b1cd76",
+      "node_key": "bc4ca47e2846a0e25b971adf2ef082acc1fe63d45a487e8ed250f232680cd770",
+      "retry_of": "b56a675cd4c8f6050651e6eac25d8d0e891d5542050299e3cda89e7de5de4a11",
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T04:14:47.911697+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "fe7f32ee6d4cd926ded5cc4136150b28685a95383c209f889406fd37d7a49464",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "18c0a65a596146b064beae2beb6ec0c8687504b818a15485c0ca8671614325d7",
+      "request_fingerprint": "3da288dc824c5bc553b390b0f200a76779a2c6d5b96025f5d0dff9feec5c9925",
+      "pipeline_fingerprint": "a194c50bf837218b6539bebff2d73bf2c062f4645d6e5359d8aef3cb1fa981aa",
+      "prompt_code_points": 81543
+    }
+  },
+  {
+    "original_output_sha256": "67518d9b0e17aa16cb8832176abf96d5be53a00cf43f21ddfc5df96ce368217e",
+    "created_at": "2026-09-13T04:18:42.327125+00:00",
+    "projection": {
+      "slot": "executor",
+      "step": "extraction",
+      "model": "gpt-5.6-luna",
+      "round": 0,
+      "schema": "chronicle.chapter-step-attempt",
+      "status": "started",
+      "attempt": 3,
+      "version": "0.1",
+      "chunk_id": "30d6898e-ae1e-4b3c-91af-5b8df3b1cd76",
+      "node_key": "bc4ca47e2846a0e25b971adf2ef082acc1fe63d45a487e8ed250f232680cd770",
+      "retry_of": "6e56fb70174f2ba1b900b32d8455fdd2454c97f9ec08e32c2571e088427635a5",
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "started_at": "2026-09-13T04:18:42.345522+00:00",
+      "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+      "model_config": {
+        "model": "gpt-5.6-luna",
+        "endpoint": "https://cpa.zale.net/v1/responses",
+        "api_key_env": "CHRONICLE_MODEL_API_KEY",
+        "schema_sha256": "fe7f32ee6d4cd926ded5cc4136150b28685a95383c209f889406fd37d7a49464",
+        "response_format": "json_object",
+        "timeout_seconds": 1800.0,
+        "max_output_tokens": 65536,
+        "max_response_bytes": 4194304
+      },
+      "base_prompt_sha256": "18c0a65a596146b064beae2beb6ec0c8687504b818a15485c0ca8671614325d7",
+      "request_fingerprint": "3da288dc824c5bc553b390b0f200a76779a2c6d5b96025f5d0dff9feec5c9925",
+      "pipeline_fingerprint": "a194c50bf837218b6539bebff2d73bf2c062f4645d6e5359d8aef3cb1fa981aa",
+      "prompt_code_points": 89733
+    }
+  }
+]

@@ -1,0 +1,107 @@
+[
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742540453/job/103684574806",
+    "name": "Normalize PR lifecycle metadata",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684435940",
+    "name": "Notify Multica of CI failure",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684427739",
+    "name": "Repository Gate",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466748/job/103684402903",
+    "name": "Notify Multica of CI failure",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466748/job/103684392958",
+    "name": "Validator Gate",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466587/job/103684389237",
+    "name": "Second-round reading real-stack + browser gate (fixture)",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466587/job/103684389213",
+    "name": "Third-round person-state real-stack + browser gate (fixture)",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466587/job/103684389218",
+    "name": "First-round offline gate (fixture)",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466748/job/103684393128",
+    "name": "Validator task ledger",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466748/job/103684393305",
+    "name": "Validator static checks",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389247",
+    "name": "Chronicle static checks",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389732",
+    "name": "Chronicle first-round checks",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389964",
+    "name": "Dependency and security policy",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389863",
+    "name": "Active deployment documentation",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389719",
+    "name": "Rust static checks",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684390062",
+    "name": "Loom Compose config",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684390076",
+    "name": "Task ledger governance",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684389907",
+    "name": "Chronicle third-round note and deliverable checks",
+    "state": "SKIPPED"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466748/job/103684378213",
+    "name": "Classify Validator changes",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466587/job/103684377833",
+    "name": "Classify Chronicle gate changes",
+    "state": "SUCCESS"
+  },
+  {
+    "link": "https://github.com/6spot/Loom/actions/runs/34742466717/job/103684378100",
+    "name": "Classify changes",
+    "state": "SUCCESS"
+  }
+]

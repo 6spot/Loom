@@ -1,0 +1,26 @@
+{
+  "mode": "live",
+  "checks": [
+    {
+      "name": "clear_and_uncertain_states_coexist_1440",
+      "ok": true
+    },
+    {
+      "name": "certainty_markers_differ_1440",
+      "ok": true
+    },
+    {
+      "name": "uncertain_state_has_separate_color_1440",
+      "ok": true,
+      "detail": {
+        "clear": "rgb(41, 45, 43)",
+        "uncertain": "rgb(105, 110, 103)"
+      }
+    }
+  ],
+  "errors": [
+    "page.waitForFunction: Timeout 30000ms exceeded."
+  ],
+  "ok": false,
+  "captured_at": "2026-09-13T08:41:03.368Z"
+}

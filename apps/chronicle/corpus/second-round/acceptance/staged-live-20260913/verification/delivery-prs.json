@@ -1,0 +1,101 @@
+[
+  {
+    "number": 687,
+    "mergeCommit": {
+      "oid": "76d555bac8264d040793bc45204f55def19af7fd"
+    },
+    "mergedAt": "2026-09-13T01:48:06Z",
+    "title": "fix(chronicle): 统一使用全局模型超时",
+    "url": "https://github.com/6spot/Loom/pull/687"
+  },
+  {
+    "number": 689,
+    "mergeCommit": {
+      "oid": "347aeaaeaed8467301ea8b94e47b39bfac4f57b2"
+    },
+    "mergedAt": "2026-09-13T02:42:01Z",
+    "title": "fix(chronicle): show exact source text beside staged model handles",
+    "url": "https://github.com/6spot/Loom/pull/689"
+  },
+  {
+    "number": 691,
+    "mergeCommit": {
+      "oid": "c721436925b688dfaa0ef8d0ca7c728cfd72c69f"
+    },
+    "mergedAt": "2026-09-13T03:32:27Z",
+    "title": "fix(chronicle): allow atomic batches of local review patches",
+    "url": "https://github.com/6spot/Loom/pull/691"
+  },
+  {
+    "number": 692,
+    "mergeCommit": {
+      "oid": "2744d4e383860600eac06f4dd4730028f00d2f4e"
+    },
+    "mergedAt": "2026-09-13T04:11:58Z",
+    "title": "fix(chronicle): 在分阶段节点内纠正来源与关联语义错误",
+    "url": "https://github.com/6spot/Loom/pull/692"
+  },
+  {
+    "number": 693,
+    "mergeCommit": {
+      "oid": "11481e1a4b63ca0a07936b00102fdc3d989e8909"
+    },
+    "mergedAt": "2026-09-13T05:40:53Z",
+    "title": "fix(chronicle): validate revisions before deriving chapter links",
+    "url": "https://github.com/6spot/Loom/pull/693"
+  },
+  {
+    "number": 694,
+    "mergeCommit": {
+      "oid": "ad4355c46e4ca88aa9a59ba7af6da33532716e85"
+    },
+    "mergedAt": "2026-09-13T06:06:47Z",
+    "title": "fix(chronicle): keep chapter review actions inside narrow screens",
+    "url": "https://github.com/6spot/Loom/pull/694"
+  },
+  {
+    "number": 695,
+    "mergeCommit": {
+      "oid": "4fb003cf242adf15dbbded9a594c3c7456cfc04a"
+    },
+    "mergedAt": "2026-09-13T06:29:45Z",
+    "title": "fix(chronicle): 复核上下文超限后保留完整稿并转入审核",
+    "url": "https://github.com/6spot/Loom/pull/695"
+  },
+  {
+    "number": 696,
+    "mergeCommit": {
+      "oid": "cf6188ecd89dac5fbeccf56fd44347fb272b09ed"
+    },
+    "mergedAt": "2026-09-13T07:10:55Z",
+    "title": "fix(chronicle): 压缩综合请求中重复的已审核状态",
+    "url": "https://github.com/6spot/Loom/pull/696"
+  },
+  {
+    "number": 697,
+    "mergeCommit": {
+      "oid": "4e7020f47f3d65a1bf6a935d95efb357b70d6008"
+    },
+    "mergedAt": "2026-09-13T07:29:49Z",
+    "title": "fix(chronicle): 接通人物状态原文审核与生产恢复",
+    "url": "https://github.com/6spot/Loom/pull/697"
+  },
+  {
+    "number": 698,
+    "mergeCommit": {
+      "oid": "866b368d450d80e5aa7f1666cdba9c01e44f1923"
+    },
+    "mergedAt": "2026-09-13T07:53:48Z",
+    "title": "fix(chronicle): 复用状态来源记录，恢复完整叙事纠错",
+    "url": "https://github.com/6spot/Loom/pull/698"
+  },
+  {
+    "mergeCommit": {
+      "oid": "a9d478afd579e992566f6fdea6629ff45981c7f7"
+    },
+    "mergedAt": "2026-09-13T09:30:18Z",
+    "number": 700,
+    "title": "fix(chronicle): 保持窄屏与动态布局下的历史阅读位置",
+    "url": "https://github.com/6spot/Loom/pull/700"
+  }
+]

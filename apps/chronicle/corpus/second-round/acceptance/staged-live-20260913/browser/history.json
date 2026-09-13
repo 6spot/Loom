@@ -1,0 +1,222 @@
+{
+  "schema": "chronicle.staged-live-browser",
+  "version": "0.1",
+  "mode": "live",
+  "base_url": "http://127.0.0.1:8092",
+  "checks": [
+    {
+      "name": "live_publication_exists",
+      "ok": true
+    },
+    {
+      "name": "all_published_paragraphs_read",
+      "ok": true
+    },
+    {
+      "name": "paragraph_ids_unique",
+      "ok": true
+    },
+    {
+      "name": "zhou_yu_has_published_phase_state",
+      "ok": true
+    },
+    {
+      "name": "history_paragraph_anchored",
+      "ok": true
+    },
+    {
+      "name": "history_phase_ready_and_matches_version",
+      "ok": true
+    },
+    {
+      "name": "person_state_fact_rendered_on_history",
+      "ok": true,
+      "detail": "no state fact"
+    },
+    {
+      "name": "two_tier_marker_present",
+      "ok": true,
+      "detail": "certainty=clear"
+    },
+    {
+      "name": "person_page_phase_matches_history",
+      "ok": true,
+      "detail": "p_east"
+    },
+    {
+      "name": "person_page_offers_return",
+      "ok": true,
+      "detail": "no return control"
+    },
+    {
+      "name": "return_preserves_version_and_paragraph",
+      "ok": true,
+      "detail": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_b8d99fecf152b8a8a0caff74"
+    },
+    {
+      "name": "mobile_context_entry_present",
+      "ok": true,
+      "detail": "no compact entry"
+    },
+    {
+      "name": "mobile_person_state_visible",
+      "ok": true
+    },
+    {
+      "name": "homepage_has_reviewed_entry_points",
+      "ok": true
+    },
+    {
+      "name": "homepage_entry_is_history_anchor",
+      "ok": true
+    },
+    {
+      "name": "body_has_no_navigation_headings",
+      "ok": true
+    },
+    {
+      "name": "evidence_hidden_before_user_action",
+      "ok": true
+    },
+    {
+      "name": "major_event_entry_exists",
+      "ok": true
+    },
+    {
+      "name": "inline_event_has_lightweight_preview",
+      "ok": true
+    },
+    {
+      "name": "event_preview_keeps_history_version",
+      "ok": true
+    },
+    {
+      "name": "conclusion_evidence_contains_original_quote",
+      "ok": true
+    },
+    {
+      "name": "source_window_loads",
+      "ok": true
+    },
+    {
+      "name": "full_chapter_request_succeeds",
+      "ok": true
+    },
+    {
+      "name": "full_source_matches_uploaded_original",
+      "ok": true
+    },
+    {
+      "name": "complete_chapter_available_on_demand",
+      "ok": true
+    },
+    {
+      "name": "multiple_person_phases_exist",
+      "ok": true
+    },
+    {
+      "name": "scroll_updates_person_phase",
+      "ok": true
+    },
+    {
+      "name": "scroll_updates_person_state_text",
+      "ok": true
+    },
+    {
+      "name": "scroll_preloads_next_page_without_switching_view",
+      "ok": true
+    },
+    {
+      "name": "entire_published_range_reaches_zhou_hu",
+      "ok": true
+    },
+    {
+      "name": "event_anchor_does_not_filter_following_history",
+      "ok": true
+    },
+    {
+      "name": "history_320_no_horizontal_overflow",
+      "ok": true,
+      "detail": {
+        "width": 320,
+        "scroll": 320
+      }
+    },
+    {
+      "name": "history_320_body_visible",
+      "ok": true
+    },
+    {
+      "name": "history_320_context_matches_paragraph",
+      "ok": true
+    },
+    {
+      "name": "no_browser_page_errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "evidence": {
+    "paragraph_count": 35,
+    "entry_points": [
+      {
+        "kind": "event",
+        "label": "孙策渡江与江东的兴起",
+        "reason": "从渡江切入孙策经营江东及周瑜的早期经历，继续阅读仍通向后续历史。",
+        "event_id": "01a09988-8a05-78c2-a79a-c221b37aa310",
+        "paragraph_id": "hp_b8d99fecf152b8a8a0caff74",
+        "ordinal": 2,
+        "year": null,
+        "period": null,
+        "excerpt": "孙策准备渡江东进，周瑜在历阳带兵迎接。随后，他随孙策攻取横江、当利，在秣陵击败笮融、薛礼，又攻下湖孰、江乘，进军曲阿。刘繇败走，孙策部众增至数万人。孙策认为凭这些兵力足以攻取吴会、平定山越，便让周瑜返回丹杨驻守。"
+      },
+      {
+        "kind": "event",
+        "label": "赤壁之战",
+        "reason": "联军迎击与火攻是本次叙事的主要转折；入口定位实际交战段，战前商议及战后发展都保留可读。",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "paragraph_id": "hp_56e464ca4a9c46614b7e7f32",
+        "ordinal": 16,
+        "year": 208,
+        "period": "建安十三年，月日未详",
+        "excerpt": "孙权派周瑜、程普等与刘备合力迎战，在赤壁遇到曹军。曹军已有疾病，初战失利后退驻江北，周瑜等在南岸。黄盖认为敌众我寡、难以持久，见曹军船舰首尾相接，便建议火攻。他备下装有柴草、浇过油脂的战船，覆上帷幕、立起旗号，先写信给曹操诈降，又把轻便小船系在大船后。曹军以为黄盖来降，争相观望。黄盖纵火，烈风将火势带到岸上营寨，烟焰冲"
+      },
+      {
+        "kind": "period",
+        "label": "南郡争夺",
+        "reason": "连接夷陵救援、周瑜受伤、曹仁退兵与江陵任职，展示赤壁后荆州局势的发展，不为每次任免另设入口。",
+        "event_id": null,
+        "paragraph_id": "hp_8b7d61c9d4c7a3b14b86dc93",
+        "ordinal": 19,
+        "year": null,
+        "period": null,
+        "excerpt": "周瑜、程普继续进军南郡，与曹仁隔江对峙。周瑜先派甘宁据守夷陵，曹仁分兵围攻，甘宁告急。周瑜采纳吕蒙之计，留下凌统守后方，自己与吕蒙救援甘宁。解围后，周瑜渡江屯在北岸，约定日期交战。他在交战中被流箭射中右胁，曹仁听闻其卧病后进逼军阵；周瑜起身巡视军营、激励将士，曹仁因此退兵。"
+      }
+    ],
+    "history_phase_id": "p_east",
+    "state_certainty": "clear",
+    "scroll_geometry": {
+      "top": 669.234375,
+      "height": 77.28125,
+      "readingLine": 389.59999999999997,
+      "delta": 318.27500000000003
+    },
+    "scroll_states": {
+      "before": "周瑜\n●\n明确记载：效力，\n孙策",
+      "after": "周瑜\n●\n明确记载：官职，\n居巢长",
+      "from": "p_east",
+      "to": "p_juchao"
+    }
+  },
+  "history": {
+    "version": "9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff",
+    "catalog_sha": "22b70383e3fc5a966abaa1523d05fb6d7d1c222e4176626857f4f4b01028ca97",
+    "paragraph_id": "hp_b8d99fecf152b8a8a0caff74",
+    "phase_id": "p_east",
+    "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+    "state_id": "added_sunce_allegiance"
+  },
+  "captured_at": "2026-09-13T09:32:36.287Z",
+  "ok": true
+}

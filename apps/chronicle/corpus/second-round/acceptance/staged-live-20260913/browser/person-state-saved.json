@@ -1,0 +1,111 @@
+{
+  "mode": "live-api",
+  "frontend": "deployed",
+  "checks": [
+    {
+      "name": "saved_record_is_readonly",
+      "ok": true
+    },
+    {
+      "name": "saved_operator_rationale_visible",
+      "ok": true
+    },
+    {
+      "name": "source_not_loaded_until_requested",
+      "ok": true
+    },
+    {
+      "name": "real_window_available",
+      "ok": true
+    },
+    {
+      "name": "complete_original_and_annotations_available",
+      "ok": true
+    },
+    {
+      "name": "result_390_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 390,
+        "scrollWidth": 390
+      }
+    },
+    {
+      "name": "result_390_actions_reachable",
+      "ok": true,
+      "detail": [
+        {
+          "label": "返回队列",
+          "x": 41,
+          "y": 478.78125,
+          "right": 349,
+          "bottom": 522.78125
+        },
+        {
+          "label": "下一项",
+          "x": 41,
+          "y": 530.78125,
+          "right": 349,
+          "bottom": 574.78125
+        }
+      ]
+    },
+    {
+      "name": "result_320_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 320,
+        "scrollWidth": 320
+      }
+    },
+    {
+      "name": "result_320_actions_reachable",
+      "ok": true,
+      "detail": [
+        {
+          "label": "返回队列",
+          "x": 41,
+          "y": 478.78125,
+          "right": 279,
+          "bottom": 522.78125
+        },
+        {
+          "label": "下一项",
+          "x": 41,
+          "y": 530.78125,
+          "right": 279,
+          "bottom": 574.78125
+        }
+      ]
+    },
+    {
+      "name": "read_did_not_resubmit_or_resume",
+      "ok": true
+    },
+    {
+      "name": "no_page_errors",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844/contexts?limit=50"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844/sources/anc_0213135103ba075b?view=window"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844/sources/anc_0213135103ba075b?view=chapter"
+    }
+  ],
+  "captured_at": "2026-09-13T07:32:24.432Z",
+  "ok": true
+}

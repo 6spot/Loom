@@ -1,0 +1,1072 @@
+{
+  "payload": {
+    "plan_fingerprint": "3f38bb70cc13c8aca2ba6e01cfc45c5ad07d5a319fe1d97b891656faa06ea52e",
+    "default_assessment": "uncertain",
+    "overrides": [
+      {
+        "candidate_key": "psc_00fdfec3b5fe68f8beeb9c9d",
+        "assessment": "supported",
+        "rationale": "“黃龍元年，封都鄉侯”明确周胤受封；爵号与官职分开。"
+      },
+      {
+        "candidate_key": "psc_0277a61a1fe46082806215db",
+        "assessment": "supported",
+        "rationale": "全文是南郡、夷陵援救及与曹仁交战，单一南郡作战阶段有据。"
+      },
+      {
+        "candidate_key": "psc_047dfb82df204ce1fe1036a0",
+        "assessment": "supported",
+        "rationale": "孙策卒、孙权统事，周瑜奔丧留吴共掌众事，支持交接后的阶段。"
+      },
+      {
+        "candidate_key": "psc_0a40d209e41bae016e16fa87",
+        "assessment": "supported",
+        "rationale": "求任居巢长并获袁术准许，继而东归，支持临时在袁术势力下任职的阶段。"
+      },
+      {
+        "candidate_key": "psc_0a580009419c164e712696d4",
+        "assessment": "supported",
+        "rationale": "取蜀建议获准、返江陵途中病卒，支持筹备及病卒阶段；不写成已出兵取蜀。"
+      },
+      {
+        "candidate_key": "psc_0cfa5f115749cfccf2231b0e",
+        "assessment": "supported",
+        "rationale": "此段孙权统事后周瑜与张昭共同掌事，绑定保留两人的同段阶段材料；不制造两人任职的严格先后。"
+      },
+      {
+        "candidate_key": "psc_15dd6476e6488a10b3248c22",
+        "assessment": "supported",
+        "rationale": "黄龙元年封都乡侯支持明确封爵阶段。"
+      },
+      {
+        "candidate_key": "psc_19375c4fc9c2c2b9a8085595",
+        "assessment": "supported",
+        "rationale": "“又進南郡…各隔大江”及后续救甘宁、与曹仁交战支持南郡作战阶段。"
+      },
+      {
+        "candidate_key": "psc_23d12be1db71b27bab61a7b7",
+        "assessment": "supported",
+        "rationale": "授建威中郎将后“後領春谷長”，只支持先后，不声称前职结束。"
+      },
+      {
+        "candidate_key": "psc_2a7d30db89ff4cf372a7331d",
+        "assessment": "supported",
+        "rationale": "南郡与曹仁交战、曹仁退兵后叙“權拜瑜偏將軍”，支持文中先后。"
+      },
+      {
+        "candidate_key": "psc_31a4fa1d902648516b629d15",
+        "assessment": "supported",
+        "rationale": "“以瑜為中護軍”文字本身明确；与同句江夏太守疑文分开评估。"
+      },
+      {
+        "candidate_key": "psc_31be5ff0e571a2d86e71ae3b",
+        "assessment": "supported",
+        "rationale": "开篇确有周忠任汉太尉的记载；不凭名字相近混成人物。"
+      },
+      {
+        "candidate_key": "psc_374193994e26f0829aa66ccc",
+        "assessment": "supported",
+        "rationale": "孙策欲取荆州期间任职在“五年，策薨。權統事”之前，原文支持顺序。"
+      },
+      {
+        "candidate_key": "psc_3b9a85bc4aaf285f8699187e",
+        "assessment": "supported",
+        "rationale": "原文“從祖父景，景子忠，皆為漢太尉”支持周景曾任太尉；只限其记载阶段，不赋给周瑜。"
+      },
+      {
+        "candidate_key": "psc_3c2352730edb66a962f35f4e",
+        "assessment": "supported",
+        "rationale": "张昭为长史并与周瑜共掌众事，支持此记载阶段；与周瑜对应阶段可并存。"
+      },
+      {
+        "candidate_key": "psc_3df93ac82193071cfbe17cb7",
+        "assessment": "supported",
+        "rationale": "“後領春谷長”支持春谷任职阶段；不擅补始末年月。"
+      },
+      {
+        "candidate_key": "psc_418556fbc212c6380dc9772c",
+        "assessment": "supported",
+        "rationale": "“後領春谷長。頃之…以瑜為中護軍”支持先后；江夏疑文不影响这两次记载的相对顺序。"
+      },
+      {
+        "candidate_key": "psc_425a5d587a5dad4049311cb0",
+        "assessment": "supported",
+        "rationale": "“男循…拜騎都尉”明确周循授官；“早卒”后不继续当时身份。"
+      },
+      {
+        "candidate_key": "psc_49bf217e0119e2692c19de77",
+        "assessment": "supported",
+        "rationale": "“權統事…遂留吳…共掌眾事”支持周瑜此时效力孙权；不据此清空其他有据关系。"
+      },
+      {
+        "candidate_key": "psc_51b11a1aa3d4e654030e91ee",
+        "assessment": "supported",
+        "rationale": "“故求為居巢長…術聽之”明确任职获准；不把袁术原先欲任将领写成已经授将。"
+      },
+      {
+        "candidate_key": "psc_5515eae704c0a9e717915a34",
+        "assessment": "supported",
+        "rationale": "“十三年春”讨江夏与“其年九月”曹操入荆州明确前后，不用同年本身猜顺序。"
+      },
+      {
+        "candidate_key": "psc_55e78c323accf190fd08c938",
+        "assessment": "supported",
+        "rationale": "奏疏回顾赤壁和南郡战功并评周胤受罚，ambiguous 保留回顾范围，不将周瑜置于奏疏当年现任。"
+      },
+      {
+        "candidate_key": "psc_5be10002ab5db3c717131ecd",
+        "assessment": "supported",
+        "rationale": "“以中護軍與長史張昭共掌眾事”支持孙权统事后此段周瑜为中护军；不外推永久任职。"
+      },
+      {
+        "candidate_key": "psc_5e5b9211dbc6e010e5061b90",
+        "assessment": "uncertain",
+        "rationale": "此段转为孙权同意复兵爵且周胤恰病死，仅绑定先前失爵阶段不能说明同意之后或死后的当前身份。"
+      },
+      {
+        "candidate_key": "psc_5f0b1eb08446993a61bd1cb7",
+        "assessment": "supported",
+        "rationale": "周胤初拜兴业都尉、获兵驻公安，支持这个早期阶段。"
+      },
+      {
+        "candidate_key": "psc_60656ec753fb943e90b2a35d",
+        "assessment": "supported",
+        "rationale": "“十三年春…瑜為前部大督”支持讨江夏时的职掌；这不是赤壁及以后自动延续的长期头衔。"
+      },
+      {
+        "candidate_key": "psc_6124a2b3c95339b96212b052",
+        "assessment": "supported",
+        "rationale": "求为居巢长而袁术听之，支持在袁术势力下任职这段关系；保留周瑜借道东归的上下文，不解释为忠诚宣誓。"
+      },
+      {
+        "candidate_key": "psc_62cf99528a386cb85629a514",
+        "assessment": "supported",
+        "rationale": "周瑜探望周尚时其为丹杨太守；袁胤替代在随后文字另有记载。"
+      },
+      {
+        "candidate_key": "psc_66a0b80988aa46906413e746",
+        "assessment": "supported",
+        "rationale": "黄祖遣邓龙时明确为江夏太守，支持这段身份语境。"
+      },
+      {
+        "candidate_key": "psc_675bf6afed89805c8cdd3149",
+        "assessment": "supported",
+        "rationale": "“領南郡太守”与偏将军同句兼任，不能只留其中官阶较高的一项。"
+      },
+      {
+        "candidate_key": "psc_6b043dd889cb8fd5fe6dd330",
+        "assessment": "supported",
+        "rationale": "居巢任职后“遂自居巢還吳…策親自迎瑜，授”，先后有据。"
+      },
+      {
+        "candidate_key": "psc_6c5760572d3f94a24b3ec009",
+        "assessment": "supported",
+        "rationale": "“瑜從父尚為丹楊太守”指周尚在周瑜往省时的职位；不延续到袁胤代任之后。"
+      },
+      {
+        "candidate_key": "psc_6c87048f085b98c51b300bbf",
+        "assessment": "uncertain",
+        "rationale": "标签来自请复兵爵的奏疏“降為匹夫”，属于引述的失爵状态且确切起点未知；保留为不明确阶段，不把引述自动提升为官方处分记录。"
+      },
+      {
+        "candidate_key": "psc_6ebe7638df019ccae5fc6b89",
+        "assessment": "supported",
+        "rationale": "子女生平、周循授职早卒、周胤初官受封受罚到奏疏，确实跨阶段；保留过程，不拿最后身份代表整段。"
+      },
+      {
+        "candidate_key": "psc_70f61f09fc14b069befe4897",
+        "assessment": "supported",
+        "rationale": "“景子忠，皆為漢太尉”支持周忠的官职记载；不以父子关系推断任期。"
+      },
+      {
+        "candidate_key": "psc_73d3b78f422daa935c769530",
+        "assessment": "supported",
+        "rationale": "父异为洛阳令的独立家世记载支持此阶段材料；没有任期推断。"
+      },
+      {
+        "candidate_key": "psc_74a231d2eccda87fd5d40b42",
+        "assessment": "supported",
+        "rationale": "“長史張昭”在共掌众事的语境直接支持张昭为长史。"
+      },
+      {
+        "candidate_key": "psc_794ee43f0cc5456a877b429d",
+        "assessment": "supported",
+        "rationale": "赤壁退曹后“瑜與程普又進南郡”，后续推进有据。"
+      },
+      {
+        "candidate_key": "psc_7a195201607bcf4946d579ad",
+        "assessment": "supported",
+        "rationale": "音乐天赋与“曲有误周郎顾”缺确切时间，unknown 且无 phase 符合原文，不能继承上一段状态。"
+      },
+      {
+        "candidate_key": "psc_7f3d7a7c2a284bbfc99b60bd",
+        "assessment": "supported",
+        "rationale": "“父異，洛陽令”明确指周异；不是周瑜官职，也未载年月。"
+      },
+      {
+        "candidate_key": "psc_7f6c2942eee2c4f7eb85613f",
+        "assessment": "supported",
+        "rationale": "完整廷议、孙权遣军及赤壁交战支持抗曹战役阶段；不以周瑜发言证明所有预测客观为真。"
+      },
+      {
+        "candidate_key": "psc_7f80d0dd100ca0c3c22cc68d",
+        "assessment": "supported",
+        "rationale": "此长段含家世、交游、随孙策征战、袁术下任职至东归，多阶段范围被保留；不取最后一职代表全段，也不补家世年月。"
+      },
+      {
+        "candidate_key": "psc_83dfbf449c27b08e53177334",
+        "assessment": "supported",
+        "rationale": "随孙策征战后还丹杨，“頃之”袁胤代尚、还寿春并求居巢长，先后明确。"
+      },
+      {
+        "candidate_key": "psc_85c8aed1962cdf56a3dadf79",
+        "assessment": "supported",
+        "rationale": "“劉備以左將軍領荊州牧”明确刘备左将军身份，只限该记载阶段。"
+      },
+      {
+        "candidate_key": "psc_860e29f00b792880d3af37a1",
+        "assessment": "supported",
+        "rationale": "“策親自迎瑜，授建威中郎將”明确授任对象与官职。"
+      },
+      {
+        "candidate_key": "psc_8753ee2ac5c24f03a2f5b1a8",
+        "assessment": "supported",
+        "rationale": "封侯后“後以罪徙廬陵郡”，赤乌二年请复爵疏在后；仅支持文中相对先后，不给失爵填日期。"
+      },
+      {
+        "candidate_key": "psc_876f9d7fb3e3e18e88459927",
+        "assessment": "uncertain",
+        "rationale": "周峻授职、去世及周护未获任用并叙，single 任偏将军阶段不能代表全段，尤不能延续到死后。"
+      },
+      {
+        "candidate_key": "psc_8ef437b44933e6dd3203f072",
+        "assessment": "uncertain",
+        "rationale": "本段从建安十一年跨至十三年九月及抗曹廷议，仅绑定黄祖、前部大督两阶段，覆盖不足，不能把春季头衔当九月现职。"
+      },
+      {
+        "candidate_key": "psc_92612577d1da4cfe4213b186",
+        "assessment": "supported",
+        "rationale": "“權拜瑜偏將軍”是明确授任，和南郡太守分别保留。"
+      },
+      {
+        "candidate_key": "psc_93fc597e81d1f9ff734cf92c",
+        "assessment": "uncertain",
+        "rationale": "阶段标签合写中护军与江夏太守，后一项底本“領導江夏太守”有疑文；整体标签暂列不明确，中护军事实单独支持。"
+      },
+      {
+        "candidate_key": "psc_94d0e65af323ef76b20062b5",
+        "assessment": "supported",
+        "rationale": "开篇家世确有周景任汉太尉的记载；年月未知，不与周瑜经历混同。"
+      },
+      {
+        "candidate_key": "psc_9a2cdf8cf259af96c5ad8b17",
+        "assessment": "supported",
+        "rationale": "同段含周瑜新授两职和刘备在公安及来京，保留 ambiguous 的多阶段材料，不从文序强定唯一当前身份。"
+      },
+      {
+        "candidate_key": "psc_9d73307134a21197749b2060",
+        "assessment": "supported",
+        "rationale": "同时给刘璋益州牧背景、周瑜建议及病卒过程，保留 process；建议不是已经取得领土。"
+      },
+      {
+        "candidate_key": "psc_9fc33c3a7891162598d93e00",
+        "assessment": "supported",
+        "rationale": "同句明确刘备兼领荆州牧；不据官职直接推断全部荆州实际控制。"
+      },
+      {
+        "candidate_key": "psc_a26db7719096e9255c15b231",
+        "assessment": "supported",
+        "rationale": "周循拜骑都尉后早卒，支持其授任阶段；不延展至后文周胤事件。"
+      },
+      {
+        "candidate_key": "psc_a85fa947cf93c60c05864ff7",
+        "assessment": "supported",
+        "rationale": "孙权统事后共掌众事，后列十一年及十三年春讨江夏，时间与叙述均支持先后。"
+      },
+      {
+        "candidate_key": "psc_aceebeb441009f7f252266e6",
+        "assessment": "supported",
+        "rationale": "孙权对周瑜抗曹建议的答复属于同一廷议阶段；提及二袁等旧事不跳回旧阶段。"
+      },
+      {
+        "candidate_key": "psc_b0e3880c4154bad0f0f97e6b",
+        "assessment": "supported",
+        "rationale": "“後領春谷長”直接支持周瑜兼领春谷长；不自动结束先前官职。"
+      },
+      {
+        "candidate_key": "psc_b1171cee7842d5ce81c4d7da",
+        "assessment": "supported",
+        "rationale": "火攻、曹军退南郡、追击与曹操北归，均是赤壁战役此段的叙事发展。"
+      },
+      {
+        "candidate_key": "psc_b1e7d287b5a967b8a8fa8cd2",
+        "assessment": "supported",
+        "rationale": "“權遂遣瑜…與備並力逆曹公”支持此次周瑜奉孙权派遣；只评估本阶段效力关系。"
+      },
+      {
+        "candidate_key": "psc_b46b65944c9c204d9e974aaa",
+        "assessment": "supported",
+        "rationale": "刘备以左将军领荆州牧、治公安，支持此时身份及治所语境。"
+      },
+      {
+        "candidate_key": "psc_b4fc7a152ea0d5e4c21f1695",
+        "assessment": "supported",
+        "rationale": "建安十三年春讨江夏且瑜为前部大督，阶段边界有原文支持。"
+      },
+      {
+        "candidate_key": "psc_b7078c7e015b94d9fe63e550",
+        "assessment": "supported",
+        "rationale": "夏口联络、派遣合兵至赤壁初战和火攻准备，都属于本次赤壁战役范围。"
+      },
+      {
+        "candidate_key": "psc_ba4d4356a3804828bffc63d3",
+        "assessment": "supported",
+        "rationale": "从带兵迎孙策到攻取横江、当利，支持随军征战的阶段范围。"
+      },
+      {
+        "candidate_key": "psc_bf838f0b7b71e7bae3363200",
+        "assessment": "supported",
+        "rationale": "“是時劉璋為益州牧”明确该阶段刘璋职位；不从周瑜取蜀计划推断已经易主。"
+      },
+      {
+        "candidate_key": "psc_c0250886c1fa5f730b31293e",
+        "assessment": "supported",
+        "rationale": "本段主语境是请还周胤兵爵的奏疏；汉高祖典故是回顾材料，失爵本身仍按引述不明确评估。"
+      },
+      {
+        "candidate_key": "psc_c9897aec06b0a172a204a629",
+        "assessment": "supported",
+        "rationale": "先叙周瑜与孙策交游，后“會策將東渡…瑜將兵迎策”，原文明示先后。"
+      },
+      {
+        "candidate_key": "psc_cc67142f3f96e0e4916ad8ba",
+        "assessment": "supported",
+        "rationale": "早年周瑜与孙策同年友善、共宅互通有无，支持交游阶段；不补具体年份或省略主语。"
+      },
+      {
+        "candidate_key": "psc_cce93a2974d3e3b867795eff",
+        "assessment": "supported",
+        "rationale": "“江夏太守黃祖”直接载明黄祖当时职位；不等同周瑜的同名官职记载。"
+      },
+      {
+        "candidate_key": "psc_d2b962130cc1fc113bdc2ee2",
+        "assessment": "supported",
+        "rationale": "偏将军、南郡太守同时授任并驻江陵支持此任职阶段。"
+      },
+      {
+        "candidate_key": "psc_d906bad6094ef3c979c5beb9",
+        "assessment": "supported",
+        "rationale": "“循弟胤，初拜興業都尉”明确周胤早期授官，区别于后来的都乡侯。"
+      },
+      {
+        "candidate_key": "psc_dab34d535df369f761815a2a",
+        "assessment": "supported",
+        "rationale": "周峻任偏将军且领吏士千人支持其任职阶段，与随后去世、周护未用分开。"
+      },
+      {
+        "candidate_key": "psc_dc29c5c52072a4321e32a81f",
+        "assessment": "supported",
+        "rationale": "“是時劉璋為益州牧”明确支持周瑜筹议取蜀时的刘璋材料。"
+      },
+      {
+        "candidate_key": "psc_df1bb66c3b9633786b3c0a24",
+        "assessment": "supported",
+        "rationale": "此段为抗曹廷议中周瑜的发言，位于赤壁战役筹议阶段；发言中的历史回顾不切换当前时间。"
+      },
+      {
+        "candidate_key": "psc_e1f760f52fea5f70de2354eb",
+        "assessment": "supported",
+        "rationale": "“瑜將兵迎策”“遂從攻”支持此阶段归附孙策；没有据此推断全部后续任期。"
+      },
+      {
+        "candidate_key": "psc_e980009d5c1a77c222d54425",
+        "assessment": "supported",
+        "rationale": "孙权答复请复兵爵奏疏，属于这一请复阶段；他对过往恩赐的回顾不代表重新授任。"
+      },
+      {
+        "candidate_key": "psc_e9c8d60ed1a36824f992e6a9",
+        "assessment": "supported",
+        "rationale": "此段依次授建威中郎将、领春谷长、任中护军，保留 process；江夏官职与相关阶段另标不明确。"
+      },
+      {
+        "candidate_key": "psc_eaef7d31c122c611f716d0fe",
+        "assessment": "uncertain",
+        "rationale": "本段既回顾孙策交游，又叙孙权统事后的礼节，single 早年 ph_001 不能覆盖全段，标不明确。"
+      },
+      {
+        "candidate_key": "psc_ec06eef42f6e5ab8a3f2c5db",
+        "assessment": "uncertain",
+        "rationale": "“降為匹夫”是诸葛瑾、步骘奏疏里的引述，未给确切夺爵日。保留 quotation 和失爵疑问，不能强定为某日已经执行的官府处分。"
+      },
+      {
+        "candidate_key": "psc_eec69113f6f5a537e2b98f6e",
+        "assessment": "uncertain",
+        "rationale": "冻结底本为“領導江夏太守”，存在疑文，无法把整理后的“兼领江夏太守”当作无疑的任职结论；完整引文保留，标为不明确。"
+      },
+      {
+        "candidate_key": "psc_f21b84d50d2e9e833c98bc43",
+        "assessment": "supported",
+        "rationale": "“瑜兄子峻…為偏將軍”直接支持周峻获任；不延续到死亡或转移给周护。"
+      },
+      {
+        "candidate_key": "psc_f23f83586678da9832b46cb6",
+        "assessment": "supported",
+        "rationale": "孙策亲迎并授建威中郎将，支持该授任阶段。"
+      },
+      {
+        "candidate_key": "psc_fad931499d1ba8440dea01fb",
+        "assessment": "supported",
+        "rationale": "“初拜興業都尉…黃龍元年，封都鄉侯”支持周胤两阶段先后。"
+      },
+      {
+        "candidate_key": "psc_fd4d526e9387588799c7884f",
+        "assessment": "supported",
+        "rationale": "任南郡太守驻江陵后才叙取蜀建议与返江陵病卒，顺序有据。"
+      }
+    ],
+    "rationale": "本次真实验收由代理通过操作员入口，逐段对照完整《周瑜传》及原注、19段修订译文，逐项评估25阶段、13先后、27人物事实和19段绑定。全部84项显式留理由，76项支持、8项不明确。江夏太守疑文、引述失爵及跨阶段绑定疑问均保留。支持只指对应材料和范围，不表示跨来源交叉验证、永久在任或史学专家签字；不替代后续综合事实与正文两次审核。"
+  },
+  "status": 200,
+  "receipt": {
+    "schema": "chronicle.review",
+    "version": "0.1",
+    "review": {
+      "review_id": "64b744b7-cfe2-4fc3-a899-c05072e3c844",
+      "job_id": "7f786015-724f-438f-b560-7a220f1a476f",
+      "chunk_id": null,
+      "kind": "stage_gate",
+      "status": "resolved",
+      "created_at": "2026-09-13T06:34:58.519983+00:00",
+      "resolved_at": "2026-09-13T06:49:45.610545+00:00",
+      "job_status": "needs_review",
+      "revision_id": "af18c491-1ab9-4a5c-ab71-f29a35c92570",
+      "document": {
+        "document_id": "ffcd4676-851a-4ce3-8ea0-1a6f2e5d9e07",
+        "title": "三國志·吳書·周瑜傳",
+        "revision_no": 1,
+        "filename": "sanguozhi-054-zhou-yu.txt",
+        "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+        "language": "zh-CN",
+        "source_label": "Wikisource 三國志/卷54 周瑜；oldid=2387393；https://zh.wikisource.org/w/index.php?title=三國志/卷54&oldid=2387393；原作公有领域，维基文库整理文本 CC BY-SA。"
+      },
+      "scope": "person_state",
+      "review_mode": "chapter_state_evidence",
+      "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+      "plan_fingerprint": "3f38bb70cc13c8aca2ba6e01cfc45c5ad07d5a319fe1d97b891656faa06ea52e",
+      "catalog_sha": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "candidate_count": 84,
+      "default_assessment": "uncertain",
+      "allowed_assessments": [
+        "supported",
+        "uncertain",
+        "disputed",
+        "rejected"
+      ],
+      "candidates": [
+        {
+          "candidate_key": "psc_00fdfec3b5fe68f8beeb9c9d",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_025",
+          "person_id": null,
+          "person_name": "周胤",
+          "dimension": "title",
+          "value": "都鄉侯",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_023"
+          ],
+          "predicted_effect": "current_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "黃龍元年，封都鄉侯",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_0277a61a1fe46082806215db",
+          "kind": "unit_phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "tr_009",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "single",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_010"
+          ],
+          "predicted_effect": "bind_unit_phase",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "瑜與程普又進南郡，與仁相對，各隔大江。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_047dfb82df204ce1fe1036a0",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_007",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周瑜在孫權統事後共掌眾事",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_007"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_0a40d209e41bae016e16fa87",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_003",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周瑜在袁術勢力下求任居巢長",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_003"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "術欲以瑜為將，瑜觀術終無所成，故求為居巢長，欲假塗東歸，術聽之。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_0a580009419c164e712696d4",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_012",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周瑜籌備取蜀並病卒",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_012"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "權許之。瑜還江陵為行裝，而道於巴丘病卒",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_0cfa5f115749cfccf2231b0e",
+          "kind": "unit_phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "tr_003",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "process",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_007",
+            "ph_017"
+          ],
+          "predicted_effect": "bind_unit_phase",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_15dd6476e6488a10b3248c22",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_023",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周胤封都鄉侯",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_023"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "黃龍元年，封都鄉侯",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_19375c4fc9c2c2b9a8085595",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_010",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周瑜進軍南郡",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_010"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "瑜與程普又進南郡，與仁相對，各隔大江。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_23d12be1db71b27bab61a7b7",
+          "kind": "phase_order",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "po_004",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "ph_004 -> ph_005",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_004",
+            "ph_005"
+          ],
+          "predicted_effect": "prove_phase_order",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "授建威中郎將，即與兵二千人，騎五十匹。〈《江表傳》曰：策又給瑜鼓吹，為治館舍，贈賜莫與為比。策令曰：「周公瑾英俊異才，與孤有總角之好，骨肉之分。如前在丹楊，發眾及船糧以濟大事，論德酬功，此未足以報者也。」〉瑜時年二十四，吳中皆呼為周郎。以瑜恩信著於廬江，出備牛渚，後領春谷長。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_2a7d30db89ff4cf372a7331d",
+          "kind": "phase_order",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "po_010",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "ph_010 -> ph_011",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_010",
+            "ph_011"
+          ],
+          "predicted_effect": "prove_phase_order",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "瑜乃自興，案行軍營，激揚吏士，仁由是遂退。\n\n權拜瑜偏將軍，領南郡太守。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_31a4fa1d902648516b629d15",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_010",
+          "person_id": null,
+          "person_name": "周瑜",
+          "dimension": "office",
+          "value": "中護軍",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_006"
+          ],
+          "predicted_effect": "current_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "以瑜為中護軍",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_31be5ff0e571a2d86e71ae3b",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_014",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周忠任漢太尉",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_014"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "從祖父景，景子忠，皆為漢太尉。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_374193994e26f0829aa66ccc",
+          "kind": "phase_order",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "po_006",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "ph_006 -> ph_007",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_006",
+            "ph_007"
+          ],
+          "predicted_effect": "prove_phase_order",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "留鎮巴丘。〈臣松之案：孫策於時始得豫章、廬陵，尚未能得定江夏。瑜之所鎮，應在今巴丘縣也，與後所（平）巴丘處不同。〉\n\n五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_3b9a85bc4aaf285f8699187e",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_001",
+          "person_id": null,
+          "person_name": "周景",
+          "dimension": "office",
+          "value": "太尉",
+          "relation": null,
+          "target": null,
+          "operation": "attest",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_013"
+          ],
+          "predicted_effect": "prior_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "從祖父景，景子忠，皆為漢太尉。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_3c2352730edb66a962f35f4e",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_017",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "張昭任長史並與周瑜共掌眾事",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_017"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "以中護軍與長史張昭共掌眾事。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_3df93ac82193071cfbe17cb7",
+          "kind": "phase",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "ph_005",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "周瑜領春谷長",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_005"
+          ],
+          "predicted_effect": "phase_definition",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "後領春谷長。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_418556fbc212c6380dc9772c",
+          "kind": "phase_order",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "po_005",
+          "person_id": null,
+          "person_name": null,
+          "dimension": null,
+          "value": "ph_005 -> ph_006",
+          "relation": null,
+          "target": null,
+          "operation": null,
+          "qualification": null,
+          "phase_refs": [
+            "ph_005",
+            "ph_006"
+          ],
+          "predicted_effect": "prove_phase_order",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_425a5d587a5dad4049311cb0",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_023",
+          "person_id": null,
+          "person_name": "周循",
+          "dimension": "office",
+          "value": "騎都尉",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_021"
+          ],
+          "predicted_effect": "current_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "男循尚公主，拜騎都尉",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_49bf217e0119e2692c19de77",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_013",
+          "person_id": null,
+          "person_name": "周瑜",
+          "dimension": "affiliation",
+          "value": "serves",
+          "relation": "serves",
+          "target": "孫權",
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_007"
+          ],
+          "predicted_effect": "current_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+          "attribution": "narrator",
+          "reason_codes": []
+        },
+        {
+          "candidate_key": "psc_51b11a1aa3d4e654030e91ee",
+          "kind": "fact",
+          "chapter_id": "ch_6bc2723f42f02d2afa8a9a23",
+          "item_ref": "pf_007",
+          "person_id": null,
+          "person_name": "周瑜",
+          "dimension": "office",
+          "value": "居巢長",
+          "relation": null,
+          "target": null,
+          "operation": "start",
+          "qualification": "ordinary",
+          "phase_refs": [
+            "ph_003"
+          ],
+          "predicted_effect": "current_identity",
+          "assessment_default": "uncertain",
+          "allowed_assessments": [
+            "supported",
+            "uncertain",
+            "disputed",
+            "rejected"
+          ],
+          "source_label": "三國志·吳書·周瑜傳",
+          "quote": "故求為居巢長，欲假塗東歸，術聽之。",
+          "attribution": "narrator",
+          "reason_codes": []
+        }
+      ],
+      "limit": 20,
+      "cursor": null,
+      "next_cursor": "eyJvZmZzZXQiOjIwLCJwbGFuX2ZpbmdlcnByaW50IjoiM2YzOGJiNzBjYzEzYzhhY2EyYmE2ZTAxY2ZjNDVjNWFkMDdkNWEzMTlmZTFkOTdiODkxNjU2ZmFhMDZlYTUyZSIsInJldmlld19pZCI6IjY0Yjc0NGI3LWNmZTItNGZjMy1hODk5LWMwNTA3MmUzYzg0NCIsInYiOjF9",
+      "has_more": true,
+      "decision": {
+        "default_assessment": "uncertain",
+        "override_count": 84,
+        "rationale": "本次真实验收由代理通过操作员入口，逐段对照完整《周瑜传》及原注、19段修订译文，逐项评估25阶段、13先后、27人物事实和19段绑定。全部84项显式留理由，76项支持、8项不明确。江夏太守疑文、引述失爵及跨阶段绑定疑问均保留。支持只指对应材料和范围，不表示跨来源交叉验证、永久在任或史学专家签字；不替代后续综合事实与正文两次审核。",
+        "dismissed": false
+      },
+      "left_label": "阶段依据审核",
+      "right_label": null,
+      "source_entry": {
+        "contexts_href": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844/contexts",
+        "source_href_template": "/api/v1/studio/jobs/reviews/64b744b7-cfe2-4fc3-a899-c05072e3c844/sources/{anchor_id}",
+        "revision_id": "af18c491-1ab9-4a5c-ab71-f29a35c92570",
+        "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+      }
+    }
+  }
+}

@@ -1,0 +1,1334 @@
+{
+  "candidate_sha": "7e62fc741c56a63b4df91e81f23ba0fba72c33f60e2d13c78de5000f57118907",
+  "decision": "approve",
+  "content": {
+    "entry_points": [
+      {
+        "label": "孙策渡江与江东的兴起",
+        "kind": "event",
+        "paragraph_id": "para_east",
+        "event_id": "01a09988-8a05-78c2-a79a-c221b37aa310",
+        "reason": "从渡江切入孙策经营江东及周瑜的早期经历，继续阅读仍通向后续历史。"
+      },
+      {
+        "label": "赤壁之战",
+        "kind": "event",
+        "paragraph_id": "para_redcliff",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "reason": "联军迎击与火攻是本次叙事的主要转折；入口定位实际交战段，战前商议及战后发展都保留可读。"
+      },
+      {
+        "label": "南郡争夺",
+        "kind": "period",
+        "paragraph_id": "para_nan_battle",
+        "event_id": null,
+        "reason": "连接夷陵救援、周瑜受伤、曹仁退兵与江陵任职，展示赤壁后荆州局势的发展，不为每次任免另设入口。"
+      }
+    ],
+    "paragraphs": [
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b3c-bb3a-6baef6f088db",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7a67-8b3e-cc77e061accf",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-72ca-a054-de3befe366aa",
+            "importance": "other"
+          }
+        ],
+        "id": "para_early",
+        "phase_id": "p_early",
+        "segments": [
+          {
+            "text": "周瑜字公瑾，是庐江舒人，身材高大、相貌出众。父亲周异做过洛阳令，从祖父周景及周景之子周忠都曾任汉太尉。孙坚参加讨伐董卓的义军时，把家眷迁到舒。孙策与周瑜同年，二人尤其要好；周瑜让出道南大宅给孙策居住，彼此以家人般的礼节相待，互通有无。",
+            "conclusion_ids": [
+              "conclusion_001",
+              "added_friendship"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7df6-8b51-6b914fba6f41",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-75e6-bfef-34f96d6e2772",
+            "importance": "other"
+          }
+        ],
+        "id": "para_visit",
+        "phase_id": "p_visit",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_visit"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "周瑜的从父周尚任丹杨太守，周瑜前往探望他。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b3c-bb3a-6baef6f088db",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7d2a-a186-50c8ee1d1329",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-745b-9dba-27ba44253591",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a05-7066-8de5-fbadc5e42e60",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a05-778b-a112-bd74bed64176",
+            "importance": "other"
+          }
+        ],
+        "id": "para_east",
+        "phase_id": "p_east",
+        "segments": [
+          {
+            "text": "孙策准备渡江东进，周瑜在历阳带兵迎接。随后，他随孙策攻取横江、当利，在秣陵击败笮融、薛礼，又攻下湖孰、江乘，进军曲阿。刘繇败走，孙策部众增至数万人。孙策认为凭这些兵力足以攻取吴会、平定山越，便让周瑜返回丹杨驻守。",
+            "conclusion_ids": [
+              "conclusion_002",
+              "added_sunce_allegiance"
+            ],
+            "event_id": "01a09988-8a05-78c2-a79a-c221b37aa310",
+            "event_relation": "current",
+            "event_text": "渡江东进"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7df6-8b51-6b914fba6f41",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7680-8cab-19472278de85",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-74bf-a1f8-91f61ab4c42a",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7d2a-a186-50c8ee1d1329",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_shouchun",
+        "phase_id": "p_shouchun",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_003"
+            ],
+            "event_id": "01a09988-8a05-7b7f-94e7-5de23998e327",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "周瑜还镇丹杨不久，袁术派从弟袁胤代周尚为丹杨太守，周瑜与周尚一同回到寿春。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7680-8cab-19472278de85",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-78de-8104-97f65e5f5404",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-77f1-9361-74778644f71d",
+            "importance": "other"
+          }
+        ],
+        "id": "para_juchao",
+        "phase_id": "p_juchao",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_004"
+            ],
+            "event_id": "01a09988-8a05-766c-8ebb-edc7362b1745",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "袁术想让周瑜做将领，周瑜认为袁术最终不会有所成就，便请求担任居巢长，打算借道东归，袁术答应了。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b3c-bb3a-6baef6f088db",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-76b6-b3dd-02065071eaef",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-71ee-bb4f-73cbfe46a8b7",
+            "importance": "other"
+          }
+        ],
+        "id": "para_return",
+        "phase_id": "p_return",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_005",
+              "added_sunce_allegiance"
+            ],
+            "event_id": "01a09988-8a05-7ba7-94ab-412da1ee11b7",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "建安三年，周瑜从居巢回到吴地。孙策亲自迎接，授他建威中郎将，给兵二千、骑五十。周瑜当时二十四岁，吴地人称他为“周郎”。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ded-a1a3-d21da3436bf7",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-76b6-b3dd-02065071eaef",
+            "importance": "other"
+          }
+        ],
+        "id": "para_niuzhu",
+        "phase_id": "p_niuzhu",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_niuzhu",
+              "added_sunce_allegiance"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "周瑜在庐江素有恩信，于是被派出镇守牛渚。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7ef5-ac88-f4109e7452a9",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b3c-bb3a-6baef6f088db",
+            "importance": "other"
+          }
+        ],
+        "id": "para_chungu",
+        "phase_id": "p_chungu",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_006",
+              "added_sunce_allegiance"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "出镇牛渚以后，周瑜领春谷长。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b3c-bb3a-6baef6f088db",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-722f-b27a-cdb9244c7d3d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7947-8c00-b6837136a50c",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a05-796d-b8bd-6b88491754fe",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-70f0-a1ee-4331f840676c",
+            "importance": "other"
+          }
+        ],
+        "id": "para_wan",
+        "phase_id": "p_wan",
+        "segments": [
+          {
+            "text": "孙策准备进取荆州，任命周瑜为中护军。周瑜随孙策攻克皖，孙策娶了桥公的长女，周瑜娶了次女。此后，他们又在寻阳附近击败刘勋，进讨江夏，返回平定豫章、庐陵，周瑜留下镇守巴丘。",
+            "conclusion_ids": [
+              "conclusion_007",
+              "added_wan_campaign",
+              "added_sunce_allegiance"
+            ],
+            "event_id": "01a09988-8a05-791a-94e6-8aba97619b26",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7a15-bea9-d911f3d3a41e",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-76b6-b3dd-02065071eaef",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_sunquan",
+        "phase_id": "p_sunquan",
+        "segments": [
+          {
+            "text": "建安五年孙策去世，孙权接掌政事。周瑜率兵赶去奔丧，随后留在吴，以中护军身份与长史张昭共同处理事务，对孙权恪守臣礼。",
+            "conclusion_ids": [
+              "conclusion_009",
+              "conclusion_010",
+              "added_zhangzhao_office",
+              "added_sunquan_allegiance"
+            ],
+            "event_id": "01a09988-8a05-7c21-81bb-dcc0a86be487",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "other"
+          }
+        ],
+        "id": "para_hostage",
+        "phase_id": "p_hostage",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_hostage"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "据《江表传》，建安七年曹操要求孙权送子弟为人质。周瑜认为，一旦送质，孙权便会受曹氏制约，不如守住父兄留下的基业、静观局势。孙权的母亲赞同周瑜，劝孙权像对待兄长一样对待他，孙权于是没有送质。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7cf8-902e-8188c701380d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-789f-a40e-92e971f768ab",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7023-a43a-24386bab97bb",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-7db3-9cee-a880cc7b34fa",
+            "importance": "other"
+          }
+        ],
+        "id": "para_206",
+        "phase_id": "p_206",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_011",
+              "conclusion_012",
+              "added_huangzu_office"
+            ],
+            "event_id": "01a09988-8a05-7759-908d-e3144f463437",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "建安十一年，周瑜督率孙瑜等讨伐麻、保二屯，斩其首领并俘获一万余人。随后，江夏太守黄祖派邓龙率数千人进入柴桑，周瑜追击并生擒邓龙，送往吴地。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-722f-b27a-cdb9244c7d3d",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_spring",
+        "phase_id": "p_spring",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_013",
+              "added_sunquan_allegiance"
+            ],
+            "event_id": "01a09988-8a05-7314-ac73-7656c50c3cb1",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "建安十三年春，孙权进攻江夏，周瑜担任前部大督。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7288-8dff-1b8cb96a93b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7160-911f-c7d19e9fd7b0",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_jingzhou",
+        "phase_id": "p_jingzhou",
+        "segments": [
+          {
+            "text": "同年九月，曹操进入荆州，刘琮率众投降。曹操取得他的水军，水陆兵力号称数十万，孙权部下听说后十分恐惧。",
+            "conclusion_ids": [
+              "conclusion_014"
+            ],
+            "event_id": "01a09988-8a05-797d-a14d-8c960eee4b10",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7017-8abc-0120e4b98b77",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7255-980c-bba704a589b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-79c6-999d-3f2c12f7b6b3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7520-935e-7d8d5e60de82",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7e50-afab-197dfc655716",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7f49-be73-430a032d3a4a",
+            "importance": "other"
+          }
+        ],
+        "id": "para_decision",
+        "phase_id": "p_decision",
+        "segments": [
+          {
+            "text": "孙权召集部属问计。群臣认为曹操借汉廷名义征伐，又得到荆州水军，长江之险已不足独恃，主张迎降。周瑜反对，指出曹操北方未稳，马超、韩遂仍在关西；北军不长于水战，严寒中马缺饲草，远来将士也容易因水土不服患病。他请求精兵三万人进驻夏口，迎击曹军。孙权赞同这个意见。",
+            "conclusion_ids": [
+              "conclusion_015",
+              "conclusion_016"
+            ],
+            "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+            "event_relation": "current",
+            "event_text": null
+          },
+          {
+            "text": "裴松之认为，抗曹之计先由鲁肃提出；鲁肃劝孙权召回出使鄱阳的周瑜，周瑜回来后，两人的意见不谋而合。",
+            "conclusion_ids": [
+              "conclusion_017"
+            ],
+            "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+            "event_relation": "current",
+            "event_text": null
+          },
+          {
+            "text": "据《江表传》，孙权备好了三万人的船粮军资，让周瑜、鲁肃、程普先行，自己接续发兵运粮，作为后援。",
+            "conclusion_ids": [
+              "conclusion_016"
+            ],
+            "event_id": "01a09988-8a05-7447-80a5-f8b8f8193235",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7017-8abc-0120e4b98b77",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7255-980c-bba704a589b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-79c6-999d-3f2c12f7b6b3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7520-935e-7d8d5e60de82",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7e50-afab-197dfc655716",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_redcliff_intro",
+        "phase_id": "p_decision",
+        "segments": [
+          {
+            "text": "刘备被曹操击败后，准备向南渡江。他在当阳遇到鲁肃，两人共同商议对策，刘备随后进驻夏口，派诸葛亮去拜见孙权。",
+            "conclusion_ids": [
+              "conclusion_018"
+            ],
+            "event_id": "01a09988-8a05-74cd-8fd9-c41437a5a535",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7255-980c-bba704a589b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7a07-a0f4-b0bc9e990d2f",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-73d8-9b83-bb68c4a736be",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7502-89c7-ad084f052767",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7017-8abc-0120e4b98b77",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-79c6-999d-3f2c12f7b6b3",
+            "importance": "other"
+          }
+        ],
+        "id": "para_redcliff",
+        "phase_id": "p_redcliff",
+        "segments": [
+          {
+            "text": "孙权派周瑜、程普等与刘备合力迎战，在赤壁遇到曹军。曹军已有疾病，初战失利后退驻江北，周瑜等在南岸。黄盖认为敌众我寡、难以持久，见曹军船舰首尾相接，便建议火攻。他备下装有柴草、浇过油脂的战船，覆上帷幕、立起旗号，先写信给曹操诈降，又把轻便小船系在大船后。曹军以为黄盖来降，争相观望。黄盖纵火，烈风将火势带到岸上营寨，烟焰冲天，曹军人马烧死、溺死者甚多，终于败退。",
+            "conclusion_ids": [
+              "conclusion_019",
+              "added_huanggai_allegiance"
+            ],
+            "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+            "event_relation": "current",
+            "event_text": "赤壁"
+          }
+        ]
+      },
+      {
+        "id": "operator_redcliff_letter",
+        "phase_id": "p_redcliff",
+        "segments": [
+          {
+            "text": "曹操后来写信给孙权，说赤壁时军中有病，是自己焚船退走，才让周瑜得了虚名。",
+            "conclusion_ids": [
+              "added_caocao_letter"
+            ],
+            "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+            "event_relation": "foreshadow",
+            "event_text": null
+          }
+        ],
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-72ec-833a-7907184f9945",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7255-980c-bba704a589b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7dbd-86e9-d6f30006ec38",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7442-9985-0e312d169f95",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_retreat",
+        "phase_id": "p_retreat",
+        "segments": [
+          {
+            "text": "曹军退保南郡，刘备与周瑜等继续追击。曹操留下曹仁等守江陵城，自己向北撤回。",
+            "conclusion_ids": [
+              "conclusion_020",
+              "added_jiangling_before",
+              "added_caoren_allegiance"
+            ],
+            "event_id": "01a09988-8a05-7251-8d1f-0376547e08fb",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-72ec-833a-7907184f9945",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-73d8-9b83-bb68c4a736be",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7571-8c71-79037f4c12d6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7685-9d1d-b3a2e909c6ef",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7599-8eac-0d9bd9d4a086",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7442-9985-0e312d169f95",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7fb7-b352-71a1e65b2710",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_nan_battle",
+        "phase_id": "p_nan_battle",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_021",
+              "conclusion_022",
+              "added_caoren_allegiance"
+            ],
+            "event_id": "01a09988-8a05-76da-8351-5ac685db50c5",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "周瑜、程普继续进军南郡，与曹仁隔江对峙。周瑜先派甘宁据守夷陵，曹仁分兵围攻，甘宁告急。周瑜采纳吕蒙之计，留下凌统守后方，自己与吕蒙救援甘宁。解围后，周瑜渡江屯在北岸，约定日期交战。他在交战中被流箭射中右胁，曹仁听闻其卧病后进逼军阵；周瑜起身巡视军营、激励将士，曹仁因此退兵。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7255-980c-bba704a589b6",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7dbd-86e9-d6f30006ec38",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-78e1-b7b4-0f7949c7dc06",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7442-9985-0e312d169f95",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7939-b8a0-6d94e50c096b",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-7583-9e05-73f0cba3c3dc",
+            "importance": "other"
+          }
+        ],
+        "id": "para_nan_office",
+        "phase_id": "p_nan_office",
+        "segments": [
+          {
+            "text": "南郡战事后，孙权任命周瑜为偏将军，领南郡太守，给他下雋、汉昌、刘阳、州陵四县作为奉邑，军队屯据江陵。",
+            "conclusion_ids": [
+              "conclusion_023",
+              "conclusion_024",
+              "conclusion_025"
+            ],
+            "event_id": "01a09988-8a05-7e99-a199-75b2b72a2938",
+            "event_relation": "current",
+            "event_text": null
+          },
+          {
+            "text": "刘备此时以左将军身份兼领荆州牧，以公安为治所。他到京拜见孙权，周瑜上疏建议把他安置在吴，以宫室、美人和玩好牵住他，再把关羽、张飞分置别处，让将领统领征战。周瑜担心三人聚在一起、又得到土地，便难以约束。孙权考虑曹操仍在北方，需要广纳英雄，又担心难以突然控制刘备，没有采纳。",
+            "conclusion_ids": [
+              "added_liubei_left",
+              "added_liubei_jing",
+              "conclusion_026"
+            ],
+            "event_id": "01a09988-8a05-7ba8-8603-69f6db752128",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7074-a081-4db860a5cc2c",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-778c-9455-61adea93d74d",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7881-a2de-e79afcf1913c",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a05-7275-bdab-89512fc402fb",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-7f49-be73-430a032d3a4a",
+            "importance": "other"
+          }
+        ],
+        "id": "para_shu_plan",
+        "phase_id": "p_shu_plan",
+        "segments": [
+          {
+            "text": "当时刘璋任益州牧，益州受到张鲁侵扰。周瑜到京见孙权，认为曹操新败，正忧心内部，便提出与称作“奋威”的将领共同进取蜀地，再兼并张鲁，留奋威守蜀、与马超结援；自己回来后与孙权据襄阳逼迫曹操，进图北方。孙权同意了这个方略。",
+            "conclusion_ids": [
+              "conclusion_027",
+              "conclusion_028",
+              "added_yizhou_admin"
+            ],
+            "event_id": "01a09988-8a05-7079-b424-e19f28b8c015",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-77c8-a276-abc41c6922ac",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-78e1-b7b4-0f7949c7dc06",
+            "importance": "other"
+          }
+        ],
+        "id": "para_death",
+        "phase_id": "p_death",
+        "segments": [
+          {
+            "text": "周瑜返回江陵准备行装，途经巴丘时病逝，终年三十六岁。",
+            "conclusion_ids": [
+              "conclusion_029"
+            ],
+            "event_id": "01a09988-8a05-7b07-aa75-2d2a4d1dc52e",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7947-8c00-b6837136a50c",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_mourning",
+        "phase_id": "p_mourning",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_030"
+            ],
+            "event_id": "01a09988-8a05-7ed7-9280-dc8126a6d431",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "孙权穿素服为周瑜举哀，并在灵柩运回吴地途中到芜湖迎接，丧事所需费用由其供给。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-73d8-9b83-bb68c4a736be",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7287-a2c9-51c0cb7ef803",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_recollection",
+        "phase_id": "p_recollection",
+        "segments": [
+          {
+            "text": "周瑜生前性情宽宏，大多能得到他人的好感，却一度与程普关系不睦。《江表传》说，程普仗着年长屡次凌辱周瑜，周瑜谦让而不计较。程普后来敬服他，说与周公瑾交往如饮醇酒，不知不觉便醉了。",
+            "conclusion_ids": [
+              "added_personality"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          },
+          {
+            "text": "《江表传》还记下蒋干拜访周瑜的一段往事。蒋干受曹操派遣而来，周瑜招待他，又带他观看营中军资器械，表示自己与知己之主外有君臣之义、内有骨肉之恩，不会因游说改变。蒋干回去后称赞周瑜气度高远，言辞无法离间。",
+            "conclusion_ids": [
+              "added_jianggan"
+            ],
+            "event_id": "01a09988-8a05-7a57-8357-d62635843945",
+            "event_relation": "retrospective",
+            "event_text": null
+          },
+          {
+            "text": "周瑜从年轻时就精于音乐，即使喝过几杯酒，也能听出演奏中的差错，一听出来便回头看，因此有“曲有误，周郎顾”的歌谣。",
+            "conclusion_ids": [
+              "added_music"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7d7b-b494-7994fe35b6c0",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7bc5-acab-85c120ead68e",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "other"
+          }
+        ],
+        "id": "para_family",
+        "phase_id": "p_family",
+        "segments": [
+          {
+            "text": "周瑜的家属也与孙氏有着紧密联系。他有两个儿子和一个女儿，女儿嫁给太子孙登，长子周循娶了公主。",
+            "conclusion_ids": [
+              "added_children"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7d7b-b494-7994fe35b6c0",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-7004-b67a-5888d1e943b4",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "other"
+          }
+        ],
+        "id": "para_xun",
+        "phase_id": "p_xun",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_xun_office"
+            ],
+            "event_id": "01a09988-8a05-7433-adba-5bfba9368d71",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "周循获任骑都尉，颇有周瑜的风范。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7d7b-b494-7994fe35b6c0",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_xun_death",
+        "phase_id": "p_xun_death",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_xun_death"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "周循早逝。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-78e1-b7b4-0f7949c7dc06",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-743e-9ce8-79c5a3e52055",
+            "importance": "other"
+          }
+        ],
+        "id": "para_yin_initial",
+        "phase_id": "p_yin_initial",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_031"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "周胤起初拜兴业都尉，娶宗室女子为妻，获授一千名士兵并屯驻公安。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a05-73ef-92a9-b308de72d1af",
+            "importance": "other"
+          }
+        ],
+        "id": "para_yin_title",
+        "phase_id": "p_yin_title",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_032"
+            ],
+            "event_id": "01a09988-8a05-7c40-8d92-056fdd8507f3",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "黄龙元年，周胤受封都乡侯。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_yin_exile",
+        "phase_id": "p_yin_exile",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_yin_exile"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null,
+            "text": "周胤受封以后，因罪被迁到庐陵郡。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7327-a124-6cf62ab06252",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-73ab-8325-ebd48d7c40fe",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_yin_petition",
+        "phase_id": "p_yin_petition",
+        "segments": [
+          {
+            "text": "赤乌二年，诸葛瑾、步骘联名上疏，请孙权顾念周瑜冒矢石、击败曹操和曹仁的功劳，宽免周胤，恢复兵权与爵位。他们援引汉高祖封爵誓言，主张功臣后裔也应得到照顾。",
+            "conclusion_ids": [
+              "conclusion_033"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          },
+          {
+            "text": "奏疏说，周胤已经“降为匹夫”。",
+            "conclusion_ids": [
+              "added_yin_loss"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          },
+          {
+            "text": "孙权答复说，自己并未忘记周瑜，只因周胤屡经告诫仍不改过，暂不愿立即恢复；如果能改过，仍有余地。",
+            "conclusion_ids": [
+              "conclusion_033"
+            ],
+            "event_id": null,
+            "event_relation": null,
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7e20-b640-068fd30eb1f8",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7327-a124-6cf62ab06252",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-73ab-8325-ebd48d7c40fe",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7a05-8613-b2816e94df05",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7454-8816-ae1d72268a04",
+            "importance": "primary"
+          }
+        ],
+        "id": "para_yin_end",
+        "phase_id": "p_yin_end",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "added_yin_end"
+            ],
+            "event_id": "01a09988-8a05-7990-a67c-fe196127903f",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "诸葛瑾、步骘接连上表，朱然和全琮也一同为周胤求情，孙权终于答应，可周胤恰在这时病死。"
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-7d6c-bf60-903744aa5e9f",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "other"
+          },
+          {
+            "entity_id": "01a09988-8a05-743e-9ce8-79c5a3e52055",
+            "importance": "other"
+          }
+        ],
+        "id": "para_jun",
+        "phase_id": "p_jun",
+        "segments": [
+          {
+            "text": "在周瑜另一支家属中，侄子周峻也因他的功勋获任偏将军，统领一千名吏士。",
+            "conclusion_ids": [
+              "conclusion_034"
+            ],
+            "event_id": "01a09988-8a05-7333-be5c-e58cc021f689",
+            "event_relation": "current",
+            "event_text": null
+          }
+        ]
+      },
+      {
+        "entities": [
+          {
+            "entity_id": "01a09988-8a04-75ea-aa81-ac68a5733739",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7d6c-bf60-903744aa5e9f",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-7454-8816-ae1d72268a04",
+            "importance": "primary"
+          },
+          {
+            "entity_id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+            "importance": "other"
+          }
+        ],
+        "id": "para_hu",
+        "phase_id": "p_hu",
+        "segments": [
+          {
+            "conclusion_ids": [
+              "conclusion_035"
+            ],
+            "event_id": "01a09988-8a05-74e4-bd6f-29d66fd4b181",
+            "event_relation": "current",
+            "event_text": null,
+            "text": "周峻去世后，全琮上表请求任用周峻之子周护为将。孙权说，自己原也想起用周护，但听说他性情行为危险，担心任用会招祸，因而作罢；他仍表示念念不忘周瑜。"
+          }
+        ]
+      }
+    ],
+    "schema": "chronicle.historical-narrative",
+    "version": "0.1"
+  },
+  "reviewed_conclusion_ids": [],
+  "rationale": "已授权验收代理逐段对照已批准的64条事实及完整原章，修正适用阶段、人物展示及正文措辞；保留33个内部阶段与家属结尾，只选3个重要入口。去掉正文校勘/审核说明，分开明确与存疑片段，保留曹操书信等归属。此次由操作员修订后接受，不是模型自动质量通过或多来源史实验收。"
+}

@@ -1,0 +1,109 @@
+{
+  "mode": "live",
+  "review_id": "a960da18-cf4d-4782-a910-acc90596c1ac",
+  "checks": [
+    {
+      "name": "approved_prose_readonly",
+      "ok": true
+    },
+    {
+      "name": "operator_revision_is_displayed",
+      "ok": true
+    },
+    {
+      "name": "all_phases_and_chapter_end_retained",
+      "ok": true
+    },
+    {
+      "name": "only_three_major_entry_points",
+      "ok": true
+    },
+    {
+      "name": "readonly_1440_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 1440,
+        "scroll": 1440
+      }
+    },
+    {
+      "name": "readonly_1440_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 178,
+        "y": 695.734375,
+        "width": 1084,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "readonly_390_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 390,
+        "scroll": 390
+      }
+    },
+    {
+      "name": "readonly_390_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 8,
+        "y": 731.515625,
+        "width": 374,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "readonly_320_no_overflow",
+      "ok": true,
+      "detail": {
+        "width": 320,
+        "scroll": 320
+      }
+    },
+    {
+      "name": "readonly_320_actions_reachable",
+      "ok": true,
+      "detail": {
+        "x": 8,
+        "y": 731.515625,
+        "width": 304,
+        "height": 72.59375
+      }
+    },
+    {
+      "name": "reading_saved_record_does_not_write",
+      "ok": true
+    },
+    {
+      "name": "resume_from_real_ui_accepted",
+      "ok": true
+    },
+    {
+      "name": "saved_decision_not_submitted_again",
+      "ok": true
+    },
+    {
+      "name": "no_browser_page_errors",
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/a960da18-cf4d-4782-a910-acc90596c1ac"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/studio/jobs/fe51307c-b5dd-47fe-8b6c-9330b57e0222/resume"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/studio/jobs/reviews/a960da18-cf4d-4782-a910-acc90596c1ac"
+    }
+  ],
+  "captured_at": "2026-09-13T08:05:52.131Z",
+  "ok": true
+}

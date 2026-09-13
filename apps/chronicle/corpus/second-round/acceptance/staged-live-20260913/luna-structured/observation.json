@@ -1,0 +1,83 @@
+{
+  "observed_at": "2026-09-13T07:34:48.446945+00:00",
+  "job_id": "ef25feba-54f4-4843-afd2-ef14e17843f6",
+  "status": "failed",
+  "attempt": 1,
+  "max_attempts": 8,
+  "error": "chapter extraction failed closed (bounded retry via Studio)",
+  "open_reviews": 0,
+  "stages": {
+    "prepare": "completed",
+    "structure": "completed",
+    "segment": "completed",
+    "extract": "failed",
+    "assemble": "pending",
+    "resolve": "pending",
+    "publish": "pending",
+    "present": "pending"
+  },
+  "output_count": 9,
+  "chunks": [
+    {
+      "chunk_id": "30d6898e-ae1e-4b3c-91af-5b8df3b1cd76",
+      "status": "failed",
+      "attempt": 1,
+      "source_start": 0,
+      "source_end": 5018,
+      "production": {
+        "step": "extraction",
+        "status": "invalid",
+        "model": "gpt-5.6-luna",
+        "pipeline_fingerprint": "a194c50bf837218b6539bebff2d73bf2c062f4645d6e5359d8aef3cb1fa981aa",
+        "steps": [
+          {
+            "step": "extraction",
+            "slot": "executor",
+            "model": "gpt-5.6-luna",
+            "status": "invalid",
+            "output_sha256": "2183a02cf27c0f7505e5681960b00e416222be1e8c4d186c7dc91b922b246455",
+            "round": 0,
+            "attempt": 3,
+            "elapsed_seconds": 98.344,
+            "usage": {
+              "input_tokens": 41012,
+              "output_tokens": 15857,
+              "total_tokens": 56869,
+              "reasoning_tokens": 516
+            }
+          },
+          {
+            "step": "translation",
+            "slot": "executor",
+            "model": "gpt-5.6-luna",
+            "status": "completed",
+            "output_sha256": "2e3a20392e9bdbcd06d85ad1fdc693e556f9d7e893acc5f57a2571640be19b6c",
+            "round": 0,
+            "attempt": 1,
+            "elapsed_seconds": 95.521,
+            "usage": {
+              "input_tokens": 22323,
+              "output_tokens": 5038,
+              "total_tokens": 27361,
+              "reasoning_tokens": 1031
+            }
+          }
+        ]
+      },
+      "runs": [
+        {
+          "run_id": "e345bc1c-346a-45d5-b9a0-7d38d0c0f2c9",
+          "attempt": 1,
+          "status": "failed",
+          "worker": "chronicle-worker-01",
+          "error": "extraction: output contract failed; saved diagnostics are available",
+          "started_at": "2026-09-13T04:20:20.803921+00:00",
+          "finished_at": "2026-09-13T04:20:20.806712+00:00",
+          "meta": {
+            "accepted": false
+          }
+        }
+      ]
+    }
+  ]
+}

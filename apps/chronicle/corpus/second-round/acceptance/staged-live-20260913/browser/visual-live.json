@@ -1,0 +1,93 @@
+{
+  "mode": "live",
+  "base_url": "http://127.0.0.1:8092",
+  "checks": [
+    {
+      "name": "stable_target_and_phase_redcliff-viewport",
+      "ok": true,
+      "detail": {
+        "target": "hp_56e464ca4a9c46614b7e7f32",
+        "phase": "p_redcliff",
+        "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_56e464ca4a9c46614b7e7f32"
+      }
+    },
+    {
+      "name": "no_horizontal_overflow_redcliff-viewport",
+      "ok": true
+    },
+    {
+      "name": "stable_target_and_phase_uncertain-state-viewport",
+      "ok": true,
+      "detail": {
+        "target": "hp_ab06a41a46c004de76b4026d",
+        "phase": "p_wan",
+        "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_ab06a41a46c004de76b4026d"
+      }
+    },
+    {
+      "name": "no_horizontal_overflow_uncertain-state-viewport",
+      "ok": true
+    },
+    {
+      "name": "clear_and_uncertain_states_coexist_1440",
+      "ok": true
+    },
+    {
+      "name": "certainty_markers_differ_1440",
+      "ok": true
+    },
+    {
+      "name": "uncertain_state_has_separate_color_1440",
+      "ok": true,
+      "detail": {
+        "clear": "rgb(41, 45, 43)",
+        "uncertain": "rgb(105, 110, 103)"
+      }
+    },
+    {
+      "name": "stable_target_and_phase_reading-viewport-320",
+      "ok": true,
+      "detail": {
+        "target": "hp_56e464ca4a9c46614b7e7f32",
+        "phase": "p_redcliff",
+        "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_56e464ca4a9c46614b7e7f32"
+      }
+    },
+    {
+      "name": "no_horizontal_overflow_reading-viewport-320",
+      "ok": true
+    },
+    {
+      "name": "stable_target_and_phase_uncertain-state-viewport-320",
+      "ok": true,
+      "detail": {
+        "target": "hp_ab06a41a46c004de76b4026d",
+        "phase": "p_wan",
+        "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_ab06a41a46c004de76b4026d"
+      }
+    },
+    {
+      "name": "no_horizontal_overflow_uncertain-state-viewport-320",
+      "ok": true
+    },
+    {
+      "name": "clear_and_uncertain_states_coexist_320",
+      "ok": true
+    },
+    {
+      "name": "certainty_markers_differ_320",
+      "ok": true
+    },
+    {
+      "name": "uncertain_state_has_separate_color_320",
+      "ok": true,
+      "detail": {
+        "clear": "rgb(41, 45, 43)",
+        "uncertain": "rgb(105, 110, 103)"
+      }
+    }
+  ],
+  "errors": [],
+  "ok": true,
+  "captured_at": "2026-09-13T09:32:35.527Z"
+}

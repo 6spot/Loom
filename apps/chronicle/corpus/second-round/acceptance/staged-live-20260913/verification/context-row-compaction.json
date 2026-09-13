@@ -1,0 +1,10 @@
+{
+  "full_context_chars": 475210,
+  "model_request_chars": 134679,
+  "max_prompt_chars": 180000,
+  "state_rows_before": 675,
+  "distinct_state_rows": 98,
+  "complete_original_retained": true,
+  "all_distinct_states_retained": true,
+  "frozen_context_unchanged": true
+}

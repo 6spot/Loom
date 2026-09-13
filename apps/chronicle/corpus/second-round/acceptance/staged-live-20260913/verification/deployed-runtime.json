@@ -1,0 +1,20 @@
+{
+  "chapter_models": {
+    "executor": {
+      "max_output_tokens": 65536,
+      "model": "gpt-5.6-luna",
+      "timeout_seconds": 1800.0
+    },
+    "reviewer": {
+      "max_output_tokens": 65536,
+      "model": "gpt-5.6-sol",
+      "timeout_seconds": 1800.0
+    }
+  },
+  "deployed_commit": "a9d478afd579e992566f6fdea6629ff45981c7f7",
+  "global_timeout_seconds": 1800.0,
+  "narrative_model": "gpt-5.6-luna",
+  "narrative_output_tokens": 32768,
+  "provenance_compaction": true,
+  "observed_at": "2026-09-13T09:35:14.922992+00:00"
+}

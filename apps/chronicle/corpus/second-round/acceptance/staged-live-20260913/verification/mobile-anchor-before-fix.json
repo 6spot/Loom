@@ -1,0 +1,364 @@
+{
+  "target": {
+    "id": "hp_56e464ca4a9c46614b7e7f32",
+    "ordinal": 16,
+    "entities": [
+      {
+        "id": "01a09988-8a04-71a3-b62d-ac6fb3673ba3",
+        "kind": "person",
+        "name": "周瑜",
+        "states": [
+          {
+            "id": "added_sunquan_allegiance",
+            "label": "效力",
+            "value": "孙权",
+            "reason": "各列阶段分别有掌事、臣礼、称将军请命、受命出军、授职或批准计划的直接语境；不按参加同场战斗推导，也不覆盖病卒及后世回顾。",
+            "certainty": "clear"
+          }
+        ],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7b86-b16d-9f6904ea6a0d",
+        "kind": "person",
+        "name": "曹操",
+        "states": [],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7255-980c-bba704a589b6",
+        "kind": "person",
+        "name": "劉備",
+        "states": [],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7ef3-b965-c0e95db339f7",
+        "kind": "person",
+        "name": "孫權",
+        "states": [],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7a07-a0f4-b0bc9e990d2f",
+        "kind": "person",
+        "name": "黃蓋",
+        "states": [
+          {
+            "id": "added_huanggai_allegiance",
+            "label": "效力",
+            "value": "周瑜所部",
+            "reason": "正文直接称瑜部将黄盖；诈降信不是实际改投曹操。",
+            "certainty": "clear"
+          }
+        ],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-73d8-9b83-bb68c4a736be",
+        "kind": "person",
+        "name": "程普",
+        "states": [],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7502-89c7-ad084f052767",
+        "kind": "place",
+        "name": "赤壁",
+        "states": [],
+        "importance": "primary"
+      },
+      {
+        "id": "01a09988-8a04-7017-8abc-0120e4b98b77",
+        "kind": "person",
+        "name": "魯肅",
+        "states": [],
+        "importance": "other"
+      },
+      {
+        "id": "01a09988-8a04-79c6-999d-3f2c12f7b6b3",
+        "kind": "person",
+        "name": "諸葛亮",
+        "states": [],
+        "importance": "other"
+      }
+    ],
+    "group_id": "hg_b8feffb89b475fa0a63b2e28",
+    "phase_id": "p_redcliff",
+    "segments": [
+      {
+        "text": "孙权派周瑜、程普等与刘备合力迎战，在赤壁遇到曹军。曹军已有疾病，初战失利后退驻江北，周瑜等在南岸。黄盖认为敌众我寡、难以持久，见曹军船舰首尾相接，便建议火攻。他备下装有柴草、浇过油脂的战船，覆上帷幕、立起旗号，先写信给曹操诈降，又把轻便小船系在大船后。曹军以为黄盖来降，争相观望。黄盖纵火，烈风将火势带到岸上营寨，烟焰冲天，曹军人马烧死、溺死者甚多，终于败退。",
+        "event_id": "01a09988-8a05-70b2-8d48-68154f401aba",
+        "certainty": "clear",
+        "event_text": "赤壁",
+        "conclusion_ids": [
+          "conclusion_019",
+          "added_huanggai_allegiance"
+        ],
+        "event_relation": "current"
+      }
+    ]
+  },
+  "observations": [
+    {
+      "name": "before-panel",
+      "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_ece7562a2c9f5b12512d1ce3",
+      "scrollY": 3079,
+      "viewport": 844,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 105.78125,
+        "top": 0,
+        "right": 320,
+        "bottom": 105.78125,
+        "left": 0
+      },
+      "compact": {
+        "x": 20,
+        "y": 105.78125,
+        "width": 280,
+        "height": 103.375,
+        "top": 105.78125,
+        "right": 300,
+        "bottom": 209.15625,
+        "left": 20
+      },
+      "paragraphs": [
+        {
+          "id": "hp_c2cd7db8bb615185617e3494",
+          "ordinal": "14",
+          "rect": {
+            "x": 20,
+            "y": -385.375,
+            "width": 280,
+            "height": 566.75,
+            "top": -385.375,
+            "right": 300,
+            "bottom": 181.375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_ece7562a2c9f5b12512d1ce3",
+          "ordinal": "15",
+          "rect": {
+            "x": 20,
+            "y": 206.171875,
+            "width": 280,
+            "height": 141.6875,
+            "top": 206.171875,
+            "right": 300,
+            "bottom": 347.859375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_56e464ca4a9c46614b7e7f32",
+          "ordinal": "16",
+          "rect": {
+            "x": 20,
+            "y": 372.65625,
+            "width": 280,
+            "height": 425.0625,
+            "top": 372.65625,
+            "right": 300,
+            "bottom": 797.71875,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_38eed51784a9f8b205fafbea",
+          "ordinal": "17",
+          "rect": {
+            "x": 20,
+            "y": 822.515625,
+            "width": 280,
+            "height": 106.265625,
+            "top": 822.515625,
+            "right": 300,
+            "bottom": 928.78125,
+            "left": 20
+          }
+        }
+      ]
+    },
+    {
+      "name": "after-panel",
+      "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_ece7562a2c9f5b12512d1ce3",
+      "scrollY": 3079,
+      "viewport": 844,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 105.78125,
+        "top": 0,
+        "right": 320,
+        "bottom": 105.78125,
+        "left": 0
+      },
+      "compact": {
+        "x": 20,
+        "y": 105.78125,
+        "width": 280,
+        "height": 103.375,
+        "top": 105.78125,
+        "right": 300,
+        "bottom": 209.15625,
+        "left": 20
+      },
+      "stage": "<p class=\"pstate-phase\" data-test=\"history-phase-status\" data-status=\"ready\" data-phase-id=\"p_decision\" data-entity-count=\"8\">阶段 p_decision</p>",
+      "paragraphs": [
+        {
+          "id": "hp_c2cd7db8bb615185617e3494",
+          "ordinal": "14",
+          "rect": {
+            "x": 20,
+            "y": -385.375,
+            "width": 280,
+            "height": 566.75,
+            "top": -385.375,
+            "right": 300,
+            "bottom": 181.375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_ece7562a2c9f5b12512d1ce3",
+          "ordinal": "15",
+          "rect": {
+            "x": 20,
+            "y": 206.171875,
+            "width": 280,
+            "height": 141.6875,
+            "top": 206.171875,
+            "right": 300,
+            "bottom": 347.859375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_56e464ca4a9c46614b7e7f32",
+          "ordinal": "16",
+          "rect": {
+            "x": 20,
+            "y": 372.65625,
+            "width": 280,
+            "height": 425.0625,
+            "top": 372.65625,
+            "right": 300,
+            "bottom": 797.71875,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_38eed51784a9f8b205fafbea",
+          "ordinal": "17",
+          "rect": {
+            "x": 20,
+            "y": 822.515625,
+            "width": 280,
+            "height": 106.265625,
+            "top": 822.515625,
+            "right": 300,
+            "bottom": 928.78125,
+            "left": 20
+          }
+        }
+      ]
+    },
+    {
+      "name": "settled",
+      "url": "http://127.0.0.1:8092/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&at=hp_ece7562a2c9f5b12512d1ce3",
+      "scrollY": 3079,
+      "viewport": 844,
+      "header": {
+        "x": 0,
+        "y": 0,
+        "width": 320,
+        "height": 105.78125,
+        "top": 0,
+        "right": 320,
+        "bottom": 105.78125,
+        "left": 0
+      },
+      "compact": {
+        "x": 20,
+        "y": 105.78125,
+        "width": 280,
+        "height": 103.375,
+        "top": 105.78125,
+        "right": 300,
+        "bottom": 209.15625,
+        "left": 20
+      },
+      "stage": "<p class=\"pstate-phase\" data-test=\"history-phase-status\" data-status=\"ready\" data-phase-id=\"p_decision\" data-entity-count=\"8\">阶段 p_decision</p>",
+      "paragraphs": [
+        {
+          "id": "hp_c2cd7db8bb615185617e3494",
+          "ordinal": "14",
+          "rect": {
+            "x": 20,
+            "y": -385.375,
+            "width": 280,
+            "height": 566.75,
+            "top": -385.375,
+            "right": 300,
+            "bottom": 181.375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_ece7562a2c9f5b12512d1ce3",
+          "ordinal": "15",
+          "rect": {
+            "x": 20,
+            "y": 206.171875,
+            "width": 280,
+            "height": 141.6875,
+            "top": 206.171875,
+            "right": 300,
+            "bottom": 347.859375,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_56e464ca4a9c46614b7e7f32",
+          "ordinal": "16",
+          "rect": {
+            "x": 20,
+            "y": 372.65625,
+            "width": 280,
+            "height": 425.0625,
+            "top": 372.65625,
+            "right": 300,
+            "bottom": 797.71875,
+            "left": 20
+          }
+        },
+        {
+          "id": "hp_38eed51784a9f8b205fafbea",
+          "ordinal": "17",
+          "rect": {
+            "x": 20,
+            "y": 822.515625,
+            "width": 280,
+            "height": 106.265625,
+            "top": 822.515625,
+            "right": 300,
+            "bottom": 928.78125,
+            "left": 20
+          }
+        }
+      ]
+    }
+  ],
+  "requests": [
+    "/api/v1/public/history?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff",
+    "/api/v1/public/history/paragraphs?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&limit=20&at=hp_56e464ca4a9c46614b7e7f32",
+    "/api/v1/public/history/paragraphs?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&limit=20&at=hp_56e464ca4a9c46614b7e7f32",
+    "/api/v1/public/history/paragraphs?version=9684d395d97aa5fb28811c3fd18512c3742f2cdda5371734763d5ab020e3ceff&limit=20&start=20"
+  ]
+}

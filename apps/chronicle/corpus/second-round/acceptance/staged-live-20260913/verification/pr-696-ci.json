@@ -1,0 +1,225 @@
+{
+  "headRefOid": "a27e78647500d310ce3067ea0205a013190fc975",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:42Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744115983/job/103688721661",
+      "name": "Normalize PR lifecycle metadata",
+      "startedAt": "2026-09-13T06:59:43Z",
+      "status": "COMPLETED",
+      "workflowName": "Multica PR Metadata"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:07:32Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744448572/job/103689654376",
+      "name": "Normalize PR lifecycle metadata",
+      "startedAt": "2026-09-13T07:07:40Z",
+      "status": "COMPLETED",
+      "workflowName": "Multica PR Metadata"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688721505",
+      "name": "Classify changes",
+      "startedAt": "2026-09-13T06:59:44Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:52Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744115993/job/103688721186",
+      "name": "Classify Chronicle gate changes",
+      "startedAt": "2026-09-13T06:59:45Z",
+      "status": "COMPLETED",
+      "workflowName": "Chronicle"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:51Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116058/job/103688721385",
+      "name": "Classify Validator changes",
+      "startedAt": "2026-09-13T06:59:45Z",
+      "status": "COMPLETED",
+      "workflowName": "Validator"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732021",
+      "name": "Active deployment documentation",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:52Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116058/job/103688736672",
+      "name": "Validator task ledger",
+      "startedAt": "2026-09-13T06:59:52Z",
+      "status": "COMPLETED",
+      "workflowName": "Validator"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:00:04Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744115993/job/103688737581",
+      "name": "First-round offline gate (fixture)",
+      "startedAt": "2026-09-13T06:59:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Chronicle"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732311",
+      "name": "Task ledger governance",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:52Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116058/job/103688736764",
+      "name": "Validator static checks",
+      "startedAt": "2026-09-13T06:59:52Z",
+      "status": "COMPLETED",
+      "workflowName": "Validator"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:08:10Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744115993/job/103688737598",
+      "name": "Second-round reading real-stack + browser gate (fixture)",
+      "startedAt": "2026-09-13T06:59:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Chronicle"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732228",
+      "name": "Dependency and security policy",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:04:28Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744115993/job/103688737553",
+      "name": "Third-round person-state real-stack + browser gate (fixture)",
+      "startedAt": "2026-09-13T06:59:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Chronicle"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:56Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116058/job/103688736382",
+      "name": "Validator Gate",
+      "startedAt": "2026-09-13T06:59:54Z",
+      "status": "COMPLETED",
+      "workflowName": "Validator"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732132",
+      "name": "Rust static checks",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:56Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116058/job/103688743491",
+      "name": "Notify Multica of CI failure",
+      "startedAt": "2026-09-13T06:59:56Z",
+      "status": "COMPLETED",
+      "workflowName": "Validator"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732213",
+      "name": "Loom Compose config",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:00:08Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688731675",
+      "name": "Chronicle static checks",
+      "startedAt": "2026-09-13T06:59:50Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732261",
+      "name": "Chronicle first-round checks",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T06:59:49Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688732260",
+      "name": "Chronicle third-round note and deliverable checks",
+      "startedAt": "2026-09-13T06:59:49Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:00:13Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688767367",
+      "name": "Repository Gate",
+      "startedAt": "2026-09-13T07:00:10Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-09-13T07:00:13Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/6spot/Loom/actions/runs/34744116045/job/103688780057",
+      "name": "Notify Multica of CI failure",
+      "startedAt": "2026-09-13T07:00:14Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    }
+  ]
+}
