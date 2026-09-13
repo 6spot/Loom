@@ -43,7 +43,7 @@ def drafts(context):
         dict(schema='chronicle.source-corroboration', version='0.1', title='测试综合叙事',
              phases=phases, conclusions=facts, source_relations=relations),
         dict(schema='chronicle.historical-narrative', version='0.1', paragraphs=paragraphs,
-             entry_points=[dict(label='阅读入口', kind='period', paragraph_id='n0', event_id=None,
+             entry_points=[dict(label='江东局势', kind='period', paragraph_id='n0', event_id=None,
                                 reason='概览这一组已核对资料的完整历史发展。')]),
     )
 

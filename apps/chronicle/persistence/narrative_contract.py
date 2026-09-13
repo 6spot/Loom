@@ -11,7 +11,7 @@ from typing import Any
 from jsonschema import Draft202012Validator
 
 from common import PersistenceError, canonical_json_bytes, sha256_json
-from narrative_navigation import validate_navigation
+from narrative_navigation import PLACEHOLDER_ENTRY_LABELS, validate_navigation
 from reader_language import narrative_text, simplified
 
 VERSION = "0.1"
@@ -73,12 +73,12 @@ PROSE_SCHEMA = _obj(
             event_text=_nullable(_text(120))), 1, 64),
         entities=_array(_obj(entity_id=REF, importance=_enum("primary", "other")), 0, 32)), 1, 256),
     entry_points=_array(_obj(label=_text(120), kind=_enum("event", "period"),
-        paragraph_id=LOCAL_ID, event_id=_nullable(REF), reason=_text(500)), 1, 12),
+        paragraph_id=LOCAL_ID, event_id=_nullable(REF), reason=_text(500)), 0, 12),
 )
 # Additive for saved drafts; generated navigation is reviewed with the prose.
 PROSE_SCHEMA["properties"]["navigation"] = _array(_obj(
-    label=_text(80), first_paragraph_id=LOCAL_ID, last_paragraph_id=LOCAL_ID,
-    items=_array(_obj(paragraph_id=LOCAL_ID, label=_text(120), reason=_text(500)), 1, 8),
+    label=_nullable(_text(80)), first_paragraph_id=LOCAL_ID, last_paragraph_id=LOCAL_ID,
+    items=_array(_obj(paragraph_id=LOCAL_ID, label=_text(120), reason=_text(500)), 0, 12),
 ), 1, 64)
 
 
@@ -321,6 +321,8 @@ def validate_prose(candidate: Any, context: dict, facts: dict) -> dict:
                     fail(f"{label}: current prose uses a conclusion outside its approved phase {phase_id}; allowed phases {outside}. Split developments into paragraphs at their approved phases, do not relabel current action as background")
     entry_keys = set()
     for entry in candidate["entry_points"]:
+        if entry["label"].strip() in PLACEHOLDER_ENTRY_LABELS:
+            fail("entry label must name an important historical development, not a placeholder reading action")
         key = (entry["kind"], entry["event_id"] if entry["kind"] == "event" else entry["paragraph_id"])
         if key in entry_keys:
             fail("duplicate navigation entry")
@@ -380,9 +382,12 @@ administration/control 的 subject_id 必须指向 kind=place，value 填有依�
 段落片段的 event_id 必须来自其 conclusion_ids 中某条已审核结论的 event_id，不能另从 source_events 挑选相似事件。
 没有相应已审核事件关联时，event_id/event_relation/event_text 全填 null，正文照常保留，不强行配链接。
 event_text 是正文中逐字出现一次的简短事件称呼，只有这个词供读者触发预览；没有适合的称呼用 null，不把整段标为链接。
-入口是确切段落锚点，读完某事件仍继续后文；通常只选 1–5 个重要事件/时期，最多 12 个。
+入口是确切段落锚点，读完某事件仍继续后文；通常只选 1–5 个重要事件/时期，最多 12 个，没有适合重点时可为空。没有最低配额，不强制每年生成入口。
 kind=event 的入口必须指向同一 event_id 且 event_relation=current 的正文片段；尚无对应事件身份的重要历史时期可用 kind=period、event_id=null。
-每个入口的 reason 说明为何值得独立导航、涵盖哪段发展过程；不能只复述标题。
+每个入口的 reason 说明为何值得读者专门跳过去阅读、涵盖哪段发展过程、为何不能并入相邻入口；不能只复述标题。
+首页、左侧时间轴、附近事件共用这一份精选 entry_points，不另生成次级事件清单。
+同一事件的筹备、交战、收尾共用一个入口，例如赤壁之战；南郡争夺可作为后续独立进程。普通屯兵、往来、任免留在正文，只有确实改变政局、势力格局或历史走向时才单列并说明理由。
+入口名称直接指向具体事件或时期，禁止“从这段读起”“阅读入口”“开始阅读”等操作占位标题。
 锚点是编辑选择，不是抽取事件清单：只选贯穿历史脉络、具有较大影响或完整发展过程的事件。
 零散任职、领有某地、某人未被任用、称号变动等细节留在正文和依据中，不逐条生成锚点。
 例如“刘备领有徐州”“州郡之子未被任用”“刘备即汉中王”不能仅因被抽取就各占一个入口；
@@ -396,8 +401,8 @@ INPUT.sources[].reviewed_person_states 是来源章节已审核发布的阶段�
         schema = copy.deepcopy(PROSE_SCHEMA)
         schema["required"].append("navigation")
         instructions += """
-navigation 必须随正文一并返回：按阅读顺序组织少量时间区间，每组 label 表示有依据的年份、时期或年代未详，first_paragraph_id/last_paragraph_id 连续覆盖全部正文。
-每组 items 只挑选少量值得定位的关键进展，包含 paragraph_id、短 label、reason；通常每组 1–5 项，不把所有内部 phase 或每次任职都列出来。全部 entry_points 位置须在 items 中出现。
+navigation 必须随正文一并返回：按阅读顺序组织时间区间，每组 label 表示有依据的年份或时期；不能确定时填 null，不能用“年代未详”占一个前台节点。first_paragraph_id/last_paragraph_id 连续覆盖全部正文。
+每组 items 只引用该区间中的精选 entry_points，paragraph_id、label、reason 逐字复用。全部精选位置须出现，禁止增加 entry_points 以外的节点。每组可以为空，不用补齐任何数量，不为时间变化生成事件标题。
 节点按正文先后排列，必须位于本组内；相邻组不能交叉、重叠或遗漏。可以多个内部阶段共用一个导航节点，但不能因此合并人物状态的阶段。
 导航标题同样需要事实支持，未知年份不靠前后邻段补齐；只有范围确有依据时才写年份范围。传统月份由程序复用真实段落时间，不要在导航里另编月份。
 """

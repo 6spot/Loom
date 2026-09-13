@@ -128,9 +128,13 @@ the original source stream. Both reuse `useReadingPosition`; navigation does
 not create a second position controller.
 
 Old query-string bookmarks resolve to the same canonical ID path. The Rust
-front serves this path on direct refresh. Hierarchical navigation groups reviewed
-reading positions by supported year, range or period and highlights curated
-entries. Its private scrollport follows prose; manual browsing pauses following
+front serves this path on direct refresh. The PC time axis is one continuous
+rail with year/range/period ticks and clickable curated entries, with no
+collapsing groups. Undated passages retain their reading order without an
+unknown-date heading or an inferred year. Time intervals may have no events;
+only the shared reviewed entry list supplies clickable anchors. The current
+reading position remains visible even in intervals with no anchors.
+Its private scrollport follows prose; manual browsing pauses following
 until the reader resumes it or continues reading outside the axis. Navigation
 never filters the prose or changes its phase/state associations. Empty context
 groups are hidden, with secondary objects available under “更多相关对象”.

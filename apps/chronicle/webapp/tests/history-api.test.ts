@@ -53,10 +53,20 @@ describe("fixed narrative responses", () => {
     for (const navigation of [undefined, [], [{ ...pub.navigation[0], start: 1 }], [{ ...pub.navigation[0], end: 0 }],
       [{ ...pub.navigation[0], items: [] }], [{ ...pub.navigation[0], items: [{ ...pub.navigation[0].items[0], ordinal: -1 }] }],
       [{ ...pub.navigation[0], items: [{ ...pub.navigation[0].items[0], paragraph_id: second }] }],
+      [{ ...pub.navigation[0], items: [{ ...pub.navigation[0].items[0], importance: "detail" }] }],
       [{ ...pub.navigation[0], items: [pub.navigation[0].items[0], pub.navigation[0].items[0]] }]]) {
       fetcher.mockImplementationOnce(async () => new Response(JSON.stringify({ publication: { ...pub, navigation } })));
       await expect(loadHistory(version)).rejects.toThrow("时间轴");
     }
+  });
+  it("accepts time-only and undated intervals without generating an event at every boundary", async () => {
+    const second = `hp_${"c".repeat(24)}`;
+    const pub = { version, paragraph_count: 2, first_paragraph_id: id, entry_points: [], navigation: [
+      { id, label: "208 年", period: null, start: 0, end: 0, items: [] },
+      { id: second, label: null, period: null, start: 1, end: 1, items: [] },
+    ] };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ publication: pub }))));
+    expect(await loadHistory(version)).toEqual(pub);
   });
   it("refuses a server response from a different publication", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ publication: { version: "c".repeat(64), paragraph_count: 1, entry_points: [] } }))));

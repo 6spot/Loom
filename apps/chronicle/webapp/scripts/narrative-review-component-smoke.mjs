@@ -456,16 +456,23 @@ try {
   await expect(entries).toHaveCount(3);
   assert(!(await options(page.getByLabel(/^添加重要时期入口/))).includes(paragraphs[2]));
   const navigation = page.locator('[data-test="narrative-navigation-editor"]');
-  await navigation.getByRole("button", { name: "编排分组时间轴", exact: true }).click();
+  await navigation.getByRole("button", { name: "编排连续时间轴", exact: true }).click();
   await navigation.getByLabel("时间区间名称", { exact: true }).fill("合成前期时间区间");
   await navigation.getByLabel(/^在此段之前拆分时间区间/).selectOption(paragraphs[2]);
   await expect(navigation.getByLabel("时间区间名称", { exact: true })).toHaveCount(2);
   await navigation.getByLabel("时间区间名称", { exact: true }).nth(1).fill("合成后期时间区间");
-  await navigation.getByLabel(/^补充关键进展/).nth(1).selectOption(paragraphs[3]);
-  await navigation.getByLabel("选择理由", { exact: true }).last().fill("仅测试非重要入口节点可以移除。");
-  await navigation.getByRole("button", { name: "移除定位节点", exact: true }).last().click();
-  await expect(navigation.getByLabel("节点名称", { exact: true })).toHaveCount(3);
-  await navigation.getByLabel("节点名称", { exact: true }).nth(1).fill("渡河会合的时间轴名称");
+  await expect(navigation.getByLabel(/^补充关键进展/)).toHaveCount(0);
+  await navigation.getByLabel(/^在此段之前拆分时间区间/).nth(1).selectOption(paragraphs[3]);
+  await expect(navigation.getByLabel("时间区间名称", { exact: true })).toHaveCount(3);
+  await expect(navigation.locator('[data-test="narrative-axis-entry"]')).toHaveCount(3);
+  await expect(navigation.getByText("这一时间区间没有精选事件，无需补节点。", { exact: true })).toBeVisible();
+  await entries.last().getByLabel(/^正文位置/).selectOption(paragraphs[3]);
+  await expect(navigation.locator('[data-test="narrative-axis-entry"]')).toHaveCount(3);
+  await entries.last().getByLabel(/^正文位置/).selectOption(paragraphs[2]);
+  await navigation.getByRole("button", { name: "与下一时间区间合并", exact: true }).nth(1).click();
+  await expect(navigation.getByLabel("时间区间名称", { exact: true })).toHaveCount(2);
+  await entries.nth(1).getByLabel(/^入口名称/).fill("渡河会合的精选名称");
+  await expect(navigation.locator('[data-test="narrative-axis-entry"]').nth(1)).toContainText("渡河会合的精选名称");
   const proseRationale = "合成正文审核：入口经过人工选择，细节留在正文。";
   await page.getByLabel(/^本次审核说明/).fill(proseRationale);
   await expect(approve()).toBeDisabled();
@@ -500,7 +507,8 @@ try {
     [paragraphs[0], paragraphs[1]], [paragraphs[2], paragraphs[3]],
   ]);
   assert.deepEqual(acceptedProse.navigation.flatMap((section) => section.items.map((item) => item.paragraph_id)), paragraphs.slice(0, 3));
-  assert.equal(acceptedProse.navigation[0].items[1].label, "渡河会合的时间轴名称");
+  assert.equal(acceptedProse.navigation[0].items[1].label, "渡河会合的精选名称");
+  assert.equal(acceptedProse.navigation[0].items[1].label, acceptedProse.entry_points[1].label);
 
   stage = "last conclusion guard, rejection and queue return";
   await expect(question().locator("option")).toHaveCount(2);

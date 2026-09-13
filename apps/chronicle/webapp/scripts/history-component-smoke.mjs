@@ -10,7 +10,7 @@ if (!base || !args.includes("--base-url")) throw new Error("--base-url is requir
 const version = "a".repeat(64);
 const catalog = "c".repeat(64);
 const id = (n) => `hp_${n.toString(16).padStart(24, "0")}`;
-const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: 200 + i,
+const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: i === 3 ? null : 200 + i,
   period: i === 1 ? "测试历法的长时段（窄屏换行）" : null,
   label: `测试阶段 ${i}`, first_paragraph_id: id(i * 10), count: Math.min(10, 64 - i * 10) }));
 const entries = [
@@ -27,12 +27,10 @@ const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i
 }));
 const publication = { version, catalog_sha: catalog, title: "合成阅读测试", paragraph_count: paragraphs.length,
   first_paragraph_id: id(0), groups, entry_points: entries,
-  navigation: groups.map((group, n) => ({ id: group.first_paragraph_id, label: `${group.year} 年`, period: null,
-    start: n * 10, end: Math.min(63, n * 10 + 9), items: [
-      { paragraph_id: group.first_paragraph_id, ordinal: n * 10, label: group.label, period: group.period,
-        importance: entries.some((entry) => entry.ordinal === n * 10) ? "major" : "detail" },
-      ...entries.filter((entry) => entry.ordinal > n * 10 && entry.ordinal < (n + 1) * 10).map((entry) => ({ ...entry, importance: "major" })),
-    ] })),
+  navigation: groups.map((group, n) => ({ id: group.first_paragraph_id, label: group.year === null ? null : `${group.year} 年`, period: null,
+    start: n * 10, end: Math.min(63, n * 10 + 9),
+    items: entries.filter((entry) => entry.ordinal >= n * 10 && entry.ordinal < (n + 1) * 10).map((entry) => ({ ...entry, importance: "major" })),
+  })),
 };
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
@@ -70,14 +68,20 @@ try {
   await expect(page.getByRole("heading", { name: "政权与机构" })).toHaveCount(0);
   await page.locator('[data-test="reading-context-more"]').click();
   await expect(page.getByRole("heading", { name: "政权与机构" })).toBeVisible();
-  const firstGroup = page.locator(".history-axis-section-toggle").first();
+  const axis = page.getByRole("navigation", { name: "历史时间轴" });
+  await expect(axis.locator(".history-axis-node")).toHaveCount(3);
+  await expect(axis.locator("[aria-expanded]")).toHaveCount(0);
+  await expect(axis.locator(".history-axis-time")).toHaveCount(6);
+  await expect(axis).not.toContainText("年代未详");
+  await expect(axis).not.toContainText("从这段读起");
+  await expect(axis).not.toContainText("测试阶段");
+  await expect(page.locator(".history-desktop-time")).toHaveCount(0);
+  const firstGroup = axis.locator(".history-axis-time").first();
   const groupUrl = page.url();
   const groupScroll = await page.evaluate(() => window.scrollY);
   await firstGroup.click();
-  await expect(firstGroup).toHaveAttribute("aria-expanded", "false");
-  assert.equal(page.url(), groupUrl, "folding a time interval does not navigate");
-  assert.equal(await page.evaluate(() => window.scrollY), groupScroll, "folding the axis does not move prose");
-  await firstGroup.click();
+  assert.equal(page.url(), groupUrl, "time ticks do not navigate or collapse the rail");
+  assert.equal(await page.evaluate(() => window.scrollY), groupScroll, "time ticks do not move prose");
   await page.getByRole("button", { name: "回到当前", exact: true }).click();
 
   await paragraph(18).scrollIntoViewIfNeeded();
@@ -173,10 +177,12 @@ try {
   await page.reload();
   await stableMobileTarget(16);
   await page.locator(".history-axis-open").click();
-  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 0/ }).click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /汉末局势/ }).click();
   await stableMobileTarget(0);
   await page.locator(".history-axis-open").click();
-  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 1/ }).click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /赤壁之战/ }).click();
+  await stableMobileTarget(20);
+  await page.goto(`${base}/history/${version}/${id(10)}`);
   await stableMobileTarget(10);
   await page.setViewportSize({ width: 390, height: 844 });
   await stableMobileTarget(10);
@@ -186,15 +192,17 @@ try {
   await page.mouse.wheel(0, 240);
   await stableMobileTarget(10);
 
-  // Native prose scrolling opens the current interval and reveals its node in
-  // the axis's own scrollport, including short-height desktop viewports.
+  // Native prose scrolling follows an undated interval with no event anchors
+  // in the axis's own scrollport, including short-height desktop viewports.
   await page.setViewportSize({ width: 1440, height: 540 });
   await page.goto(`${base}/history/${version}/${id(19)}`);
   await expect(paragraph(34)).toBeAttached();
   await paragraph(34).evaluate((node) => node.scrollIntoView({ block: "start" }));
   const proseTop = await paragraph(34).evaluate((node) => node.getBoundingClientRect().top);
   await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(34));
-  await expect(page.locator('.history-axis-node[aria-current="location"]')).toHaveAttribute("data-axis-target", id(30));
+  await expect(page.locator('.history-axis-section[data-current="true"]')).toHaveAttribute("data-axis-section", id(30));
+  await expect(page.locator('.history-axis-position[aria-current="location"]')).toHaveCount(1);
+  await expect(page.locator('.history-axis-time[aria-current="location"]')).toHaveCount(0);
   await expect.poll(() => page.locator(".history-axis-scroll").evaluate((box) => {
     const item = box.querySelector('[data-axis-current="true"]');
     const target = item.getBoundingClientRect(), viewport = box.getBoundingClientRect();

@@ -42,7 +42,7 @@ class NarrativeTestModel:
         facts, prose = drafts(context)
         prose["navigation"] = [{"label": "测试时段", "first_paragraph_id": prose["paragraphs"][0]["id"],
             "last_paragraph_id": prose["paragraphs"][-1]["id"], "items": [
-                {"paragraph_id": p["id"], "label": "测试节点", "reason": "覆盖该测试来源的阅读位置。"} for p in prose["paragraphs"]]}]
+                {key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in prose["entry_points"]]}]
         return json.dumps(facts if kind == 'facts' else prose, ensure_ascii=False)
 
 
