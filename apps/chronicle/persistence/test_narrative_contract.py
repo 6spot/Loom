@@ -116,6 +116,38 @@ class NarrativeContractTests(unittest.TestCase):
         with self.assertRaisesRegex(PersistenceError, 'never truncate'):
             contract.build_prompt('facts', self.context)
 
+    def test_repeated_reading_state_rows_do_not_exhaust_full_chapter_budget(self):
+        state = dict(person_id='person', person_name='周瑜', item_kind='identity',
+            dimension='office', value='偏将军', relation=None, target=None,
+            qualification='ordinary', certainty='clear', reason_codes=[],
+            phase_ids=['source_phase'], operation=None, from_phase_id=None,
+            to_phase_id=None, source_facts=[dict(fact_ref='sf1', phase_id='source_phase',
+                chapter_id='source_chapter', revision_id='r1', chapter_publication_id='pub0',
+                claim_refs=['claim1'])])
+        variants = [state, {**state, 'certainty': 'uncertain'},
+            {**state, 'qualification': 'reported'},
+            {**state, 'phase_ids': ['other_phase']},
+            {**state, 'reason_codes': ['tenure_unproven']},
+            {**state, 'source_facts': [{**state['source_facts'][0], 'fact_ref': 'sf2'}]}]
+        self.context['sources'][0]['reviewed_person_states'] = [copy.deepcopy(state) for _ in range(675)] + variants
+        self.context['sources'][1]['reviewed_person_states'] = [copy.deepcopy(state)]
+        before = copy.deepcopy(self.context)
+        self.assertGreater(len(contract.canonical_json_bytes(self.context)), contract.MAX_PROMPT_CHARS)
+        forward, _ = contract.model_reference_maps(self.context)
+        view = contract.model_context(self.context, forward)
+        self.assertEqual(variants, view['sources'][0]['reviewed_person_states'])
+        self.assertEqual([state], view['sources'][1]['reviewed_person_states'])
+        self.assertEqual(before, self.context)
+        prompt = contract.build_prompt('facts', self.context)
+        self.assertLess(len(prompt), contract.MAX_PROMPT_CHARS)
+        for original, supplied in zip(self.context['sources'], view['sources']):
+            self.assertEqual(original['chapter_text'], supplied['chapter_text'])
+            self.assertEqual(original['translation'], supplied['translation'])
+            self.assertEqual([e['quote'] for e in original['evidence']], [e['quote'] for e in supplied['evidence']])
+        self.context['sources'][0]['chapter_text'] = '完整原文' * contract.MAX_PROMPT_CHARS
+        with self.assertRaisesRegex(PersistenceError, 'never truncate'):
+            contract.build_prompt('facts', self.context)
+
     def test_events_are_not_automatically_promoted_to_navigation(self):
         pub = contract.compile_publication(self.context, self.facts, self.prose)
         self.assertEqual(2, len(pub['paragraphs']))

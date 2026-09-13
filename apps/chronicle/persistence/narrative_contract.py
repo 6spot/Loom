@@ -154,6 +154,20 @@ def model_context(context, forward):
         # complete original and evidence list; never shorten either of those.
         source["source_claims"] = [{key: value for key, value in claim.items() if key != "evidence"}
                                   for claim in source.get("source_claims", [])]
+        # The published state index repeats the same material for each reading
+        # unit where it is visible. The frozen context keeps every row, but
+        # these identical projections are not additional historical evidence.
+        # Compact only byte-equivalent full objects within this source; phase,
+        # qualification, assessment and provenance differences must survive.
+        if "reviewed_person_states" in source:
+            seen = set()
+            distinct = []
+            for state in source["reviewed_person_states"]:
+                key = canonical_json_bytes(state)
+                if key not in seen:
+                    seen.add(key)
+                    distinct.append(state)
+            source["reviewed_person_states"] = distinct
     return result
 
 
@@ -351,7 +365,7 @@ INPUT.sources[].reviewed_person_states 是来源章节已审核发布的阶段�
     if facts is not None:
         prompt += "\nAPPROVED_CONCLUSIONS=" + canonical_json_bytes(map_candidate_references(facts, forward)).decode()
     if len(prompt) > MAX_PROMPT_CHARS:
-        _fail("complete chapter context exceeds input budget; choose a smaller production scope, never truncate")
+        _fail(f"complete chapter context exceeds input budget ({len(prompt)} > {MAX_PROMPT_CHARS} characters); choose a smaller production scope, never truncate")
     return prompt
 
 
