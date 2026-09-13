@@ -547,6 +547,23 @@ def validate_person_state_candidate(
     typing, continuity and canonical-ID checks. Any failing part rejects
     the whole candidate.
     """
+    return _validate_person_state_components(request, candidate, include_reading=True)
+
+
+def person_state_extraction_errors(request: dict[str, Any], extraction: dict[str, Any]) -> list[str]:
+    """Check state facts and phase evidence before reading bindings exist.
+
+    The staged extraction schema is checked by its caller. Diagnostics do not
+    grant acceptance; full validation still checks every reading/unit binding.
+    """
+    return flatten_person_state_errors(
+        _validate_person_state_components(request, extraction, include_reading=False)
+    )
+
+
+def _validate_person_state_components(
+    request: dict[str, Any], candidate: dict[str, Any], *, include_reading: bool
+) -> dict[str, Any]:
     schema_errors: list[str] = []
     reading_errors: list[str] = []
     coverage: list[str] = []
@@ -563,9 +580,10 @@ def validate_person_state_candidate(
         schema_errors.append("candidate must be a JSON object")
         candidate = {}
 
-    schema_errors.extend(
-        _iter_schema_errors(candidate_v03_schema(), candidate, registry=_registry())
-    )
+    if include_reading:
+        schema_errors.extend(
+            _iter_schema_errors(candidate_v03_schema(), candidate, registry=_registry())
+        )
 
     try:
         request_blocks = _chapter._require_request(request)
@@ -574,7 +592,7 @@ def validate_person_state_candidate(
         ref_errors.append(f"request: {exc}")
 
     # Reuse the frozen second-round semantics verbatim on the 0.2 subset.
-    if isinstance(request, dict):
+    if include_reading and isinstance(request, dict):
         subset = copy.deepcopy(candidate)
         subset.pop("person_states", None)
         subset["version"] = "0.2"
@@ -584,7 +602,7 @@ def validate_person_state_candidate(
         except (TypeError, AttributeError, KeyError) as exc:  # fail closed
             reading_errors.append(f"second-round validation raised {type(exc).__name__}: {exc}")
 
-    translation = candidate.get("translation") if isinstance(candidate.get("translation"), dict) else {}
+    translation = candidate.get("translation") if include_reading and isinstance(candidate.get("translation"), dict) else {}
     blocks = translation.get("blocks") if isinstance(translation.get("blocks"), list) else []
     block_by_id: dict[str, dict[str, Any]] = {}
     block_order: list[str] = []
@@ -609,7 +627,7 @@ def validate_person_state_candidate(
 
     phases = _model_list(person_states.get("phases"), "person_states", "phases", coverage)
     phase_orders = _model_list(person_states.get("phase_orders"), "person_states", "phase_orders", coverage)
-    unit_phases = _model_list(person_states.get("unit_phases"), "person_states", "unit_phases", coverage)
+    unit_phases = _model_list(person_states.get("unit_phases"), "person_states", "unit_phases", coverage) if include_reading else []
     facts = _model_list(person_states.get("facts"), "person_states", "facts", coverage)
     continuities = _model_list(person_states.get("continuities"), "person_states", "continuities", coverage)
     disagreements = _model_list(person_states.get("disagreements"), "person_states", "disagreements", coverage)
@@ -724,7 +742,7 @@ def validate_person_state_candidate(
             )
 
     for phase_id in phase_by_id:
-        if phase_id not in bound_phases:
+        if include_reading and phase_id not in bound_phases:
             phase_errors.append(f"phase {phase_id!r} is not bound to any reading unit")
 
     # Facts: subject/dimension typing and closed local refs.

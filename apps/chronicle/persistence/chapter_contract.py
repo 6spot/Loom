@@ -620,7 +620,25 @@ def validate_chapter_candidate(
     errors}``. Every category must be empty for acceptance; any single
     failing part rejects the whole candidate.
     """
-    schema_errors = _schema_errors(candidate) if isinstance(candidate, dict) else []
+    return _validate_chapter_components(request, candidate, include_translation=True)
+
+
+def chapter_extraction_errors(request: dict[str, Any], extraction: dict[str, Any]) -> list[str]:
+    """Check extraction semantics before translation/linking exist.
+
+    The staged step schema owns the partial document's shape. This returns
+    diagnostics only; it is never a chapter acceptance report. Full candidates
+    still require their unchanged schema, translation and coverage checks.
+    """
+    return flatten_validation_errors(
+        _validate_chapter_components(request, extraction, include_translation=False)
+    )
+
+
+def _validate_chapter_components(
+    request: dict[str, Any], candidate: dict[str, Any], *, include_translation: bool
+) -> dict[str, Any]:
+    schema_errors = _schema_errors(candidate) if include_translation and isinstance(candidate, dict) else []
     identity: list[str] = []
     references: list[str] = []
     record_sources: list[str] = []
@@ -645,7 +663,7 @@ def validate_chapter_candidate(
             bundle_recall_observations(request, candidate),
         )
 
-    if candidate.get("schema") != CANDIDATE_SCHEMA or candidate.get("version") != CANDIDATE_VERSION:
+    if include_translation and (candidate.get("schema") != CANDIDATE_SCHEMA or candidate.get("version") != CANDIDATE_VERSION):
         identity.append("candidate schema/version must be chronicle.chapter-candidate/0.1")
     if candidate.get("chapter_id") != request.get("chapter_id"):
         identity.append(
@@ -727,11 +745,11 @@ def validate_chapter_candidate(
 
     # Bundle presence: a candidate must carry both translation and bundle
     # content; translation-only or bundle-only candidates are rejected.
-    translation = candidate.get("translation") if isinstance(candidate.get("translation"), dict) else {}
+    translation = candidate.get("translation") if include_translation and isinstance(candidate.get("translation"), dict) else {}
     tblocks = translation.get("blocks") if isinstance(translation.get("blocks"), list) else []
-    if translation.get("language") != "zh-CN":
+    if include_translation and translation.get("language") != "zh-CN":
         identity.append("translation.language must be zh-CN")
-    if not tblocks:
+    if include_translation and not tblocks:
         coverage.append("translation.blocks must be a non-empty array")
     if not entities and not events and not claims:
         references.append("bundle carries no entities/events/claims (bundle-only structure required)")
@@ -993,7 +1011,7 @@ def validate_chapter_candidate(
     # source_block_ids sequence must follow request block order, so a
     # reversed chapter cannot validate.
     required = request.get("required_block_ids") or []
-    if isinstance(required, list):
+    if include_translation and isinstance(required, list):
         missing = [b for b in required if b not in covered_source_blocks]
         if missing:
             coverage.append(

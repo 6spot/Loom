@@ -250,6 +250,11 @@ not remove model output limits, and incomplete responses cannot be accepted.
 Complete but invalid translation, extraction, linking or repair output retries
 only that node within its remaining attempt budget, with the complete saved
 result and validation errors. A transport failure during correction does not discard that feedback.
+Extraction also checks existing source/identity/state semantics before it can
+complete. Linking assembles the saved results and runs full candidate validation
+before content review. Execution protocol `chapter-production/0.2` freezes this
+policy alongside the prompts; use an explicit new job after upgrading from an
+older frozen policy, retaining the old job and its audit records.
 Successful sibling steps remain saved. An exhausted budget or oversized
 correction context stops the step with an explicit failure; it never opens
 a new node to reset the budget or truncates source/results to fit.
