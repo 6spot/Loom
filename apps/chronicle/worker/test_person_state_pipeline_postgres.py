@@ -116,6 +116,12 @@ class StateAwareNarrativeModel:
         self.context = context
         facts, prose = narrative_drafts(context)
         self._add_reviewed_states(context, facts, prose)
+        prose["navigation"] = [{
+            "label": "测试时段",
+            "first_paragraph_id": prose["paragraphs"][0]["id"],
+            "last_paragraph_id": prose["paragraphs"][-1]["id"],
+            "items": [{"paragraph_id": "n0", "label": "阅读入口", "reason": "测试完整叙事的起点。"}],
+        }]
         return json.dumps(facts if kind == "facts" else prose, ensure_ascii=False)
 
     @staticmethod
@@ -599,6 +605,7 @@ class PersonStatePipelineTests(unittest.TestCase):
             )[1],
         )
         self.assertTrue(narrative.context is not None)
+        self.assertEqual(["facts", "prose"], narrative.calls)
         self.assertTrue(
             any(source.get("reviewed_person_states") for source in narrative.context["sources"])
         )
@@ -614,13 +621,16 @@ class PersonStatePipelineTests(unittest.TestCase):
             ]
             self.assertTrue(states, "published history must carry reviewed states")
             self.assertTrue(
-                {state["value"] for state in states} & {"公孫瓚", "孫策"}
+                {state["value"] for state in states} & {"公孙瓒", "孙策"}
             )
             state = states[0]
             meta = history.dispatch_history(
                 conn, "/v0/history", "version=" + version
             )["publication"]
             self.assertEqual(version, meta["version"])
+            self.assertEqual(1, len(meta["navigation"]))
+            self.assertEqual((0, len(publication["paragraphs"]) - 1),
+                             (meta["navigation"][0]["start"], meta["navigation"][0]["end"]))
             conclusion = history.dispatch_history(
                 conn,
                 "/v0/history/conclusions/" + state["id"],

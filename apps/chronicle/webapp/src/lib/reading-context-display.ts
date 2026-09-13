@@ -67,6 +67,7 @@ export interface ContextDisplayGroup {
 
 export interface ReadingContextDisplay {
   readonly groups: readonly ContextDisplayGroup[];
+  readonly hiddenGroups: readonly ContextDisplayGroup[];
   readonly hasAny: boolean;
   readonly totalItems: number;
 }
@@ -205,6 +206,7 @@ export function buildReadingContextDisplay(
   });
 
   const groups: ContextDisplayGroup[] = [];
+  const hiddenGroups: ContextDisplayGroup[] = [];
   let totalItems = 0;
 
   for (const groupKey of CONTEXT_GROUP_ORDER) {
@@ -227,7 +229,7 @@ export function buildReadingContextDisplay(
       : items;
     const visible = limit === null || expanded ? eligible : eligible.slice(0, limit);
 
-    groups.push({
+    (visible.length ? groups : hiddenGroups).push({
       key: groupKey,
       label: CONTEXT_GROUP_LABELS[groupKey],
       items: visible,
@@ -238,7 +240,7 @@ export function buildReadingContextDisplay(
     });
   }
 
-  return { groups, hasAny: totalItems > 0, totalItems };
+  return { groups, hiddenGroups, hasAny: groups.length > 0, totalItems };
 }
 
 /** 事件角色标签：显式带出所属事件，避免被读成长期头衔。 */

@@ -376,6 +376,11 @@ def narrative_drafts(
             "schema": "chronicle.historical-narrative",
             "version": "0.1",
             "paragraphs": paragraphs,
+            "navigation": [{
+                "label": "测试时段", "first_paragraph_id": paragraphs[0]["id"],
+                "last_paragraph_id": paragraphs[-1]["id"],
+                "items": [{"paragraph_id": p["id"], "label": "测试节点", "reason": "验证来源阅读位置，不主张史实。"} for p in paragraphs],
+            }],
             "entry_points": [
                 {
                     "label": "阅读入口",

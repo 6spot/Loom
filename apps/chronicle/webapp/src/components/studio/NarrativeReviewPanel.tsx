@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/button";
+import NarrativeNavigationEditor from "./NarrativeNavigationEditor";
 import { getReview, mutateJob, submitNarrativeDecision, type ReviewDetail } from "../../lib/studio-api";
 import { useStudioAuth } from "../../lib/studio-auth";
 import type { NarrativeContent, NarrativeContext, NarrativeEvidenceRef, NarrativeFact, NarrativeFacts, NarrativePhase, NarrativeProse, NarrativeReviewData } from "../../lib/narrative-types";
@@ -100,7 +101,7 @@ function ProseEditor({ content, data, update }: { content: NarrativeProse; data:
         </details>
       </div>)}
     </section>)}
-    <section className="studio-stack nr-entries"><h2>首页与侧栏的阅读入口</h2><p className="studio-muted">挑选少量重要时期或大事件。官职、称号、领有某地等细节留在正文中，不能因抽取为事件就各占一个入口。</p>
+    <section className="studio-stack nr-entries" data-test="narrative-entry-editor"><h2>首页与侧栏的阅读入口</h2><p className="studio-muted">挑选少量重要时期或大事件。官职、称号、领有某地等细节留在正文中，不能因抽取为事件就各占一个入口。</p>
       {content.entry_points.map((entry, index) => <div className="nr-entry" key={index}>
         <p className="studio-muted">{entry.kind === "period" ? "时期入口" : "事件入口"}</p>
         <label>入口名称<input value={entry.label} onChange={(e) => update({ ...content, entry_points: content.entry_points.map((v, i) => i === index ? { ...v, label: e.target.value } : v) })} /></label>
@@ -116,6 +117,7 @@ function ProseEditor({ content, data, update }: { content: NarrativeProse; data:
         if (e.target.value) update({ ...content, entry_points: [...content.entry_points, { kind: "period", paragraph_id: e.target.value, event_id: null, label: "", reason: "" }] });
       }}><option value="">选择这一时期的正文起点…</option>{content.paragraphs.filter((p) => !content.entry_points.some((entry) => entry.kind === "period" && entry.paragraph_id === p.id)).map((p) => <option key={p.id} value={p.id}>{paragraphLabel(p.id)}</option>)}</select></label> : null}
     </section>
+    <NarrativeNavigationEditor content={content} update={update} />
   </div>;
 }
 

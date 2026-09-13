@@ -216,10 +216,13 @@ jobs:
       - name: Second-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
 
-      - name: Reviewed historical narrative contracts and PostgreSQL pipeline
+      - name: Reviewed narrative, navigation and search contracts
         run: |
           python3 -m unittest discover -s apps/chronicle/corpus -p 'test_corroboration_cases.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative_contract.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative*_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reader_language_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_search*.py' -v
           python3 -m unittest discover -s apps/chronicle/worker -p 'test_narrative_pipeline_postgres.py' -v
 
       - name: Public reading and Studio components (synthetic HTTP fixtures)

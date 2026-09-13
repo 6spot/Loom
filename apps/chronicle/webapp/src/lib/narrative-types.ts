@@ -34,6 +34,8 @@ export interface NarrativeProse {
     segments: Array<{ text: string; conclusion_ids: string[]; event_id: string | null; event_relation: string | null; event_text: string | null }>;
     entities: Array<{ entity_id: string; importance: "primary" | "other" }> }>;
   entry_points: Array<{ label: string; kind: "event" | "period"; paragraph_id: string; event_id: string | null; reason: string }>;
+  navigation?: Array<{ label: string; first_paragraph_id: string; last_paragraph_id: string;
+    items: Array<{ paragraph_id: string; label: string; reason: string }> }>;
 }
 export type NarrativeContent = NarrativeFacts | NarrativeProse;
 export interface NarrativeReviewData {

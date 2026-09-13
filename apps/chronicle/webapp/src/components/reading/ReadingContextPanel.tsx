@@ -84,7 +84,11 @@ export default function ReadingContextPanel({ entities, variant = "column", unit
         data-group={group.key} onClick={() => setExpanded((current) => ({ ...current, [group.key]: true }))}>其他{group.label} · {group.hiddenCount}</button> : null}
       {group.expanded ? <button type="button" className="chr-context-expand" data-test="reading-context-collapse"
         data-group={group.key} onClick={() => setExpanded((current) => ({ ...current, [group.key]: false }))}>收起</button> : null}
-    </section>) : <p className="chr-context-empty" data-test="reading-context-empty">这段正文还没有关联人物或地点。</p>}
+    </section>) : display.hiddenGroups.length ? null : <p className="chr-context-empty" data-test="reading-context-empty">这段正文还没有关联人物或地点。</p>}
+    {display.hiddenGroups.length ? <button type="button" className="chr-context-expand"
+      data-test="reading-context-more" onClick={() => setExpanded((current) => ({ ...current,
+        ...Object.fromEntries(display.hiddenGroups.map((group) => [group.key, true])),
+      }))}>更多相关对象 · {display.hiddenGroups.reduce((count, group) => count + group.total, 0)}</button> : null}
   </>;
   if (variant === "panel") return <div className="chr-context-compact" data-test="reading-context-compact">
     <button type="button" className="public-text-button" data-test="reading-context-open"

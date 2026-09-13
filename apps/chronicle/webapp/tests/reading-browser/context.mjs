@@ -12,7 +12,8 @@ export async function run(ctx) {
   await page.locator(`${people} [data-test="reading-context-expand"]`).click();
   ctx.check("次要人物仍可展开查看", await page.locator(`${people} [data-test="reading-context-entity"]`).count() === 7);
   ctx.check("同名不同身份不会合并", await page.locator(`${people} [data-test="reading-context-name"]`).filter({ hasText: "張飛" }).count() === 2);
-  await page.locator('[data-test="reading-context-expand"][data-group="places"]').click();
+  ctx.check("没有主要地点时不展示空分组", await page.locator('[data-test="reading-context-group"][data-group="places"]').count() === 0);
+  await page.locator('[data-test="reading-context-more"]').click();
   ctx.check("地点逐行独立且不猜测控制权", await page.locator('[data-group="places"] .chr-context-unknown').count() === 5);
   await page.locator('[data-test="context-unit-b"]').click();
   await page.waitForSelector('[data-test="reading-context-empty"]');
@@ -20,7 +21,8 @@ export async function run(ctx) {
   await page.locator('[data-test="context-unit-a"]').click();
   ctx.check("回读恢复当前段并重置次要项展开", await page.locator(`${people} [data-test="reading-context-entity"]`).count() === 2);
   await page.locator('[data-test="context-unit-c"]').click();
-  await page.locator(`${people} [data-test="reading-context-expand"]`).click();
+  ctx.check("只有次要人物时统一收入口", await page.locator(people).count() === 0);
+  await page.locator('[data-test="reading-context-more"]').click();
   const unlinked = page.locator('[data-test="reading-context-entity"]').filter({ hasText: "某將" });
   await unlinked.locator('summary').click();
   await unlinked.locator('[data-test="reading-context-view-source"]').click();

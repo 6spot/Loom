@@ -189,6 +189,18 @@ fn is_spa_path(path: &str) -> bool {
     if path == "/history" || path == "/history/" {
         return true;
     }
+    if let Some(rest) = path.strip_prefix("/history/") {
+        let parts: Vec<_> = rest.trim_end_matches('/').split('/').collect();
+        let hex = |value: &str, size| {
+            value.len() == size
+                && value
+                    .bytes()
+                    .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+        };
+        return matches!(parts.as_slice(), [version] if hex(version, 64))
+            || matches!(parts.as_slice(), [version, paragraph] if hex(version, 64)
+                && paragraph.strip_prefix("hp_").is_some_and(|id| hex(id, 24)));
+    }
     // Public chapter reader (C2-R1-T17): directory plus one immutable
     // publication detail. Deeper nesting is not a reader route.
     if path == "/chapters" || path == "/chapters/" {
@@ -390,6 +402,27 @@ mod tests {
             "/app.mjs.map",
         ] {
             assert!(resolve_web_path(path).is_none(), "{path}");
+        }
+    }
+
+    #[test]
+    fn history_system_id_paths_resolve_without_widening_the_asset_allowlist() {
+        let version = "a".repeat(64);
+        let paragraph = format!("hp_{}", "b".repeat(24));
+        for path in [
+            format!("/history/{version}"),
+            format!("/history/{version}/{paragraph}"),
+            format!("/history/{version}/{paragraph}/"),
+        ] {
+            assert!(resolve_web_path(&path).is_some(), "{path}");
+        }
+        for path in [
+            format!("/history/{paragraph}"),
+            format!("/history/{version}/bad"),
+            format!("/history/{version}/{paragraph}/extra"),
+            "/history/../../etc/passwd".to_string(),
+        ] {
+            assert!(resolve_web_path(&path).is_none(), "{path}");
         }
     }
 

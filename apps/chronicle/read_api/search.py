@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Any, Iterable
 
 from read_common import READ_SCHEMA_VERSION, ReadModelError, entity_display, event_display, time_window
+from reader_language import simplified
 
 
 MAX_SEARCH_LIMIT = 50
@@ -27,8 +28,8 @@ def _query_text(value: str) -> str:
 def _match(value: Any, query: str, *, exact_rank: int, secondary: bool = False) -> tuple[int, str] | None:
     if not isinstance(value, str) or not value:
         return None
-    haystack = value.casefold()
-    needle = query.casefold()
+    haystack = simplified(value).casefold()
+    needle = simplified(query).casefold()
     if secondary:
         return (4, "substring") if needle in haystack else None
     if haystack == needle:
