@@ -253,14 +253,14 @@ def _metadata_record_path(parts: list[str], op: str) -> bool:
 def apply_patches(candidate: dict, patches: list[dict]) -> dict:
     """Apply one bounded patch set against the original version, atomically.
 
-    Every before hash is checked against the unmodified input. Overlapping
-    pointers and array removals mixed with edits anywhere in that array are rejected so
-    shifting indexes cannot apply a valid patch to the wrong historical fact.
+    Every before hash is checked against the unmodified input. Array appends
+    retain submission order; removals use original indexes in descending order.
+    A removal cannot mix with edits/appends in the same array, so shifting
+    indexes cannot apply a valid patch to the wrong historical fact.
     """
     if not isinstance(candidate, dict) or not isinstance(patches, list) or not 1 <= len(patches) <= MAX_PATCHES:
         raise PersistenceError("repair requires a complete candidate and 1..128 local patches")
     prepared = []
-    paths: list[list[str]] = []
     for patch in patches:
         if not isinstance(patch, dict) or set(patch) - {"op", "path", "before_sha256", "value"}:
             raise PersistenceError("patch contains unsupported fields")
@@ -280,9 +280,6 @@ def apply_patches(candidate: dict, patches: list[dict]) -> dict:
             raise PersistenceError("paragraphs may only be replaced in place, never added/removed/reordered")
         if text_target and (not isinstance(patch["value"], str) or not patch["value"].strip() or len(patch["value"]) > 8192):
             raise PersistenceError("replacement prose must be nonempty and within paragraph limits")
-        if any(parts[:len(old)] == old or old[:len(parts)] == parts for old in paths):
-            raise PersistenceError("patch paths overlap or repeat")
-        paths.append(parts)
         parent = candidate
         try:
             for key in parts[:-1]:
@@ -303,14 +300,29 @@ def apply_patches(candidate: dict, patches: list[dict]) -> dict:
             raise PersistenceError("patch before_sha256 does not match the reviewed version")
         if op == "remove" and patch["value"] is not None:
             raise PersistenceError("remove patch must carry a null value")
+        for old, old_op, _old_value, old_array in prepared:
+            if not (parts[:len(old)] == old or old[:len(parts)] == parts):
+                continue
+            # '-' denotes the append operation, not one existing record.
+            # Several additions are independent after validating their null
+            # before hashes against the same frozen array.
+            if (op == old_op == "add" and isinstance(parent, list) and old_array
+                    and parts[:-1] == old[:-1]):
+                continue
+            raise PersistenceError("patch paths overlap or repeat")
         prepared.append((parts, op, copy.deepcopy(patch["value"]), isinstance(parent, list)))
     for parts, op, _value, is_array in prepared:
         if is_array and op == "remove" and any(
-            other[:len(parts) - 1] == parts[:-1] and other != parts for other in paths
+            other[:len(parts) - 1] == parts[:-1] and other != parts
+            and not (other_op == "remove" and other_array and other[:-1] == parts[:-1])
+            for other, other_op, _other_value, other_array in prepared
         ):
             raise PersistenceError("array removal cannot shift another patch target")
     result = copy.deepcopy(candidate)
-    for parts, op, value, _is_array in prepared:
+    removals = [entry for entry in prepared if entry[1] == "remove" and entry[3]]
+    ordered = [entry for entry in prepared if not (entry[1] == "remove" and entry[3])]
+    ordered += sorted(removals, key=lambda entry: (entry[0][:-1], -int(entry[0][-1])))
+    for parts, op, value, _is_array in ordered:
         parent = result
         for key in parts[:-1]:
             parent = _child(parent, key)
