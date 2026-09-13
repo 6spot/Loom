@@ -364,6 +364,7 @@ export interface ReviewEvidenceSectionProps {
   reviewId: string;
   planFingerprint: string | null;
   groupId?: string | null;
+  candidateId?: string | null;
   title: string;
   description: string;
   records?: Map<string, HumanReviewContext | null>;
@@ -380,6 +381,7 @@ export function ReviewEvidenceSection({
   reviewId,
   planFingerprint,
   groupId = null,
+  candidateId = null,
   title,
   description,
   records,
@@ -388,11 +390,11 @@ export function ReviewEvidenceSection({
   const [items, setItems] = useState<SourceContextDescriptor[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [exhausted, setExhausted] = useState(false);
-  const groupKey = `${reviewId}|${planFingerprint ?? "-"}|${groupId ?? "-"}`;
+  const groupKey = `${reviewId}|${planFingerprint ?? "-"}|${groupId ?? "-"}|${candidateId ?? "-"}`;
 
   const firstPage = useQuery({
     queryKey: ["studio", "review-contexts", groupKey, "first"],
-    queryFn: () => listReviewContexts(auth, reviewId, { groupId, limit: 50 }),
+    queryFn: () => listReviewContexts(auth, reviewId, { groupId, candidateId, limit: 50 }),
     enabled: Boolean(reviewId),
     staleTime: 60_000,
   });
@@ -437,7 +439,7 @@ export function ReviewEvidenceSection({
       let next: string | null = cursor;
       const extra: SourceContextDescriptor[] = [];
       while (next) {
-        const page = await listReviewContexts(auth, reviewId, { groupId, limit: 50, cursor: next });
+        const page = await listReviewContexts(auth, reviewId, { groupId, candidateId, limit: 50, cursor: next });
         if (!sectionGuard.isCurrent(token)) return;
         extra.push(...page.items);
         next = page.has_more ? page.next_cursor : null;
@@ -498,4 +500,16 @@ export function ReviewEvidenceSection({
       </CardContent>
     </Card>
   );
+}
+
+/** Load candidate sources only after the reviewer asks, using the same viewer. */
+export function ReviewEvidenceDisclosure(props: ReviewEvidenceSectionProps) {
+  const [opened, setOpened] = useState(false);
+  return <div data-test="review-evidence-disclosure">
+    <Button type="button" variant="outline" size="sm" aria-expanded={opened}
+      onClick={() => setOpened((value) => !value)}>
+      {opened ? "收起来源依据" : "查看原文前后文"}
+    </Button>
+    {opened ? <ReviewEvidenceSection {...props} /> : null}
+  </div>;
 }
