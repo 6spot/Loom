@@ -208,6 +208,9 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const operationAbortRef = useRef<AbortController | null>(null);
   const historyKeyRef = useRef("");
   const activeRef = useRef<{ unitId: string; ordinal: number } | null>(null);
+  // At a real document boundary a short target cannot reach the reading
+  // reference line. Keep that explicit locator until scrolling actually moves.
+  const clampedTargetRef = useRef<{ unitId: string; scrollTop: number } | null>(null);
   // 导航状态用 ref 同步跟踪，避免 rAF/滚动回调在 React 重渲染前读到过期的 state。
   const navStateRef = useRef<ReadingNavigationState>("idle");
   const settleTimerRef = useRef<number | null>(null);
@@ -433,6 +436,10 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       (anchor.pending?.residual ?? 0);
     const before = window.scrollY;
     if (Math.abs(delta) > 0.5) window.scrollBy({ top: delta, behavior: "auto" });
+    const clamped = clampedTargetRef.current;
+    if (clamped?.unitId === anchor.unitId && Math.abs(before - clamped.scrollTop) <= 0.5) {
+      clampedTargetRef.current = { ...clamped, scrollTop: window.scrollY };
+    }
     const residual = delta - (window.scrollY - before);
     const pending = anchor.pending && Math.abs(residual) > 0.5 && hasUnloadedSpace(anchor.unitId, residual)
       ? { ...anchor.pending, residual } : undefined;
@@ -480,6 +487,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
    */
   const beginOperation = useCallback((): number => {
     requestSeqRef.current += 1;
+    clampedTargetRef.current = null;
     operationAbortRef.current?.abort();
     operationAbortRef.current = new AbortController();
     if (settleTimerRef.current !== null && typeof window !== "undefined") {
@@ -563,6 +571,8 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       writeUrl(locator, detail.push ? "push" : "replace", key);
       const residual = scrollToTarget(locator.unit_id, detail.relativeOffset) ?? 0;
       const pending = rememberLayoutAnchor(locator.unit_id, { relativeOffset: detail.relativeOffset, residual });
+      clampedTargetRef.current = !pending && Math.abs(residual) > 0.5
+        ? { unitId: locator.unit_id, scrollTop: window.scrollY } : null;
       if (!pending) commitState({ navigationState: "idle" });
       optionsRef.current.onActiveUnitChange?.(unit);
       storeRef.current.saveEntry({
@@ -600,7 +610,12 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     // an older URL while a new reading position is still settling.
     const referenceY = referenceLineFor(window.innerHeight,
       optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
-    const chosen = selectActiveUnit(measureUnits(), referenceY);
+    const units = measureUnits();
+    const clamped = clampedTargetRef.current;
+    const pinned = clamped && Math.abs(window.scrollY - clamped.scrollTop) <= 0.5
+      ? units.find((unit) => unit.unitId === clamped.unitId && unit.visible) : null;
+    if (!pinned) clampedTargetRef.current = null;
+    const chosen = pinned ?? selectActiveUnit(units, referenceY);
     if (chosen) {
       rememberLayoutAnchor(chosen.unitId);
       const changed = chosen.unitId !== activeRef.current?.unitId;
@@ -629,6 +644,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   ]);
 
   const onUserIntent = useCallback(() => {
+    clampedTargetRef.current = null;
     if (settleTimerRef.current !== null && typeof window !== "undefined") {
       window.clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
@@ -830,6 +846,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
 
     return () => {
       mountedRef.current = false;
+      clampedTargetRef.current = null;
       layoutAnchorRef.current = null;
       requestSeqRef.current += 1;
       operationAbortRef.current?.abort();

@@ -344,7 +344,7 @@ def narrative_drafts(
                 "phase_id": phase,
                 "segments": [
                     {
-                        "text": source["translation"][0]["text"],
+                        "text": "\n".join(block["text"] for block in source["translation"]),
                         "conclusion_ids": [fact],
                         "event_id": event,
                         "event_relation": "current" if event else None,
@@ -794,20 +794,22 @@ def queue_synthesis(
 def select_synthesis_sources(
     base_url: str, auth: str
 ) -> tuple[str, list[str], str, dict[str, list[dict[str, Any]]]]:
-    """Pick the smallest published document as the comprehensive scope.
+    """Select two complete published chapters for distinct fixture phases.
 
-    Whole-context synthesis fails closed when the prompt exceeds the fixed
-    budget, so the fixture explicitly selects the smallest document instead
-    of truncating. All groups stay recorded as available.
+    A one-chapter scope produces only one fixture paragraph and cannot prove
+    reading-driven state changes. Keep the scope bounded to two chapters;
+    whole-context budget checks still reject oversized input without truncation.
+    All document groups remain recorded as available.
     """
     choices = list_history_sources(base_url, auth)
     catalog_sha = choices["catalog_sha"]
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in choices["items"]:
         groups.setdefault(str(item.get("document_title") or item["title"]), []).append(item)
-    if not groups:
-        raise GateError("no selectable synthesis source")
-    title, selected = min(groups.items(), key=lambda pair: (len(pair[1]), pair[0]))
+    selected = choices["items"][:2]
+    if len(selected) != 2:
+        raise GateError("person-state performance requires two complete published chapters")
+    title = " / ".join(dict.fromkeys(str(item.get("document_title") or item["title"]) for item in selected))
     return catalog_sha, [item["publication_id"] for item in selected], title, groups
 
 

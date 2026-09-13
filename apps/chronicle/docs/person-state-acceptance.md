@@ -78,9 +78,10 @@ gate 会：
    显式声明 + plan 级 rationale），resume 后由唯一发布事务原子写入 catalog /
    chapters / reading index / person-state manifest。**不写任何 raw SQL、不 mock HTTP、
    不跳过审核环节。**
-3. 经 Studio `GET /jobs/history/sources` 显式选择已发布章，`POST /jobs/history` 创建
-   现有综合 job；分别通过 facts 审核（显式覆盖全部 `reviewed_conclusion_ids`）与
-   prose 审核后发布。
+3. 经 Studio `GET /jobs/history/sources` 显式选择两个完整的已发布章，
+   `POST /jobs/history` 创建现有综合 job；fixture 由两个来源产生不同阶段的段落，
+   以验证实际状态切换，仍受完整上下文预算限制，不能截断来源。分别通过 facts
+   审核（显式覆盖全部 `reviewed_conclusion_ids`）与 prose 审核后发布。
 4. 经公开 HTTP 读回正式 HistoryPage
    （`/history`、`/history/paragraphs`、`/history/conclusions/{id}`），记录
    `version/paragraph_id/phase_id/entity_id/state_id`、结论与原文 `anchor_id/quote`；

@@ -19,7 +19,7 @@ const entries = [
   { label: "荆州局势", kind: "event", ordinal: 45, event_id: "event-2" },
 ].map((entry) => ({ ...entry, paragraph_id: id(entry.ordinal), year: 200 + Math.floor(entry.ordinal / 10), period: null, excerpt: "合成浏览器测试入口，不是历史验收材料。" }));
 const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i, phase_id: `phase${i}`, group_id: `g${Math.floor(i / 10)}`,
-  segments: [{ text: `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 ? 1 : 10)}`,
+  segments: [{ text: i === 0 ? "很短的开篇，定位后仍应停在本段。" : `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 ? 1 : 10)}`,
     conclusion_ids: ["fact-1"], certainty: i === 21 ? "uncertain" : "clear", event_id: i === 20 || i === 5 ? "event-1" : null,
     event_relation: i === 20 ? "current" : i === 5 ? "retrospective" : null, event_text: i === 20 || i === 5 ? "赤壁之战" : null }],
   entities: [{ id: "person-1", name: "曹操", kind: "person", importance: "primary", states: [{ id: "state-1", label: "官职", value: i < 20 ? "测试前期官职" : "测试后期官职", certainty: "clear", reason: "仅用于交互测试" }] },
@@ -63,6 +63,16 @@ try {
   await page.getByRole("link", { name: /汉末局势/ }).click();
   await expect(paragraph(0)).toBeVisible();
   await expect(page.locator('[data-test="reading-context-entity"]')).toContainText("测试前期官职");
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(0));
+  await expect(page.locator('[data-test="history-phase-status"]')).toHaveAttribute("data-phase-id", "phase0");
+  await page.setViewportSize({ width: 1440, height: 860 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(0));
+  await page.setViewportSize({ width: 1440, height: 900 });
   assert.equal(new URL(page.url()).search, "", "public positions use system ID path segments");
   await expect(page.locator('[data-test="history-phase-status"]')).toHaveText("");
   await expect(page.getByRole("heading", { name: "政权与机构" })).toHaveCount(0);
