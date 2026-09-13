@@ -372,9 +372,6 @@ def write_stack_env(
     config["CHRONICLE_CHAPTER_MODEL"] = (
         "fixture:gate-r2:" + fixture_model.READING_CHAPTER_MODEL_SUFFIX
     )
-    config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
-        "CHRONICLE_MODEL_TIMEOUT_SECONDS", "180"
-    )
     for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):
         config.pop(key, None)
     out.write_text(

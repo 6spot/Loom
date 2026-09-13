@@ -57,6 +57,14 @@ do not echo response bodies or API keys; the existing extraction/presentation
 validators still own schema, evidence grounding, uncertainty and publication
 authority.
 
+`CHRONICLE_MODEL_TIMEOUT_SECONDS` is the only production model timeout setting.
+It applies to extraction, presentation, historical narrative and every staged
+chapter model, including correction and repair. Omitted or blank uses the
+existing default of 600 seconds; an override must be finite and positive.
+The value is per HTTP attempt, not a shared deadline for an entire job or all
+retries. Configure it once in the worker environment; there are no model- or
+step-specific timeout overrides.
+
 Both live providers send strict Responses `text.format` constraints for their
 own contracts: extraction uses the staged-bundle projection and presentation
 uses the [Reader Presentation candidate shape](reader-presentation.md). The
@@ -223,16 +231,19 @@ replace its model names, and set `CHRONICLE_CHAPTER_PIPELINE_CONFIG` to its
 readable path. The `models` map defines profiles; `steps` assigns 1–4 unique
 profile IDs per step. Each profile accepts `model`, optional `endpoint`,
 `api_key_env` (an environment-variable name, never a key value),
-`timeout_seconds`, `total_timeout_seconds`, `max_output_tokens` and
-`response_format` (`json_object` or `text`). Translation always requests plain
-text. Other steps carry their schema in the prompt and run strict local
+`max_output_tokens` and `response_format` (`json_object` or `text`). Profile
+fields `timeout_seconds` and `total_timeout_seconds` are rejected at startup
+with an instruction to use `CHRONICLE_MODEL_TIMEOUT_SECONDS`. Translation
+always requests plain text. Other steps carry their schema in the prompt and run strict local
 validation even when an endpoint does not support structured output.
 
 `max_parallel` defaults to 2 (range 1–4); `max_step_attempts` defaults to 2
 (range 1–3); `max_repair_rounds` defaults to 1 (range 0–1). Each HTTP attempt
-has both an inactivity timeout and a wall-clock deadline, defaulting to the
-smaller of 360 seconds and the configured transport timeout. Keep-alive bytes
-do not extend the deadline. The staged transport makes exactly one HTTP
+uses the same global timeout for both network inactivity and its wall-clock
+deadline. There is no additional 360-second cutoff or chapter-specific cap.
+Keep-alive bytes do not extend the deadline. Each saved transport receipt
+records the effective timeout; a local timeout error names the global setting
+and its value. The staged transport makes exactly one HTTP
 attempt; the saved step budget owns retries. A request started before a crash
 consumes an attempt even when its remote outcome is unknown. Streaming does
 not remove model output limits, and incomplete responses cannot be accepted.

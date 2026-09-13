@@ -23,11 +23,12 @@ resolution, and fail-closed publication.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
 import os
 import time
-import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping
 from urllib import error, parse, request
 
@@ -106,13 +107,12 @@ def _validate_endpoint(endpoint: str) -> str:
 
 
 def timeout_from_env(env: Mapping[str, str] | None = None) -> float:
-    """Return the per-attempt HTTP timeout for live model providers.
+    """Return the one global per-attempt timeout for live model providers.
 
     Honors ``CHRONICLE_MODEL_TIMEOUT_SECONDS`` from the given mapping
-    (or the process environment when omitted) with the same
-    positive-number validation as the C1 extraction/presentation path,
-    so the joint chapter pipeline observes the deployed timeout instead
-    of silently falling back to the code default.
+    (or the process environment when omitted). All production model entries
+    use this value; the staged transport also uses it for its wall-clock
+    deadline, without a separate step/profile cap.
     """
     if env is None:
         raw_value = _nonempty_env("CHRONICLE_MODEL_TIMEOUT_SECONDS")
@@ -127,17 +127,13 @@ def timeout_from_env(env: Mapping[str, str] | None = None) -> float:
         value = float(raw_value)
     except ValueError as exc:
         raise PersistenceError(
-            "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a positive number"
+            "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a finite positive number"
         ) from exc
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         raise PersistenceError(
-            "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a positive number"
+            "CHRONICLE_MODEL_TIMEOUT_SECONDS must be a finite positive number"
         )
     return value
-
-
-def _timeout_from_env() -> float:
-    return timeout_from_env()
 
 
 def _response_text(payload: Any) -> str:
@@ -223,7 +219,7 @@ class ResponsesHTTPModel:
     name: str
     endpoint: str
     api_key: str | None = None
-    timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS
+    timeout_seconds: float = field(default_factory=timeout_from_env)
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
@@ -242,8 +238,10 @@ class ResponsesHTTPModel:
             raise PersistenceError("model name must be a non-empty string")
         object.__setattr__(self, "name", self.name.strip())
         object.__setattr__(self, "endpoint", _validate_endpoint(self.endpoint))
-        if self.timeout_seconds <= 0:
-            raise PersistenceError("model timeout must be positive")
+        if (not isinstance(self.timeout_seconds, (int, float))
+                or isinstance(self.timeout_seconds, bool)
+                or not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0):
+            raise PersistenceError("model timeout must be a finite positive number")
         if self.max_response_bytes < 1:
             raise PersistenceError("model max_response_bytes must be positive")
         if (
@@ -345,19 +343,21 @@ class ResponsesHTTPModel:
             f"{attempts_made} attempt(s): {last_transient}"
         )
 
-    def complete_with_receipt(self, prompt: str, *, total_timeout_seconds: float,
-                              on_progress=None, cancelled=None) -> tuple[str, dict]:
+    def complete_with_receipt(self, prompt: str, *, on_progress=None,
+                              cancelled=None) -> tuple[str, dict]:
         """One observable HTTP attempt with an actual wall-clock deadline.
 
         The staged scheduler owns retries and persists each attempt. Use an
         interruptible async transport here so a peer sending keep-alive bytes
-        cannot reset the total budget indefinitely. The legacy complete hook
+        cannot reset the global timeout indefinitely. Network inactivity and
+        the wall-clock deadline both use ``self.timeout_seconds``. Callers
+        cannot supply a second step-specific deadline. The legacy complete hook
         retains its frozen retry behavior; both paths use the same Responses
         payload and text/status validation. Raw reasoning/envelopes are never
         returned to the product audit log.
         """
-        if not isinstance(prompt, str) or not prompt or total_timeout_seconds <= 0:
-            raise ModelProviderError("model prompt and total deadline are required")
+        if not isinstance(prompt, str) or not prompt:
+            raise ModelProviderError("model prompt must be a non-empty string")
         try:
             import httpx
         except ImportError as exc:
@@ -367,6 +367,7 @@ class ResponsesHTTPModel:
             "requested_model": self.name, "model": None, "status": "started",
             "usage": None, "http_attempts": 1, "response_bytes": 0,
             "elapsed_seconds": 0.0, "incomplete_reason": None,
+            "timeout_seconds": self.timeout_seconds,
         }
         payload: dict[str, Any] = {"model": self.name, "input": prompt}
         if self.text_format is not None:
@@ -425,7 +426,7 @@ class ResponsesHTTPModel:
 
         async def bounded_attempt():
             # wait_for also supports the repository's Python 3.9 test runtime.
-            return await asyncio.wait_for(perform_cancellable(), timeout=total_timeout_seconds)
+            return await asyncio.wait_for(perform_cancellable(), timeout=self.timeout_seconds)
 
         raw_text = ""
         try:
@@ -476,7 +477,9 @@ class ResponsesHTTPModel:
             return text, receipt
         except (asyncio.TimeoutError, TimeoutError, httpx.TimeoutException) as exc:
             receipt["status"] = "timeout"
-            raise ModelProviderError("model attempt exceeded its time budget", receipt=receipt, raw_text=raw_text) from exc
+            raise ModelProviderError(
+                f"model attempt exceeded CHRONICLE_MODEL_TIMEOUT_SECONDS ({self.timeout_seconds:g}s)",
+                receipt=receipt, raw_text=raw_text) from exc
         except httpx.HTTPError as exc:
             receipt["status"] = "transport_error"
             raise ModelProviderError("model endpoint transport failure", receipt=receipt, raw_text=raw_text) from exc
@@ -549,7 +552,7 @@ def models_from_env() -> tuple[Any | None, Any | None]:
         )
     endpoint = _validate_endpoint(endpoint)
     api_key = _nonempty_env("CHRONICLE_MODEL_API_KEY")
-    timeout = _timeout_from_env()
+    timeout = timeout_from_env()
 
     def build(
         name: str | None,
@@ -577,7 +580,7 @@ def build_chapter_model(
     endpoint: str,
     *,
     api_key: str | None = None,
-    timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+    timeout_seconds: float | None = None,
     max_response_bytes: int = DEFAULT_CHAPTER_MAX_RESPONSE_BYTES,
     max_output_tokens: int = DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
     max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS,
@@ -606,7 +609,7 @@ def build_chapter_model(
         name=name,
         endpoint=endpoint,
         api_key=api_key,
-        timeout_seconds=timeout_seconds,
+        timeout_seconds=timeout_from_env() if timeout_seconds is None else timeout_seconds,
         max_response_bytes=max_response_bytes,
         max_attempts=max_attempts,
         retry_backoff_seconds=retry_backoff_seconds,

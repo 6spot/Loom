@@ -551,9 +551,6 @@ def write_stack_env(
     # a person-state-chapter suffix alone must not downgrade a live provider.
     config["CHRONICLE_CHAPTER_MODEL"] = R3_CHAPTER_MODEL
     config["CHRONICLE_NARRATIVE_MODEL"] = R3_NARRATIVE_MODEL
-    config["CHRONICLE_MODEL_TIMEOUT_SECONDS"] = config.get(
-        "CHRONICLE_MODEL_TIMEOUT_SECONDS", "180"
-    )
     for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):
         config.pop(key, None)
     out.write_text(
