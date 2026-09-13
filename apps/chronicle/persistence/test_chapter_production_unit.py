@@ -55,8 +55,11 @@ class ChapterPatchTests(unittest.TestCase):
                     self.assertIn(view, original["blocks"])
                 self.assertEqual(request, original)
                 self.assertEqual(production.build_prompt(step, request, {}, max_chars=len(prompt)), prompt)
-                with self.assertRaisesRegex(PersistenceError, "no source/history truncation"):
+                with self.assertRaisesRegex(production.PromptLimitExceeded, "no source/history truncation") as failure:
                     production.build_prompt(step, request, {}, max_chars=len(prompt) - 1)
+                self.assertEqual(failure.exception.step, step)
+                self.assertEqual(failure.exception.prompt_chars, len(prompt))
+                self.assertEqual(failure.exception.max_chars, len(prompt) - 1)
 
     def test_model_source_text_uses_chapter_relative_bounds_after_another_chapter(self):
         import chapter_plan

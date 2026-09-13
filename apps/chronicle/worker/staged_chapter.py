@@ -369,6 +369,18 @@ class Runner:
         self._emit("chapter_content_review_required", review_id=gate["review_id"], issue_count=len(issues))
         return {"outcome": "needs_review", "review_id": gate["review_id"]}
 
+    def _context_gate(self, draft, report_records, issues, errors, exc):
+        # A saved complete candidate can enter the existing exception gate.
+        # This is not a model opinion or permission to auto-accept: an operator
+        # must inspect this exact version and all retained prior opinions.
+        issue = _issue(
+            f"{exc.step} 请求未发出：完整上下文 {exc.prompt_chars} 字符超过任务已冻结的 "
+            f"{exc.max_chars} 字符预算。本轮没有取得该步骤的模型结果；候选、完整原文和历史意见"
+            "均已保留，须逐项审核后决定，不能视为模型复核通过。",
+            target=exc.step,
+            identity=["prompt_limit", draft["output_sha256"], exc.step, exc.prompt_chars, exc.max_chars])
+        return self._gate(draft, report_records, issues + [issue], errors)
+
     def _revised_draft(self, draft, patches, extra_records, issues):
         """Derive a revised draft, or retain an unusable revision for review.
 
@@ -462,7 +474,10 @@ class Runner:
             data = {"candidate": draft["candidate"], "candidate_sha256": draft["candidate_sha256"],
                     "history": history, "history_sha256": sha256_json(history),
                     "previous_issues": prior_issues, "validation_errors": errors}
-            reports = self._group("review", data, draft["round"])
+            try:
+                reports = self._group("review", data, draft["round"])
+            except protocol.PromptLimitExceeded as exc:
+                return self._context_gate(draft, [], prior_issues, errors, exc)
             if any(r["status"] == "failed" for r in reports):
                 raise PipelineFailure("review transport failed; it is not an approving opinion")
             all_issues = list(prior_issues)
@@ -501,7 +516,10 @@ class Runner:
                 "history": repair_history, "history_sha256": sha256_json(repair_history),
                 "issues": all_issues, "validation_errors": errors,
                 "patch_targets": protocol.patch_targets(draft["candidate"])}
-            repairs = self._group("repair", repair_data, draft["round"])
+            try:
+                repairs = self._group("repair", repair_data, draft["round"])
+            except protocol.PromptLimitExceeded as exc:
+                return self._context_gate(draft, reports, all_issues, errors, exc)
             if any(r["status"] == "failed" for r in repairs):
                 raise PipelineFailure("repair transport failed; previous candidates remain saved")
             if any(r["status"] != "completed" for r in repairs):
