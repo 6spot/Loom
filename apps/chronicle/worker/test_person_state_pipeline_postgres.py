@@ -120,7 +120,10 @@ class StateAwareNarrativeModel:
             "label": "测试时段",
             "first_paragraph_id": prose["paragraphs"][0]["id"],
             "last_paragraph_id": prose["paragraphs"][-1]["id"],
-            "items": [{"paragraph_id": "n0", "label": "阅读入口", "reason": "测试完整叙事的起点。"}],
+            "items": [
+                {key: entry[key] for key in ("paragraph_id", "label", "reason")}
+                for entry in prose["entry_points"]
+            ],
         }]
         return json.dumps(facts if kind == "facts" else prose, ensure_ascii=False)
 
@@ -631,6 +634,10 @@ class PersonStatePipelineTests(unittest.TestCase):
             self.assertEqual(1, len(meta["navigation"]))
             self.assertEqual((0, len(publication["paragraphs"]) - 1),
                              (meta["navigation"][0]["start"], meta["navigation"][0]["end"]))
+            self.assertEqual(
+                [(entry["paragraph_id"], entry["label"]) for entry in meta["entry_points"]],
+                [(item["paragraph_id"], item["label"]) for item in meta["navigation"][0]["items"]],
+            )
             conclusion = history.dispatch_history(
                 conn,
                 "/v0/history/conclusions/" + state["id"],

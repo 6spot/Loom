@@ -99,8 +99,9 @@ gate 会：
      200% 字体 / 触屏 / 草稿 / 409 由组件 `r3-all` 覆盖。
    - `review`：真实 Studio 混合队列同时暴露「阶段依据」与「事实核对」表单，分别可
      打开并从浏览器输入草稿。
-   - `performance`：已取数据后人物区域更新 p95 ≤100ms，且无 ≥200ms 主线程任务，
-     挂载上下文实体数有界。
+   - `performance`：在已加载的两个不同阶段段落间滚动，逐次确认侧栏段落与阶段
+     匹配并记录五次真实切换（不依赖精选入口数量、不接受原地点击）。人物区域
+     更新至下一绘制帧 p95 ≤100ms，且无 ≥200ms 主线程任务，挂载上下文实体数有界。
 
 `manifest.json` 的 `criteria` 逐项记录
 `source_person_state_publish_chain/composite_history_two_review_chain/`
