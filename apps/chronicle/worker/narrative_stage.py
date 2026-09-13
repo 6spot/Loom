@@ -71,7 +71,8 @@ def _generate(database_url, *, job_id, worker, lease_seconds, model, kind, conte
     for attempt in range(3):
         prompt = correction + base
         if len(prompt) > contract.MAX_PROMPT_CHARS:
-            raise PersistenceError("complete correction context exceeds input budget; reduce scope, never truncate")
+            raise PersistenceError("complete correction context exceeds input budget "
+                f"({len(prompt)} > {contract.MAX_PROMPT_CHARS} characters); reduce scope, never truncate")
         raw = _complete(database_url, job_id=job_id, worker=worker, lease_seconds=lease_seconds,
                         model=model, prompt=prompt)
         error = None
