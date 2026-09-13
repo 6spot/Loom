@@ -24,7 +24,7 @@ const outputs = [1, 2, 3].map((n) => ({ output_id: uuid(100 + n), artifact_type:
   step: n === 3 ? "extraction" : "translation", model: n === 2 ? "review-model" : "luna", status: "completed", round: 0, attempt: 1,
   chunk_id: uuid(30), readable: true, created_at: iso }));
 const resultBodies = new Map([
-  [sha(1), { parsed: { blocks: [{ text: "译文甲：周瑜字公瑾，少年时便与孙策交好。" }, { text: "孙策准备渡江，周瑜率兵相助。" }] } }],
+  [sha(1), { raw_text: "𠮷是扩展汉字，长模型返回需要多页读取。".repeat(1800), parsed: { blocks: [{ text: "译文甲：周瑜字公瑾，少年时便与孙策交好。" }, { text: "孙策准备渡江，周瑜率兵相助。" }] } }],
   [sha(2), { parsed: { blocks: [{ text: "译文乙：周瑜字公瑾，早年与孙策相交。" }, { text: "孙策渡江时，周瑜前来接应，两人一道进兵。" }] } }],
   [sha(3), { parsed: { bundle: rawCandidate.bundle, person_states: rawCandidate.person_states } }],
 ]);
@@ -105,9 +105,9 @@ await context.route("**/api/**", async (route) => {
       if (match[2]?.startsWith("outputs/")) {
         const digest = match[2].split("/")[1], offset = Number(url.searchParams.get("offset") || 0);
         assert.equal(job.job_id, failed.job_id);
-        const text = JSON.stringify(resultBodies.get(digest)), end = Math.min(text.length, offset + 16000);
+        const text = Array.from(JSON.stringify(resultBodies.get(digest))), end = Math.min(text.length, offset + 16000);
         resultReads.push(digest);
-        return reply(route, { job_id: job.job_id, output_sha256: digest, offset, text: text.slice(offset, end), total_chars: text.length, next_offset: end < text.length ? end : null });
+        return reply(route, { job_id: job.job_id, output_sha256: digest, offset, text: text.slice(offset, end).join(""), total_chars: text.length, next_offset: end < text.length ? end : null });
       }
     }
     throw new Error(`Unexpected fixture request ${method} ${path}`);
@@ -175,6 +175,7 @@ try {
   await expect(page.locator(".studio-source-text")).toHaveText(source);
   assert.deepEqual(errors, []);
   assert(resultReads.includes(sha(1)) && resultReads.includes(sha(2)) && resultReads.includes(sha(3)));
+  assert(resultReads.filter((digest) => digest === sha(1)).length > 1, "long Unicode output must load all pages automatically");
   console.log(`studio-workspace-component-smoke: PASS; screenshots: ${output}`);
 } catch (error) {
   await page.screenshot({ path: `${output}/failure.png`, fullPage: true });
