@@ -14,7 +14,7 @@ sys.path.insert(0, str(HERE))
 
 import chapter_production as production
 from common import PersistenceError, sha256_json
-from test_staged_chapter_contract_unit import fixture
+from test_staged_chapter_contract_unit import fixture, request_for_text
 
 
 def patch(path, before, value, *, op="replace"):
@@ -34,6 +34,52 @@ def metadata_collections(candidate):
 class ChapterPatchTests(unittest.TestCase):
     def setUp(self):
         self.request, self.candidate = fixture()
+
+    def test_every_model_sees_exact_block_text_and_body_annotation_boundaries(self):
+        text = "𠮷曰〔某〕，正文。〈引文始〈注中注〉\n\n續引文〉後段正文。"
+        request = request_for_text(text)
+        original = copy.deepcopy(request)
+        for step in production.STEPS:
+            with self.subTest(step=step):
+                prompt = production.build_prompt(step, request, {}, max_chars=262144)
+                source = json.loads(next(line[7:] for line in prompt.splitlines() if line.startswith("SOURCE=")))
+                self.assertEqual(source["normalized_text"], text)
+                self.assertEqual("".join(block["text"] for block in source["blocks"]), text)
+                fragments = source["source_scope"]["fragments"]
+                self.assertEqual("".join(f["text"] for f in fragments if f["role"] == "body"),
+                                 "𠮷曰〔某〕，正文。後段正文。")
+                self.assertEqual("".join(f["text"] for f in fragments if f["role"] == "annotation"),
+                                 "〈引文始〈注中注〉\n\n續引文〉")
+                for block in source["blocks"]:
+                    view = {key: value for key, value in block.items() if key != "text"}
+                    self.assertIn(view, original["blocks"])
+                self.assertEqual(request, original)
+                self.assertEqual(production.build_prompt(step, request, {}, max_chars=len(prompt)), prompt)
+                with self.assertRaisesRegex(PersistenceError, "no source/history truncation"):
+                    production.build_prompt(step, request, {}, max_chars=len(prompt) - 1)
+
+    def test_model_source_text_uses_chapter_relative_bounds_after_another_chapter(self):
+        import chapter_plan
+        import chapter_contract
+        text = "# 史書\n\n## 甲傳\n\n甲任太守。\n\n## 乙傳\n\n乙任將軍。〈注稱別說。〉"
+        locator = {"revision_id": "source-view-test", "source_sha256": chapter_contract.sha256_text(text),
+                   "normalized_sha256": chapter_contract.sha256_text(text)}
+        plan = chapter_plan.plan_chapters(text, locator, "two.md")
+        request = chapter_plan.build_chapter_request(plan, 1, text, candidate_version="0.4")
+        self.assertGreater(request["chapter_start"], 0)
+        prompt = production.build_prompt("extraction", request, {}, max_chars=262144)
+        source = json.loads(next(line[7:] for line in prompt.splitlines() if line.startswith("SOURCE=")))
+        displayed = "".join(block["text"] for block in source["blocks"])
+        self.assertIn("乙任將軍。", displayed)
+        self.assertNotIn("甲任太守。", displayed)
+        self.assertEqual(displayed, request["normalized_text"])
+
+    def test_model_source_view_rejects_bad_bounds_instead_of_silently_slicing(self):
+        for bounds in ((-1, 1), (0, 100000), (2, 1), (True, 1)):
+            request = copy.deepcopy(self.request)
+            request["blocks"][0].update(start=bounds[0], end=bounds[1])
+            with self.subTest(bounds=bounds), self.assertRaisesRegex(PersistenceError, "chapter-relative bounds"):
+                production.build_prompt("translation", request, {}, max_chars=262144)
 
     def test_model_schema_contains_all_referenced_extraction_and_linking_rules(self):
         extraction = {key: copy.deepcopy(self.candidate[key]) for key in (
