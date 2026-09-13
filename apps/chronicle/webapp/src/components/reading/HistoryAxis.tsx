@@ -22,23 +22,32 @@ export default function HistoryAxis({ sections, activeOrdinal, onNavigate }: {
 
   useLayoutEffect(() => {
     const box = scroll.current;
-    if (!box || !box.clientHeight) return;
+    if (!box) return;
     // Resume when reading advances outside the manually browsed axis. While
     // the pointer/focus stays here, never take control away from the reader.
     if (paused) {
       if (activeOrdinal !== pausedAt.current && !inside.current && !box.contains(document.activeElement)) setPaused(false);
       return;
     }
-    const target = box.querySelector<HTMLElement>('[data-axis-current="true"]');
-    if (!target) return;
-    const viewport = box.getBoundingClientRect();
-    const item = target.getBoundingClientRect();
-    const inset = 12;
-    const delta = item.top < viewport.top + inset ? item.top - viewport.top - inset
-      : item.bottom > viewport.bottom - inset ? item.bottom - viewport.bottom + inset : 0;
-    // scrollIntoView can move ancestor scrollports, including the prose. Only
-    // change this private scrollport, and only when the target is out of view.
-    if (delta) box.scrollTop += delta;
+    const reveal = () => {
+      if (!box.clientHeight) return;
+      const target = box.querySelector<HTMLElement>('[data-axis-current="true"]');
+      if (!target) return;
+      const viewport = box.getBoundingClientRect();
+      const item = target.getBoundingClientRect();
+      const inset = 12;
+      const delta = item.top < viewport.top + inset ? item.top - viewport.top - inset
+        : item.bottom > viewport.bottom - inset ? item.bottom - viewport.bottom + inset : 0;
+      // scrollIntoView can move ancestor scrollports, including the prose.
+      // Change only this private scrollport when the target is out of view.
+      if (delta) box.scrollTop += delta;
+    };
+    reveal();
+    // A native dialog is display:none until showModal runs after layout.
+    // Observe its first visible size as well as later viewport changes.
+    const observer = new ResizeObserver(reveal);
+    observer.observe(box);
+    return () => observer.disconnect();
   }, [activeOrdinal, activeIndex, expanded, paused, sections]);
 
   return <nav className="history-axis" aria-label="历史时间轴" data-following={paused ? "false" : "true"}>

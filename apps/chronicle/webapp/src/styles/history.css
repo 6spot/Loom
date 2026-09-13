@@ -53,7 +53,7 @@
   .history-desktop-axis, .history-desktop-time { display: none; }
   .history-axis-open { display: inline-flex; padding-left: 0; color: var(--public-muted); font-size: .8rem; }
   .history-axis { position: static; }
-  .history-axis-scroll { max-height: min(65dvh, 36rem); }
+  .history-axis-scroll { max-height: min(65dvh, calc(100dvh - 14rem), 36rem); }
   .history-paragraph { font-size: 1.08rem; line-height: 2.05; }
   .history-event-preview { position: fixed; left: 1.5rem; right: 1.5rem; top: auto; bottom: 2rem; width: auto; }
 }

@@ -209,6 +209,24 @@ try {
   assert.equal(await page.evaluate(() => window.scrollY), beforeAxisBrowse, "axis wheel must not leak into prose scrolling");
   await page.getByRole("button", { name: "回到当前", exact: true }).click();
   await expect(page.locator(".history-axis")).toHaveAttribute("data-following", "true");
+
+  // The native dialog is initially display:none. Opening it must reveal the
+  // current marker after layout, including late positions on short phones.
+  await page.setViewportSize({ width: 320, height: 540 });
+  await page.goto(`${base}/history/${version}/${id(63)}`);
+  await stableMobileTarget(63);
+  for (let opened = 0; opened < 2; opened++) {
+    await page.locator(".history-axis-open").click();
+    await expect.poll(() => page.locator("dialog .history-axis-scroll").evaluate((box) => {
+      const marker = box.querySelector('[data-axis-current="true"]');
+      if (!marker) return false;
+      const item = marker.getBoundingClientRect(), frame = box.getBoundingClientRect();
+      const dialog = box.closest("dialog").getBoundingClientRect();
+      return item.top >= frame.top && item.bottom <= Math.min(frame.bottom, dialog.bottom);
+    })).toBe(true);
+    await page.keyboard.press("Escape");
+    assert(page.url().endsWith(`/${id(63)}`), "opening the axis must preserve the prose locator");
+  }
   assert.deepEqual(errors, []);
   console.log("history-component-smoke: PASS (curated entries, paging, state, focus, previews, evidence, cancellation, back/refresh, mobile, short boundary/end paragraphs, wrapped dates on deep link/reload/jump/resize/scroll)");
 } finally { await browser.close(); }
