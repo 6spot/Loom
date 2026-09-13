@@ -117,7 +117,17 @@ services:
       CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
       CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
       CHRONICLE_MAX_UPLOAD_BYTES: ${CHRONICLE_MAX_UPLOAD_BYTES:-10485760}
+      # Same profile catalog as the worker; Studio receives names and profile
+      # IDs only. API keys remain exclusively in the worker environment.
+      CHRONICLE_MODEL_ENDPOINT: ${CHRONICLE_MODEL_ENDPOINT:-}
+      CHRONICLE_CHAPTER_MODEL: ${CHRONICLE_CHAPTER_MODEL:-}
+      CHRONICLE_CHAPTER_REVIEW_MODELS: ${CHRONICLE_CHAPTER_REVIEW_MODELS:-}
+      CHRONICLE_CHAPTER_PIPELINE_CONFIG: ${CHRONICLE_CHAPTER_PIPELINE_CONFIG:-}
     volumes:
+      - type: bind
+        source: ${CHRONICLE_CHAPTER_CONFIG_DIR:-./apps/chronicle/worker/config}
+        target: /etc/chronicle/chapter
+        read_only: true
       - type: bind
         source: ${CHRONICLE_DATA_DIR:-./chronicle}/sources
         target: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}

@@ -1792,9 +1792,17 @@ class JobRunner:
                 lease_seconds=self.lease_seconds, on_event=self._emit,
             )
         if stage == CHUNK_BEARING_STAGE:
+            import studio_production
+            with psycopg.connect(self.database_url) as conn:
+                production_request = studio_production.read_request(conn, job_id)
+            selected_model = self.chapter_model
+            if production_request and production_request.get("model_selection") is not None:
+                if not callable(getattr(selected_model, "for_selection", None)):
+                    raise PersistenceError("task model selection requires the staged chapter provider")
+                selected_model = selected_model.for_selection(production_request["model_selection"])
             return chapter_stage.execute_chapter_extract(
                 self.database_url, job_id=job_id, worker=self.worker,
-                plan=plan, requests=requests, model=self.chapter_model,
+                plan=plan, requests=requests, model=selected_model,
                 limits=self.chapter_limits,
                 lease_seconds=self.lease_seconds, on_event=self._emit,
                 halt=self.check_halt,

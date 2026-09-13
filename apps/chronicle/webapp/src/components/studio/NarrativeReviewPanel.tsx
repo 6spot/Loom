@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/button";
+import { typeLabel } from "../../lib/review-display";
+import NarrativePreview from "./NarrativePreview";
 import NarrativeNavigationEditor from "./NarrativeNavigationEditor";
 import { synchronizeNarrativeNavigation } from "../../lib/narrative-navigation";
 import { getReview, mutateJob, submitNarrativeDecision, type ReviewDetail } from "../../lib/studio-api";
@@ -61,7 +63,7 @@ function FactEditor({ fact, context, facts, update }: { fact: NarrativeFact; con
   return <div className="studio-stack">
     <label>核对问题<input value={fact.question} onChange={(e) => patch({ question: e.target.value })} /></label>
     <div className="nr-field-grid">
-      <label>主体<select value={fact.subject_id ?? ""} onChange={(e) => patch({ subject_id: e.target.value || null })}><option value="">未指定主体</option>{Object.entries(context.entities).map(([id, entity]) => <option value={id} key={id}>{entity.name}（{entity.kind} · {id.slice(-6)}）</option>)}</select></label>
+      <label>主体<select value={fact.subject_id ?? ""} onChange={(e) => patch({ subject_id: e.target.value || null })}><option value="">未指定主体</option>{Object.entries(context.entities).map(([id, entity]) => <option value={id} key={id}>{entity.name}（{typeLabel(entity.kind)}）</option>)}</select></label>
       <label>结论类型<select value={fact.dimension} onChange={(e) => patch({ dimension: e.target.value as NarrativeFact["dimension"], value: e.target.value === "event_detail" ? null : fact.value ?? "" })}>{Object.entries(DIMENSIONS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label>相关事件<select value={fact.event_id ?? ""} onChange={(e) => patch({ event_id: e.target.value || null })}><option value="">没有指定事件</option>{Object.entries(context.events).map(([id, event]) => <option value={id} key={id}>{event.name}</option>)}</select></label>
       <label>明确性<select value={fact.certainty} onChange={(e) => patch({ certainty: e.target.value as NarrativeFact["certainty"] })}><option value="clear">● 明确记载</option><option value="uncertain">○ 存疑</option></select></label>
@@ -82,12 +84,16 @@ function FactEditor({ fact, context, facts, update }: { fact: NarrativeFact; con
 }
 
 function ProseEditor({ content, data, update: save }: { content: NarrativeProse; data: NarrativeReviewData; update: (content: NarrativeProse) => void }) {
+  const [mode, setMode] = useState<"preview" | "edit">("preview");
   const update = (value: NarrativeProse) => save(synchronizeNarrativeNavigation(value));
   const facts = data.facts!;
   const paragraphLabel = (id: string) => { const p = content.paragraphs.find((p) => p.id === id); return p?.segments.map((s) => s.text).join("").slice(0, 70) ?? id; };
   const patchParagraph = (index: number, value: Partial<NarrativeProse["paragraphs"][number]>) => update({ ...content, paragraphs: content.paragraphs.map((p, i) => i === index ? { ...p, ...value } : p) });
   return <div className="studio-stack">
-    <p className="studio-muted">逐段通读综合正文，检查叙述是否超出已核对结论。修改文字后仍会重新校验引用与阶段。</p>
+    <div className="studio-segmented studio-filter-row" aria-label="正文审核视图"><button type="button" aria-pressed={mode === "preview"} onClick={() => setMode("preview")}>阅读预览</button><button type="button" aria-pressed={mode === "edit"} onClick={() => setMode("edit")}>编辑正文与入口</button></div>
+    <div hidden={mode !== "preview"}><p className="studio-muted">通读当前稿件。滚动或选择段落，可以核对右侧人物、地点在当时的状态。此处为待审核预览。</p><NarrativePreview content={content} data={data} /></div>
+    <div hidden={mode !== "edit"} className="studio-stack">
+    <p className="studio-muted">修改正文、人物关联与精选入口后，将重新校验引用及阶段。</p>
     {content.paragraphs.map((paragraph, index) => <section className="nr-prose" key={paragraph.id}>
       <p className="studio-muted">{facts.phases.find((p) => p.id === paragraph.phase_id)?.label} · 第 {index + 1} 段</p>
       <details><summary>本段阶段与侧栏人物、地点</summary>
@@ -120,6 +126,7 @@ function ProseEditor({ content, data, update: save }: { content: NarrativeProse;
       }}><option value="">选择这一时期的正文起点…</option>{content.paragraphs.filter((p) => !content.entry_points.some((entry) => entry.kind === "period" && entry.paragraph_id === p.id)).map((p) => <option key={p.id} value={p.id}>{paragraphLabel(p.id)}</option>)}</select></label> : null}
     </section>
     <NarrativeNavigationEditor content={content} update={update} />
+    </div>
   </div>;
 }
 

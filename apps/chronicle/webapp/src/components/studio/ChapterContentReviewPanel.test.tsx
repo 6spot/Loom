@@ -73,6 +73,15 @@ describe("chapter-content continuous review interactions", () => {
     expect(button("接受原样并下一项").disabled).toBe(true);
     expect(button("提交修订并下一项").disabled).toBe(false);
     expect(container.textContent).toContain("已修改 1 项");
+    await act(async () => button("修订具体内容").click());
+    const editor = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="修订第 1 段译文"]');
+    expect(editor?.value).toBe("修改后的完整第一段。");
+    await act(async () => button(`模型结果与历史 · ${item.chapter_content!.history_count}`).click());
+    expect(editor?.closest("section")?.hidden).toBe(true);
+    await act(async () => button("正文与提取信息").click());
+    expect(container.querySelector('textarea[aria-label="修订第 1 段译文"]')).toBe(editor);
+    expect(editor?.value).toBe("修改后的完整第一段。");
+    expect(editor?.closest("section")?.hidden).toBe(false);
   });
   it("does not apply another review's draft and exposes all saved model records", async () => {
     const item = contentItem();

@@ -116,6 +116,10 @@ that drains these jobs is `worker.md`; no external queue service is
 involved. The server never opens the Chronicle database (governance: no
 DB driver, no SQL in this crate).
 
+Configured model choices, paginated saved outputs and linked new runs use this
+same authenticated `/jobs/*` proxy. Their request and recovery contracts are
+documented in [worker.md](worker.md#per-step-models-budgets-and-recovery).
+
 ## Studio document operations (C1-T3)
 
 Document upload/revision storage is implemented in the internal Python

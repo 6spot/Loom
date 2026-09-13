@@ -741,7 +741,10 @@ async function runMocked(page) {
     const queueUrl = new URL(page.url());
     check("scope in URL", queueUrl.searchParams.get("status") === "open");
 
-    // 2. Kind filter rewrites the URL scope and the list.
+    // 2. The mixed inbox defaults to all families. Identity/event filters
+    // belong only to the resolution family, not to chapter/state reviews.
+    await page.getByRole("button", { name: "身份／综合内容", exact: true }).click();
+    await page.waitForURL(/review_scope=resolution/, { timeout: 10000 });
     await page.getByRole("button", { name: "事件发生", exact: true }).click();
     await page.waitForURL(/link_kind=event/, { timeout: 10000 });
     const eventUrl = new URL(page.url());
@@ -861,7 +864,7 @@ async function runMocked(page) {
     if (SUITE === "all") {
       // 11. Job-scoped entry from the import detail page.
       await page.goto(`${BASE_URL}/studio/imports/${SMALL_JOB}`, { waitUntil: "networkidle" });
-      await page.getByRole("link", { name: "进入该作业的审核队列" }).click();
+      await page.getByRole("link", { name: /^处理 \d+ 项审核$/ }).click();
       await page.getByText("人工审核队列").first().waitFor({ timeout: 15000 });
       const jobUrl = new URL(page.url());
       check("job scope entry", jobUrl.searchParams.get("job_id") === SMALL_JOB);

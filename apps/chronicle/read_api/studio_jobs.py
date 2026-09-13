@@ -15,9 +15,9 @@ C1-T10 deliberately exposes a *safe Studio projection* of job detail. The
 underlying C1-T6 ChunkRun checkpoint is a replay/audit record and may contain
 verbatim prompts, raw model responses, candidates and context. Those bytes
 remain durable in PostgreSQL but are not a browser API. Studio receives
-version/hash/validation/error metadata sufficient to debug progress without
-turning the browser into a second model-artifact store or leaking configured
-provider secrets.
+version/hash/validation/error metadata for progress. Explicit output reads
+provide paginated saved model content through a positive field projection;
+prompts, inputs, transport configuration and credentials stay server-side.
 
 All responses are JSON under a ``chronicle.*`` schema:
 
@@ -28,6 +28,9 @@ GET    /api/v1/studio/jobs/{job_id}
 POST   /api/v1/studio/jobs/{job_id}/retry
 POST   /api/v1/studio/jobs/{job_id}/resume
 POST   /api/v1/studio/jobs/{job_id}/cancel
+GET    /api/v1/studio/jobs/model-options
+POST   /api/v1/studio/jobs/{job_id}/rerun
+GET    /api/v1/studio/jobs/{job_id}/outputs/{sha}[?offset=&limit=]
 ```
 """
 
@@ -35,6 +38,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import re
 import uuid
 from typing import Any
 from urllib.parse import parse_qs
@@ -152,7 +157,7 @@ def _safe_run_checkpoint(checkpoint: Any) -> dict[str, Any]:
 
 
 def _safe_production(value: Any) -> dict[str, Any]:
-    """Expose step progress only; full candidates live in the review route."""
+    """Expose progress; saved content is read on demand from output/review routes."""
     if not isinstance(value, dict):
         return {}
     result = {key: value[key] for key in ("step", "status", "model", "pipeline_fingerprint")
@@ -194,6 +199,11 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             "created_at",
             "updated_at",
             "open_reviews",
+            "document",
+            "job_kind",
+            "source_count",
+            "current_stage",
+            "production_request",
         )
     }
     result["stages"] = [
@@ -216,6 +226,7 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             key: copy.deepcopy(chunk.get(key))
             for key in (
                 "chunk_id",
+                "title",
                 "section_id",
                 "chunk_index",
                 "status",
@@ -257,6 +268,8 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             "chunk_id": review.get("chunk_id"),
             "created_at": review.get("created_at"),
             "resolved_at": review.get("resolved_at"),
+            "scope": (review.get("payload") or {}).get("scope"),
+            "narrative_kind": (review.get("payload") or {}).get("kind"),
         }
         for review in detail.get("reviews", [])
         if isinstance(review, dict)
@@ -267,6 +280,7 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             "artifact_type": output.get("artifact_type"),
             "artifact_sha256": output.get("artifact_sha256"),
             "created_at": output.get("created_at"),
+            **{key: output[key] for key in ("step", "model", "status", "chunk_id", "attempt", "round", "readable") if key in output},
         }
         for output in detail.get("outputs", [])
         if isinstance(output, dict)
@@ -311,6 +325,12 @@ def dispatch_jobs(
 
 def _route(conn, control_plane, *, method, path, raw_query, body):
     query = parse_qs(raw_query, keep_blank_values=True)
+    if path == STUDIO_JOBS_PREFIX + "/model-options":
+        import chapter_model_settings
+        if method != "GET" or query:
+            raise _BadRequest("model options accepts GET without query parameters")
+        return 200, "application/json; charset=utf-8", _json_bytes(chapter_model_settings.catalog(os.environ))
+
 
     if path == STUDIO_JOBS_PREFIX + "/history/sources":
         import narrative_store
@@ -346,6 +366,30 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
         raise _NotFound("route not found")
     rest = path[len(prefix):]
     parts = rest.split("/")
+    if len(parts) == 3 and parts[1] == "outputs":
+        import studio_production
+        job_id = _require_uuid(parts[0], "job")
+        if method != "GET" or set(query) - {"offset", "limit"} or not re.fullmatch(r"[0-9a-f]{64}", parts[2]):
+            raise _BadRequest("invalid saved result request")
+        try:
+            offset, limit = int(_single(query, "offset") or "0"), int(_single(query, "limit") or "16000")
+        except ValueError as exc:
+            raise _BadRequest("invalid saved result page") from exc
+        return 200, "application/json; charset=utf-8", _json_bytes(studio_production.output_page(
+            conn, job_id=job_id, digest=parts[2], offset=offset, limit=limit))
+    if len(parts) == 2 and parts[1] == "rerun":
+        if method != "POST" or query:
+            raise _BadRequest("rerun accepts POST without query parameters")
+        parent_id = _require_uuid(parts[0], "job")
+        parent = control_plane.get_job_detail(conn, job_id=parent_id)
+        try:
+            options = json.loads(body or b"{}")
+        except ValueError as exc:
+            raise _BadRequest("rerun requires a JSON object") from exc
+        if not isinstance(options, dict) or set(options) - {"model_selection"}:
+            raise _BadRequest("rerun accepts model_selection only")
+        return _queue_job(conn, control_plane, body=_json_bytes({**options,
+            "revision_id": parent["revision_id"], "max_attempts": parent["max_attempts"]}), parent_job_id=parent_id)
     if len(parts) == 1 and parts[0]:
         job_id = _require_uuid(parts[0], "job")
         if method != "GET":
@@ -366,13 +410,15 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
     raise _NotFound("route not found")
 
 
-def _queue_job(conn, control_plane, *, body: bytes) -> tuple[int, str, bytes]:
+def _queue_job(conn, control_plane, *, body: bytes, parent_job_id=None) -> tuple[int, str, bytes]:
     try:
         payload = json.loads(body.decode("utf-8")) if body else {}
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise _BadRequest(f"request body must be a JSON object: {exc}") from exc
     if not isinstance(payload, dict):
         raise _BadRequest("request body must be a JSON object")
+    if set(payload) - {"revision_id", "max_attempts", "model_selection"}:
+        raise _BadRequest("unknown production request fields")
     revision_id = payload.get("revision_id")
     if not isinstance(revision_id, str):
         raise _BadRequest("request body must carry a revision_id UUID string")
@@ -382,7 +428,13 @@ def _queue_job(conn, control_plane, *, body: bytes) -> tuple[int, str, bytes]:
     max_attempts = payload.get("max_attempts", 8)
     if not isinstance(max_attempts, int) or isinstance(max_attempts, bool):
         raise _BadRequest("max_attempts must be a positive integer")
-    job_id = control_plane.queue_job(conn, revision_id=revision_uuid, max_attempts=max_attempts)
+    import studio_production
+    import chapter_model_settings
+    selection = None
+    if "model_selection" in payload:
+        selection = chapter_model_settings.validate_selection(payload["model_selection"], chapter_model_settings.catalog(os.environ))
+    job_id = studio_production.queue(conn, revision_id=revision_uuid, max_attempts=max_attempts,
+                                    selection=selection, parent_job_id=parent_job_id)
     return _job_response(conn, control_plane, job_id=job_id, status=201)
 
 
@@ -394,7 +446,8 @@ def _list_jobs(conn, control_plane, *, query: dict[str, list[str]]) -> tuple[int
         offset = int(offset_raw) if offset_raw is not None else 0
     except ValueError as exc:
         raise _BadRequest("limit and offset must be integers") from exc
-    jobs = control_plane.list_jobs(conn, status=status, limit=limit, offset=offset)
+    import studio_production
+    jobs = studio_production.enrich_jobs(conn, control_plane.list_jobs(conn, status=status, limit=limit, offset=offset))
     return 200, "application/json; charset=utf-8", _json_bytes(
         {"schema": "chronicle.job-list", "version": "0.1", "jobs": jobs}
     )
@@ -403,7 +456,8 @@ def _list_jobs(conn, control_plane, *, query: dict[str, list[str]]) -> tuple[int
 def _job_response(
     conn, control_plane, *, job_id: uuid.UUID, status: int
 ) -> tuple[int, str, bytes]:
-    detail = control_plane.get_job_detail(conn, job_id=job_id)
+    import studio_production
+    detail = studio_production.enrich_detail(conn, control_plane.get_job_detail(conn, job_id=job_id))
     return status, "application/json; charset=utf-8", _json_bytes(
         {
             "schema": "chronicle.job",

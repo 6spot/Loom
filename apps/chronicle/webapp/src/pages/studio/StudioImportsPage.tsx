@@ -1,349 +1,48 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "../../components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
 import NarrativeProductionPanel from "../../components/studio/NarrativeProductionPanel";
 import { studioStatusLabel } from "../../lib/studio-i18n";
-import {
-  createDocument,
-  formatShortHash,
-  listDocuments,
-  listJobs,
-  listRevisions,
-  mediaTypeForUpload,
-  queueJob,
-  StudioApiError,
-  uploadRevision,
-  type DocumentSummary,
-  type JobStatus,
-  type Revision,
-} from "../../lib/studio-api";
+import { listJobs, type JobStatus } from "../../lib/studio-api";
+import { formatStudioTime, jobNextAction, jobTitle } from "../../lib/studio-workspace";
 
-const JOB_STATUSES: Array<JobStatus | "all"> = [
-  "all",
-  "queued",
-  "running",
-  "needs_review",
-  "failed",
-  "cancelled",
-  "completed",
+const FILTERS: Array<{ id: JobStatus | "all"; label: string }> = [
+  { id: "all", label: "全部任务" }, { id: "running", label: "处理中" }, { id: "needs_review", label: "等待核对" },
+  { id: "failed", label: "需要处理" }, { id: "completed", label: "已完成" }, { id: "queued", label: "排队中" }, { id: "cancelled", label: "已停止" },
 ];
 
-function errorText(error: unknown): string {
-  if (error instanceof StudioApiError) return `${error.code}: ${error.message}`;
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function formatTime(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
-}
-
-
-function DocumentRow({
-  document,
-  selected,
-  onSelect,
-}: {
-  document: DocumentSummary;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={`studio-list-row ${selected ? "is-selected" : ""}`}
-      onClick={onSelect}
-      aria-pressed={selected}
-    >
-      <span>
-        <strong>{document.title}</strong>
-        <small>{document.revision_count} 个版本 · {formatTime(document.created_at)}</small>
-      </span>
-      <span className="studio-mono">{formatShortHash(document.active_source_sha256)}</span>
-    </button>
-  );
-}
-
-function RevisionRow({
-  revision,
-  onStart,
-  starting,
-}: {
-  revision: Revision;
-  onStart: () => void;
-  starting: boolean;
-}) {
-  return (
-    <div className="studio-table-row studio-revision-row">
-      <div>
-        <div className="studio-row-title">
-          <strong>r{revision.revision_no}</strong>
-          <Badge>{studioStatusLabel(revision.status)}</Badge>
-          {revision.duplicate ? <Badge>重复上传</Badge> : null}
-        </div>
-        <div className="studio-muted">
-          {revision.filename} · {revision.source_bytes.toLocaleString()} 字节 · {revision.language ?? "语言未标记"}
-        </div>
-        <div className="studio-muted studio-mono">sha256 {formatShortHash(revision.source_sha256)}</div>
-      </div>
-      <div className="studio-row-actions">
-        <span className="studio-muted">{formatTime(revision.created_at)}</span>
-        <Button size="sm" onClick={onStart} disabled={starting || revision.storage_status !== "present"}>
-          {starting ? "正在创建…" : "开始导入处理"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export default function StudioImportsPage() {
-  const auth = useStudioAuth();
-  const authHeader = auth.authHeader();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [language, setLanguage] = useState("zh-Hant");
-  const [sourceLabel, setSourceLabel] = useState("");
-  const [jobFilter, setJobFilter] = useState<JobStatus | "all">("all");
-
-  const documents = useQuery({
-    queryKey: ["studio", "documents"],
-    queryFn: () => listDocuments(authHeader),
-  });
-
-  const resolvedDocumentId = selectedDocumentId ?? documents.data?.[0]?.document_id ?? null;
-  const revisions = useQuery({
-    queryKey: ["studio", "revisions", resolvedDocumentId],
-    queryFn: () => listRevisions(authHeader, resolvedDocumentId as string),
-    enabled: Boolean(resolvedDocumentId),
-  });
-
-  const jobs = useQuery({
-    queryKey: ["studio", "jobs", jobFilter],
-    queryFn: () => listJobs(authHeader, jobFilter === "all" ? undefined : jobFilter),
-    refetchInterval: 4000,
-  });
-
-  const createDocumentMutation = useMutation({
-    mutationFn: (title: string) => createDocument(authHeader, title),
-    onSuccess: async (document) => {
-      setNewTitle("");
-      setSelectedDocumentId(document.document_id);
-      await queryClient.invalidateQueries({ queryKey: ["studio", "documents"] });
-    },
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: async () => {
-      if (!resolvedDocumentId || !file) throw new Error("请选择 Document 和文件");
-      return uploadRevision(authHeader, resolvedDocumentId, file, { language, sourceLabel });
-    },
-    onSuccess: async () => {
-      setFile(null);
-      setSourceLabel("");
-      const fileInput = document.getElementById("studio-revision-file") as HTMLInputElement | null;
-      if (fileInput) fileInput.value = "";
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["studio", "documents"] }),
-        queryClient.invalidateQueries({ queryKey: ["studio", "revisions", resolvedDocumentId] }),
-      ]);
-    },
-  });
-
-  const queueMutation = useMutation({
-    mutationFn: (revisionId: string) => queueJob(authHeader, revisionId),
-    onSuccess: async (job) => {
-      await queryClient.invalidateQueries({ queryKey: ["studio", "jobs"] });
-      navigate(`/studio/imports/${job.job_id}`);
-    },
-  });
-
-  const selectedDocument = useMemo(
-    () => documents.data?.find((item) => item.document_id === resolvedDocumentId) ?? null,
-    [documents.data, resolvedDocumentId],
-  );
-
-  return (
-    <div className="studio-stack" data-view="studio-imports">
-      <div className="studio-page-heading">
-        <div>
-          <p className="studio-eyebrow">C1 · 语料生产</p>
-          <h1>文献与导入</h1>
-          <p className="studio-muted">上传不可变文献版本，启动导入处理，并从持久化 PostgreSQL 状态查看进度。</p>
-        </div>
-        <Button variant="outline" onClick={() => void jobs.refetch()} disabled={jobs.isFetching}>
-          {jobs.isFetching ? "刷新中…" : "刷新作业"}
-        </Button>
+  const auth = useStudioAuth().authHeader();
+  const [params, setParams] = useSearchParams();
+  const rawStatus = params.get("status");
+  const status = FILTERS.find((item) => item.id === rawStatus)?.id ?? "all";
+  const offset = Math.max(0, Number(params.get("offset")) || 0);
+  const creating = params.get("create") === "history";
+  const [search, setSearch] = useState("");
+  const jobs = useQuery({ queryKey: ["studio", "jobs", status, offset], queryFn: () => listJobs(auth, status === "all" ? undefined : status, offset), refetchInterval: 4000 });
+  const visible = useMemo(() => (jobs.data ?? []).filter((job) => !search.trim() || jobTitle(job).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())), [jobs.data, search]);
+  const update = (key: string, value: string) => { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); if (key === "status") next.delete("offset"); setParams(next); };
+  return <div className="studio-stack" data-view="studio-imports">
+    <div className="studio-page-heading"><div><p className="studio-eyebrow">内容生产</p><h1>生产任务</h1><p className="studio-muted">从完整史料到连续历史，跟踪每一步的进展与结果。</p></div><div className="studio-row-actions"><Link className="studio-link-button" to="/studio/sources?upload=1">上传资料</Link><Button onClick={() => update("create", creating ? "" : "history")}>{creating ? "收起创建" : "生成历史正文"}</Button></div></div>
+    {creating ? <NarrativeProductionPanel /> : null}
+    <section className="studio-panel studio-tasks-panel">
+      <div className="studio-filter-row studio-segmented" aria-label="任务状态">{FILTERS.map((filter) => <button type="button" key={filter.id} aria-pressed={filter.id === status} onClick={() => update("status", filter.id)}>{filter.label}</button>)}</div>
+      <div className="studio-section-heading"><Input aria-label="搜索当前页任务" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="按资料名称搜索当前页" /><Button variant="ghost" size="sm" disabled={jobs.isFetching} onClick={() => void jobs.refetch()}>{jobs.isFetching ? "更新中…" : "刷新"}</Button></div>
+      {jobs.isPending ? <p className="studio-muted">正在读取生产任务…</p> : null}
+      {jobs.error ? <p role="alert" className="studio-error">任务读取失败：{jobs.error.message}</p> : null}
+      {jobs.data && visible.length === 0 ? <div className="studio-empty"><strong>{search ? "本页没有匹配的任务" : "当前没有这类任务"}</strong><p>上传一份完整资料，即可开始翻译与信息提取。</p></div> : null}
+      <div className="studio-task-list" aria-label="生产任务列表">
+        {visible.map((job) => <Link className="studio-task-row" key={job.job_id} to={`/studio/imports/${job.job_id}`}>
+          <span className="studio-task-glyph" aria-hidden="true">{job.job_kind === "narrative" ? "史" : "文"}</span>
+          <div className="studio-task-name"><strong>{jobTitle(job)}</strong><small>{job.document ? `第 ${job.document.revision_no} 版 · ` : ""}{job.job_kind === "narrative" ? `${job.source_count ?? 0} 份来源章节` : job.chunk_count ? `${job.chunk_count} 个完整章节` : "准备资料"}</small></div>
+          <div className="studio-task-state"><span className="studio-status" data-status={job.status}>{studioStatusLabel(job.status)}</span><small>{jobNextAction(job)}</small></div>
+          <time>{formatStudioTime(job.updated_at)}</time><span className="studio-task-arrow" aria-hidden="true">→</span>
+        </Link>)}
       </div>
-
-      <NarrativeProductionPanel />
-      <div className="studio-grid studio-grid-wide">
-        <Card>
-          <CardHeader>
-            <CardTitle>文献</CardTitle>
-            <CardDescription>逻辑文献容器；替换原文时新增版本，不覆盖旧版本。</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="studio-inline-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const title = newTitle.trim();
-                if (title) createDocumentMutation.mutate(title);
-              }}
-            >
-              <Input
-                value={newTitle}
-                onChange={(event) => setNewTitle(event.target.value)}
-                placeholder="例如：三国志·蜀书·先主传"
-                aria-label="文献标题"
-              />
-              <Button type="submit" disabled={!newTitle.trim() || createDocumentMutation.isPending}>
-                新建
-              </Button>
-            </form>
-            {createDocumentMutation.error ? <p className="studio-error">{errorText(createDocumentMutation.error)}</p> : null}
-            <div className="studio-list" aria-label="文献列表">
-              {documents.isLoading ? <p className="studio-muted">正在读取文献…</p> : null}
-              {documents.error ? <p className="studio-error">{errorText(documents.error)}</p> : null}
-              {documents.data?.length === 0 ? <p className="studio-muted">还没有文献。</p> : null}
-              {documents.data?.map((document) => (
-                <DocumentRow
-                  key={document.document_id}
-                  document={document}
-                  selected={document.document_id === resolvedDocumentId}
-                  onSelect={() => setSelectedDocumentId(document.document_id)}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>上传新版本</CardTitle>
-            <CardDescription>
-              {selectedDocument ? `当前文献：${selectedDocument.title}` : "先创建或选择一份文献"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="studio-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                uploadMutation.mutate();
-              }}
-            >
-              <div>
-                <label className="studio-label" htmlFor="studio-revision-file">UTF-8 文献文件</label>
-                <Input
-                  id="studio-revision-file"
-                  type="file"
-                  accept=".txt,.md,text/plain,text/markdown"
-                  disabled={!resolvedDocumentId}
-                  onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                />
-                {file && !mediaTypeForUpload(file.name) ? <p className="studio-error">只支持 .txt 或 .md。</p> : null}
-              </div>
-              <div className="studio-grid studio-grid-compact">
-                <div>
-                  <label className="studio-label" htmlFor="studio-language">语言</label>
-                  <Input id="studio-language" value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="zh-Hant" />
-                </div>
-                <div>
-                  <label className="studio-label" htmlFor="studio-source-label">来源标签</label>
-                  <Input id="studio-source-label" value={sourceLabel} onChange={(event) => setSourceLabel(event.target.value)} placeholder="版本 / 来源备注（可选）" />
-                </div>
-              </div>
-              <Button
-                type="submit"
-                disabled={!resolvedDocumentId || !file || !mediaTypeForUpload(file.name) || uploadMutation.isPending}
-              >
-                {uploadMutation.isPending ? "上传中…" : "上传为新版本"}
-              </Button>
-            </form>
-            {uploadMutation.error ? <p className="studio-error">{errorText(uploadMutation.error)}</p> : null}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>版本历史</CardTitle>
-          <CardDescription>
-            {selectedDocument ? `${selectedDocument.title} · 当前版本与已替换版本均保留` : "选择文献后显示版本历史"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {revisions.isLoading && resolvedDocumentId ? <p className="studio-muted">读取版本…</p> : null}
-          {revisions.error ? <p className="studio-error">{errorText(revisions.error)}</p> : null}
-          {!resolvedDocumentId ? <p className="studio-muted">暂无文献。</p> : null}
-          {revisions.data?.length === 0 ? <p className="studio-muted">还没有上传版本。</p> : null}
-          <div className="studio-table">
-            {revisions.data?.slice().reverse().map((revision) => (
-              <RevisionRow
-                key={revision.revision_id}
-                revision={revision}
-                onStart={() => queueMutation.mutate(revision.revision_id)}
-                starting={queueMutation.isPending && queueMutation.variables === revision.revision_id}
-              />
-            ))}
-          </div>
-          {queueMutation.error ? <p className="studio-error">{errorText(queueMutation.error)}</p> : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="studio-card-title-row">
-            <div>
-              <CardTitle>导入作业</CardTitle>
-              <CardDescription>每 4 秒轮询 持久化作业状态；刷新页面不会丢失进度。</CardDescription>
-            </div>
-            <select
-              className="studio-select"
-              value={jobFilter}
-              onChange={(event) => setJobFilter(event.target.value as JobStatus | "all")}
-              aria-label="作业状态筛选"
-            >
-              {JOB_STATUSES.map((status) => <option key={status} value={status}>{status === "all" ? "全部状态" : studioStatusLabel(status)}</option>)}
-            </select>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {jobs.isLoading ? <p className="studio-muted">读取作业…</p> : null}
-          {jobs.error ? <p className="studio-error">{errorText(jobs.error)}</p> : null}
-          {jobs.data?.length === 0 ? <p className="studio-muted">当前筛选没有作业。</p> : null}
-          <div className="studio-table">
-            {jobs.data?.map((job) => (
-              <Link className="studio-table-row studio-job-row" key={job.job_id} to={`/studio/imports/${job.job_id}`}>
-                <div>
-                  <div className="studio-row-title">
-                    <Badge>{studioStatusLabel(job.status)}</Badge>
-                    <strong className="studio-mono">{job.job_id.slice(0, 8)}</strong>
-                  </div>
-                  <div className="studio-muted studio-mono">版本 {job.revision_id.slice(0, 8)} · 尝试 {job.attempt}/{job.max_attempts}</div>
-                  {job.error ? <div className="studio-error studio-ellipsis">{job.error}</div> : null}
-                </div>
-                <div className="studio-job-progress">
-                  <strong>{job.completed_stages}/8 阶段</strong>
-                  <span>{job.chunk_count} 分段</span>
-                  <span>{formatTime(job.updated_at)}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+      <div className="studio-pagination studio-row-actions"><span className="studio-muted">第 {Math.floor(offset / 100) + 1} 页 · 本页 {jobs.data?.length ?? 0} 项</span><div className="studio-row-actions"><Button size="sm" variant="outline" disabled={offset === 0 || jobs.isFetching} onClick={() => update("offset", String(Math.max(0, offset - 100)))}>上一页</Button><Button size="sm" variant="outline" disabled={(jobs.data?.length ?? 0) < 100 || jobs.isFetching} onClick={() => update("offset", String(offset + 100))}>下一页</Button></div></div>
+    </section>
+  </div>;
 }

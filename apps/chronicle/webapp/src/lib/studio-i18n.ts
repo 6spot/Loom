@@ -16,6 +16,12 @@ const STATUS_LABELS: Record<string, string> = {
   active: "当前版本",
   superseded: "已替换",
   present: "可用",
+  started: "执行中",
+  invalid: "待修正",
+  accepted: "内容已接受",
+  interrupted: "已中断",
+  conditional: "按需执行",
+  draft: "候选草稿",
 };
 
 const DECISION_LABELS: Record<ReviewDecision, string> = {
@@ -36,14 +42,14 @@ const LINK_KIND_LABELS: Record<ReviewLinkKind, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  prepare: "准备",
-  structure: "结构识别",
-  segment: "文本分段",
-  extract: "事实抽取",
-  assemble: "来源内装配",
-  resolve: "跨来源消歧",
-  publish: "规范化发布",
-  present: "读者呈现",
+  prepare: "接收资料",
+  structure: "识别章节",
+  segment: "准备整章",
+  extract: "翻译与提取",
+  assemble: "汇总章节",
+  resolve: "核对身份与状态",
+  publish: "保存来源成果",
+  present: "生成阅读内容",
 };
 
 export function studioStatusLabel(value: string | null | undefined): string {

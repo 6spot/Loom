@@ -924,10 +924,10 @@ export default function StudioReviewDetailPage() {
     <div className="studio-stack" data-view="studio-review-detail">
       <div className="studio-page-heading">
         <div>
-          <p className="studio-eyebrow">人工消歧</p>
+          <p className="studio-eyebrow">身份与事件核对</p>
           <h1>{item.link_kind === "entity" ? "实体是否同一身份" : "事件是否同一发生"}</h1>
           <p className="studio-muted">
-            审核批次 {item.review_subject_id ?? item.candidate_id} · {groupCount} 个来源候选组 / {memberCount} 个底层候选
+            {item.document.title} · {groupCount} 组来源 / {memberCount} 条候选记录
           </p>
         </div>
         <div className="studio-row-actions">
@@ -951,14 +951,14 @@ export default function StudioReviewDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle>审核来源</CardTitle>
-          <CardDescription>该审核项绑定到一个不可变文献修订和一个持久化导入作业。</CardDescription>
+          <CardDescription>查看本次资料版本及处理进度。</CardDescription>
         </CardHeader>
         <CardContent>
           <dl className="studio-definition-list">
             <div><dt>文档</dt><dd>{item.document.title} · 第 {item.document.revision_no} 版</dd></div>
             <div><dt>文件</dt><dd>{item.document.filename}</dd></div>
-            <div><dt>源文件哈希</dt><dd className="studio-mono">{item.document.source_sha256}</dd></div>
-            <div><dt>导入作业</dt><dd><Link to={`/studio/imports/${encodeURIComponent(item.job_id)}`}>{item.job_id}</Link></dd></div>
+
+            <div><dt>生产任务</dt><dd><Link to={`/studio/imports/${encodeURIComponent(item.job_id)}`}>查看进度与模型结果</Link></dd></div>
             <div><dt>该作业待处理消歧</dt><dd>{item.job_open_resolution_reviews}</dd></div>
           </dl>
           <div className="studio-row-actions">
@@ -1013,7 +1013,7 @@ export default function StudioReviewDetailPage() {
         reviewId={reviewId}
         planFingerprint={fingerprint}
         title="审核证据与来源"
-        description={`该审核项共 ${item.source_contexts?.total ?? memberCount} 个候选来源。无直接事实声明、chapter_pair 两端与已发布批次的全部候选来源都在此逐一检查；译文仅供辅助参考。`}
+        description={`共 ${item.source_contexts?.total ?? memberCount} 份来源材料，可展开引用前后文或完整章节。`}
         records={evidenceRecords}
       />
 
@@ -1034,7 +1034,7 @@ export default function StudioReviewDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>系统初始建议</CardTitle>
-            <CardDescription>只作为辅助线索，不是历史身份权威；同名、同年或参与者重合都不能单独证明应当合并。</CardDescription>
+            <CardDescription>只作为辅助线索，不是历史身份权威；请结合原文与不同来源的记载核对。</CardDescription>
           </CardHeader>
           <CardContent className="studio-stack">
             <dl className="studio-definition-list">

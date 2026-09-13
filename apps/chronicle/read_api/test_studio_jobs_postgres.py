@@ -23,6 +23,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest import mock
 
 import psycopg
 from psycopg import sql
@@ -43,6 +44,8 @@ import ingestion_worker as worker  # noqa: E402
 from studio_jobs import STUDIO_JOBS_PREFIX  # noqa: E402
 
 from migrations import apply_migrations  # noqa: E402
+from common import sha256_json  # noqa: E402
+import studio_production  # noqa: E402
 
 
 DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
@@ -142,6 +145,119 @@ class StudioJobsHttpTests(unittest.TestCase):
         return status, json.loads(raw.decode("utf-8"))
 
     # -- lifecycle -------------------------------------------------------
+
+    def _model_env(self):
+        return {"CHRONICLE_CHAPTER_MODEL": "luna", "CHRONICLE_CHAPTER_REVIEW_MODELS": "review-model",
+                "CHRONICLE_MODEL_ENDPOINT": "https://private-provider.invalid/v1/responses",
+                "CHRONICLE_MODEL_API_KEY": "not-for-the-browser"}
+
+    def test_model_catalog_and_selection_are_credential_free_and_persisted(self):
+        with mock.patch.dict(os.environ, self._model_env(), clear=True):
+            status, choices = self._json("GET", STUDIO_JOBS_PREFIX + "/model-options")
+            self.assertEqual(status, 200, choices)
+            self.assertEqual([item["name"] for item in choices["models"]], ["luna", "review-model"])
+            self.assertNotIn("private-provider", json.dumps(choices))
+            self.assertNotIn("not-for-the-browser", json.dumps(choices))
+            selection = {key: choices[key] for key in ("config_sha256", "steps")}
+            selection["steps"]["translation"] = ["reviewer_1"]
+            status, body = self._json("POST", STUDIO_JOBS_PREFIX,
+                {"revision_id": str(self.revision_id), "model_selection": selection})
+            self.assertEqual(status, 201, body)
+            job = body["job"]
+            self.assertEqual(job["production_request"]["model_selection"], selection)
+            self.assertEqual(job["document"]["title"], "武帝紀")
+            self.assertEqual(job["job_kind"], "chapter")
+            with psycopg.connect(self.database_url) as conn:
+                self.assertEqual(studio_production.read_request(conn, job["job_id"])["model_selection"], selection)
+            selection["config_sha256"] = "0" * 64
+            status, _ = self._json("POST", STUDIO_JOBS_PREFIX,
+                {"revision_id": str(self.revision_id), "model_selection": selection})
+            self.assertEqual(status, 409)
+            selection["config_sha256"] = choices["config_sha256"]
+            selection["steps"]["translation"] = ["unconfigured-model"]
+            status, _ = self._json("POST", STUDIO_JOBS_PREFIX,
+                {"revision_id": str(self.revision_id), "model_selection": selection})
+            self.assertEqual(status, 400)
+            _, listing = self._json("GET", STUDIO_JOBS_PREFIX)
+            self.assertEqual(len(listing["jobs"]), 1, "invalid selections must not create jobs")
+            self.assertEqual(listing["jobs"][0]["document"], job["document"])
+
+    def test_linked_rerun_retains_original_results_and_exact_revision(self):
+        _, body = self._json("POST", STUDIO_JOBS_PREFIX, {"revision_id": str(self.revision_id)})
+        original_id = body["job"]["job_id"]
+        path = f"{STUDIO_JOBS_PREFIX}/{original_id}"
+        self.assertEqual(self._json("POST", path + "/rerun")[0], 409)
+        worker.run_once(self.database_url, worker="rerun-test",
+                        executor=worker.StageExecutor(fail_plan={"prepare": 99}))
+        with psycopg.connect(self.database_url) as conn:
+            result = {"step": "translation", "status": "completed", "parsed": {"blocks": [{"text": "旧结果仍保留。"}]}}
+            control_plane.record_output(conn, job_id=uuid.UUID(original_id), revision_id=self.revision_id,
+                artifact_type="chapter-production-step", artifact_sha256=sha256_json(result), payload=result)
+        _, original = self._json("GET", path)
+        status, body = self._json("POST", path + "/rerun", {})
+        self.assertEqual(status, 201, body)
+        created = body["job"]
+        self.assertNotEqual(created["job_id"], original_id)
+        self.assertEqual(created["revision_id"], str(self.revision_id))
+        self.assertEqual(created["production_request"]["parent_job_id"], original_id)
+        self.assertEqual(created["status"], "queued")
+        self.assertTrue(all(item["status"] == "pending" for item in created["stages"]))
+        self.assertEqual(created["chunks"], [])
+        _, retained = self._json("GET", path)
+        self.assertEqual(retained, original, "new run must not rewrite the original task or its outputs")
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute("UPDATE chronicle.ingestion_jobs SET checkpoint = %s WHERE job_id=%s",
+                (psycopg.types.json.Jsonb({"narrative_scope": {"publication_ids": ["saved-source"]}}), original_id))
+        self.assertEqual(self._json("POST", path + "/rerun")[0], 409,
+                         "narrative tasks must not become chapter tasks on rerun")
+
+    def test_job_and_model_request_commit_atomically(self):
+        with psycopg.connect(self.database_url) as conn:
+            before = conn.execute("SELECT count(*) FROM chronicle.ingestion_jobs").fetchone()[0]
+            with mock.patch.object(control_plane, "record_output", side_effect=RuntimeError("storage failure")):
+                with self.assertRaisesRegex(RuntimeError, "storage failure"):
+                    studio_production.queue(conn, revision_id=self.revision_id,
+                        selection={"config_sha256": "0" * 64, "steps": {}})
+            self.assertEqual(conn.execute("SELECT count(*) FROM chronicle.ingestion_jobs").fetchone()[0], before)
+
+    def test_saved_outputs_are_exact_scoped_paginated_and_exclude_requests(self):
+        _, body = self._json("POST", STUDIO_JOBS_PREFIX, {"revision_id": str(self.revision_id)})
+        job_id = body["job"]["job_id"]
+        result = {"step": "translation", "model": "luna", "status": "completed", "round": 0, "attempt": 1,
+                  "parsed": {"blocks": [{"text": "完整白话文𠮷。" * 100}]}, "raw_text": "保留模型返回。",
+                  "prompt": "private-prompt", "input": {"hidden": "private-input"},
+                  "model_config": {"api_key": "private-key"}, "receipt": {"endpoint": "private-provider"}}
+        digest = sha256_json(result)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output(conn, job_id=uuid.UUID(job_id), revision_id=self.revision_id,
+                artifact_type="chapter-production-step", artifact_sha256=digest, payload=result)
+        _, detail = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}")
+        self.assertTrue(detail["job"]["outputs"][0]["readable"])
+        self.assertEqual(detail["job"]["outputs"][0]["model"], "luna")
+        self.assertNotIn("完整白话文", json.dumps(detail, ensure_ascii=False), "detail lists metadata only")
+        path = f"{STUDIO_JOBS_PREFIX}/{job_id}/outputs/{digest}"
+        collected, offset = "", 0
+        while offset is not None:
+            status, page = self._json("GET", path + f"?offset={offset}&limit=333")
+            self.assertEqual(status, 200, page)
+            self.assertEqual(page["job_id"], job_id)
+            self.assertEqual(page["output_sha256"], digest)
+            self.assertEqual(page["offset"], offset)
+            self.assertLessEqual(len(page["text"]), 333)
+            collected += page["text"]
+            offset = page["next_offset"]
+        value = json.loads(collected)
+        self.assertEqual(value["parsed"], result["parsed"])
+        self.assertEqual(value["raw_text"], result["raw_text"])
+        self.assertNotIn("private-", collected)
+        self.assertEqual(self._json("GET", path + "?limit=16001")[0], 400)
+        self.assertEqual(self._json("GET", path + "?offset=-1")[0], 400)
+        self.assertEqual(self._json("GET", path + "?offset=999999")[0], 400)
+        self.assertEqual(self._json("GET", f"{STUDIO_JOBS_PREFIX}/{uuid.uuid4()}/outputs/{digest}")[0], 404)
+        with psycopg.connect(self.database_url) as conn:
+            conn.execute("UPDATE chronicle.ingestion_outputs SET payload=%s WHERE job_id=%s AND artifact_sha256=%s",
+                (psycopg.types.json.Jsonb({**result, "status": "changed"}), job_id, digest))
+        self.assertEqual(self._json("GET", path)[0], 409)
 
     def test_queue_inspect_complete_round_trip(self) -> None:
         status, payload = self._json(

@@ -147,9 +147,24 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/badge.js"
     ),
     asset!(
-        "/assets/cn.js",
+        "/assets/ModelSelector.js",
         "text/javascript; charset=utf-8",
-        "dist/assets/cn.js"
+        "dist/assets/ModelSelector.js"
+    ),
+    asset!(
+        "/assets/StructuredResult.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StructuredResult.js"
+    ),
+    asset!(
+        "/assets/studio-workspace.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/studio-workspace.js"
+    ),
+    asset!(
+        "/assets/review-display.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/review-display.js"
     ),
 ];
 
@@ -324,7 +339,10 @@ mod tests {
             "/assets/button.js",
             "/assets/card.js",
             "/assets/badge.js",
-            "/assets/cn.js",
+            "/assets/ModelSelector.js",
+            "/assets/StructuredResult.js",
+            "/assets/studio-workspace.js",
+            "/assets/review-display.js",
         ] {
             assert!(resolve_web_path(path).is_some(), "{path}");
         }

@@ -133,6 +133,11 @@ await context.route("**/api/v1/**", async (route) => {
     if (method === "GET" && path === "/api/v1/studio/status") {
       return reply(route, { schema: "chronicle.studio-status", version: "0.1", admin_user: "synthetic-studio", upstream: { reachable: true } });
     }
+    if (method === "GET" && path === "/api/v1/studio/jobs") {
+      return reply(route, { jobs: Object.values(jobs).map((job_id) => ({ job_id, status: "needs_review", job_kind: "narrative",
+        document: { title: "合成历史审核", revision_no: 1 }, open_reviews: 1, updated_at: iso })) });
+    }
+    if (method === "GET" && path === "/api/v1/studio/documents") return reply(route, { documents: [] });
     if (method === "GET" && path === "/api/v1/studio/jobs/reviews") {
       const status = url.searchParams.get("status") ?? "open";
       const job = url.searchParams.get("job_id");
@@ -412,6 +417,13 @@ try {
 
   stage = "prose, context, conclusion references and curated entry editing";
   await page.setViewportSize({ width: 1440, height: 900 });
+  const preview = page.getByRole("region", { name: "待审核历史阅读预览", exact: true });
+  await expect(preview).toBeVisible();
+  await expect(preview.getByLabel("预览当前人物与地点")).toContainText("测试前职");
+  await preview.getByRole("button", { name: "渡河行动", exact: true }).click();
+  await expect(preview.getByLabel("预览当前人物与地点")).not.toContainText("测试前职");
+  await expect(preview.getByLabel("预览当前人物与地点")).toContainText("本阶段暂无明确状态记载");
+  await page.getByRole("button", { name: "编辑正文与入口", exact: true }).click();
   await expect(entries).toHaveCount(2);
   await expect(page.getByLabel(/^本次审核说明/)).toHaveValue("");
   await proseChecked().check();
@@ -478,6 +490,9 @@ try {
   await expect(approve()).toBeDisabled();
   await proseChecked().check();
   await page.reload();
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText(revisedProse);
+  await page.getByRole("button", { name: "编辑正文与入口", exact: true }).click();
   await expect(page.getByLabel(/^第 1 段文字 1/)).toHaveValue(revisedProse);
   await expect(page.getByLabel(/^本次审核说明/)).toHaveValue(proseRationale);
   await expect(proseChecked()).toBeChecked();
