@@ -14,7 +14,7 @@ const STEP_LABELS: Record<string, string> = {
   review: "内容复核", repair: "局部修正", human_repair: "人工修订", human_revision: "人工修订",
 };
 const STATUS_LABELS: Record<string, string> = {
-  started: "正在处理", completed: "已完成", failed: "执行失败", invalid: "校验未通过", draft: "候选草稿",
+  started: "调用开始记录", completed: "已完成", failed: "执行失败", invalid: "校验未通过", draft: "候选草稿",
 };
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const pretty = (value: unknown) => typeof value === "string" ? value : JSON.stringify(value, null, 2);
