@@ -17,10 +17,12 @@ from threading import Event
 import psycopg
 
 import chapter_content_review as reviews
+import chapter_contract
 import chapter_production as protocol
 import chapter_production_store as store
 import control_plane
 import staged_chapter_contract as contract
+import person_state_contract
 from common import LeaseLost, PersistenceConflict, PersistenceError, sha256_json
 from model_provider import ModelProviderError
 from resolve_publish import require_unexpired_lease
@@ -120,8 +122,16 @@ class Runner:
             return "", None, [], {"usage": None, "elapsed_seconds": round(time.monotonic() - started, 3)}, "failed", f"model adapter failed ({type(exc).__name__})"
 
     def _semantic_errors(self, step, parsed, data):
-        if step in ("extraction", "linking"):
-            return [] if parsed.get("chapter_id") == self.request["chapter_id"] else ["output chapter mismatch"]
+        if step == "extraction":
+            return (chapter_contract.chapter_extraction_errors(self.request, parsed)
+                    + person_state_contract.person_state_extraction_errors(self.request, parsed))
+        if step == "linking":
+            try:
+                candidate = protocol.assemble_candidate(
+                    self.request, data["translation"], data["extraction"], parsed)
+            except PersistenceError as exc:
+                return [str(exc)]
+            return self._validation(candidate)
         if step == "review":
             return protocol.review_errors(parsed, request=self.request,
                 candidate=data["candidate"], history=data["history"],

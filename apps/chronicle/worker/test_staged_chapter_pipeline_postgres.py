@@ -59,6 +59,27 @@ class InvalidExtractionModels(ScriptedModels):
         return raw
 
 
+class SemanticCorrectionModels(ScriptedModels):
+    """Schema-valid mistakes observed in the real chapter production run."""
+    def complete(self, expected_step, slot, prompt):
+        raw = super().complete(expected_step, slot, prompt)
+        if self.count(expected_step, slot) != 1:
+            return raw
+        if expected_step == "extraction":
+            value = json.loads(raw)
+            value["bundle"]["entities"][0]["resolution"]["status"] = "new"
+            value["record_sources"].pop(0)
+        elif expected_step == "linking":
+            value = json.loads(raw)
+            value["reading"]["units"].append(copy.deepcopy(value["reading"]["units"][0]))
+        else:
+            return raw
+        raw = json.dumps(value, ensure_ascii=False)
+        if protocol.parse_step(expected_step, raw)[1]:
+            raise AssertionError("semantic regression must pass the step schema")
+        return raw
+
+
 class StagedChapterPipelinePostgresTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -235,6 +256,35 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
         self.assertTrue(any(entry.get("output_sha256") == results[0]["output_sha256"] for entry in reviewed_history))
         self.assertEqual(len(self._accepted(ctx)), 1)
         self.assertEqual(self._counts(ctx), {"runs": 1, "reviews": 0, "published": 0})
+
+    def test_semantic_errors_correct_in_their_nodes_before_a_single_review(self):
+        ctx = self._prepared_extract()
+        script = SemanticCorrectionModels()
+        self.assertEqual(self._extract(ctx, script), "ok")
+        self.assertEqual(script.count("translation"), 1)
+        self.assertEqual(script.count("extraction"), 2)
+        self.assertEqual(script.count("linking"), 2)
+        self.assertEqual(script.count("review"), 1)
+        records = self._records(ctx)
+        reviewed = [entry for entry in script.inputs if entry["step"] == "review"][0]["data"]
+        for step, expected in (("extraction", "no record_sources"), ("linking", "duplicate")):
+            with self.subTest(step=step):
+                results = [r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == step]
+                attempts = [r for r in records if r["artifact_type"] == store.ATTEMPT_TYPE and r["step"] == step]
+                self.assertEqual([r["status"] for r in results], ["invalid", "completed"])
+                self.assertEqual(len({r["node_key"] for r in results + attempts}), 1)
+                self.assertTrue(any(expected in error for error in results[0]["validation_errors"]))
+                feedback = json.loads(next(line.removeprefix("PREVIOUS_ATTEMPT=")
+                    for line in attempts[1]["prompt"].splitlines() if line.startswith("PREVIOUS_ATTEMPT=")))
+                self.assertEqual(feedback, {key: results[0][key] for key in
+                    ("output_sha256", "raw_text", "validation_errors")})
+                self.assertTrue(any(entry.get("output_sha256") == results[0]["output_sha256"]
+                                    for entry in reviewed["history"]))
+        self.assertEqual(len(reviewed["candidate"]["reading"]["units"]), 3)
+        self.assertEqual(len(self._accepted(ctx)), 1)
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script), "ok")
+        self.assertEqual(self._records(ctx), records)
 
     def test_invalid_extraction_exhausts_saved_budget_and_resume_never_opens_another_node(self):
         ctx = self._prepared_extract()
