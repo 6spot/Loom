@@ -6,6 +6,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 for path in (HERE, HERE.parent / "persistence"):
@@ -18,6 +19,7 @@ import person_state_contract
 import staged_chapter
 import staged_chapter_contract
 from test_staged_chapter_contract_unit import fixture
+from common import sha256_json
 
 
 class StagedStepValidationTests(unittest.TestCase):
@@ -104,6 +106,37 @@ class StagedStepValidationTests(unittest.TestCase):
         span["selection"]["quote"] = "策授瑜建威中郎將"
         errors = self.errors("linking", value)
         self.assertTrue(any(".selection" in error and "quote" in error for error in errors), errors)
+
+    def test_invalid_revision_does_not_dispatch_a_model_or_replace_the_prior_candidate(self):
+        for kind in ("qualification_with_prose", "qualification_only", "missing_source", "unit_phase"):
+            with self.subTest(kind=kind):
+                original = copy.deepcopy(self.candidate)
+                if kind.startswith("qualification"):
+                    path = "/person_states/facts/0/qualification"
+                    before = original["person_states"]["facts"][0]["qualification"]
+                    value, op = "uncertain", "replace"
+                elif kind == "missing_source":
+                    path, before = "/record_sources/0", original["record_sources"][0]
+                    value, op = None, "remove"
+                else:
+                    path = "/person_states/unit_phases/0/phase_refs"
+                    before = original["person_states"]["unit_phases"][0]["phase_refs"]
+                    value, op = ["ph_unknown"], "replace"
+                patches = [{"path": path, "op": op, "before_sha256": sha256_json(before), "value": value}]
+                if kind == "qualification_with_prose":
+                    patches.append({"path": "/translation/blocks/0/text",
+                        "before_sha256": sha256_json(original["translation"]["blocks"][0]["text"]),
+                        "value": "建安三年，孙策任命周瑜为建威中郎将。"})
+                draft = {"candidate": original, "round": 0, "output_sha256": "a" * 64}
+                with mock.patch.object(self.runner, "_gate", return_value={"outcome": "needs_review"}) as gate, \
+                     mock.patch.object(self.runner, "_group") as group, \
+                     mock.patch.object(self.runner, "_save_draft") as save:
+                    self.assertEqual(self.runner._revised_draft(draft, patches, [], []), {"outcome": "needs_review"})
+                group.assert_not_called()
+                save.assert_not_called()
+                self.assertEqual(gate.call_args.args[0], draft)
+                self.assertTrue(gate.call_args.args[2], "the unusable proposed revision needs a recorded issue")
+                self.assertEqual(original, self.candidate)
 
 
 if __name__ == "__main__":

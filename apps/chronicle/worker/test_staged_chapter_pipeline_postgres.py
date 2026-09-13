@@ -488,6 +488,82 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
         self.assertEqual(script.count("linking"), 2)
         self.assertEqual(script.count("review"), 3)
 
+    def test_saved_invalid_repair_routes_to_review_without_an_impossible_relink(self):
+        class InvalidRepair(ScriptedModels):
+            def complete(self, step, slot, prompt):
+                raw = super().complete(step, slot, prompt)
+                if step != "repair":
+                    return raw
+                value = json.loads(raw)
+                data = self.inputs[-1]["data"]
+                path = "/person_states/facts/0/qualification"
+                value["patches"].append({"op": "replace", "path": path,
+                    "before_sha256": sha256_json(data["candidate"]["person_states"]["facts"][0]["qualification"]),
+                    "value": "uncertain"})
+                return json.dumps(value, ensure_ascii=False)
+
+        ctx = self._prepared_extract()
+        script = InvalidRepair(mode="revise")
+        # The live counterexample had already persisted a completed patch
+        # result before attempting to derive links from its invalid values.
+        with mock.patch.object(staged_chapter.Runner, "_revised_draft",
+                               side_effect=staged_chapter.PipelineFailure("interrupted after saved repair")):
+            self.assertEqual(self._extract(ctx, script), "failed")
+        records = self._records(ctx)
+        repair = next(r for r in records if r["artifact_type"] == store.STEP_TYPE and r["step"] == "repair")
+        self.assertEqual(repair["status"], "completed")
+        self.assertEqual(protocol.parse_step("repair", repair["raw_text"])[1], [])
+        before = copy.deepcopy(script.calls)
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(script.calls, before)
+        self._assert_initial_steps_once(script)
+        self.assertEqual(script.count("linking"), 1)
+        self.assertEqual(script.count("review"), 1)
+        self.assertEqual(script.count("repair"), 1)
+        self.assertEqual(self._accepted(ctx), [])
+        self.assertIn(repair, self._records(ctx), "the completed patch result must remain unchanged")
+        with psycopg.connect(self.database_url) as conn:
+            review_id = conn.execute("SELECT review_id FROM chronicle.review_items WHERE job_id = %s",
+                                     (ctx["job_id"],)).fetchone()[0]
+            packet = content_review.read_content_review(conn, review_id)["packet"]
+        self.assertEqual(packet["candidate"]["translation"]["blocks"][0]["text"], WRONG_FIRST)
+        self.assertIn(repair["output_sha256"], packet["step_output_sha256s"])
+        self.assertTrue(any("qualification" in issue["message"] for issue in packet["issues"]))
+        self.assertTrue(any(issue.get("model_issue_id") == "subject-assignment" for issue in packet["issues"]))
+        self.assertEqual(self._extract(ctx, script), "needs_review")
+        self.assertEqual(self._counts(ctx), {"runs": 1, "reviews": 1, "published": 0})
+        self.assertEqual(script.calls, before)
+
+    def test_bad_operator_revision_reopens_review_and_can_be_corrected(self):
+        job_id, _revision, source_sha, script, first_id, first = self._content_gate("human_revision")
+        before = copy.deepcopy(script.calls)
+        path = "/person_states/facts/0/qualification"
+        self._decide_content(job_id, first_id, first, decision="revise", extra_patches=[{
+            "path": path, "before_sha256": sha256_json(first["candidate"]["person_states"]["facts"][0]["qualification"]),
+            "value": "uncertain",
+        }])
+        self.assertEqual(self._run_job(job_id, source_sha, script), "needs_review")
+        self.assertEqual(script.calls, before)
+        with psycopg.connect(self.database_url) as conn:
+            second_id = conn.execute("SELECT review_id FROM chronicle.review_items WHERE job_id = %s AND status = 'open'",
+                                     (job_id,)).fetchone()[0]
+            second = content_review.read_content_review(conn, second_id)["packet"]
+            self.assertNotEqual(first_id, second_id)
+            self.assertEqual(second["candidate"], first["candidate"])
+            self.assertNotEqual(second["history_sha256"], first["history_sha256"])
+            self.assertTrue(any(entry.get("step") == "human_repair" for entry in second["history"]))
+            self.assertEqual(chapter_store.read_accepted_chapters(conn, job_id=job_id), [])
+            self.assertEqual(conn.execute("SELECT count(*) FROM chronicle.review_items WHERE job_id = %s AND kind = 'chunk_failure'",
+                                         (job_id,)).fetchone()[0], 0)
+        self._decide_content(job_id, second_id, second, decision="revise")
+        self.assertEqual(self._run_job(job_id, source_sha, script), "needs_review")
+        artifact = self._assert_state_gate_without_chunk_failure(job_id)
+        self.assertEqual(artifact["candidate"]["translation"]["blocks"][0]["text"], CORRECT_FIRST)
+        self.assertEqual(script.count("linking"), 2)
+        self.assertEqual(script.count("review"), 2)
+        self.assertEqual(script.count("repair"), 0)
+
     def test_saved_acceptance_is_adopted_after_artifact_transaction_crash(self):
         ctx = self._prepared_extract()
         script = ScriptedModels()
