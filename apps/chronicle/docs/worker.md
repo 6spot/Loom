@@ -269,6 +269,13 @@ Changing them requires a new job; ordinary retry cannot silently change the
 model. Credential values may rotate without changing the frozen configuration.
 Technical failure parks the job as failed; Studio retry continues incomplete
 steps. Content gates use the existing review/resolve/resume operations.
+Before deriving a revised draft, the worker checks the proposed extraction
+with its existing schema and semantic validators. A syntactically valid patch
+with invalid field values returns to the content gate with the prior candidate
+and complete patch/opinion history; it does not spend linking attempts on
+fields the linking model cannot change. This applies to saved AI repairs and
+operator revisions on resume. For revisions that do not rebuild links, the
+complete candidate is checked before further model review.
 Manual revision creates a new candidate and requires another review; accepting
 an old draft never approves an edited version. Chapter acceptance still leaves
 identity resolution, person-state evidence and explicit composite-history

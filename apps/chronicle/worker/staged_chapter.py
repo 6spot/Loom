@@ -370,19 +370,41 @@ class Runner:
         return {"outcome": "needs_review", "review_id": gate["review_id"]}
 
     def _revised_draft(self, draft, patches, extra_records, issues):
+        """Derive a revised draft, or retain an unusable revision for review.
+
+        A valid patch envelope does not make its field values valid. Linking
+        cannot repair extraction-owned facts, so never dispatch it against an
+        invalid upstream revision. This also covers already saved repairs and
+        operator patches without rewriting their immutable result records.
+        """
         candidate = protocol.apply_patches(draft["candidate"], patches)
         generation = draft["round"] + 1
         extra = list(extra_records)
         # Upstream prose/entities/events/phases changing invalidates derived
         # links. Direct corrections to links/time metadata do not regenerate
         # the already-correct prose or extraction.
-        if any((p["path"].startswith("/translation/") and p["path"].endswith("/text"))
-               or p["path"].startswith(("/bundle/", "/person_states/phases")) for p in patches):
+        needs_relink = any((p["path"].startswith("/translation/") and p["path"].endswith("/text"))
+                          or p["path"].startswith(("/bundle/", "/person_states/phases")) for p in patches)
+        extraction = {key: copy.deepcopy(candidate[key]) for key in (
+            "chapter_id", "bundle", "mentions", "record_sources", "person_states", "warnings")}
+        extraction["person_states"].pop("unit_phases", None)
+        parsed, errors = protocol.parse_step("extraction", json.dumps(extraction, ensure_ascii=False))
+        if not errors:
+            errors = self._semantic_errors("extraction", parsed, {})
+        if not errors and not needs_relink:
+            errors = self._validation(candidate)
+        if errors:
+            revision_issues = [_issue("修订结果无法用于后续生产：" + error,
+                target="repair", identity=[draft["output_sha256"], sha256_json(patches), error])
+                for error in errors]
+            # The prior candidate stays unchanged. The proposed patches and
+            # all opinions remain in history; fixing or rejecting them is a
+            # separate, version-bound content decision, never auto-approval.
+            return self._gate(draft, extra, issues + revision_issues,
+                              self._validation(draft["candidate"]))
+        if needs_relink:
             translation = {"language": "zh-CN", "blocks": [{"block_id": b["block_id"], "text": b["text"]}
                            for b in candidate["translation"]["blocks"]]}
-            extraction = {key: copy.deepcopy(candidate[key]) for key in (
-                "chapter_id", "bundle", "mentions", "record_sources", "person_states", "warnings")}
-            extraction["person_states"].pop("unit_phases", None)
             links = self._group("linking", {"translation": translation, "extraction": extraction}, generation)
             linking, comparisons, new_issues = self._choose(links, "linking", generation)
             candidate = protocol.assemble_candidate(self.request, translation, extraction, linking)
@@ -429,7 +451,10 @@ class Runner:
                             "decision": decision, "validation_errors": [], "raw_text": None})
                 refs = packet["step_output_sha256s"]
                 prior = store.resolve_history(self._records(), refs)
-                draft = self._revised_draft(draft, decision["patches"], prior + [note], packet["issues"])
+                revised = self._revised_draft(draft, decision["patches"], prior + [note], packet["issues"])
+                if revised.get("outcome") == "needs_review":
+                    return revised
+                draft = revised
                 continue
             errors = self._validation(draft["candidate"])
             history, _refs = self._history(draft)
@@ -484,7 +509,10 @@ class Runner:
             chosen, comparisons, comparison_issues = self._choose(repairs, "repair", draft["round"])
             if comparison_issues:
                 return self._gate(draft, reports + repairs + comparisons, all_issues + comparison_issues, errors)
-            draft = self._revised_draft(draft, chosen["patches"], reports + repairs + comparisons, all_issues)
+            revised = self._revised_draft(draft, chosen["patches"], reports + repairs + comparisons, all_issues)
+            if revised.get("outcome") == "needs_review":
+                return revised
+            draft = revised
 
 
 def execute(database_url, **kwargs):
