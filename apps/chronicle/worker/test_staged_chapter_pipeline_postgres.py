@@ -470,7 +470,7 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             self.assertEqual(conn.execute("SELECT count(*) FROM chronicle.ingestion_chunk_runs r JOIN chronicle.ingestion_chunks c USING (chunk_id) WHERE c.job_id = %s", (job_id,)).fetchone()[0], 0)
         return job_id, revision_id, source_sha, script, review_id, packet
 
-    def _decide_content(self, job_id, review_id, packet, *, decision, replacement=CORRECT_FIRST):
+    def _decide_content(self, job_id, review_id, packet, *, decision, replacement=CORRECT_FIRST, extra_patches=()):
         value = {"decision": decision, "plan_fingerprint": packet["plan_fingerprint"],
                  "candidate_sha256": packet["candidate_sha256"], "history_sha256": packet["history_sha256"],
                  "rationale": "测试操作员核对完整原文及全部历史结果。",
@@ -480,6 +480,7 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             value["patches"] = [{"op": "replace", "path": "/translation/blocks/0/text",
                                  "before_sha256": sha256_json(packet["candidate"]["translation"]["blocks"][0]["text"]),
                                  "value": replacement}]
+            value["patches"].extend(copy.deepcopy(extra_patches))
         with psycopg.connect(self.database_url) as conn:
             content_review.resolve_content_review(conn, review_id=review_id, decision=value)
             control_plane.resume_job(conn, job_id=job_id)
@@ -554,12 +555,18 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
 
     def test_worker_human_revision_rechecks_and_04_publishes_after_state_review(self):
         job_id, revision_id, source_sha, script, review_id, packet = self._content_gate("human_revision")
-        self._decide_content(job_id, review_id, packet, decision="revise")
+        notes = [{"type": "test_review_note", "severity": "info", "message": message}
+                 for message in ("测试修订保留第一项核对记录。", "测试修订保留第二项核对记录。")]
+        self._decide_content(job_id, review_id, packet, decision="revise", extra_patches=[
+            {"op": "add", "path": "/warnings/-", "before_sha256": sha256_json(None), "value": note}
+            for note in notes
+        ])
         self.assertEqual(self._run_job(job_id, source_sha, script), "needs_review", self._job_status(job_id))
         artifact = self._assert_state_gate_without_chunk_failure(job_id)
         self.assertNotEqual(artifact["production_receipt"]["candidate_sha256"], packet["candidate_sha256"])
         self.assertEqual(artifact["production_receipt"]["decision"]["kind"], "ai")
         self.assertEqual(artifact["candidate"]["translation"]["blocks"][0]["text"], CORRECT_FIRST)
+        self.assertEqual(artifact["candidate"]["warnings"][-2:], notes)
         self._assert_initial_steps_once(script)
         self.assertEqual(script.count("repair"), 0)
         self.assertEqual(script.count("linking"), 2)

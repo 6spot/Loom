@@ -163,6 +163,48 @@ class ChapterPatchTests(unittest.TestCase):
             with self.subTest(order=[item["path"] for item in ordered]):
                 self.assert_rejected_unchanged(ordered, "array removal")
 
+    def test_multiple_appends_preserve_order_and_can_follow_an_existing_record_edit(self):
+        original = copy.deepcopy(self.candidate)
+        sources = self.candidate["record_sources"]
+        added = [{**copy.deepcopy(sources[0]), "record_ref": f"ent_{index:03d}"}
+                 for index in (90, 91, 92)]
+        changed = {**copy.deepcopy(sources[0]), "record_ref": "ent_080"}
+        result = production.apply_patches(self.candidate, [
+            patch("/record_sources/-", None, added[0], op="add"),
+            patch("/record_sources/0", sources[0], changed),
+            patch("/record_sources/-", None, added[1], op="add"),
+            patch("/record_sources/-", None, added[2], op="add"),
+        ])
+        self.assertEqual(result["record_sources"], [changed, *sources[1:], *added])
+        self.assertEqual(self.candidate, original)
+
+    def test_batch_removal_uses_original_indexes_in_any_submission_order(self):
+        import itertools
+        self.candidate["warnings"] = ["first", "keep", "third", "fourth", "keep too"]
+        original = copy.deepcopy(self.candidate)
+        patches = [patch(f"/warnings/{i}", original["warnings"][i], None, op="remove")
+                   for i in (0, 2, 3)]
+        for ordered in itertools.permutations(patches):
+            result = production.apply_patches(self.candidate, list(ordered))
+            self.assertEqual(result["warnings"], ["keep", "keep too"])
+            self.assertEqual(self.candidate, original)
+
+    def test_append_and_removal_cannot_mix_or_hide_a_bad_frozen_hash(self):
+        self.candidate["warnings"] = ["old", "keep"]
+        removal = patch("/warnings/0", "old", None, op="remove")
+        addition = patch("/warnings/-", None, "new", op="add")
+        for ordered in ([removal, addition], [addition, removal]):
+            self.assert_rejected_unchanged(ordered, "array removal")
+        self.assert_rejected_unchanged([
+            addition, patch("/warnings/-", "not null", "another", op="add")], "before_sha256")
+        self.assert_rejected_unchanged([removal, copy.deepcopy(removal)], "overlap or repeat")
+
+    def test_repeated_object_add_is_not_an_array_append(self):
+        self.assert_rejected_unchanged([
+            patch("/bundle/entities/0/new_field", None, "first", op="add"),
+            patch("/bundle/entities/0/new_field", None, "second", op="add"),
+        ], "overlap or repeat")
+
     def test_nested_array_removal_cannot_retarget_a_sibling_field(self):
         mentions = self.candidate["bundle"]["entities"][0]["mentions"]
         patches = [
