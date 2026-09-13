@@ -10,7 +10,8 @@ if (!base || !args.includes("--base-url")) throw new Error("--base-url is requir
 const version = "a".repeat(64);
 const catalog = "c".repeat(64);
 const id = (n) => `hp_${n.toString(16).padStart(24, "0")}`;
-const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: 200 + i, period: null,
+const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: 200 + i,
+  period: i === 1 ? "测试历法的长时段（窄屏换行）" : null,
   label: `测试阶段 ${i}`, first_paragraph_id: id(i * 10), count: Math.min(10, 64 - i * 10) }));
 const entries = [
   { label: "汉末局势", kind: "period", ordinal: 0, event_id: null },
@@ -131,6 +132,37 @@ try {
   await page.waitForTimeout(400);
   await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(63));
   assert(page.url().includes(`at=${id(63)}`));
+
+  // A longer date wraps the compact bar after the target becomes active.
+  // Wait beyond URL settling: a transient target followed by the preceding
+  // paragraph is a failure even though the initial jump appeared to work.
+  await page.setViewportSize({ width: 320, height: 844 });
+  const stableMobileTarget = async (n) => {
+    await expect(paragraph(n)).toBeAttached();
+    await page.waitForTimeout(600);
+    await page.getByRole("button", { name: /此时此地/ }).click();
+    await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(n));
+    await expect(page.locator('[data-test="history-phase-status"]')).toHaveAttribute("data-phase-id", `phase${n}`);
+    assert(page.url().includes(`at=${id(n)}`), `mobile locator must remain at paragraph ${n}`);
+    await page.locator('[data-test="reading-context-close"]').click();
+  };
+  await page.goto(`${base}/history?version=${version}&at=${id(16)}`);
+  await stableMobileTarget(16);
+  await page.reload();
+  await stableMobileTarget(16);
+  await page.locator(".history-axis-open").click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 0/ }).click();
+  await stableMobileTarget(0);
+  await page.locator(".history-axis-open").click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 1/ }).click();
+  await stableMobileTarget(10);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stableMobileTarget(10);
+  await page.mouse.move(190, 620);
+  await page.mouse.wheel(0, -180);
+  await stableMobileTarget(9);
+  await page.mouse.wheel(0, 240);
+  await stableMobileTarget(10);
   assert.deepEqual(errors, []);
-  console.log("history-component-smoke: PASS (curated entries, paging, state, focus, previews, evidence, cancellation, back/refresh, mobile, short boundary/end paragraphs)");
+  console.log("history-component-smoke: PASS (curated entries, paging, state, focus, previews, evidence, cancellation, back/refresh, mobile, short boundary/end paragraphs, wrapped dates on deep link/reload/jump/resize/scroll)");
 } finally { await browser.close(); }

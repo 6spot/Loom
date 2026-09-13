@@ -107,11 +107,12 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const [axisOpen, setAxisOpen] = useState(false);
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1199px)").matches);
   const [headerHeight, setHeaderHeight] = useState(72);
+  const [chromeHeight, setChromeHeight] = useState(72);
   const epoch = useRef(0);
   const abort = useRef<AbortController | null>(null);
   const flight = useRef(false);
   const mounted = useRef(true);
-  const preserve = useRef<{ id: string; top: number } | null>(null);
+  const chromeRef = useRef<HTMLDivElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const cache = useRef(new Map<number, HistoryPageData>());
 
@@ -119,10 +120,19 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     const media = window.matchMedia("(max-width: 1199px)");
     const resize = () => setNarrow(media.matches); media.addEventListener("change", resize);
     const header = document.querySelector(".site-header");
-    const observer = new ResizeObserver(() => setHeaderHeight(header?.getBoundingClientRect().height ?? 72));
+    const bar = chromeRef.current;
+    const measure = () => {
+      const height = header?.getBoundingClientRect().height ?? 72;
+      setHeaderHeight(height);
+      setChromeHeight(height + (bar?.getBoundingClientRect().height ?? 0));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     if (header) observer.observe(header);
+    if (bar) observer.observe(bar);
+    window.addEventListener("resize", measure);
     mounted.current = true;
-    return () => { mounted.current = false; abort.current?.abort(); observer.disconnect(); media.removeEventListener("change", resize); };
+    return () => { mounted.current = false; abort.current?.abort(); observer.disconnect(); media.removeEventListener("change", resize); window.removeEventListener("resize", measure); };
   }, []);
   const paragraphs = useMemo(() => pages.flatMap((page) => page.paragraphs).filter((p, n, all) => all.findIndex((v) => v.id === p.id) === n).sort((a, b) => a.ordinal - b.ordinal), [pages]);
   const paragraphRef = useRef(paragraphs); paragraphRef.current = paragraphs;
@@ -131,7 +141,8 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     name: e.name, kind: e.kind, importance: e.importance, event_roles: [], source_anchor_ids: [] }));
 
   const controller = useReadingPosition({
-    urlStrategy: HISTORY_POSITION_STRATEGY, unitSelector: "[data-history-paragraph]", headerHeight,
+    urlStrategy: HISTORY_POSITION_STRATEGY, unitSelector: "[data-history-paragraph]", headerHeight: chromeHeight,
+    preserveLayoutPosition: true,
     getUnit: (id) => {
       const p = paragraphRef.current.find((v) => v.id === id);
       return p ? { unitId: p.id, ordinal: p.ordinal, narrativeTime: historyTime(groups.get(p.group_id)), contextEntities: contextFor(p.entities) } : null;
@@ -162,7 +173,6 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   // paragraph clears it); hover previews never change it.
   const phaseContext = useHistoryPersonStateContext(pub.version, activeParagraph);
   const group = active ? groups.get(active.group_id) : null;
-  const activeRef = useRef(active); activeRef.current = active;
 
   const requestAdjacent = useCallback(async (direction: "previous" | "next") => {
     if (flight.current) return;
@@ -176,11 +186,6 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
       const page = cache.current.get(start) ?? await loadHistoryPage(pub.version, { start }, requestAbort.signal);
       if (!mounted.current || seq !== epoch.current) return;
       cache.current.set(page.start, page);
-      if (direction === "previous") {
-        const id = activeRef.current?.id;
-        const node = id ? windowRef.current?.querySelector<HTMLElement>(`[data-unit-id="${id}"]`) : null;
-        if (id && node) preserve.current = { id, top: node.getBoundingClientRect().top };
-      }
       setPages((old) => old.some((p) => p.start === page.start) ? old : [...old, page].sort((a, b) => a.start - b.start));
     } catch (error) {
       if (mounted.current && seq === epoch.current && !requestAbort.signal.aborted) setFailure({ direction, message: error instanceof Error ? error.message : "正文暂时无法载入" });
@@ -189,11 +194,17 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     }
   }, [pub.version]);
   useLayoutEffect(() => {
-    if (!preserve.current) return;
-    const anchor = preserve.current; preserve.current = null;
-    const node = windowRef.current?.querySelector<HTMLElement>(`[data-unit-id="${anchor.id}"]`);
-    if (node) window.scrollBy(0, node.getBoundingClientRect().top - anchor.top);
-  }, [pages]);
+    // The active date can wrap only after navigation commits. Preserve that
+    // layout change through the same controller that owns paging and scroll.
+    controller.notifyLayoutChange();
+  }, [pages, loading, failure, chromeHeight, active?.id, narrow, controller.notifyLayoutChange]);
+  useEffect(() => {
+    const body = windowRef.current;
+    if (!body) return;
+    const observer = new ResizeObserver(() => controller.notifyLayoutChange());
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [controller.notifyLayoutChange]);
   useEffect(() => {
     if (!active || loading || failure || controller.navigationState !== "idle") return;
     if (active.ordinal - paragraphs[0].ordinal < 6 && pages[0]?.previous_start != null) void requestAdjacent("previous");
@@ -223,7 +234,7 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   </button></li>)}</ol></nav>;
   const factIds = toolsParagraph ? [...new Set([...toolsParagraph.segments.flatMap((s) => s.conclusion_ids), ...toolsParagraph.entities.flatMap((e) => e.states.map((s) => s.id))])] : [];
   return <section className="rpage history-reading" data-view="history-reading" data-version={pub.version} style={{ "--rpage-chrome-top": `${headerHeight}px` } as React.CSSProperties}>
-    <div className="rpage-compact"><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button><span className="rpage-compact-time history-desktop-time">{historyTimeLabel(group)}</span>
+    <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button><span className="rpage-compact-time history-desktop-time">{historyTimeLabel(group)}</span>
       <div className="rpage-tools">{narrow ? side : null}<button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button></div></div>
     {controller.issue ? <div className="history-load-error" role="alert"><p>无法定位这段正文。{controller.issue.detail}</p><button className="public-text-button" onClick={() => controller.restoreFromUrl()}>重试定位</button><Link to="/">返回首页</Link></div> : null}
     <div className="rpage-grid"><div className="rpage-axis-column history-desktop-axis">{axis}</div><div className="rpage-main history-body" ref={windowRef} aria-label="历史正文">
