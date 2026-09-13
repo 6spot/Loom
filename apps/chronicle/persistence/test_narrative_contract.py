@@ -10,6 +10,15 @@ import narrative_contract as contract
 from common import PersistenceError
 
 
+def expanded_states(source):
+    result = copy.deepcopy(source['reviewed_person_states'])
+    for item in result:
+        if 'source_fact_refs' in item:
+            item['source_facts'] = [source['reviewed_person_state_sources'][key]
+                                    for key in item.pop('source_fact_refs')]
+    return result
+
+
 def drafts(context):
     sources = context['sources']
     phases, facts, paragraphs = [], [], []
@@ -135,8 +144,8 @@ class NarrativeContractTests(unittest.TestCase):
         self.assertGreater(len(contract.canonical_json_bytes(self.context)), contract.MAX_PROMPT_CHARS)
         forward, _ = contract.model_reference_maps(self.context)
         view = contract.model_context(self.context, forward)
-        self.assertEqual(variants, view['sources'][0]['reviewed_person_states'])
-        self.assertEqual([state], view['sources'][1]['reviewed_person_states'])
+        self.assertEqual(variants, expanded_states(view['sources'][0]))
+        self.assertEqual([state], expanded_states(view['sources'][1]))
         self.assertEqual(before, self.context)
         prompt = contract.build_prompt('facts', self.context)
         self.assertLess(len(prompt), contract.MAX_PROMPT_CHARS)
@@ -147,6 +156,58 @@ class NarrativeContractTests(unittest.TestCase):
         self.context['sources'][0]['chapter_text'] = '完整原文' * contract.MAX_PROMPT_CHARS
         with self.assertRaisesRegex(PersistenceError, 'never truncate'):
             contract.build_prompt('facts', self.context)
+
+    def test_shared_state_provenance_round_trips_without_merging_variants(self):
+        fact = dict(fact_ref='sf1', phase_id='source_phase', chapter_id='chapter',
+                    revision_id='r1', chapter_publication_id='pub0', claim_refs=['c1'],
+                    note=' 空格、换行\n与未参与引用映射的 entity_001 都原样保留。' * 30)
+        variants = [fact, {**fact, 'phase_id': 'other_phase'},
+                    {**fact, 'claim_refs': ['c2']}, {**fact, 'revision_id': 'r2'},
+                    {**fact, 'chapter_publication_id': 'pub1'}, {**fact, 'extra': '保留新字段'}]
+        states = [dict(person_id='person', phase_ids=[f'p{n}'], source_facts=[fact, variant, fact])
+                  for n, variant in enumerate(variants)]
+        states.extend([dict(person_id='person', source_facts=[]), dict(person_id='person')])
+        for source in self.context['sources']:
+            source['reviewed_person_states'] = copy.deepcopy(states)
+        before = copy.deepcopy(self.context)
+        view = contract.model_context(self.context, contract.model_reference_maps(self.context)[0])
+        self.assertEqual(before, self.context)
+        for source in view['sources']:
+            self.assertEqual(states, expanded_states(source))
+            table = source['reviewed_person_state_sources']
+            self.assertEqual(len(variants), len(table))
+            self.assertEqual(variants, list(table.values()))
+            self.assertEqual([], source['reviewed_person_states'][-2]['source_fact_refs'])
+            self.assertNotIn('source_fact_refs', source['reviewed_person_states'][-1])
+        self.assertTrue(set(view['sources'][0]['reviewed_person_state_sources']).isdisjoint(
+            view['sources'][1]['reviewed_person_state_sources']))
+        self.assertEqual(view, contract.model_context(self.context, contract.model_reference_maps(self.context)[0]))
+
+    def test_small_unique_state_provenance_does_not_add_prompt_overhead(self):
+        state = dict(person_id='person', source_facts=[{'fact_ref': 'f1'}])
+        self.context['sources'][0]['reviewed_person_states'] = [state]
+        self.context['sources'][1]['reviewed_person_states'] = []
+        view = contract.model_context(self.context, contract.model_reference_maps(self.context)[0])
+        self.assertEqual([state], view['sources'][0]['reviewed_person_states'])
+        for source in view['sources']:
+            self.assertNotIn('reviewed_person_state_sources', source)
+
+    def test_repeated_provenance_leaves_room_for_complete_prose_correction(self):
+        fact = dict(fact_ref='sf1', phase_id='phase', chapter_id='chapter',
+                    revision_id='r1', chapter_publication_id='pub0', claim_refs=['c1'],
+                    note='完整未截断的来源材料。' * 600)
+        states = [dict(person_id='person', phase_ids=[f'phase_{n}'], source_facts=[fact])
+                  for n in range(40)]
+        self.context['sources'][0]['reviewed_person_states'] = states
+        before = copy.deepcopy(self.context)
+        previous = contract.canonical_json_bytes(self.prose).decode()
+        prompt = contract.build_prompt('prose', self.context, self.facts)
+        self.assertGreater(len(contract.canonical_json_bytes(before).decode()), contract.MAX_PROMPT_CHARS)
+        self.assertLess(len(prompt) + len(previous) + 6000, contract.MAX_PROMPT_CHARS)
+        view = contract.model_context(self.context, contract.model_reference_maps(self.context)[0])
+        self.assertEqual(states, expanded_states(view['sources'][0]))
+        self.assertEqual(before, self.context)
+        self.assertIn(fact['note'], prompt)
 
     def test_events_are_not_automatically_promoted_to_navigation(self):
         pub = contract.compile_publication(self.context, self.facts, self.prose)

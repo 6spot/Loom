@@ -168,7 +168,33 @@ def model_context(context, forward):
                     seen.add(key)
                     distinct.append(state)
             source["reviewed_person_states"] = distinct
+            _compact_state_provenance(source)
     return result
+
+
+def _compact_state_provenance(source):
+    """Factor exact repeated provenance only in this source's model view."""
+    states = source["reviewed_person_states"]
+    table, handles, compacted = {}, {}, []
+    for state in states:
+        item = dict(state)
+        if "source_facts" in item:
+            refs = []
+            for fact in item.pop("source_facts"):
+                key = canonical_json_bytes(fact)
+                if key not in handles:
+                    handle = f"{source['source_id']}_state_fact_{len(handles) + 1:03}"
+                    handles[key] = handle
+                    table[handle] = fact
+                refs.append(handles[key])
+            item["source_fact_refs"] = refs
+        compacted.append(item)
+    before = {"reviewed_person_states": states}
+    after = {"reviewed_person_states": compacted,
+             "reviewed_person_state_sources": table}
+    # Small/unique inputs should not pay for a larger reference table.
+    if len(canonical_json_bytes(after).decode()) < len(canonical_json_bytes(before).decode()):
+        source.update(after)
 
 
 def validate_facts(candidate: Any, context: dict) -> dict:
@@ -349,6 +375,7 @@ kind=event 的入口必须指向同一 event_id 且 event_relation=current 的�
 对于“取得益州”等，需按整体叙事范围判断是否构成值得独立导航的重要事件，不能机械全收。
 主体人物地点按重要性列出，状态由核对结果提供，不在叙事阶段另编官职。
 INPUT.sources[].reviewed_person_states 是来源章节已审核发布的阶段资料（含来源 phase_ids、明确性、限定与依据），是本次事实核对的输入材料。只可引用其中带来源与阶段的记载支撑结论，并保留其限定；来源 phase 与本次综合 phase 是不同空间，不得因为年份相同、事件同名或序号相邻就推定二者等价，未知对应时另行核对。
+如果状态项使用 source_fact_refs，其每个值指向同一来源的 reviewed_person_state_sources 表，展开后就是完整 source_facts，顺序不变；这是完全相同来源记录的复用，不是新增见证或身份合并。表内保留原 fact_ref、phase_id、chapter_id、revision_id、chapter_publication_id、claim_refs 等全部字段。结论与阶段的原文依据仍必须使用 INPUT.sources[].evidence 中的 evidence 句柄，不能把 source_fact_refs 当作原文依据 ID。
 这只是候选稿，之后仍须审核。不得以结构校验通过自称已证明史实。
 """
     if kind == "prose":
