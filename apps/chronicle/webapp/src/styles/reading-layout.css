@@ -118,9 +118,16 @@
 
 /* ------------------------------------------------------------- 阅读页骨架 */
 
+/* The viewport is the reading scroll container. Disabling anchoring only on
+ * .rpage still lets the browser anchor the site header and shift scrollY when
+ * it wraps, on top of the controller's own layout compensation. */
+html:has(.rpage),
+body:has(.rpage),
 .rpage {
-  /* The reading controller compensates layout changes; avoid a second anchor. */
   overflow-anchor: none;
+}
+
+.rpage {
   padding: 0 1rem 4rem;
 }
 

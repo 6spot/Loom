@@ -170,8 +170,6 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const unitSelector = options.unitSelector ?? "[data-reading-unit]";
   const unitIdAttribute = options.unitIdAttribute ?? "data-unit-id";
   const ordinalAttribute = options.ordinalAttribute ?? "data-ordinal";
-  const headerHeight = options.headerHeight ?? 0;
-  const referenceRatio = options.referenceRatio ?? 0.3;
   const settleDelayMs = options.settleDelayMs ?? 250;
   const restoreFrameBudget = options.restoreFrameBudget ?? 120;
   const randomBytes = options.randomBytes;
@@ -340,10 +338,11 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
       if (!node) return 0;
       const rect = node.getBoundingClientRect();
-      const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
+      const referenceY = referenceLineFor(window.innerHeight,
+        optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
       return relativeOffsetWithin({ top: rect.top, bottom: rect.bottom }, referenceY);
     },
-    [selectorFor, headerHeight, referenceRatio],
+    [selectorFor],
   );
 
   const scheduleSettleUrl = useCallback(() => {
@@ -385,7 +384,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       window.scrollTo({ top: targetTop, behavior });
       return targetTop - window.scrollY;
     },
-    [selectorFor, headerHeight, referenceRatio],
+    [selectorFor],
   );
 
   const hasUnloadedSpace = useCallback((unitId: string, delta: number) => {
@@ -597,7 +596,10 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     if (navStateRef.current === "restoring" || navStateRef.current === "navigating") {
       return;
     }
-    const referenceY = referenceLineFor(window.innerHeight, headerHeight, referenceRatio);
+    // Geometry changes must not recreate the subscription effect and restore
+    // an older URL while a new reading position is still settling.
+    const referenceY = referenceLineFor(window.innerHeight,
+      optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
     const chosen = selectActiveUnit(measureUnits(), referenceY);
     if (chosen) {
       rememberLayoutAnchor(chosen.unitId);
@@ -621,8 +623,6 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     commitState,
     setNavState,
     measureUnits,
-    headerHeight,
-    referenceRatio,
     scheduleSettleUrl,
     preserveLayoutAnchor,
     rememberLayoutAnchor,
