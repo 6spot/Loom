@@ -372,6 +372,119 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
             errors = conn.execute("SELECT error FROM chronicle.ingestion_chunk_runs WHERE chunk_id = %s", (ctx["chunk_id"],)).fetchall()
         self.assertTrue(all("complete-context prompt limit" in row[0] for row in errors))
 
+    def _context_gate_packet(self, ctx, script, limits, step):
+        self.assertEqual(self._extract(ctx, script, limits=limits), "needs_review")
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute("SELECT review_id FROM chronicle.review_items WHERE job_id = %s",
+                                (ctx["job_id"],)).fetchall()
+            self.assertEqual(len(rows), 1)
+            review_id = rows[0][0]
+            packet = content_review.read_content_review(conn, review_id)["packet"]
+        issue = packet["issues"][-1]
+        self.assertEqual(issue["target"], step)
+        self.assertIn("请求未发出", issue["message"])
+        self.assertIn(str(limits.max_prompt_chars), issue["message"])
+        self.assertEqual(packet["request"], ctx["requests"][0])
+        self.assertEqual(self._accepted(ctx), [])
+        self.assertEqual(self._counts(ctx), {"runs": 0, "reviews": 1, "published": 0})
+        records = self._records(ctx)
+        calls = copy.deepcopy(script.calls)
+        script.deny_calls = True
+        self.assertEqual(self._extract(ctx, script, limits=limits), "needs_review")
+        self.assertEqual(self._records(ctx), records)
+        self.assertEqual(script.calls, calls)
+        return review_id, packet
+
+    def test_oversized_review_retains_complete_candidate_for_explicit_acceptance(self):
+        notes = [{"type": "retained_context", "severity": "info", "message": "保留完整资料。" * 600}
+                 for _ in range(16)]
+
+        class FullExtraction(ScriptedModels):
+            def complete(self, step, slot, prompt):
+                raw = super().complete(step, slot, prompt)
+                if step == "extraction":
+                    value = json.loads(raw)
+                    value["warnings"].extend(notes)
+                    raw = json.dumps(value, ensure_ascii=False)
+                return raw
+
+        limits = replace(LIMITS, max_prompt_chars=100000)
+        ctx, script = self._prepared_extract(limits=limits), FullExtraction()
+        review_id, packet = self._context_gate_packet(ctx, script, limits, "review")
+        self.assertEqual(script.count("review"), 0)
+        self.assertEqual(script.count("repair"), 0)
+        self.assertEqual(packet["candidate"]["warnings"][-len(notes):], notes)
+        extraction = next(r for r in packet["history"] if r["step"] == "extraction" and r["status"] == "completed")
+        self.assertEqual(extraction["parsed"]["warnings"][-len(notes):], notes)
+        self.assertFalse(any(r.get("step") == "review" for r in self._records(ctx)))
+        decision = {"decision": "accept", "plan_fingerprint": packet["plan_fingerprint"],
+                    "candidate_sha256": packet["candidate_sha256"], "history_sha256": packet["history_sha256"],
+                    "rationale": "测试操作员已另行核对完整候选及历史；记录模型未复核，人工原样接受。",
+                    "issue_dispositions": [{"issue_id": issue["id"], "disposition": "resolved",
+                        "rationale": "保留超限事实，测试操作员完成本版本的例外复核。"} for issue in packet["issues"]]}
+        with psycopg.connect(self.database_url) as conn:
+            content_review.resolve_content_review(conn, review_id=review_id, decision=decision)
+        self.assertEqual(self._extract(ctx, script, limits=limits), "ok")
+        receipt = self._accepted(ctx)[0]["artifact"]["production_receipt"]
+        self.assertEqual(receipt["decision"]["kind"], "human")
+        self.assertEqual(receipt["candidate_sha256"], packet["candidate_sha256"])
+        self.assertEqual(self._counts(ctx), {"runs": 1, "reviews": 1, "published": 0})
+
+    def test_oversized_revised_review_keeps_old_draft_opinions_and_saved_repair(self):
+        notes = [{"type": "revision_context", "severity": "info", "message": "保存修订依据。" * 600}
+                 for _ in range(16)]
+
+        class FullRevision(ScriptedModels):
+            def complete(self, step, slot, prompt):
+                raw = super().complete(step, slot, prompt)
+                if step == "repair":
+                    value = json.loads(raw)
+                    value["patches"].extend({"op": "add", "path": "/warnings/-",
+                        "before_sha256": sha256_json(None), "value": note} for note in notes)
+                    raw = json.dumps(value, ensure_ascii=False)
+                return raw
+
+        limits = replace(LIMITS, max_prompt_chars=100000)
+        ctx, script = self._prepared_extract(limits=limits), FullRevision(mode="revise")
+        _review_id, packet = self._context_gate_packet(ctx, script, limits, "review")
+        self.assertEqual(script.count("review"), 1)
+        self.assertEqual(script.count("repair"), 1)
+        self.assertEqual(script.count("linking"), 2)
+        self._assert_initial_steps_once(script)
+        self.assertEqual(packet["candidate"]["translation"]["blocks"][0]["text"], CORRECT_FIRST)
+        self.assertEqual(packet["candidate"]["warnings"][-len(notes):], notes)
+        self.assertEqual(len(packet["issues"]), 2, "the old substantive objection must remain")
+        drafts = [r for r in packet["history"] if r["artifact_type"] == store.DRAFT_TYPE]
+        self.assertEqual([r["round"] for r in drafts], [0, 1])
+        self.assertEqual(drafts[0]["candidate"]["translation"]["blocks"][0]["text"], WRONG_FIRST)
+        self.assertEqual(drafts[1]["candidate"], packet["candidate"])
+        self.assertTrue(any(r["step"] == "repair" and r["status"] == "completed" for r in packet["history"]))
+
+    def test_oversized_repair_retains_every_report_and_does_not_attempt_a_partial_fix(self):
+        class FullOpinions(ScriptedModels):
+            def complete(self, step, slot, prompt):
+                raw = super().complete(step, slot, prompt)
+                if step == "review":
+                    value = json.loads(raw)
+                    for index in range(16):
+                        issue = copy.deepcopy(value["issues"][0])
+                        issue.update(id=f"retained-{index}", message="完整复核意见。" * 600)
+                        value["issues"].append(issue)
+                    raw = json.dumps(value, ensure_ascii=False)
+                return raw
+
+        limits = replace(LIMITS, max_prompt_chars=100000)
+        ctx, script = self._prepared_extract(limits=limits), FullOpinions(mode="revise")
+        _review_id, packet = self._context_gate_packet(ctx, script, limits, "repair")
+        self.assertEqual(script.count("review"), 1)
+        self.assertEqual(script.count("repair"), 0)
+        self.assertEqual(script.count("linking"), 1)
+        self.assertEqual(packet["candidate"]["translation"]["blocks"][0]["text"], WRONG_FIRST)
+        self.assertEqual(len(packet["issues"]), 18)
+        report = next(r for r in packet["history"] if r["step"] == "review" and r["status"] == "completed")
+        self.assertEqual(len(report["parsed"]["issues"]), 17)
+        self.assertEqual(report["parsed"]["issues"][-1]["message"], "完整复核意见。" * 600)
+
     def test_invalid_review_cannot_drop_its_objection_in_a_format_retry(self):
         class InvalidOpinion(ScriptedModels):
             def complete(self, expected_step, slot, prompt):

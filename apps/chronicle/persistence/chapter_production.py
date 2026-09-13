@@ -27,6 +27,18 @@ FORMAT_RETRY_STEPS = ("translation", "extraction", "linking", "repair")
 MAX_PATCHES = 128
 
 
+class PromptLimitExceeded(PersistenceError):
+    """The unmodified source/candidate/history exceeds the frozen budget."""
+
+    def __init__(self, step: str, *, prompt_chars: int, max_chars: int):
+        self.step = step
+        self.prompt_chars = prompt_chars
+        self.max_chars = max_chars
+        super().__init__(
+            f"{step} complete context exceeds prompt limit "
+            f"({prompt_chars} > {max_chars} chars); no source/history truncation")
+
+
 class RetryPromptLimitExceeded(PersistenceError):
     """The complete correction context cannot fit the frozen prompt budget."""
 
@@ -497,7 +509,7 @@ def build_prompt(step: str, request: dict, data: dict, *, max_chars: int) -> str
     if schema is not None:
         prompt += "\n仅输出符合以下JSON Schema的单个JSON对象，无代码围栏。\nSCHEMA=" + json.dumps(schema, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     if len(prompt) > max_chars:
-        raise PersistenceError(f"{step} complete context exceeds prompt limit; no source/history truncation")
+        raise PromptLimitExceeded(step, prompt_chars=len(prompt), max_chars=max_chars)
     return prompt
 
 

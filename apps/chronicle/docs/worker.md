@@ -269,6 +269,12 @@ Changing them requires a new job; ordinary retry cannot silently change the
 model. Credential values may rotate without changing the frozen configuration.
 Technical failure parks the job as failed; Studio retry continues incomplete
 steps. Content gates use the existing review/resolve/resume operations.
+If a saved complete candidate's review or repair request exceeds the frozen
+input budget before dispatch, Studio instead gets a content gate containing
+the measured size, limit and missing-model-result notice. Review the complete
+candidate and retained history there; retry does not enlarge the budget or
+turn that missing result into approval. No model call is charged for the
+undispatched request, and the same undecided gate is reused on resume.
 Before deriving a revised draft, the worker checks the proposed extraction
 with its existing schema and semantic validators. A syntactically valid patch
 with invalid field values returns to the content gate with the prior candidate
