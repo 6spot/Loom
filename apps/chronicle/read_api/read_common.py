@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any, Iterable
 
+from reader_language import simplified
+
 
 READ_SCHEMA_VERSION = "0.1"
 
@@ -54,15 +56,17 @@ def time_window(payloads: Iterable[dict[str, Any]]) -> dict[str, Any]:
 
 def event_display(payloads: Iterable[dict[str, Any]]) -> dict[str, Any]:
     materialized = list(payloads)
+    title = display_surface(payload.get("title") for payload in materialized)
     return {
-        "title": display_surface(payload.get("title") for payload in materialized),
+        "title": simplified(title) if title else title,
         "type": display_surface(payload.get("type") for payload in materialized),
     }
 
 
 def entity_display(payloads: Iterable[dict[str, Any]]) -> dict[str, Any]:
     materialized = list(payloads)
+    name = display_surface(payload.get("canonical_name") for payload in materialized)
     return {
-        "name": display_surface(payload.get("canonical_name") for payload in materialized),
+        "name": simplified(name) if name else name,
         "type": display_surface(payload.get("type") for payload in materialized),
     }

@@ -169,6 +169,16 @@ describe("default limits and expansion", () => {
 });
 
 describe("empty and unknown segments", () => {
+  it("hides sections that have no visible primary objects, retaining an explicit way to reveal them", () => {
+    const values = [entity({ entity_ref: "secondary-polity", canonical_id: null, name: "孙吴", kind: "polity", importance: "other" })];
+    const collapsed = buildReadingContextDisplay(values, { primaryOnly: true });
+    expect(collapsed.groups).toEqual([]);
+    expect(collapsed.hasAny).toBe(false);
+    expect(collapsed.hiddenGroups.map((value) => [value.key, value.total])).toEqual([["polities", 1]]);
+    const expanded = buildReadingContextDisplay(values, { primaryOnly: true, expanded: { polities: true } });
+    expect(expanded.hiddenGroups).toEqual([]);
+    expect(expanded.groups[0].items[0].name).toBe("孙吴");
+  });
   it("returns no groups for null, undefined or empty input instead of widening to a chapter", () => {
     for (const value of [null, undefined, []]) {
       const display = buildReadingContextDisplay(value);

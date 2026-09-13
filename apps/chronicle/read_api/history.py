@@ -6,6 +6,8 @@ from urllib.parse import parse_qs
 
 import narrative_store
 from common import PersistenceError
+from narrative_navigation import public_navigation
+from reader_language import history_display
 from read_common import ReadModelError, ReadModelNotFound
 
 PREFIX = '/v0/history'
@@ -37,7 +39,7 @@ def _publication(conn, query, required=True):
         raise ReadModelError(str(exc)) from exc
     if publication is None and (required or query.get('version') is not None):
         raise ReadModelNotFound('this historical narrative version is not published')
-    return publication
+    return history_display(publication) if publication is not None else None
 
 
 def _metadata(publication):
@@ -53,7 +55,7 @@ def _metadata(publication):
                         'period': group['period'], 'excerpt': ''.join(s['text'] for s in target['segments'])[:160]})
     return dict(version=publication['publication_version'], catalog_sha=publication['catalog_sha'],
                 title=publication['title'], paragraph_count=len(by_id), first_paragraph_id=publication['paragraphs'][0]['id'],
-                groups=publication['groups'], entry_points=entries)
+                groups=publication['groups'], entry_points=entries, navigation=public_navigation(publication))
 
 
 def dispatch_history(conn, path, raw_query):

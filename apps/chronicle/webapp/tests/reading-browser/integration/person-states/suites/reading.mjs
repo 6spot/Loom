@@ -74,8 +74,7 @@ export async function run(ctx) {
   const returned = new URL(page.url());
   runner.check(
     "return_preserves_version_and_paragraph",
-    returned.searchParams.get("version") === history.version &&
-      returned.searchParams.get("at") === history.paragraph_id,
+    returned.pathname === `/history/${history.version}/${history.paragraph_id}` && !returned.search,
     page.url(),
   );
 

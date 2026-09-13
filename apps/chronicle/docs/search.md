@@ -86,6 +86,12 @@ Ties are deterministic by result kind, display label, and canonical UUID.
 
 This ranking is intentionally explainable. It is not an ML relevance score.
 
+Matching compares Simplified Chinese forms (and case-folded Latin text), so
+queries such as `劉備` and `刘备` discover the same representations. Reader-facing
+display names and titles use Simplified Chinese. Original source surfaces in
+`matched_surfaces` remain unchanged; glyph normalization never merges canonical
+UUIDs or changes identity decisions.
+
 ## Canonical de-duplication
 
 Search scans source-owned representations but groups matches by canonical UUID before returning results.

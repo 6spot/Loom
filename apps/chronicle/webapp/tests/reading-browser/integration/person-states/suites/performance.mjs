@@ -32,10 +32,11 @@ export async function run(ctx) {
     timeout: 30000,
   });
   await page.waitForSelector('[data-test="history-phase-status"][data-status="ready"]', {
+    state: "attached",
     timeout: 30000,
   });
 
-  const axes = page.locator(".history-axis button");
+  const axes = page.locator(".history-axis [data-axis-target]:visible");
   const axisCount = await axes.count();
   runner.check("history_axis_present", axisCount >= 1, "no axis entries");
 
