@@ -424,6 +424,10 @@
   min-height: 44px;
 }
 
+.psr-review-detail button {
+  min-height: 44px;
+}
+
 @media (max-width: 767px) {
   .psr-dimension,
   .psr-effect,

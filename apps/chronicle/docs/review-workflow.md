@@ -78,6 +78,13 @@ Studio auth 继续由 Rust front 在路由/资源检查前执行：匿名或错�
 - sources：`GET /reviews/{review_id}/sources/{anchor_id}?view=window|chapter` 读取本包 anchor；anchor 不属于该包为 404，revision/hash/章节边界漂移或文件缺失为 409，绝不为冻结包补读新 revision。读取复用 `source_context` 的字节读取、hash 校验、code point 切片与高亮。
 - decision：`POST .../decision` 的 person_state 分支为 `{plan_fingerprint, default_assessment, overrides:[{candidate_key|candidate_id, assessment, rationale}], rationale, dismiss?}`。`plan_fingerprint` 为必填非空字符串，缺失或非字符串为 400；与冻结包不一致为 409 `plan_drift`。服务端还要求显式 `default_assessment`（未审候选不得默认 `supported`）、覆盖必须命中冻结候选并带理由，重复提交为 409；非法候选/评估/缺理由为 400。校验复用 T06 `normalize_person_state_decision`，身份 `same_entity`/`group_decisions` 等决议词表在 person_state 包上被拒。终态与决定同事务写入（沿用 job/review 锁），供 T08 的 `collect_person_state_assessments` 逐候选回填。
 
+Studio 在候选的“查看原文前后文”被打开后才按 `candidate_id` 加载来源，复用同一
+窗口／整章阅读器与分页，避免每项默认各发一次请求。保存后核对审核项和计划指纹，
+显示不可重复编辑的已保存记录；通过既有 job 详情检查整个任务的待审数，仅在
+`needs_review` 且全部待审项为零时调用原 resume 接口。不能用当前筛选队列为空替代
+这一检查。恢复失败保留已保存决定，在同页“继续生产”重试；不会重新提交审核。
+被取消的审核包只保留材料查看和队列导航，不允许恢复生产。
+
 ## 7. 分阶段章节内容审核（0.4）
 
 [分阶段生产合同](staged-chapter-production.md) 的内容例外仍使用同一队列，

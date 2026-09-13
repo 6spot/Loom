@@ -8,6 +8,7 @@ import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
 import {
   getReview,
+  getJob,
   listReviewPage,
   mutateJob,
   StudioApiError,
@@ -22,7 +23,7 @@ import type {
   ReviewGroupDecisionInput,
   ReviewRecordContext,
 } from "../../lib/studio-api";
-import { ReviewEvidenceSection } from "../../components/studio/ReviewEvidencePanel";
+import { ReviewEvidenceDisclosure, ReviewEvidenceSection } from "../../components/studio/ReviewEvidencePanel";
 import NarrativeReviewPanel from "../../components/studio/NarrativeReviewPanel";
 import PersonStateReviewPanel from "../../components/studio/PersonStateReviewPanel";
 import ChapterContentReviewPanel from "../../components/studio/ChapterContentReviewPanel";
@@ -349,7 +350,7 @@ export default function StudioReviewDetailPage() {
     queryKey: ["studio", "review", reviewId],
     queryFn: () => getReview(authHeader, reviewId),
     enabled: Boolean(reviewId),
-    refetchInterval: (query) => query.state.data?.scope === "narrative" && query.state.data.job_status === "running" ? 1500 : false,
+    refetchInterval: (query) => ["narrative", "person_state"].includes(query.state.data?.scope ?? "") && query.state.data?.job_status === "running" ? 1500 : false,
   });
   const item = review.data;
   const allowed = useMemo(() => item?.allowed_decisions ?? [], [item?.allowed_decisions]);
@@ -380,6 +381,15 @@ export default function StudioReviewDetailPage() {
   currentIdRef.current = reviewId;
 
   const formKey = `${reviewId}|${fingerprint ?? "-"}`;
+  const personActionKey = `${scopeKey(scope)}|${formKey}`;
+  const currentFormKeyRef = useRef(personActionKey);
+  currentFormKeyRef.current = personActionKey;
+  useEffect(() => {
+    currentFormKeyRef.current = personActionKey;
+    return () => {
+      if (currentFormKeyRef.current === personActionKey) currentFormKeyRef.current = "";
+    };
+  }, [personActionKey]);
 
   // Hydrate this review's isolated draft. Switching reviewId resets the whole
   // form (decision/rationale/confidence included), never just the group
@@ -747,11 +757,15 @@ export default function StudioReviewDetailPage() {
 
   const [extraPackages, setExtraPackages] = useState<ReviewPackage[]>([]);
   const [personDraft, setPersonDraft] = usePersonStateDraft(scope, reviewId, personPackage, store);
+  const [personNotice, setPersonNotice] = useState("");
+  const [personBusy, setPersonBusy] = useState(false);
 
   useEffect(() => {
     setExtraPackages([]);
+    setPersonNotice("");
+    setPersonBusy(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personPackage?.review_id, personPackage?.plan_fingerprint]);
+  }, [personActionKey]);
 
   const personCandidates = useMemo<ReviewCandidate[]>(() => {
     if (!personPackage) return [];
@@ -777,19 +791,68 @@ export default function StudioReviewDetailPage() {
     return page;
   };
 
+  const continuePersonProduction = async (): Promise<boolean> => {
+    if (!item || currentFormKeyRef.current !== personActionKey) return false;
+    try {
+      // The package endpoint does not expose the whole job's pending count.
+      // Use the existing job read, never a scope-filtered queue's open_count.
+      const job = await getJob(authHeader, item.job_id);
+      if (currentFormKeyRef.current !== personActionKey) return false;
+      if (job.job_id !== item.job_id || !Number.isInteger(job.open_reviews) || job.open_reviews < 0) {
+        throw new Error("生产任务状态不完整，请核对服务器记录");
+      }
+      if (job.status === "needs_review" && job.open_reviews === 0) {
+        await mutateJob(authHeader, item.job_id, "resume");
+        if (currentFormKeyRef.current !== personActionKey) return false;
+        setPersonNotice("审核已保存，已继续生产。后续待审内容会进入同一队列。");
+        await queryClient.invalidateQueries({ queryKey: ["studio", "jobs"] });
+        await queryClient.invalidateQueries({ queryKey: ["studio", "review", reviewId] });
+      } else if (job.open_reviews > 0) {
+        setPersonNotice(`审核已保存，此任务还有 ${job.open_reviews} 项待审。`);
+      } else if (job.status === "running" || job.status === "queued") {
+        setPersonNotice("审核已保存，生产任务正在处理。可查看生产进度，或待任务暂停后在此继续生产。");
+        return false;
+      } else {
+        setPersonNotice(job.status === "completed" ? "审核已保存，本次来源任务已完成。" : "审核已保存，请在生产进度中查看任务当前状态。");
+      }
+      return currentFormKeyRef.current === personActionKey;
+    } catch (error) {
+      if (currentFormKeyRef.current === personActionKey) setPersonNotice(`审核已保存，继续生产未成功：${errorText(error)}。可在本页重试，无须重复提交审核。`);
+      return false;
+    }
+  };
+
   const submitPersonState = async (draft: PersonStateReviewDraft) => {
-    if (!personPackage) return;
-    await submitPersonStateAssessment(
-      authHeader,
-      reviewId,
-      buildAssessmentOverlay(personPackage, draft, personCandidates),
-    );
-    store?.clearPersonStateDraft(scope, reviewId, personPackage.plan_fingerprint);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["studio", "reviews"] }),
-      queryClient.invalidateQueries({ queryKey: ["studio", "review", reviewId] }),
-    ]);
-    await advance({ createdAt: item?.created_at ?? null, reviewId });
+    if (!personPackage || item?.status !== "open" || personBusy) return;
+    setPersonBusy(true);
+    try {
+      const updated = await submitPersonStateAssessment(authHeader, reviewId,
+        buildAssessmentOverlay(personPackage, draft, personCandidates));
+      if (updated.review_id !== reviewId || updated.scope !== "person_state"
+          || updated.plan_fingerprint !== personPackage.plan_fingerprint || updated.status !== "resolved" || !updated.decision) {
+        throw new Error("服务器返回的审核版本不一致，草稿保留，请核对服务器记录");
+      }
+      store?.clearPersonStateDraft(scope, reviewId, personPackage.plan_fingerprint);
+      queryClient.setQueryData(["studio", "review", reviewId], updated);
+      await queryClient.invalidateQueries({ queryKey: ["studio", "reviews"] });
+      if (currentFormKeyRef.current !== personActionKey) return;
+      if (await continuePersonProduction()) await advance({ createdAt: updated.created_at, reviewId });
+    } catch (error) {
+      if (currentFormKeyRef.current === personActionKey) setPersonNotice(`保存结果尚未确认：${errorText(error)}。草稿保留，请核对服务器记录。`);
+      throw error;
+    } finally {
+      if (currentFormKeyRef.current === personActionKey) setPersonBusy(false);
+    }
+  };
+
+  const retryPersonProduction = async () => {
+    if (personBusy) return;
+    setPersonBusy(true);
+    try {
+      if (await continuePersonProduction()) await advance({ createdAt: item?.created_at ?? null, reviewId });
+    } finally {
+      if (currentFormKeyRef.current === personActionKey) setPersonBusy(false);
+    }
   };
 
   if (review.isLoading) return <p className="studio-muted">正在读取审核项…</p>;
@@ -811,8 +874,25 @@ export default function StudioReviewDetailPage() {
   if (item.scope === "person_state") {
     if (!personPackage || !personDraft) return <p className="studio-muted">正在读取阶段依据包…</p>;
     return (
-      <div className="studio-stack" data-view="studio-review-detail">
-        <PersonStateReviewPanel
+      <div className="studio-stack psr-review-detail" data-view="studio-review-detail">
+        <div className="studio-page-heading"><div><p className="studio-eyebrow">人物状态审核</p>
+          <p>{item.document.title} · {personPackage.candidate_count} 项阶段依据</p></div>
+          <Link to={`/studio/imports/${item.job_id}`}>查看生产进度</Link></div>
+        {personNotice ? <p role="status">{personNotice}</p> : null}
+        {endState || advanceNote ? <p role="status">{endState ? (endState.kind === "empty" ? "当前范围暂无待审项；生产中的内容稍后会进入队列。" : "本轮已查看，可返回队列继续检查。") : advanceNote}</p> : null}
+        <Button variant="outline" disabled={personBusy || review.isFetching} onClick={() => void review.refetch()}>核对服务器记录</Button>
+        {item.status !== "open" ? <section className="studio-stack" data-test="person-state-review-result">
+          <p>{item.status === "dismissed" ? "本次任务已取消，审核材料保留供查阅。" : "审核决定已保存，不能重复提交。"}</p>
+          <p>{item.decision?.rationale}</p>
+          <ReviewEvidenceDisclosure key={formKey} auth={authHeader} reviewId={reviewId}
+            planFingerprint={personPackage.plan_fingerprint} title={item.document.title}
+            description="查看本审核包固定版本的完整原文与引用位置。" />
+          <div className="studio-review-actionbar" role="toolbar" aria-label="已保存审核操作"><div className="studio-review-actionbar-buttons">
+            <Button variant="outline" onClick={backToQueue}>返回队列</Button>
+            <Button variant="outline" disabled={personBusy || advancing} onClick={() => void advance({ createdAt: item.created_at, reviewId })}>下一项</Button>
+            {item.status === "resolved" && item.job_status === "needs_review" ? <Button disabled={personBusy} onClick={() => void retryPersonProduction()}>{personBusy ? "正在继续…" : "继续生产"}</Button> : null}
+          </div></div>
+        </section> : <PersonStateReviewPanel
           key={`${personPackage.review_id}:${personPackage.plan_fingerprint}`}
           review={personPackage}
           draft={personDraft}
@@ -821,7 +901,12 @@ export default function StudioReviewDetailPage() {
           onSkip={skipCurrent}
           onReturn={backToQueue}
           onLoadMore={loadPersonCandidates}
-        />
+          renderSource={(candidate) => <ReviewEvidenceDisclosure
+            key={`${formKey}:${candidate.candidate_key}`} auth={authHeader} reviewId={reviewId}
+            planFingerprint={personPackage.plan_fingerprint} candidateId={candidate.candidate_key}
+            title={candidate.source_label || item.document.title}
+            description="此项依据的前后文和完整章节；读取原文不会更改评估或草稿。" />}
+        />}
       </div>
     );
   }

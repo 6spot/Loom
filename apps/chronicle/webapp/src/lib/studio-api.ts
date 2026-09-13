@@ -756,10 +756,11 @@ export async function getReview(auth: string | null, reviewId: string): Promise<
 export async function listReviewContexts(
   auth: string | null,
   reviewId: string,
-  query: { groupId?: string | null; limit?: number; cursor?: string | null } = {},
+  query: { groupId?: string | null; candidateId?: string | null; limit?: number; cursor?: string | null } = {},
 ): Promise<ReviewContextsResponse> {
   const params = new URLSearchParams();
   if (query.groupId) params.set("group_id", query.groupId);
+  if (query.candidateId) params.set("candidate_id", query.candidateId);
   params.set("limit", String(query.limit ?? 50));
   if (query.cursor) params.set("cursor", query.cursor);
   const path = `${REVIEWS_API}/${encodeURIComponent(reviewId)}/contexts?${params.toString()}`;
@@ -769,13 +770,14 @@ export async function listReviewContexts(
 export async function listAllReviewContexts(
   auth: string | null,
   reviewId: string,
-  query: { groupId?: string | null; limit?: number } = {},
+  query: { groupId?: string | null; candidateId?: string | null; limit?: number } = {},
 ): Promise<SourceContextDescriptor[]> {
   const collected: SourceContextDescriptor[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < 100; page += 1) {
     const result = await listReviewContexts(auth, reviewId, {
       groupId: query.groupId,
+      candidateId: query.candidateId,
       limit: query.limit ?? 50,
       cursor,
     });
