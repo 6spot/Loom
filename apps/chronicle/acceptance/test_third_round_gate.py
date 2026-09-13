@@ -216,6 +216,11 @@ class NarrativeDraftTests(unittest.TestCase):
         narrative_contract.validate_facts(facts, context)
         narrative_contract.validate_prose(prose, context, facts)
         self.assertTrue(any(item["dimension"] == "office" for item in facts["conclusions"]))
+        self.assertEqual(
+            [{key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in prose["entry_points"]],
+            [item for section in prose["navigation"] for item in section["items"]],
+        )
+        self.assertLess(len(prose["entry_points"]), len(prose["paragraphs"]))
 
     def test_narrative_candidate_parses_a_real_prompt(self):
         context = _narrative_context()

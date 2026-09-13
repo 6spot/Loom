@@ -363,6 +363,10 @@ def narrative_drafts(
         }
         for a, b in itertools.combinations(sources, 2)
     ]
+    entries = [{
+        "label": "合成历史进程", "kind": "period", "paragraph_id": "n0", "event_id": None,
+        "reason": "概览这一组已核对资料的完整历史发展。",
+    }]
     return (
         {
             "schema": "chronicle.source-corroboration",
@@ -379,17 +383,9 @@ def narrative_drafts(
             "navigation": [{
                 "label": "测试时段", "first_paragraph_id": paragraphs[0]["id"],
                 "last_paragraph_id": paragraphs[-1]["id"],
-                "items": [{"paragraph_id": p["id"], "label": "测试节点", "reason": "验证来源阅读位置，不主张史实。"} for p in paragraphs],
+                "items": [{key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in entries],
             }],
-            "entry_points": [
-                {
-                    "label": "阅读入口",
-                    "kind": "period",
-                    "paragraph_id": "n0",
-                    "event_id": None,
-                    "reason": "概览这一组已核对资料的完整历史发展。",
-                }
-            ],
+            "entry_points": entries,
         },
     )
 
