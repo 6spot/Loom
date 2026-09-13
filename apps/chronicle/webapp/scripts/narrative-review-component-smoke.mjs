@@ -191,7 +191,7 @@ const factChecked = () => page.getByRole("checkbox", { name: "已核对本问题
 const scopeChecked = () => page.getByRole("checkbox", { name: "已核对来源传承与时间阶段，不把来源数量当作真实性。", exact: true });
 const proseChecked = () => page.getByRole("checkbox", { name: "已通读正文并检查入口；发布后首页使用这一版本，旧版引用仍保留。", exact: true });
 const phases = page.locator(".nr-scope > section.nr-prose");
-const entries = page.locator(".nr-entries .nr-entry");
+const entries = page.locator('[data-test="narrative-entry-editor"] > .nr-entry');
 const options = (select) => select.locator("option").evaluateAll((nodes) => nodes.map((node) => node.value).filter(Boolean));
 const openScope = async () => {
   if (!(await page.locator(".nr-scope").evaluate((node) => node.open))) await page.locator(".nr-scope > summary").click();
@@ -455,6 +455,17 @@ try {
   await entries.nth(1).getByLabel(/^为何值得独立导航/).fill("人工选择的主要事件，回顾段不是入口。");
   await expect(entries).toHaveCount(3);
   assert(!(await options(page.getByLabel(/^添加重要时期入口/))).includes(paragraphs[2]));
+  const navigation = page.locator('[data-test="narrative-navigation-editor"]');
+  await navigation.getByRole("button", { name: "编排分组时间轴", exact: true }).click();
+  await navigation.getByLabel("时间区间名称", { exact: true }).fill("合成前期时间区间");
+  await navigation.getByLabel(/^在此段之前拆分时间区间/).selectOption(paragraphs[2]);
+  await expect(navigation.getByLabel("时间区间名称", { exact: true })).toHaveCount(2);
+  await navigation.getByLabel("时间区间名称", { exact: true }).nth(1).fill("合成后期时间区间");
+  await navigation.getByLabel(/^补充关键进展/).nth(1).selectOption(paragraphs[3]);
+  await navigation.getByLabel("选择理由", { exact: true }).last().fill("仅测试非重要入口节点可以移除。");
+  await navigation.getByRole("button", { name: "移除定位节点", exact: true }).last().click();
+  await expect(navigation.getByLabel("节点名称", { exact: true })).toHaveCount(3);
+  await navigation.getByLabel("节点名称", { exact: true }).nth(1).fill("渡河会合的时间轴名称");
   const proseRationale = "合成正文审核：入口经过人工选择，细节留在正文。";
   await page.getByLabel(/^本次审核说明/).fill(proseRationale);
   await expect(approve()).toBeDisabled();
@@ -466,6 +477,8 @@ try {
   await expect(entries).toHaveCount(3);
   await expect(entries.last().getByLabel(/^入口名称/)).toHaveValue("合成后期入口");
   await expect(entries.last().getByLabel(/^正文位置/)).toHaveValue(paragraphs[2]);
+  await expect(navigation.getByLabel("时间区间名称", { exact: true }).nth(0)).toHaveValue("合成前期时间区间");
+  await expect(navigation.getByLabel("时间区间名称", { exact: true }).nth(1)).toHaveValue("合成后期时间区间");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("heading", { name: "综合历史正文审核", exact: true }).scrollIntoViewIfNeeded();
   await mobileFits();
@@ -483,6 +496,11 @@ try {
     ["period", paragraphs[0]], ["event", paragraphs[1]], ["period", paragraphs[2]],
   ]);
   assert(!acceptedProse.entry_points.some((entry) => entry.event_id === minorEvent), "extracting an event must not automatically create a navigation entry");
+  assert.deepEqual(acceptedProse.navigation.map((section) => [section.first_paragraph_id, section.last_paragraph_id]), [
+    [paragraphs[0], paragraphs[1]], [paragraphs[2], paragraphs[3]],
+  ]);
+  assert.deepEqual(acceptedProse.navigation.flatMap((section) => section.items.map((item) => item.paragraph_id)), paragraphs.slice(0, 3));
+  assert.equal(acceptedProse.navigation[0].items[1].label, "渡河会合的时间轴名称");
 
   stage = "last conclusion guard, rejection and queue return";
   await expect(question().locator("option")).toHaveCount(2);

@@ -8,7 +8,8 @@ surface.
 
 ```text
 /                        history entry points and search
-/history                 published synthesized history, fixed version/paragraph
+/history                 opens the published synthesized history
+/history/{version}/{paragraphId}  fixed history version and paragraph
 /world                   public grounded Historical Moment / World page
 /timeline                public Timeline
 /search                  public Search
@@ -122,9 +123,17 @@ npm run smoke:dist
 The production homepage consumes only the reviewed narrative's curated
 entry_points, not the full extracted Event list. An event or period locates a
 paragraph in one immutable history version and leaves earlier/later prose
-available. `/history?version=<sha>&at=<hp_id>` has separate IDs and storage from
+available. `/history/<sha>/<hp_id>` has separate IDs and storage from
 the original source stream. Both reuse `useReadingPosition`; navigation does
 not create a second position controller.
+
+Old query-string bookmarks resolve to the same canonical ID path. The Rust
+front serves this path on direct refresh. Hierarchical navigation groups reviewed
+reading positions by supported year, range or period and highlights curated
+entries. Its private scrollport follows prose; manual browsing pauses following
+until the reader resumes it or continues reading outside the axis. Navigation
+never filters the prose or changes its phase/state associations. Empty context
+groups are hidden, with secondary objects available under “更多相关对象”.
 
 The source reading page uses the existing single position controller. The left
 time axis and right nearby events/context follow its active paragraph. Tablets

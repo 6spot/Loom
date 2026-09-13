@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import PublicDialog from "../../components/PublicDialog";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
+import HistoryAxis from "../../components/reading/HistoryAxis";
 import { useReadingPosition } from "../../hooks/useReadingPosition";
 import { useHistoryPersonStateContext } from "../../hooks/usePersonStateContext";
 import { historyPath, historyPositionKey, historyTime, historyTimeLabel, HISTORY_POSITION_STRATEGY,
@@ -26,10 +27,7 @@ function PhaseStage({ status, phaseId, count }: { status: "loading" | "ready" | 
   if (status === "loading") {
     return <p className="pstate-loading" data-test="history-phase-status" data-status="loading" role="status">正在载入本段人物与地点资料…</p>;
   }
-  return <p className="pstate-phase" data-test="history-phase-status" data-status={status} data-phase-id={phaseId ?? ""} data-entity-count={count}>
-    {phaseId ? `阶段 ${phaseId}` : "阶段未标明"}
-    {status === "empty" ? " · 本段暂无收录人物或地点" : ""}
-  </p>;
+  return <span hidden data-test="history-phase-status" data-status={status} data-phase-id={phaseId ?? ""} data-entity-count={count} />;
 }
 
 function Conclusion({ version, id }: { version: string; id: string }) {
@@ -83,15 +81,19 @@ function EventWord({ text, entry, jump }: { text: string; entry: HistoryEntry; j
 
 export default function HistoryPage() {
   const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const version = params.get("version");
-  const valid = !location.search || HISTORY_POSITION_STRATEGY.parse(`/history${location.search}`).ok;
+  const address = `${location.pathname}${location.search}`;
+  const latest = /^\/history\/?$/.test(location.pathname) && !location.search;
+  const parsed = HISTORY_POSITION_STRATEGY.parse(address);
+  const version = parsed.ok ? parsed.location.catalog_sha : null;
+  const valid = latest || parsed.ok;
   const query = useQuery({ queryKey: ["history", "directory", version ?? "latest"], queryFn: () => loadHistory(version), enabled: valid, staleTime: Infinity, retry: 1 });
   if (!valid) return <div role="alert"><p>这个历史阅读地址无效，请重新选择入口。</p><Link to="/">返回首页</Link></div>;
   if (query.isPending) return <p className="home-status" role="status">正在载入历史正文…</p>;
   if (query.isError) return <div className="home-status" role="alert"><p>这份历史正文暂时无法读取，或该版本尚未发布。</p><button className="public-text-button" onClick={() => void query.refetch()}>重试</button><Link to="/">返回首页</Link></div>;
   if (!query.data) return <p className="home-status">历史正文正在整理，发布后可以从这里连续阅读。</p>;
-  if (!version) return <Navigate replace to={historyPath({ version: query.data.version, paragraph_id: query.data.first_paragraph_id })} />;
+  const canonical = historyPath({ version: query.data.version,
+    paragraph_id: parsed.ok ? parsed.location.unit_id ?? query.data.first_paragraph_id : query.data.first_paragraph_id });
+  if (address !== canonical) return <Navigate replace to={canonical} />;
   return <PinnedHistory key={query.data.version} publication={query.data} />;
 }
 
@@ -162,10 +164,11 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     },
   });
   // React Router same-page navigation and the native history controller share one restore path.
-  const previousSearch = useRef(location.search);
+  const address = `${location.pathname}${location.search}`;
+  const previousAddress = useRef(address);
   useEffect(() => {
-    if (previousSearch.current !== location.search) { previousSearch.current = location.search; controller.restoreFromUrl(); }
-  }, [location.search, controller.restoreFromUrl]);
+    if (previousAddress.current !== address) { previousAddress.current = address; controller.restoreFromUrl(); }
+  }, [address, controller.restoreFromUrl]);
   const active = paragraphs.find((p) => p.id === controller.activeUnitId) ?? paragraphs[0];
   const activeParagraph = active ?? null;
   // Single subscription point for the active composite paragraph's person/place
@@ -228,10 +231,8 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     }}>
     {(close) => <nav className="reading-nearby" aria-label="附近的重要事件"><h2>读到这里</h2><ol>{nearby.map((entry) => <li key={`${entry.kind}:${entry.paragraph_id}`}><button type="button" aria-current={entry === pub.entry_points[nearbyIndex] ? "location" : undefined} onClick={() => { close(); jump(entry.paragraph_id); }}>{entry.label}<small>{historyTimeLabel(entry)}</small></button></li>)}</ol></nav>}
   </ReadingContextPanel>;
-  const axis = <nav className="history-axis" aria-label="历史时间轴"><ol>{pub.groups.map((item, index) => <li key={item.id}><button type="button" aria-label={`${historyTimeLabel(item)}，${item.label}`} aria-current={item.id === group?.id ? "location" : undefined} onClick={() => { setAxisOpen(false); jump(item.first_paragraph_id); }}>
-    {index === 0 || pub.groups[index - 1].year !== item.year ? <span>{item.year == null ? "年代未详" : `${item.year < 0 ? `公元前 ${-item.year}` : item.year} 年`}</span> : null}
-    <small>{item.period ?? (item.year == null ? item.label : "月份未详")}</small>
-  </button></li>)}</ol></nav>;
+  const axis = <HistoryAxis sections={pub.navigation} activeOrdinal={active?.ordinal ?? 0}
+    onNavigate={(id) => { setAxisOpen(false); jump(id); }} />;
   const factIds = toolsParagraph ? [...new Set([...toolsParagraph.segments.flatMap((s) => s.conclusion_ids), ...toolsParagraph.entities.flatMap((e) => e.states.map((s) => s.id))])] : [];
   return <section className="rpage history-reading" data-view="history-reading" data-version={pub.version} style={{ "--rpage-chrome-top": `${headerHeight}px` } as React.CSSProperties}>
     <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button><span className="rpage-compact-time history-desktop-time">{historyTimeLabel(group)}</span>

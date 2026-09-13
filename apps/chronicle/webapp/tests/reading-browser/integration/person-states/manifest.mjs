@@ -105,9 +105,7 @@ export function viewports(manifest) {
 }
 
 export function historyUrl(baseUrl, history, paragraphId = null) {
-  const url = new URL("/history", baseUrl);
-  url.searchParams.set("version", history.version);
-  url.searchParams.set("at", paragraphId || history.paragraph_id);
+  const url = new URL(`/history/${encodeURIComponent(history.version)}/${encodeURIComponent(paragraphId || history.paragraph_id)}`, baseUrl);
   return url.toString();
 }
 

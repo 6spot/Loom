@@ -46,7 +46,7 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
   const navigate = useNavigate();
   const location = useLocation();
   const [tool, setTool] = useState<"search" | "menu" | null>(null);
-  const reading = location.pathname.startsWith("/read/") || location.pathname === "/history";
+  const reading = location.pathname.startsWith("/read/") || location.pathname === "/history" || location.pathname.startsWith("/history/");
   useEffect(() => setTool(null), [location.pathname, location.search]);
   return (
     <div className={`public-site${reading ? " public-site-reading" : ""}`}>
@@ -149,7 +149,7 @@ export default function App() {
           <Route path="coverage" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioCoveragePage /></Suspense></StudioGuard>} />
         </Route>
         <Route path="/" element={<PublicChrome timeBar={false}><HomePage /></PublicChrome>} />
-        <Route path="/history" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />
+        <Route path="/history/*" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />
         <Route path="/world" element={<PublicChrome><WorldPage /></PublicChrome>} />
         <Route path="/timeline" element={<PublicChrome><TimelinePage /></PublicChrome>} />
         <Route path="/search" element={<PublicChrome><SearchPage /></PublicChrome>} />

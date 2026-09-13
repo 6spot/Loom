@@ -6,12 +6,29 @@
 .history-paragraph:focus { outline: none; }
 .history-paragraph:focus-visible { outline: 1px solid var(--public-accent); outline-offset: .5rem; }
 .history-uncertain { color: #666b65; text-decoration: underline dotted #8c9188; text-underline-offset: .28em; }
-.history-axis { position: sticky; top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); max-height: calc(100dvh - 11rem); overflow-y: auto; scrollbar-width: thin; }
+.history-axis { position: sticky; top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); min-width: 0; }
+.history-axis-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; padding: 0 .5rem; color: var(--public-muted); font-size: .72rem; }
+.history-axis-scroll { max-height: calc(100dvh - var(--rpage-chrome-top, 4.5rem) - 10rem); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-width: thin; padding: .25rem .3rem .75rem 0; }
 .history-axis ol { list-style: none; margin: 0; padding: 0; }
-.history-axis li { border-left: 1px solid var(--public-line); }
-.history-axis button { display: flex; width: 100%; min-height: 3rem; flex-direction: column; justify-content: center; gap: .35rem; padding: .6rem .85rem; border: 0; text-align: left; background: transparent; color: var(--public-muted); font: inherit; font-size: .82rem; cursor: pointer; }
-.history-axis small { font-size: .75rem; }
-.history-axis button[aria-current] { color: var(--public-accent); box-shadow: inset 2px 0 var(--public-accent); }
+.history-axis button { width: 100%; min-height: 2.75rem; border: 0; text-align: left; background: transparent; font: inherit; line-height: 1.55; cursor: pointer; }
+.history-axis button:focus-visible, .history-axis-scroll:focus-visible { outline: 2px solid var(--public-accent); outline-offset: -2px; border-radius: 3px; }
+.history-axis .history-axis-resume { width: auto; padding: 0 .2rem; color: var(--public-accent); font-size: .72rem; white-space: nowrap; }
+.history-axis-section { margin-bottom: .6rem; }
+.history-axis .history-axis-section-toggle { display: flex; gap: .45rem; align-items: center; padding: .45rem .4rem; color: var(--public-ink, #303732); font-size: .9rem; font-weight: 550; }
+.history-axis-section-toggle small { display: block; margin-top: .1rem; color: var(--public-muted); font-size: .7rem; font-weight: 400; }
+.history-axis-chevron { flex: 0 0 .7rem; color: var(--public-muted); text-align: center; font-size: 1rem; }
+.history-axis .history-axis-items { margin: .15rem 0 .35rem .75rem; border-left: 1px solid var(--public-line); padding-left: .6rem; }
+.history-axis-items[hidden] { display: none; }
+.history-axis .history-axis-node { display: flex; align-items: center; gap: .6rem; position: relative; padding: .4rem .5rem .4rem .3rem; color: var(--public-muted); font-size: .78rem; border-radius: 3px; }
+.history-axis-node small { display: block; margin-bottom: .05rem; font-size: .68rem; font-weight: 400; }
+.history-axis-node[data-importance="major"] { color: var(--public-ink, #303732); font-weight: 550; }
+.history-axis-dot { flex: 0 0 5px; height: 5px; border: 1px solid currentColor; border-radius: 50%; }
+.history-axis-node[data-importance="major"] .history-axis-dot { background: currentColor; }
+.history-axis-node[aria-current], .history-axis-section-toggle[aria-current] { color: var(--public-accent); background: #87634a0a; }
+.history-axis-node[aria-current] .history-axis-dot { border-radius: 1px; background: currentColor; }
+@media (hover: hover) and (pointer: fine) {
+  .history-axis button:hover { background: #87634a08; color: var(--public-accent); }
+}
 .history-axis-open { display: none; }
 .history-reading-status, .history-reading-end { color: var(--public-muted); font-size: .8rem; margin: 2rem 0; }
 .history-reading-end { text-align: center; margin: 5rem 0 3rem; }
@@ -35,6 +52,8 @@
 @media (max-width: 767px) {
   .history-desktop-axis, .history-desktop-time { display: none; }
   .history-axis-open { display: inline-flex; padding-left: 0; color: var(--public-muted); font-size: .8rem; }
+  .history-axis { position: static; }
+  .history-axis-scroll { max-height: min(65dvh, 36rem); }
   .history-paragraph { font-size: 1.08rem; line-height: 2.05; }
   .history-event-preview { position: fixed; left: 1.5rem; right: 1.5rem; top: auto; bottom: 2rem; width: auto; }
 }

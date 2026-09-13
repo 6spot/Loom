@@ -12,6 +12,7 @@ import narrative_contract as contract
 import narrative_store as store
 from common import PersistenceConflict, PersistenceError
 from model_provider import ResponsesHTTPModel, timeout_from_env
+from reader_language import narrative_text
 
 
 def model_from_env():
@@ -77,10 +78,12 @@ def _generate(database_url, *, job_id, worker, lease_seconds, model, kind, conte
                         model=model, prompt=prompt)
         error = None
         try:
-            candidate = contract.map_candidate_references(json.loads(raw), references)
+            candidate = narrative_text(contract.map_candidate_references(json.loads(raw), references))
             if kind == "facts":
                 contract.validate_facts(candidate, context)
             else:
+                if "navigation" not in candidate:
+                    raise PersistenceError("综合正文须一并返回 navigation：按已审核时间归组、覆盖全文并包含全部精选入口")
                 contract.validate_prose(candidate, context, facts)
         except (ValueError, TypeError, PersistenceError) as exc:
             error = str(exc)[:6000]

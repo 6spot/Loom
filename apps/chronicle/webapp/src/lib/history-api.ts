@@ -25,9 +25,15 @@ export interface HistoryEntry {
   label: string; kind: "event" | "period"; paragraph_id: string; event_id: string | null;
   ordinal: number; year: number | null; period: string | null; excerpt: string;
 }
+export interface HistoryNavigationSection {
+  id: string; label: string; period: string | null; start: number; end: number;
+  items: Array<{ paragraph_id: string; ordinal: number; label: string;
+    period: string | null; importance: "major" | "detail" }>;
+}
 export interface HistoryPublication {
   version: string; catalog_sha: string; title: string; paragraph_count: number;
   first_paragraph_id: string; groups: HistoryGroup[]; entry_points: HistoryEntry[];
+  navigation: HistoryNavigationSection[];
 }
 export interface HistoryPage {
   publication_version: string; paragraphs: HistoryParagraph[]; start: number; total: number;
@@ -54,7 +60,7 @@ export function isHistoryLocator(value: unknown): value is HistoryLocator {
 }
 export function historyPath(locator: HistoryLocator): string {
   if (!isHistoryLocator(locator)) throw new Error("历史阅读位置无效");
-  return `/history?${new URLSearchParams({ version: locator.version, at: locator.paragraph_id })}`;
+  return `/history/${locator.version}/${locator.paragraph_id}`;
 }
 
 // Only the shared viewport controller uses these opaque keys. No source stream,
@@ -80,7 +86,13 @@ export const HISTORY_POSITION_STRATEGY: ReadingUrlStrategy = {
     const fail = (detail: string) => ({ ok: false as const, issue: { code: "unsupported_target" as const, detail } });
     let url: URL;
     try { url = new URL(raw, "https://loom.local"); } catch { return fail("历史阅读地址无效。"); }
-    if (url.origin !== "https://loom.local" || url.pathname !== "/history") return fail("只支持本站历史阅读地址。");
+    if (url.origin !== "https://loom.local") return fail("只支持本站历史阅读地址。");
+    const path = /^\/history\/([0-9a-f]{64})(?:\/(hp_[0-9a-f]{24}))?\/?$/.exec(url.pathname);
+    if (path) {
+      if (url.search) return fail("历史阅读位置已在路径中，请勿附加参数。");
+      return { ok: true, location: { stream_id: HISTORY_SCOPE, catalog_sha: path[1], unit_id: path[2] ?? null } };
+    }
+    if (url.pathname !== "/history" && url.pathname !== "/history/") return fail("历史阅读路径无效。");
     const keys = [...url.searchParams.keys()];
     if (new Set(keys).size !== keys.length || keys.some((key) => !["version", "at"].includes(key))) return fail("历史阅读地址参数无效。");
     const version = url.searchParams.get("version");
@@ -103,10 +115,37 @@ export function historyTimeLabel(group: Pick<HistoryGroup, "year" | "period"> | 
 }
 
 const API = "/api/v1/public/history";
+function validNavigation(pub: HistoryPublication): boolean {
+  if (!Array.isArray(pub.navigation) || !pub.navigation.length || pub.navigation.length > pub.paragraph_count) return false;
+  if (pub.navigation[0]?.id !== pub.first_paragraph_id) return false;
+  const ids = new Set<string>();
+  const sections = new Set<string>();
+  let cursor = 0;
+  for (const section of pub.navigation) {
+    if (!section || !PARAGRAPH.test(section.id) || sections.has(section.id) || typeof section.label !== "string" || !section.label.trim()
+      || (section.period !== null && typeof section.period !== "string") || section.start !== cursor
+      || !Number.isInteger(section.end) || section.end < cursor || section.end >= pub.paragraph_count
+      || !Array.isArray(section.items) || !section.items.length || section.items.length > section.end - section.start + 1) return false;
+    sections.add(section.id);
+    let previous = section.start - 1;
+    for (const item of section.items) {
+      if (!item || !PARAGRAPH.test(item.paragraph_id) || ids.has(item.paragraph_id)
+        || !Number.isInteger(item.ordinal) || item.ordinal <= previous || item.ordinal > section.end
+        || typeof item.label !== "string" || !item.label.trim()
+        || (item.period !== null && typeof item.period !== "string")
+        || !["major", "detail"].includes(item.importance)) return false;
+      ids.add(item.paragraph_id); previous = item.ordinal;
+    }
+    cursor = section.end + 1;
+  }
+  return cursor === pub.paragraph_count && pub.entry_points.every((entry) => entry && ids.has(entry.paragraph_id));
+}
 export async function loadHistory(version?: string | null): Promise<HistoryPublication | null> {
   const response = await fetchJSON<{ publication: HistoryPublication | null }>(version === undefined || version === null ? API : `${API}?version=${encodeURIComponent(version)}`);
   const pub = response.publication;
-  if (pub && (!SHA.test(pub.version) || (version != null && pub.version !== version) || pub.paragraph_count < 1 || pub.paragraph_count > 256 || pub.entry_points.length > 12)) throw new Error("历史版本超出当前阅读范围，请刷新后重试。");
+  if (pub && (!SHA.test(pub.version) || (version != null && pub.version !== version) || !PARAGRAPH.test(pub.first_paragraph_id)
+    || !Number.isInteger(pub.paragraph_count) || pub.paragraph_count < 1 || pub.paragraph_count > 256
+    || !Array.isArray(pub.entry_points) || pub.entry_points.length > 12 || !validNavigation(pub))) throw new Error("历史版本或时间轴数据不完整，请刷新后重试。");
   return pub;
 }
 export async function loadHistoryPage(version: string, query: { at?: string; start?: number }, signal?: AbortSignal): Promise<HistoryPage> {

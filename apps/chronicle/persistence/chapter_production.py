@@ -182,7 +182,8 @@ def step_schema(step: str) -> dict[str, Any] | None:
 def translation_document(raw: str) -> dict[str, Any]:
     if not isinstance(raw, str) or not raw.strip():
         raise PersistenceError("translation must contain complete plain text")
-    text = raw.strip()
+    from reader_language import simplified
+    text = simplified(raw.strip())
     if text.startswith(("{", "[", "```")) or re.search(r"(?m)^\s*(?:#{1,6}\s|(?:译者注|譯者注|译文注释|翻译说明|注释)[:：])", text):
         raise PersistenceError("translation returned a wrapper, heading or commentary instead of plain prose")
     paragraphs = [part.strip() for part in re.split(r"\n[ \t]*\n+", text) if part.strip()]
@@ -461,7 +462,7 @@ def _source_for_model(request: dict) -> dict:
 
 def build_prompt(step: str, request: dict, data: dict, *, max_chars: int) -> str:
     instructions = {
-        "translation": "将完整章的正文连贯翻译为现代白话。只输出纯正文自然段，不要JSON、标题、序号、引用编号、注释或解释。source_scope中annotation仅用于理解，不另译成正文。正文引文、史料传闻及未知主语保留限定，不删减正文，不概括代替翻译。",
+        "translation": "将完整章的正文连贯翻译为简体中文的现代白话。只输出纯正文自然段，不要JSON、标题、序号、引用编号、注释或解释。source_scope中annotation仅用于理解，不另译成正文。正文引文、史料传闻及未知主语保留限定，不删减正文，不概括代替翻译。",
         "extraction": "从完整原文独立提取实体、事件、Claim与人物阶段事实。不输出译文或unit_phases。每条职位事实仅一个实际持有者，任命者不是被任命者；亲属关系不是政治效力。保留原注/转述归属。到访不等于控制，四郡不等于全荆州。一般状态事实不必制造重大事件。年/月承接须有据，传统月份不得当公历月份，未知保留null。章内明确的别称共用一个temp_id，不能仅凭名字推断跨来源身份。实体记录的kind固定为entity，人物/地点/政权等分类写入type，不能把place写入kind。事件记录kind固定为event，bundle.events记录不能额外放source_selections；章级来源在record_sources中通过record_ref关联。来源selection必须包含first_block_id、last_block_id、quote、occurrence，不能用fragment_id代替；fragment id用于复核覆盖。临时ID使用ent_001、evt_001、clm_001这样的序号格式，不能以人名拼ID。模型提取的extraction.method使用model。严格按SCHEMA列出的字段输出，不自行添加字段。",
         "comparison": "比较固定候选全集，逐稿解释差异并选择一个版本。回看完整原文，不能投票或把多个模型当独立史料；实质分歧无法解决标为disputed。selected_sha256必须来自提供的candidate_sha256，逐稿differences不能遗漏少数意见。只比较，不编造新稿。",
         "linking": "为已经保存的每个译文段补充来源、实体/事件、叙事时间和阶段关联。不得重译、改字、删段或重排。translation_links必须逐一保留全部block_id及顺序。只引用真正支持该段的正文来源块，不把原注-only块充作翻译覆盖。回顾/预叙须区分实际发生；unit_phases只能引用已经提取的阶段。顶层仅有chapter_id、translation_links、reading、unit_phases，warnings放在reading.warnings。每个reading.units条目均须按SCHEMA完整返回narrative_time、current_event_refs、event_spans、context_entities等必需字段，不能在后半章换用translation_links的字段。narrative_time.mode仅为events、inherit、mixed、unknown，不能使用process或自行添加其他值；这些模式的依据、引用与继承仍须符合原文。",

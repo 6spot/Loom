@@ -86,6 +86,13 @@ class ChronicleSearchRealDataTests(unittest.TestCase):
         self.assertEqual(item["time"]["start_year"], 208)
         self.assertEqual(item["navigation_path"], f"/events/{item['canonical_id']}")
 
+    def test_simplified_and_traditional_queries_reach_the_same_persisted_objects(self) -> None:
+        for simplified, traditional in (("刘备", "劉備"), ("赤壁之战", "赤壁之戰")):
+            with self.subTest(query=simplified):
+                expected = self._search(simplified)["items"]
+                self.assertTrue(expected)
+                self.assertEqual(expected, self._search(traditional)["items"])
+
     def test_chibi_surfaces_event_and_distinct_uncertain_place_entities(self) -> None:
         result = self._search("赤壁", limit=20)
         event_titles = {
