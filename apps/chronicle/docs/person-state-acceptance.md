@@ -80,7 +80,9 @@ gate 会：
    不跳过审核环节。**
 3. 经 Studio `GET /jobs/history/sources` 显式选择两个完整的已发布章，
    `POST /jobs/history` 创建现有综合 job；fixture 由两个来源产生不同阶段的段落，
-   以验证实际状态切换，仍受完整上下文预算限制，不能截断来源。分别通过 facts
+   以验证实际状态切换；过短的 fixture 译文附上明确标注的合成排版文字，仅用于
+   滚动测量，短段落边界另由 `history-component-smoke.mjs` 覆盖。仍受完整上下文
+   预算限制，不能截断来源。分别通过 facts
    审核（显式覆盖全部 `reviewed_conclusion_ids`）与 prose 审核后发布。
 4. 经公开 HTTP 读回正式 HistoryPage
    （`/history`、`/history/paragraphs`、`/history/conclusions/{id}`），记录

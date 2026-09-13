@@ -303,6 +303,16 @@ def narrative_drafts(
     paragraphs: list[dict[str, Any]] = []
     for index, source in enumerate(sources):
         phase, fact = f"p{index}", f"f{index}"
+        text = "\n".join(block["text"] for block in source["translation"])
+        # The chapter fixture deliberately emits a tiny labelled translation.
+        # Give the performance fixture scrollable prose without pretending to
+        # add historical facts. Short-boundary behaviour has its own browser
+        # regression in history-component-smoke.mjs.
+        if len(text) < 600:
+            text += "\n" + (
+                "合成排版验收文字：用于检查连续滚动、阅读位置和人物阶段的同步更新，"
+                "不包含史实补充，不能作为真实译文或历史内容验收证据。"
+            ) * 12
         entity = next(iter(source.get("canonical_refs", {}).get("entities", {}).values()), None)
         event = next(iter(source.get("canonical_refs", {}).get("events", {}).values()), None)
         evidence = source["evidence"][0]["id"]
@@ -344,7 +354,7 @@ def narrative_drafts(
                 "phase_id": phase,
                 "segments": [
                     {
-                        "text": "\n".join(block["text"] for block in source["translation"]),
+                        "text": text,
                         "conclusion_ids": [fact],
                         "event_id": event,
                         "event_relation": "current" if event else None,

@@ -240,6 +240,7 @@ class NarrativeDraftTests(unittest.TestCase):
             [item for section in prose["navigation"] for item in section["items"]],
         )
         self.assertLess(len(prose["entry_points"]), len(prose["paragraphs"]))
+        self.assertTrue(all(len(item["segments"][0]["text"]) >= 600 for item in prose["paragraphs"]))
 
     def test_narrative_candidate_parses_a_real_prompt(self):
         context = _narrative_context()
