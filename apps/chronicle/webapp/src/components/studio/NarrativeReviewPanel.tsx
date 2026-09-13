@@ -45,6 +45,32 @@ function EvidencePicker({ context, selected, label, add }: { context: NarrativeC
   return <label>{label}<select value="" onChange={(e) => { if (e.target.value) add(e.target.value); }}><option value="">从固定的完整章中选择…</option>{context.sources.map((source) => <optgroup label={`${source.document_title} · ${source.title}`} key={source.source_id}>{source.evidence.filter((e) => !selected.includes(e.id)).map((e) => <option key={e.id} value={e.id}>{e.quote.slice(0, 100)}</option>)}</optgroup>)}</select></label>;
 }
 
+function SavedFacts({ content, context }: { content: NarrativeFacts; context: NarrativeContext }) {
+  const [selected, setSelected] = useState(0);
+  const fact = content.conclusions[selected];
+  const sourceName = (id: string) => context.sources.find((source) => source.source_id === id)?.title || "来源名称未记录";
+  return <section className="studio-stack" aria-label="已保存事实核对结果">
+    <details className="studio-panel studio-details"><summary>来源关系与时间阶段</summary><p>{content.title}</p>
+      {content.source_relations.map((relation, index) => <div key={index}><strong>{sourceName(relation.left)} ↔ {sourceName(relation.right)} · {SOURCE_RELATIONS[relation.relation] || "关系未明"}</strong><p>{relation.reason}</p></div>)}
+      {content.phases.map((phase) => <div key={phase.id}><strong>{phase.label}</strong><p>{phase.year != null ? `${phase.year < 0 ? `公元前 ${Math.abs(phase.year)}` : phase.year} 年` : ""}{phase.period ? ` ${phase.period}` : ""}</p><details><summary>查看阶段依据</summary>{phase.basis.map((id) => <Evidence key={id} context={context} reference={{ id, relation: "support", attribution: "阶段依据", note: phase.label }} />)}</details></div>)}
+    </details>
+    <div className="nr-question-nav"><label>查看已保存结论<select value={selected} onChange={(event) => setSelected(Number(event.target.value))}>{content.conclusions.map((entry, index) => <option key={entry.id} value={index}>{index + 1}. {entry.question}</option>)}</select></label><span>{selected + 1} / {content.conclusions.length}</span></div>
+    {fact ? <article className="studio-panel studio-stack">
+      <h2>{fact.question}</h2><p className="studio-result-prose">{fact.text}</p>
+      <dl className="studio-facts">
+        {fact.subject_id ? <div><dt>人物或地点</dt><dd>{context.entities[fact.subject_id]?.name || "名称未记录"}</dd></div> : null}
+        {fact.event_id ? <div><dt>相关事件</dt><dd>{context.events[fact.event_id]?.name || "名称未记录"}</dd></div> : null}
+        <div><dt>结论类型</dt><dd>{DIMENSIONS[fact.dimension]}</dd></div>
+        {fact.value ? <div><dt>当时状态</dt><dd>{fact.value}</dd></div> : null}
+        <div><dt>适用阶段</dt><dd>{fact.phase_ids.map((id) => content.phases.find((phase) => phase.id === id)?.label || "阶段名称未记录").join("、")}</dd></div>
+        <div><dt>明确性</dt><dd>{fact.certainty === "clear" ? "● 明确记载" : "○ 存疑"}</dd></div>
+      </dl>
+      <p>{fact.reason}</p><details className="studio-details"><summary>核对原文依据（{fact.evidence.length} 条）</summary>{fact.evidence.map((reference) => <Evidence key={reference.id} reference={reference} context={context} />)}</details>
+    </article> : null}
+    <div className="studio-row-actions"><Button variant="outline" disabled={selected === 0} onClick={() => setSelected((index) => index - 1)}>上一条结论</Button><Button variant="outline" disabled={selected >= content.conclusions.length - 1} onClick={() => setSelected((index) => index + 1)}>下一条结论</Button></div>
+  </section>;
+}
+
 function PhaseEditor({ phase, context, update }: { phase: NarrativePhase; context: NarrativeContext; update: (phase: NarrativePhase) => void }) {
   const patch = (value: Partial<NarrativePhase>) => update({ ...phase, ...value });
   return <div className="nr-field-grid">
@@ -160,7 +186,8 @@ export default function NarrativeReviewPanel({ item, onNext, onSkip, queueHref, 
     try { sessionStorage.setItem(key, JSON.stringify({ content, rationale, checked, scopeChecked })); }
     catch { setStorageFailed(true); }
   }, [key, content, rationale, checked, scopeChecked, item.status]);
-  const facts = content.schema === "chronicle.source-corroboration" ? content : null;
+  const displayedContent = item.status === "open" ? content : data.decision?.content ?? data.candidate;
+  const facts = displayedContent.schema === "chronicle.source-corroboration" ? displayedContent : null;
   const canApprove = scopeChecked && !!rationale.trim() && (!facts || facts.conclusions.every((f) => checked.includes(f.id)));
   const patchFacts = (value: NarrativeFacts, changed?: string) => { setContent(value); setChecked(changed ? checked.filter((id) => id !== changed) : []); if (!changed) setScopeChecked(false); };
 
@@ -210,13 +237,15 @@ export default function NarrativeReviewPanel({ item, onNext, onSkip, queueHref, 
     try { const fresh = await getReview(auth, item.review_id); client.setQueryData(["studio", "review", item.review_id], fresh); setNotice(fresh.status === "open" ? "服务端仍待审核，可检查草稿后提交。" : "服务端已有审核决定，请查看已保存记录。"); }
     catch (e) { setError(message(e)); } finally { setPending(false); }
   };
-  const final = data.decision?.content;
   return <div className="studio-stack narrative-review" data-view="narrative-review">
     <div className="studio-page-heading"><div><p className="studio-eyebrow">内容审核</p><h1>{facts ? "多史料事实核对" : "综合历史正文审核"}</h1><p className="studio-muted">{data.context.sources.length} 个完整章节 · {facts ? `${facts.conclusions.length} 个核对问题` : "正文与阅读入口一起审核"}</p></div><Link to={`/studio/imports/${item.job_id}`}>查看生产进度</Link></div>
     {storageFailed ? <p role="status">浏览器暂时不能保存草稿，请保持本页打开；当前编辑仍保留。</p> : null}
     {notice ? <p role="status">{notice}</p> : null}{navigationNote ? <p role="status">{navigationNote}</p> : null}
     {error ? <div role="alert" className="studio-error-box"><p>{error}</p><Button variant="outline" onClick={() => void verify()} disabled={pending}>核对服务器记录</Button></div> : null}
-    {item.status !== "open" ? <section><p>{item.status === "dismissed" ? "生产任务已取消，本项不再等待审核。" : `本次${data.decision?.decision === "approve" ? "审核通过" : "已驳回"}，记录已固定。`}</p><p>{data.decision?.rationale}</p><details><summary>查看已保存内容</summary><pre className="studio-code">{JSON.stringify(final ?? data.candidate, null, 2)}</pre></details></section> : <fieldset className="nr-form" disabled={pending}>
+    {item.status !== "open" ? <section className="studio-stack"><div><p>{item.status === "dismissed" ? "生产任务已取消，本项不再等待审核。" : `本次${data.decision?.decision === "approve" ? "审核通过" : "已驳回"}，记录已固定。`}</p><p>{data.decision?.rationale}</p></div>
+      {displayedContent.schema === "chronicle.historical-narrative" ? <NarrativePreview content={displayedContent} data={data} label="已保存历史阅读预览" /> : <SavedFacts content={displayedContent} context={data.context} />}
+      <details className="studio-details"><summary>查看完整保存记录</summary><pre className="studio-code">{JSON.stringify(displayedContent, null, 2)}</pre></details>
+    </section> : <fieldset className="nr-form" disabled={pending}>
       {facts ? <>
         <details className="nr-scope"><summary>来源关系与时间阶段（须一并核对）</summary>
           <p>同书不同传、转引或抄录不能作为多份独立见证；未提到也不是反证。</p>

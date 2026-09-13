@@ -546,9 +546,42 @@ try {
   assert.equal(decisionRequests[3].review_id, reviewIds.reject);
   assert.equal(decisionRequests[3].payload.decision, "reject");
   assert.deepEqual(resumeRequests, [jobs.facts, jobs.facts, jobs.prose]);
+
+  stage = "saved decisions stay readable and ignore stale drafts";
+  await page.evaluate((drafts) => {
+    for (const draft of drafts) sessionStorage.setItem(draft.key, JSON.stringify({ content: draft.content, rationale: "未提交的旧草稿", checked: [], scopeChecked: false }));
+  }, [
+    { key: `chronicle.narrative-draft.${reviewIds.facts}.${sha(1)}`, content: initialFacts },
+    { key: `chronicle.narrative-draft.${reviewIds.prose}.${sha(2)}`, content: initialProse },
+  ]);
+  await page.goto(new URL(`/studio/review/${reviewIds.facts}?status=all`, base).href);
+  const savedFacts = page.getByRole("region", { name: "已保存事实核对结果", exact: true });
+  await expect(savedFacts).toBeVisible();
+  await expect(savedFacts.locator("article")).toContainText(revisedOffice);
+  await expect(savedFacts.getByLabel("查看已保存结论").locator("option")).toHaveCount(4);
+  await expect(page.locator(".nr-form")).toHaveCount(0);
+  await savedFacts.getByRole("button", { name: "下一条结论", exact: true }).click();
+  await expect(savedFacts.locator("article")).toContainText("合成测试称号");
+  await savedFacts.locator("article summary").click();
+  await expect(savedFacts.locator("article blockquote")).toHaveText(officeQuote);
+  await mobileFits();
+  await page.goto(new URL(`/studio/review/${reviewIds.prose}?status=all`, base).href);
+  const savedProse = page.getByRole("region", { name: "已保存历史阅读预览", exact: true });
+  await expect(savedProse).toBeVisible();
+  await expect(savedProse).toContainText(revisedProse);
+  await expect(savedProse.getByRole("button")).toHaveCount(3);
+  await expect(savedProse.getByLabel("预览当前人物与地点")).toContainText("合成北岸");
+  await expect(page.locator(".studio-code:visible")).toHaveCount(0);
+  await expect(page.locator("textarea")).toHaveCount(0);
+  await mobileFits();
+  await page.goto(new URL(`/studio/review/${reviewIds.reject}?status=all`, base).href);
+  await expect(page.getByText("本次已驳回，记录已固定。", { exact: true })).toBeVisible();
+  await expect(savedFacts.getByLabel("查看已保存结论").locator("option")).toHaveCount(1);
+  assert.equal(decisionRequests.length, 4, "reading saved decisions must not submit or publish");
+  assert.deepEqual(resumeRequests, [jobs.facts, jobs.facts, jobs.prose]);
   assert.deepEqual(fixtureErrors, []);
   assert.deepEqual(pageErrors, []);
-  console.log("narrative-review-component-smoke: PASS (conclusions, phases/basis, full-source Unicode, draft/refresh, failures/retry, curated entries, footer actions, mobile)");
+  console.log("narrative-review-component-smoke: PASS (conclusions, phases/basis, full-source Unicode, draft/refresh, failures/retry, curated entries, saved decisions, footer actions, mobile)");
 } catch (error) {
   console.error(`narrative-review-component-smoke: FAIL at ${stage}`);
   if (fixtureErrors.length) console.error("Fixture errors:", fixtureErrors);

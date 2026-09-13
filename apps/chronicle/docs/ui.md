@@ -104,6 +104,7 @@ records remain available under technical details.
 | Model bodies presented as raw records | Readable translation, extracted objects and qualified state facts; two saved outputs can be compared side by side | Review content and differences before inspecting technical fields |
 | Failure recovery requires interpreting internal state | Original-model retry and an explicit linked new run with selected configured models | Preserve completed work and the original audit trail; never silently change frozen job configuration |
 | Dense review forms as the first view | Chapter content/opinions/history tabs; continuous narrative preview before editing | Read the proposed content and its exact phase states before deciding |
+| Completed history reviews show only raw records | Saved prose keeps its reading preview; saved facts show one conclusion with its phases and evidence | Revisit the exact decision without decoding fields or restoring a stale local draft |
 
 The overview prioritizes open review items and failed production tasks. Recent
 task metrics explicitly cover the most recent 100 tasks. List searches apply to
