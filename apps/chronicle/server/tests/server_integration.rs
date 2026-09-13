@@ -699,6 +699,43 @@ async fn studio_jobs_proxy_method_path_query_and_body() {
 }
 
 #[tokio::test]
+async fn studio_saved_production_routes_share_auth_and_proxy() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    for path in [
+        "/api/v1/studio/jobs/model-options",
+        "/api/v1/studio/jobs/saved-job/outputs/saved-hash?offset=100&limit=500",
+    ] {
+        assert_eq!(get(server.port, path, None).await.0, 401);
+        let (status, _, bytes) = get(server.port, path, Some(ADMIN_AUTH)).await;
+        assert_eq!(status, 200);
+        let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(payload["proxied_path"], path);
+    }
+    let path = "/api/v1/studio/jobs/saved-job/rerun";
+    let body = br#"{"model_selection":{"config_sha256":"fixed","steps":{"translation":["configured-profile"]}}}"#;
+    for (auth, expected_status) in [(None, 401), (Some(ADMIN_AUTH), 201)] {
+        let (status, _, bytes) = raw_request_with_body(
+            server.port,
+            "POST",
+            path,
+            auth,
+            Some("application/json"),
+            body,
+        )
+        .await
+        .unwrap();
+        assert_eq!(status, expected_status);
+        if auth.is_some() {
+            let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(payload["proxied_path"], path);
+            assert_eq!(payload["body_len"], body.len());
+        }
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
 async fn studio_review_identity_conflict_preserves_status_and_context_behind_auth() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;

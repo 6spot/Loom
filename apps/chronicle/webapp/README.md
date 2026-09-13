@@ -155,6 +155,7 @@ Component behavior is verified with the existing synthetic browser suite:
 node scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5173 --suite all --output /tmp/chronicle-reading-ui-qa
 node scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5173
 node scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5173
+node scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5173 --output /tmp/chronicle-studio-workspace
 ```
 
 This component suite does not substitute for the real-stack content gate.

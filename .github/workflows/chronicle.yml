@@ -239,6 +239,7 @@ jobs:
           node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5174 --suite all --output /tmp/chronicle-reading-components
           node apps/chronicle/webapp/scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5174
           node apps/chronicle/webapp/scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5174
+          node apps/chronicle/webapp/scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5174
 
       - name: Validate reading browser driver and suites
         run: |
@@ -365,6 +366,7 @@ jobs:
           python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
           python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_comparison_postgres.py' -v
           python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs_postgres.py' -v
 
       - name: Third-round person-state corpus and contract tests
         run: |

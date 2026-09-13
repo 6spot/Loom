@@ -30,10 +30,11 @@ import chapter_store
 import control_plane
 import ingestion_worker as worker
 import staged_chapter
+import studio_production
 from common import PersistenceConflict, sha256_json
 import test_chapter_pipeline_postgres as legacy
 import test_person_state_pipeline_postgres as state_pipeline
-from staged_pipeline_fixture import CORRECT_FIRST, TEXT, WRONG_FIRST, ScriptedModels
+from staged_pipeline_fixture import CORRECT_FIRST, TEXT, WRONG_FIRST, ScriptedModels, _StepModel
 
 WORKER = "staged-pipeline-test"
 LIMITS = chapter_contract.ChapterLimits()
@@ -142,6 +143,48 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
         self.assertEqual(script.count("translation"), 1)
         self.assertEqual(script.count("extraction"), 1)
         self.assertEqual(script.count("comparison"), 0)
+
+    def test_worker_executes_saved_model_selection_and_preserves_default_profiles(self):
+        old_job, revision_id, source_sha = self._queue_job(TEXT)
+        script = ScriptedModels()
+        providers = {(step, slot): _StepModel(script, step, slot)
+                     for step in protocol.STEPS for slot in script.models.profiles}
+        script.models = replace(script.models, providers=providers, selection_key="b" * 64)
+        defaults = script.models.steps.copy()
+        selection = {"config_sha256": script.models.selection_key,
+                     "steps": {step: list(slots) for step, slots in defaults.items()}}
+        selection["steps"]["translation"] = ["reviewer_0"]
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.cancel_job(conn, job_id=old_job)
+            job_id = studio_production.queue(conn, revision_id=revision_id,
+                selection=selection, parent_job_id=old_job, max_attempts=8)
+        status = self._run_job(job_id, source_sha, script)
+        self.assertEqual(status, "needs_review")
+        self.assertEqual(script.count("translation", "reviewer_0"), 1)
+        self.assertEqual(script.count("translation", "executor"), 0)
+        self.assertEqual(script.count("extraction", "executor"), 1)
+        self.assertEqual(script.models.steps, defaults)
+        with psycopg.connect(self.database_url) as conn:
+            plans = conn.execute("SELECT payload->'config' FROM chronicle.ingestion_outputs WHERE job_id=%s AND artifact_type=%s",
+                                 (job_id, store.PLAN_TYPE)).fetchall()
+            self.assertEqual(len(plans), 1)
+            self.assertEqual(plans[0][0]["steps"]["translation"], ["reviewer_0"])
+            self.assertEqual(control_plane.get_job_detail(conn, job_id=old_job)["status"], "cancelled")
+
+    def test_stale_task_selection_stops_before_calling_any_model(self):
+        old_job, revision_id, source_sha = self._queue_job(TEXT)
+        script = ScriptedModels()
+        script.models = replace(script.models, selection_key="b" * 64)
+        selection = {"config_sha256": "c" * 64,
+                     "steps": {step: list(slots) for step, slots in script.models.steps.items()}}
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.cancel_job(conn, job_id=old_job)
+            job_id = studio_production.queue(conn, revision_id=revision_id, selection=selection)
+        self.assertEqual(self._run_job(job_id, source_sha, script), "failed")
+        self.assertEqual(sum(script.calls.values()), 0)
+        with psycopg.connect(self.database_url) as conn:
+            detail = control_plane.get_job_detail(conn, job_id=job_id)
+            self.assertIn("model_configuration_changed", detail["error"])
 
     def _assert_repaired(self, ctx, script):
         self._assert_initial_steps_once(script)

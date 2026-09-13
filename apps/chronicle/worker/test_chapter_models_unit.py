@@ -15,11 +15,12 @@ for path in (HERE, HERE.parent / "persistence"):
         sys.path.insert(0, str(path))
 
 import chapter_models
+import chapter_model_settings
 import chapter_production
 import chapter_stage
 import model_provider
 from chapter_contract import ChapterLimits
-from common import PersistenceError, sha256_json
+from common import PersistenceConflict, PersistenceError, sha256_json
 
 
 class ChapterModelsTests(unittest.TestCase):
@@ -140,6 +141,52 @@ class ChapterModelsTests(unittest.TestCase):
         with self.assertRaisesRegex(PersistenceError, "cannot be combined"):
             chapter_stage.chapter_model_from_env({"CHRONICLE_CHAPTER_FIXTURE_PACK": "unused.json",
                                                  "CHRONICLE_CHAPTER_PIPELINE_CONFIG": "live.json"})
+
+    def test_studio_choices_exclude_transport_and_survive_credential_rotation(self):
+        choices = chapter_model_settings.catalog(self.env())
+        self.assertTrue(choices["available"])
+        self.assertEqual(set(choices), {"available", "models", "steps", "config_sha256"})
+        self.assertEqual(set(choices["models"][0]), {"id", "name"})
+        self.assertNotIn("test-secret", json.dumps(choices))
+        self.assertNotIn("gateway.example", json.dumps(choices))
+        self.assertEqual(choices, chapter_model_settings.catalog({**self.env(),
+            "CHRONICLE_MODEL_API_KEY": "rotated", "CHRONICLE_MODEL_TIMEOUT_SECONDS": "2400"}))
+        for env in ({}, {"CHRONICLE_CHAPTER_MODEL": "fixture:chapter"},
+                    {**self.env(), "CHRONICLE_CHAPTER_FIXTURE_PACK": "test.json"}):
+            self.assertFalse(chapter_model_settings.catalog(env)["available"])
+
+    def test_per_job_choices_use_other_providers_without_mutating_worker_defaults(self):
+        models = self.configured(self.config())
+        steps = {step: ["b"] for step in chapter_production.STEPS}
+        steps["review"] = ["a", "b"]
+        selection = {"config_sha256": models.selection_key, "steps": steps}
+        selected = models.for_selection(selection)
+        for step in chapter_production.STEPS:
+            self.assertEqual(models.steps[step], ("a",))
+            self.assertEqual(selected.steps[step], tuple(steps[step]))
+            self.assertEqual(selected.model_for(step, "b").name, "reviewer")
+            self.assertEqual(selected.model_for(step, "b").timeout_seconds, models.timeout_seconds)
+        self.assertIsNone(selected.model_for("translation", "b").text_format)
+        self.assertNotEqual(sha256_json(models.public_config()), sha256_json(selected.public_config()))
+        steps["translation"].clear()
+        self.assertEqual(selected.steps["translation"], ("b",))
+
+    def test_stale_or_invalid_studio_selections_are_rejected(self):
+        choices = chapter_model_settings.catalog(self.env())
+        selection = {"config_sha256": choices["config_sha256"], "steps": choices["steps"]}
+        self.assertEqual(chapter_model_settings.validate_selection(selection, choices), selection)
+        with self.assertRaises(PersistenceConflict):
+            chapter_model_settings.validate_selection({**selection, "config_sha256": "0" * 64}, choices)
+        models = chapter_models.from_env(self.env(), limits=ChapterLimits())
+        with self.assertRaises(PersistenceConflict):
+            models.for_selection({**selection, "config_sha256": "0" * 64})
+        for slots in ([], ["missing"], ["executor", "executor"], [None], "executor"):
+            invalid = copy.deepcopy(selection)
+            invalid["steps"]["translation"] = slots
+            with self.subTest(slots=slots), self.assertRaises(PersistenceError):
+                chapter_model_settings.validate_selection(invalid, choices)
+        with self.assertRaises(PersistenceError):
+            chapter_model_settings.validate_selection({**selection, "endpoint": "https://other.example"}, choices)
 
 
 if __name__ == "__main__":

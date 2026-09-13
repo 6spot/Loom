@@ -4,11 +4,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
 import { useStudioAuth } from "../../lib/studio-auth";
-import { formatShortHash, listReviewPage, StudioApiError } from "../../lib/studio-api";
+import { formatShortHash, listReviewPage, listJobs, StudioApiError } from "../../lib/studio-api";
 import type { ReviewStatus } from "../../lib/studio-api";
 import { decisionLabel, jobStatusLabel, reviewLinkKindLabel, reviewStatusLabel } from "../../lib/studio-i18n";
+import { jobTitle, formatStudioTime } from "../../lib/studio-workspace";
 import { signalLabel } from "../../lib/review-display";
 import {
   buildReviewSearch,
@@ -77,13 +77,10 @@ export default function StudioReviewPage() {
     [searchParams],
   );
   const store = useMemo(() => sessionStore(), []);
-  const [jobInput, setJobInput] = useState(scope.jobId ?? "");
   const [cursor, setCursor] = useState<string | null>(null);
   const [cursorTrail, setCursorTrail] = useState<Array<string | null>>([]);
 
-  useEffect(() => {
-    setJobInput(scope.jobId ?? "");
-  }, [scope.jobId]);
+  const jobs = useQuery({ queryKey: ["studio", "jobs", "all", 0], queryFn: () => listJobs(authHeader) });
 
   // Refresh / back / forward restores the same scope and list position.
   // The open-traversal cursor is never reused here: only the saved list
@@ -192,31 +189,23 @@ export default function StudioReviewPage() {
               ))}
             </div>
           ) : null}
-          <form
-            className="studio-inline-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const trimmed = jobInput.trim();
-              applyScope({ ...scope, jobId: trimmed ? trimmed : null });
-            }}
-          >
-            <Input
-              aria-label="按导入作业过滤"
-              placeholder="按 job_id 过滤（留空为全部作业）"
-              value={jobInput}
-              onChange={(event) => setJobInput(event.target.value)}
-            />
-            <Button type="submit" size="sm" variant="outline">应用作业范围</Button>
-          </form>
+          <label className="studio-review-job-filter">任务范围
+            <select className="studio-select" aria-label="按生产任务过滤" value={scope.jobId ?? ""} onChange={(event) => applyScope({ ...scope, jobId: event.target.value || null })}>
+              <option value="">全部生产任务</option>
+              {scope.jobId && !jobs.data?.some((job) => job.job_id === scope.jobId) ? <option value={scope.jobId}>当前指定任务</option> : null}
+              {jobs.data?.map((job) => <option key={job.job_id} value={job.job_id}>{jobTitle(job)} · {formatStudioTime(job.created_at)}</option>)}
+            </select>
+            <small className="studio-muted">可选最近 100 项；其他任务可从任务详情进入。</small>
+          </label>
           {skippedCount > 0 && scope.status === "open" ? (
-            <p className="studio-muted">本轮已暂时跳过 {skippedCount} 项（仍为待审，不阻塞外，只影响本轮导航）。</p>
+            <p className="studio-muted">本轮暂时跳过 {skippedCount} 项；仍需审核，仅从本轮导航中略过。</p>
           ) : null}
 
           {page.isLoading ? <p className="studio-muted">正在读取持久化审核项…</p> : null}
           {page.error ? <p className="studio-error">{errorText(page.error)}</p> : null}
-          {page.data && items.length === 0 ? <p className="studio-muted">当前筛选条件下没有消歧审核。</p> : null}
+          {page.data && items.length === 0 ? <p className="studio-muted">当前筛选条件下没有待核对内容。</p> : null}
 
-          <div className="studio-table" aria-label="人工消歧审核队列">
+          <div className="studio-table" aria-label="人工消歧审核队列" data-layout="review-inbox">
             {items.map((review) => {
               const members = review.member_count ?? 1;
               const groups = review.group_count ?? 1;
@@ -229,7 +218,7 @@ export default function StudioReviewPage() {
                   <div className="studio-stack studio-stack-tight">
                     <div className="studio-row-title">
                       <Badge>{reviewStatusLabel(review.status)}</Badge>
-                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "阶段依据" : review.scope === "chapter_content" ? "章节内容" : reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "人物状态" : review.scope === "chapter_content" ? "章节内容" : reviewLinkKindLabel(review.link_kind)}</Badge>
                       <strong>{review.document.title}</strong>
                       <span className="studio-muted">第 {review.document.revision_no} 版</span>
                       {review.review_id === currentId ? <Badge>上次位置</Badge> : null}
@@ -239,7 +228,7 @@ export default function StudioReviewPage() {
                       {review.scope === "resolution" ? <><span className="studio-muted"> ↔ </span><strong>{review.right_label ?? "本次来源记录"}</strong></> : null}
                     </div>
                     <div className="studio-muted">
-                      {review.scope === "chapter_content" ? `${review.issue_count ?? 0} 条核对意见 · ${review.history_count ?? 0} 份完整处理记录` : review.scope === "narrative" ? "完整章节语境 · 结论、依据与版本固定" : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
+                      {review.scope === "chapter_content" ? `${review.issue_count ?? 0} 条核对意见 · ${review.history_count ?? 0} 份完整处理记录` : review.scope === "narrative" ? "完整章节语境 · 结论与依据可对照" : review.scope === "person_state" ? `${review.candidate_count ?? 0} 条人物状态依据` : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
                       {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
                       {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
                       {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}
@@ -256,7 +245,7 @@ export default function StudioReviewPage() {
                   </div>
                   <div className="studio-row-actions">
                     <Badge>{jobStatusLabel(review.job_status)}</Badge>
-                    <Link className="studio-link-button" to={`/studio/imports/${encodeURIComponent(review.job_id)}`}>查看导入作业</Link>
+                    <Link className="studio-link-button" to={`/studio/imports/${encodeURIComponent(review.job_id)}`}>查看生产任务</Link>
                     <Link
                       className="studio-link-button"
                       to={`/studio/review/${encodeURIComponent(review.review_id)}${buildReviewSearch(scope, review.review_id)}`}
@@ -285,7 +274,7 @@ export default function StudioReviewPage() {
                 上一页
               </Button>
               <span className="studio-muted">
-                本页 {items.length} 项 · 当前范围待审 {page.data.open_count} 项 · 观察时间 {page.data.observed_at}
+                本页 {items.length} 项 · 当前范围待审 {page.data.open_count} 项 · 更新于 {formatStudioTime(page.data.observed_at)}
               </span>
               <Button
                 size="sm"

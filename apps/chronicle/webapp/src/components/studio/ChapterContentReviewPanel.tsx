@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
+import StructuredResult from "./StructuredResult";
 import { ReviewEvidencePanel } from "./ReviewEvidencePanel";
 import { useStudioAuth } from "../../lib/studio-auth";
 import { getChapterReviewHistory, getReview, mutateJob, submitChapterContentDecision, type ReviewDetail } from "../../lib/studio-api";
@@ -60,10 +61,15 @@ function HistoryRecord({ auth, reviewId, fingerprint, record }: {
   return <details className="ccr-history-record" onToggle={(event) => { if (event.currentTarget.open && !loaded) void load(); }}>
     <summary>{record.index + 1}. {STEP_LABELS[record.step ?? ""] ?? record.step ?? "处理记录"} · {record.model ?? "程序记录"}{record.status ? ` · ${STATUS_LABELS[record.status] ?? record.status}` : ""}</summary>
     <p className="studio-muted">完整保存的原始结果、解析结果与相关意见。长记录可继续加载。</p>
-    <pre className="studio-code ccr-history-text">{text}</pre>
+    {loaded && !cursor ? <HistoryResult text={text} /> : <pre className="studio-code ccr-history-text">{text}</pre>}
     {error ? <p role="alert" className="studio-error">{error}</p> : null}
     {!loaded || cursor || error ? <Button variant="outline" disabled={busy} onClick={() => void load()}>{busy ? "正在读取…" : loaded ? "继续读取此记录" : "读取此记录"}</Button> : <p className="studio-muted">此记录已完整显示。</p>}
   </details>;
+}
+
+function HistoryResult({ text }: { text: string }) {
+  try { return <StructuredResult value={JSON.parse(text)} raw />; }
+  catch { return <pre className="studio-code ccr-history-text">{text}</pre>; }
 }
 
 export default function ChapterContentReviewPanel({ item, queueScope, onNext, onSkip, onReturn, navigationNote }: {
@@ -80,6 +86,7 @@ export default function ChapterContentReviewPanel({ item, queueScope, onNext, on
   const [notice, setNotice] = useState("");
   const [storageFailed, setStorageFailed] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [tab, setTab] = useState("content");
   const [metadataPath, setMetadataPath] = useState("");
   const current = useRef(true);
   const committed = useRef(false);
@@ -168,7 +175,12 @@ export default function ChapterContentReviewPanel({ item, queueScope, onNext, on
     {item.status !== "open" ? <section className="ccr-section"><strong>{item.status === "dismissed" ? "本次任务已取消，审核材料保留供查阅。" : `已记录：${decisionLabel(data.decision?.decision)}`}</strong><p>{data.decision?.rationale}</p>{data.decision ? <details><summary>查看固定审核决定</summary><pre className="studio-code">{pretty(data.decision)}</pre></details> : null}</section> : null}
     {!data.can_accept ? <section className="studio-error-box"><strong>当前候选尚不能接受</strong><ul>{data.validation_errors.map((entry, index) => <li key={index}>{entry}</li>)}</ul>{!data.candidate ? <p>尚未形成完整章节候选。可以核对已保存的全部结果，并驳回本次处理。</p> : <p>请修订具体问题后重新复核，或驳回本次处理。</p>}</section> : null}
 
-    <section className="ccr-section" aria-label="原文与当前译文">
+    <nav className="studio-review-tabs studio-segmented studio-filter-row" aria-label="章节审核视图">
+      <button type="button" aria-pressed={tab === "content"} onClick={() => setTab("content")}>正文与提取信息</button>
+      <button type="button" aria-pressed={tab === "opinions"} onClick={() => setTab("opinions")}>待核对意见 · {data.issues.length}</button>
+      <button type="button" aria-pressed={tab === "history"} onClick={() => setTab("history")}>模型结果与历史 · {data.history_count}</button>
+    </nav>
+    <section hidden={tab !== "content"} className="ccr-section" aria-label="原文与当前译文">
       <div className="ccr-section-heading"><h2>原文与当前译文</h2>{item.status === "open" && data.candidate ? <Button variant="outline" disabled={pending} onClick={() => setEditing((value) => !value)}>{editing ? "收起修订编辑" : "修订具体内容"}</Button> : null}</div>
       <p className="studio-muted">原文包含完整上下文与原注。修改后会生成新版本重新复核。</p>
       <div className="ccr-reading-grid">
@@ -177,7 +189,8 @@ export default function ChapterContentReviewPanel({ item, queueScope, onNext, on
           {editing && item.status === "open" ? <label><span className="studio-muted">第 {index + 1} 段</span><textarea className="studio-textarea" aria-label={`修订第 ${index + 1} 段译文`} value={draft.edits[target.path] ?? String(pointerValue(data.candidate, target.path) ?? "")} disabled={pending} onChange={(event) => setEdit(target.path, event.target.value)} /></label> : <p>{String(pointerValue(data.candidate, target.path) ?? "")}</p>}
         </div>)}{!prose.length ? <p>当前没有完整白话正文，请查看下面保存的候选记录。</p> : null}</div>
       </div>
-      <details><summary>当前提取信息与正文范围</summary><pre className="studio-code">{pretty({ candidate: data.candidate, source_scope: data.source_scope })}</pre></details>
+      <details className="ccr-extracted"><summary>查看人物、地点、事件与阶段状态</summary><StructuredResult value={{ ...data.candidate, translation: undefined }} /></details>
+      <details className="studio-details"><summary>正文范围与技术字段</summary><pre className="studio-code">{pretty({ candidate: data.candidate, source_scope: data.source_scope })}</pre></details>
       {editing && item.status === "open" && metadata.length ? <details className="ccr-metadata"><summary>修订提取信息</summary>
         <p className="studio-muted">选择具体记录后修改其内容；保留记录格式和引用。来源范围由程序固定。</p>
         <label>具体记录<select className="studio-select" value={metadataPath} onChange={(event) => setMetadataPath(event.target.value)}><option value="">选择需要修订的记录</option>{metadata.map((target) => <option key={target.path} value={target.path}>{target.label}</option>)}</select></label>
@@ -186,7 +199,7 @@ export default function ChapterContentReviewPanel({ item, queueScope, onNext, on
       {patchError ? <p className="studio-error" role="alert">修订记录格式错误：{patchError}</p> : changed ? <p role="status">已修改 {changed} 项。请使用“提交修订并下一项”，新版本仍需复核。</p> : null}
     </section>
 
-    <section className="ccr-section" aria-label="逐项核对模型意见">
+    <section hidden={tab !== "opinions"} className="ccr-section" aria-label="逐项核对模型意见">
       <h2>逐项核对意见</h2>
       <p className="studio-muted">处理错误与史料自身的不确定分别记录。每条意见都需要明确处置和依据。</p>
       {data.issues.length === 0 ? <p>没有单列意见，请核对当前版本和完整处理记录。</p> : null}
@@ -200,7 +213,7 @@ export default function ChapterContentReviewPanel({ item, queueScope, onNext, on
       </fieldset>)}
     </section>
 
-    <section className="ccr-section" aria-label="完整模型候选与意见历史"><h2>全部候选与复核历史</h2><p className="studio-muted">保留每个模型的原始结果、采用版本、修正过程及历次意见，按保存顺序展示。</p>
+    <section hidden={tab !== "history"} className="ccr-section" aria-label="完整模型候选与意见历史"><h2>全部候选与复核历史</h2><p className="studio-muted">保留每个模型的原始结果、采用版本、修正过程及历次意见，按保存顺序展示。</p>
       {data.history.map((record) => <HistoryRecord key={`${data.plan_fingerprint}:${record.index}:${record.entry_sha256}`} auth={auth} reviewId={item.review_id} fingerprint={data.plan_fingerprint} record={record} />)}
     </section>
     {item.status === "open" ? <label className="ccr-section">本次处理依据<textarea className="studio-textarea" aria-label="本次处理依据" value={draft.rationale} disabled={pending} onChange={(event) => setDraft((value) => ({ ...value, rationale: event.target.value }))} /></label> : null}

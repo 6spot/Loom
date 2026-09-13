@@ -287,10 +287,41 @@ an old draft never approves an edited version. Chapter acceptance still leaves
 identity resolution, person-state evidence and explicit composite-history
 publication under their existing review contracts.
 
-Studio job details show saved step status, model, attempt, elapsed time and
-reported output usage. Missing usage is shown as unreported. Full sources,
-candidates and all opinions are available inside the protected content review;
-the ordinary job list/detail does not expose raw prompts or credentials.
+Studio job details show readable document/chapter names, current stage, saved
+step status, model, attempt, elapsed time and reported output usage. Missing
+usage is shown as unreported. List/detail responses contain result metadata;
+opening a result reads its saved body separately. Full sources and all opinions
+remain available inside the protected content review.
+
+The authenticated jobs namespace also supports:
+
+- `GET /api/v1/studio/jobs/model-options`: configured profile IDs/names,
+  default assignments and a configuration fingerprint. No endpoints or key
+  values are returned. Explicit fixture families report choices unavailable.
+- `POST /api/v1/studio/jobs`: accepts optional `model_selection` with exactly
+  `config_sha256` and `steps`. All six steps require 1–4 distinct known profile
+  IDs. Studio and worker load the same existing configuration file/defaults;
+  Compose mounts that non-secret configuration read-only into both services.
+  Only the worker receives model credentials. A stale selection is rejected.
+- `POST /api/v1/studio/jobs/{job_id}/rerun`: accepts optional model selection
+  and atomically creates an ordinary job plus an immutable
+  `studio-production-request` output. It retains `parent_job_id` and the exact
+  source revision. Only failed/cancelled source tasks can be rerun this way;
+  history synthesis must use its existing published-source selection entry.
+  The original job, results and reviews remain unchanged. Successful chapters
+  are not copied to the new job. The worker checks the saved selection before
+  model calls, using a local selection without mutating its default profiles.
+- `GET /api/v1/studio/jobs/{job_id}/outputs/{sha}?offset=0&limit=16000`:
+  hash-verified, exact-job result pages in Unicode code points. Only saved
+  chapter attempts, step responses and drafts are readable. The positive
+  field projection retains model content, candidates and validation/opinions;
+  prompts, request inputs, credentials and transport configuration stay on the
+  server. `next_offset=null` means the complete result has been read.
+
+Ordinary `retry` never rewrites the saved model request or resets budgets.
+The selection fingerprint excludes credential values and the global transport
+timeout; the worker still freezes the complete effective execution policy when
+processing starts. There is no new queue, workflow database or publication path.
 
 ### Reviewed multi-source historical narrative
 

@@ -3,8 +3,8 @@
 // The Rust server remains the authentication/authorization boundary. This
 // module only transports the current tab-session Basic auth header to the
 // privileged same-origin `/api/v1/studio/*` API and never touches DB/files
-// directly. Job detail is the server's safe projection: model prompts, raw
-// responses and candidates are intentionally not part of these types.
+// directly. Job detail contains safe metadata; exact saved outputs are paged
+// on demand. Model prompts, inputs and transport configuration stay private.
 
 import type { Assessment, AssessmentOverlay, ReviewScope } from "./person-state-types";
 
@@ -66,7 +66,18 @@ export interface DocumentDetail {
   active_revision: Revision | null;
 }
 
-export interface JobSummary {
+export type ProductionStepName = "translation" | "extraction" | "comparison" | "linking" | "review" | "repair";
+export interface ModelSelection { config_sha256: string; steps: Record<ProductionStepName, string[]> }
+export interface ModelOptions { available: boolean; config_sha256: string | null; models: Array<{ id: string; name: string }>; steps: Record<ProductionStepName, string[]> }
+export interface JobDocument { document_id: string; title: string; revision_no: number; filename: string }
+export interface JobPresentation {
+  document?: JobDocument;
+  job_kind?: "chapter" | "narrative";
+  source_count?: number;
+  current_stage?: string | null;
+  production_request?: { model_selection: ModelSelection | null; parent_job_id: string | null } | null;
+}
+export interface JobSummary extends JobPresentation {
   job_id: string;
   revision_id: string;
   status: JobStatus;
@@ -78,6 +89,7 @@ export interface JobSummary {
   created_at: string | null;
   updated_at: string | null;
   completed_stages: number;
+  open_reviews?: number;
   chunk_count: number;
 }
 
@@ -114,6 +126,7 @@ export interface ChunkRun {
 }
 
 export interface JobChunk {
+  title?: string | null;
   chunk_id: string;
   section_id: string | null;
   chunk_index: number;
@@ -154,6 +167,8 @@ export interface JobStage {
 }
 
 export interface JobReviewSummary {
+  scope?: string | null;
+  narrative_kind?: string | null;
   review_id: string;
   kind: string;
   status: string;
@@ -163,13 +178,20 @@ export interface JobReviewSummary {
 }
 
 export interface JobOutputSummary {
+  step?: string | null;
+  model?: string | null;
+  status?: string | null;
+  chunk_id?: string | null;
+  attempt?: number | null;
+  round?: number | null;
+  readable?: boolean;
   output_id: string;
   artifact_type: string;
   artifact_sha256: string;
   created_at: string | null;
 }
 
-export interface JobDetail {
+export interface JobDetail extends JobPresentation {
   job_id: string;
   revision_id: string;
   status: JobStatus;
@@ -594,8 +616,8 @@ export async function uploadRevision(
   ).revision;
 }
 
-export async function listJobs(auth: string | null, status?: JobStatus): Promise<JobSummary[]> {
-  const params = new URLSearchParams({ limit: "100", offset: "0" });
+export async function listJobs(auth: string | null, status?: JobStatus, offset = 0): Promise<JobSummary[]> {
+  const params = new URLSearchParams({ limit: "100", offset: String(offset) });
   if (status) params.set("status", status);
   return (await studioRequest<JobsResponse>(auth, `/api/v1/studio/jobs?${params.toString()}`)).jobs;
 }
@@ -604,12 +626,12 @@ export async function getJob(auth: string | null, jobId: string): Promise<JobDet
   return (await studioRequest<JobResponse>(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}`)).job;
 }
 
-export async function queueJob(auth: string | null, revisionId: string, maxAttempts = 8): Promise<JobDetail> {
+export async function queueJob(auth: string | null, revisionId: string, maxAttempts = 8, modelSelection?: ModelSelection): Promise<JobDetail> {
   return (
     await studioRequest<JobResponse>(auth, "/api/v1/studio/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ revision_id: revisionId, max_attempts: maxAttempts }),
+      body: JSON.stringify({ revision_id: revisionId, max_attempts: maxAttempts, ...(modelSelection ? { model_selection: modelSelection } : {}) }),
     })
   ).job;
 }
@@ -878,4 +900,23 @@ export async function submitReviewDecision(
       body: JSON.stringify(payload),
     })
   ).review;
+}
+
+export function getModelOptions(auth: string | null): Promise<ModelOptions> {
+  return studioRequest(auth, "/api/v1/studio/jobs/model-options");
+}
+
+export async function rerunJob(auth: string | null, jobId: string, selection?: ModelSelection): Promise<JobDetail> {
+  return (await studioRequest<JobResponse>(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}/rerun`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(selection ? { model_selection: selection } : {}),
+  })).job;
+}
+
+export interface JobResultPage {
+  job_id: string; output_sha256: string; artifact_type: string; text: string;
+  offset: number; next_offset: number | null; total_chars: number;
+}
+export function getJobResult(auth: string | null, jobId: string, sha: string, offset = 0): Promise<JobResultPage> {
+  return studioRequest(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}/outputs/${encodeURIComponent(sha)}?offset=${offset}`);
 }

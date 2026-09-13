@@ -89,6 +89,45 @@ resolution or narrative form (and the reverse). The detail page dispatches a
 per-candidate assessments, pagination, skip and “保存并下一项” keep the same
 continuous-review behavior.
 
+## Studio content workspace
+
+Studio uses the same restrained paper, ink and muted green palette as the reader,
+with compact controls for production work. The default view emphasizes source
+names, current steps, saved content and decisions. Internal identifiers and raw
+records remain available under technical details.
+
+| Before | After | Why |
+| --- | --- | --- |
+| Upload controls mixed into job inspection | One source library for upload, versions, original text and per-step model selection | Operators can identify exactly which saved revision a task uses |
+| Job IDs and stage codes dominate the list | Source title, revision, status and next action, with status filters and pagination | Find stalled work without opening every job |
+| Flat checkpoint and artifact records | A main process rail, chapter selector, six named production steps and saved result panels | Show what finished, what is running, and what failed |
+| Model bodies presented as raw records | Readable translation, extracted objects and qualified state facts; two saved outputs can be compared side by side | Review content and differences before inspecting technical fields |
+| Failure recovery requires interpreting internal state | Original-model retry and an explicit linked new run with selected configured models | Preserve completed work and the original audit trail; never silently change frozen job configuration |
+| Dense review forms as the first view | Chapter content/opinions/history tabs; continuous narrative preview before editing | Read the proposed content and its exact phase states before deciding |
+
+The overview prioritizes open review items and failed production tasks. Recent
+task metrics explicitly cover the most recent 100 tasks. List searches apply to
+the current page; the full task list remains paginated.
+
+Source upload can save without starting a task, or save and queue processing. If
+queuing fails after saving, resubmission reuses the saved revision. Processing an
+existing version opens model choices directly beside that version. A failed or
+stale model catalog must be resolved before queuing with those choices.
+
+The task detail separates selecting a step for inspection from its execution
+status. Original retry reuses completed nodes within the existing budgets. A
+new-model run uses the same source revision in a new, linked task, starting
+chapter work afresh; it does not overwrite the old results or review decisions.
+The UI offers only configured profiles, never endpoint, credential or timeout
+fields. Operational contracts remain in [worker.md](worker.md).
+
+Review forms remain mounted while switching views, preserving unsaved edits.
+The bottom decision bar retains save/next/skip/retry behavior from
+[review-workflow.md](review-workflow.md). Narrative preview renders the current
+draft as continuous prose, curated entries and compact people/place rows. It
+uses the saved phase conclusions, including uncertainty, and does not infer
+offices or control from participation in an event. Preview does not publish.
+
 Contextual surfaces can expose:
 
 - Events

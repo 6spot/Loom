@@ -22,7 +22,7 @@ describe("Studio zh-CN operator surface", () => {
     expect(reviewLinkKindLabel("entity")).toBe("实体身份");
     expect(decisionLabel("same_occurrence")).toBe("同一次事件");
     expect(decisionLabel("uncertain")).toBe("证据不足，暂不确定");
-    expect(stageLabel("resolve")).toBe("跨来源消歧");
+    expect(stageLabel("resolve")).toBe("核对身份与状态");
   });
 
   it("does not regress core navigation/review/import paths to English primary labels", () => {
