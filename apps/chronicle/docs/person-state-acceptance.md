@@ -78,9 +78,12 @@ gate 会：
    显式声明 + plan 级 rationale），resume 后由唯一发布事务原子写入 catalog /
    chapters / reading index / person-state manifest。**不写任何 raw SQL、不 mock HTTP、
    不跳过审核环节。**
-3. 经 Studio `GET /jobs/history/sources` 显式选择已发布章，`POST /jobs/history` 创建
-   现有综合 job；分别通过 facts 审核（显式覆盖全部 `reviewed_conclusion_ids`）与
-   prose 审核后发布。
+3. 经 Studio `GET /jobs/history/sources` 显式选择两个完整的已发布章，
+   `POST /jobs/history` 创建现有综合 job；fixture 由两个来源产生不同阶段的段落，
+   以验证实际状态切换；过短的 fixture 译文附上明确标注的合成排版文字，仅用于
+   滚动测量，短段落边界另由 `history-component-smoke.mjs` 覆盖。仍受完整上下文
+   预算限制，不能截断来源。分别通过 facts
+   审核（显式覆盖全部 `reviewed_conclusion_ids`）与 prose 审核后发布。
 4. 经公开 HTTP 读回正式 HistoryPage
    （`/history`、`/history/paragraphs`、`/history/conclusions/{id}`），记录
    `version/paragraph_id/phase_id/entity_id/state_id`、结论与原文 `anchor_id/quote`；
@@ -99,8 +102,9 @@ gate 会：
      200% 字体 / 触屏 / 草稿 / 409 由组件 `r3-all` 覆盖。
    - `review`：真实 Studio 混合队列同时暴露「阶段依据」与「事实核对」表单，分别可
      打开并从浏览器输入草稿。
-   - `performance`：已取数据后人物区域更新 p95 ≤100ms，且无 ≥200ms 主线程任务，
-     挂载上下文实体数有界。
+   - `performance`：在已加载的两个不同阶段段落间滚动，逐次确认侧栏段落与阶段
+     匹配并记录五次真实切换（不依赖精选入口数量、不接受原地点击）。人物区域
+     更新至下一绘制帧 p95 ≤100ms，且无 ≥200ms 主线程任务，挂载上下文实体数有界。
 
 `manifest.json` 的 `criteria` 逐项记录
 `source_person_state_publish_chain/composite_history_two_review_chain/`

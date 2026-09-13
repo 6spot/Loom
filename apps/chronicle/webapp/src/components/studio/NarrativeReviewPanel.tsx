@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import NarrativeNavigationEditor from "./NarrativeNavigationEditor";
+import { synchronizeNarrativeNavigation } from "../../lib/narrative-navigation";
 import { getReview, mutateJob, submitNarrativeDecision, type ReviewDetail } from "../../lib/studio-api";
 import { useStudioAuth } from "../../lib/studio-auth";
 import type { NarrativeContent, NarrativeContext, NarrativeEvidenceRef, NarrativeFact, NarrativeFacts, NarrativePhase, NarrativeProse, NarrativeReviewData } from "../../lib/narrative-types";
@@ -80,7 +81,8 @@ function FactEditor({ fact, context, facts, update }: { fact: NarrativeFact; con
   </div>;
 }
 
-function ProseEditor({ content, data, update }: { content: NarrativeProse; data: NarrativeReviewData; update: (content: NarrativeProse) => void }) {
+function ProseEditor({ content, data, update: save }: { content: NarrativeProse; data: NarrativeReviewData; update: (content: NarrativeProse) => void }) {
+  const update = (value: NarrativeProse) => save(synchronizeNarrativeNavigation(value));
   const facts = data.facts!;
   const paragraphLabel = (id: string) => { const p = content.paragraphs.find((p) => p.id === id); return p?.segments.map((s) => s.text).join("").slice(0, 70) ?? id; };
   const patchParagraph = (index: number, value: Partial<NarrativeProse["paragraphs"][number]>) => update({ ...content, paragraphs: content.paragraphs.map((p, i) => i === index ? { ...p, ...value } : p) });
@@ -101,13 +103,13 @@ function ProseEditor({ content, data, update }: { content: NarrativeProse; data:
         </details>
       </div>)}
     </section>)}
-    <section className="studio-stack nr-entries" data-test="narrative-entry-editor"><h2>首页与侧栏的阅读入口</h2><p className="studio-muted">挑选少量重要时期或大事件。官职、称号、领有某地等细节留在正文中，不能因抽取为事件就各占一个入口。</p>
+    <section className="studio-stack nr-entries" data-test="narrative-entry-editor"><h2>首页与侧栏的阅读入口</h2><p className="studio-muted">只选值得专门跳过去阅读的重要历史进程或转折，同一事件的筹备、交战、收尾共用入口。普通行动与任免留在正文，确有重大影响时再说明选择理由。没有适合重点时可以不选，不按年份或段落凑数。</p>
       {content.entry_points.map((entry, index) => <div className="nr-entry" key={index}>
         <p className="studio-muted">{entry.kind === "period" ? "时期入口" : "事件入口"}</p>
         <label>入口名称<input value={entry.label} onChange={(e) => update({ ...content, entry_points: content.entry_points.map((v, i) => i === index ? { ...v, label: e.target.value } : v) })} /></label>
         <label>为何值得独立导航<textarea rows={2} value={entry.reason} onChange={(e) => update({ ...content, entry_points: content.entry_points.map((v, i) => i === index ? { ...v, reason: e.target.value } : v) })} /></label>
         <label>正文位置<select value={entry.paragraph_id} onChange={(e) => update({ ...content, entry_points: content.entry_points.map((v, i) => i === index ? { ...v, paragraph_id: e.target.value } : v) })}>{content.paragraphs.filter((p) => entry.kind === "period" || p.segments.some((s) => s.event_id === entry.event_id && s.event_relation === "current")).map((p) => <option value={p.id} key={p.id}>{paragraphLabel(p.id)}</option>)}</select></label>
-        <Button type="button" variant="outline" size="sm" disabled={content.entry_points.length <= 1} onClick={() => update({ ...content, entry_points: content.entry_points.filter((_, i) => i !== index) })}>移除入口</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => update({ ...content, entry_points: content.entry_points.filter((_, i) => i !== index) })}>移除入口</Button>
       </div>)}
       {content.entry_points.length < 12 ? <label>添加经过选择的重要事件<select value="" onChange={(e) => {
         const [paragraphId, eventId] = e.target.value.split("|");

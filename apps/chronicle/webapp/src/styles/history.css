@@ -7,25 +7,32 @@
 .history-paragraph:focus-visible { outline: 1px solid var(--public-accent); outline-offset: .5rem; }
 .history-uncertain { color: #666b65; text-decoration: underline dotted #8c9188; text-underline-offset: .28em; }
 .history-axis { position: sticky; top: calc(var(--rpage-chrome-top, 4.5rem) + 5.5rem); min-width: 0; }
-.history-axis-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; padding: 0 .5rem; color: var(--public-muted); font-size: .72rem; }
+.history-reading .rpage-tools { margin-left: auto; }
+.history-axis-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; padding: 0 .2rem 0 1.75rem; color: var(--public-muted); font-size: .7rem; letter-spacing: .06em; }
 .history-axis-scroll { max-height: calc(100dvh - var(--rpage-chrome-top, 4.5rem) - 10rem); overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-width: thin; padding: .25rem .3rem .75rem 0; }
 .history-axis ol { list-style: none; margin: 0; padding: 0; }
 .history-axis button { width: 100%; min-height: 2.75rem; border: 0; text-align: left; background: transparent; font: inherit; line-height: 1.55; cursor: pointer; }
 .history-axis button:focus-visible, .history-axis-scroll:focus-visible { outline: 2px solid var(--public-accent); outline-offset: -2px; border-radius: 3px; }
 .history-axis .history-axis-resume { width: auto; padding: 0 .2rem; color: var(--public-accent); font-size: .72rem; white-space: nowrap; }
-.history-axis-section { margin-bottom: .6rem; }
-.history-axis .history-axis-section-toggle { display: flex; gap: .45rem; align-items: center; padding: .45rem .4rem; color: var(--public-ink, #303732); font-size: .9rem; font-weight: 550; }
-.history-axis-section-toggle small { display: block; margin-top: .1rem; color: var(--public-muted); font-size: .7rem; font-weight: 400; }
-.history-axis-chevron { flex: 0 0 .7rem; color: var(--public-muted); text-align: center; font-size: 1rem; }
-.history-axis .history-axis-items { margin: .15rem 0 .35rem .75rem; border-left: 1px solid var(--public-line); padding-left: .6rem; }
-.history-axis-items[hidden] { display: none; }
-.history-axis .history-axis-node { display: flex; align-items: center; gap: .6rem; position: relative; padding: .4rem .5rem .4rem .3rem; color: var(--public-muted); font-size: .78rem; border-radius: 3px; }
-.history-axis-node small { display: block; margin-bottom: .05rem; font-size: .68rem; font-weight: 400; }
-.history-axis-node[data-importance="major"] { color: var(--public-ink, #303732); font-weight: 550; }
-.history-axis-dot { flex: 0 0 5px; height: 5px; border: 1px solid currentColor; border-radius: 50%; }
-.history-axis-node[data-importance="major"] .history-axis-dot { background: currentColor; }
-.history-axis-node[aria-current], .history-axis-section-toggle[aria-current] { color: var(--public-accent); background: #87634a0a; }
-.history-axis-node[aria-current] .history-axis-dot { border-radius: 1px; background: currentColor; }
+.history-axis .history-axis-track { position: relative; padding: .25rem 0 1rem; }
+/* A single rail crosses every year and undated passage. Sections never draw
+ * their own borders, so this cannot turn back into a tree of separate lists. */
+.history-axis-track::before { content: ""; position: absolute; top: .25rem; bottom: 0; left: 7px; width: 1px; background: var(--public-line); }
+.history-axis-section { position: relative; padding-bottom: .6rem; }
+.history-axis-section[data-undated="true"] { padding-top: .35rem; }
+.history-axis-section[data-undated="true"][data-empty="true"] { min-height: 1.75rem; padding: 0; }
+.history-axis-time { position: relative; min-height: 2.75rem; padding: .55rem .3rem .55rem 1.75rem; color: var(--public-ink, #303732); font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.history-axis-time::before { content: ""; position: absolute; top: 1.3rem; left: 3px; width: 9px; height: 1px; background: #aaa79d; }
+.history-axis-time small { display: block; margin-top: .08rem; color: var(--public-muted); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; font-size: .68rem; font-weight: 400; }
+.history-axis .history-axis-node { display: flex; align-items: center; position: relative; padding: .55rem .3rem .55rem 1.75rem; color: #505951; font-size: .8rem; border-radius: 3px; }
+.history-axis-node small { display: block; margin-top: .15rem; color: var(--public-muted); font-size: .68rem; font-weight: 400; }
+.history-axis-dot { position: absolute; left: 5px; top: calc(50% - 2px); width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 0 3px var(--public-paper, #faf8f3); }
+.history-axis-node[aria-current], .history-axis-time[aria-current] { color: var(--public-accent); }
+.history-axis-node[aria-current] { font-weight: 600; }
+.history-axis-node[aria-current] .history-axis-dot { border-radius: 1px; }
+.history-axis-time[aria-current]::before { height: 2px; background: var(--public-accent); }
+.history-axis-position { position: absolute; left: 5px; top: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--public-accent); }
+.history-axis-section[data-empty="true"] > .history-axis-position { top: calc(50% - 2px); }
 @media (hover: hover) and (pointer: fine) {
   .history-axis button:hover { background: #87634a08; color: var(--public-accent); }
 }
@@ -50,7 +57,7 @@
 .history-fact-links { display: flex; flex-wrap: wrap; gap: .5rem; }
 .history-entry-excerpt { grid-column: 1 / -1; color: var(--public-muted); font-size: .85rem; line-height: 1.8; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-width: 767px) {
-  .history-desktop-axis, .history-desktop-time { display: none; }
+  .history-desktop-axis { display: none; }
   .history-axis-open { display: inline-flex; padding-left: 0; color: var(--public-muted); font-size: .8rem; }
   .history-axis { position: static; }
   .history-axis-scroll { max-height: min(65dvh, calc(100dvh - 14rem), 36rem); }

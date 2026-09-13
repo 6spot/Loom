@@ -26,9 +26,9 @@ export interface HistoryEntry {
   ordinal: number; year: number | null; period: string | null; excerpt: string;
 }
 export interface HistoryNavigationSection {
-  id: string; label: string; period: string | null; start: number; end: number;
+  id: string; label: string | null; period: string | null; start: number; end: number;
   items: Array<{ paragraph_id: string; ordinal: number; label: string;
-    period: string | null; importance: "major" | "detail" }>;
+    period: string | null; importance: "major" }>;
 }
 export interface HistoryPublication {
   version: string; catalog_sha: string; title: string; paragraph_count: number;
@@ -119,21 +119,23 @@ function validNavigation(pub: HistoryPublication): boolean {
   if (!Array.isArray(pub.navigation) || !pub.navigation.length || pub.navigation.length > pub.paragraph_count) return false;
   if (pub.navigation[0]?.id !== pub.first_paragraph_id) return false;
   const ids = new Set<string>();
+  const entryIds = new Set(pub.entry_points.map((entry) => entry?.paragraph_id));
   const sections = new Set<string>();
   let cursor = 0;
   for (const section of pub.navigation) {
-    if (!section || !PARAGRAPH.test(section.id) || sections.has(section.id) || typeof section.label !== "string" || !section.label.trim()
+    if (!section || !PARAGRAPH.test(section.id) || sections.has(section.id)
+      || (section.label !== null && (typeof section.label !== "string" || !section.label.trim()))
       || (section.period !== null && typeof section.period !== "string") || section.start !== cursor
       || !Number.isInteger(section.end) || section.end < cursor || section.end >= pub.paragraph_count
-      || !Array.isArray(section.items) || !section.items.length || section.items.length > section.end - section.start + 1) return false;
+      || !Array.isArray(section.items) || section.items.length > section.end - section.start + 1) return false;
     sections.add(section.id);
     let previous = section.start - 1;
     for (const item of section.items) {
-      if (!item || !PARAGRAPH.test(item.paragraph_id) || ids.has(item.paragraph_id)
+      if (!item || !PARAGRAPH.test(item.paragraph_id) || ids.has(item.paragraph_id) || !entryIds.has(item.paragraph_id)
         || !Number.isInteger(item.ordinal) || item.ordinal <= previous || item.ordinal > section.end
         || typeof item.label !== "string" || !item.label.trim()
         || (item.period !== null && typeof item.period !== "string")
-        || !["major", "detail"].includes(item.importance)) return false;
+        || item.importance !== "major") return false;
       ids.add(item.paragraph_id); previous = item.ordinal;
     }
     cursor = section.end + 1;

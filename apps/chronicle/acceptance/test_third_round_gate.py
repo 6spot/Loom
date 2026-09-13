@@ -209,6 +209,25 @@ class FixtureCandidateTests(unittest.TestCase):
 
 
 class NarrativeDraftTests(unittest.TestCase):
+    def test_synthesis_scope_has_two_chapters_for_real_phase_transitions(self):
+        choices = {
+            "catalog_sha": "c" * 64,
+            "items": [
+                {"publication_id": f"pub{index}", "document_title": "测试书", "title": f"传{index}"}
+                for index in range(3)
+            ],
+        }
+        with mock.patch.object(G, "list_history_sources", return_value=choices):
+            catalog, selected, title, groups = G.select_synthesis_sources("http://test", "test-auth")
+        self.assertEqual(choices["catalog_sha"], catalog)
+        self.assertEqual(["pub0", "pub1"], selected)
+        self.assertEqual("测试书", title)
+        self.assertEqual(choices["items"], groups[title])
+        choices["items"] = choices["items"][:1]
+        with mock.patch.object(G, "list_history_sources", return_value=choices):
+            with self.assertRaisesRegex(GateError, "two complete published chapters"):
+                G.select_synthesis_sources("http://test", "test-auth")
+
     def test_fixture_drafts_pass_the_owning_contract(self):
         context = _narrative_context()
         facts, prose = G.narrative_drafts(context)
@@ -216,6 +235,12 @@ class NarrativeDraftTests(unittest.TestCase):
         narrative_contract.validate_facts(facts, context)
         narrative_contract.validate_prose(prose, context, facts)
         self.assertTrue(any(item["dimension"] == "office" for item in facts["conclusions"]))
+        self.assertEqual(
+            [{key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in prose["entry_points"]],
+            [item for section in prose["navigation"] for item in section["items"]],
+        )
+        self.assertLess(len(prose["entry_points"]), len(prose["paragraphs"]))
+        self.assertTrue(all(len(item["segments"][0]["text"]) >= 600 for item in prose["paragraphs"]))
 
     def test_narrative_candidate_parses_a_real_prompt(self):
         context = _narrative_context()

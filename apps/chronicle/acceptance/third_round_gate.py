@@ -303,6 +303,16 @@ def narrative_drafts(
     paragraphs: list[dict[str, Any]] = []
     for index, source in enumerate(sources):
         phase, fact = f"p{index}", f"f{index}"
+        text = "\n".join(block["text"] for block in source["translation"])
+        # The chapter fixture deliberately emits a tiny labelled translation.
+        # Give the performance fixture scrollable prose without pretending to
+        # add historical facts. Short-boundary behaviour has its own browser
+        # regression in history-component-smoke.mjs.
+        if len(text) < 600:
+            text += "\n" + (
+                "合成排版验收文字：用于检查连续滚动、阅读位置和人物阶段的同步更新，"
+                "不包含史实补充，不能作为真实译文或历史内容验收证据。"
+            ) * 12
         entity = next(iter(source.get("canonical_refs", {}).get("entities", {}).values()), None)
         event = next(iter(source.get("canonical_refs", {}).get("events", {}).values()), None)
         evidence = source["evidence"][0]["id"]
@@ -344,7 +354,7 @@ def narrative_drafts(
                 "phase_id": phase,
                 "segments": [
                     {
-                        "text": source["translation"][0]["text"],
+                        "text": text,
                         "conclusion_ids": [fact],
                         "event_id": event,
                         "event_relation": "current" if event else None,
@@ -363,6 +373,10 @@ def narrative_drafts(
         }
         for a, b in itertools.combinations(sources, 2)
     ]
+    entries = [{
+        "label": "合成历史进程", "kind": "period", "paragraph_id": "n0", "event_id": None,
+        "reason": "概览这一组已核对资料的完整历史发展。",
+    }]
     return (
         {
             "schema": "chronicle.source-corroboration",
@@ -379,17 +393,9 @@ def narrative_drafts(
             "navigation": [{
                 "label": "测试时段", "first_paragraph_id": paragraphs[0]["id"],
                 "last_paragraph_id": paragraphs[-1]["id"],
-                "items": [{"paragraph_id": p["id"], "label": "测试节点", "reason": "验证来源阅读位置，不主张史实。"} for p in paragraphs],
+                "items": [{key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in entries],
             }],
-            "entry_points": [
-                {
-                    "label": "阅读入口",
-                    "kind": "period",
-                    "paragraph_id": "n0",
-                    "event_id": None,
-                    "reason": "概览这一组已核对资料的完整历史发展。",
-                }
-            ],
+            "entry_points": entries,
         },
     )
 
@@ -798,20 +804,22 @@ def queue_synthesis(
 def select_synthesis_sources(
     base_url: str, auth: str
 ) -> tuple[str, list[str], str, dict[str, list[dict[str, Any]]]]:
-    """Pick the smallest published document as the comprehensive scope.
+    """Select two complete published chapters for distinct fixture phases.
 
-    Whole-context synthesis fails closed when the prompt exceeds the fixed
-    budget, so the fixture explicitly selects the smallest document instead
-    of truncating. All groups stay recorded as available.
+    A one-chapter scope produces only one fixture paragraph and cannot prove
+    reading-driven state changes. Keep the scope bounded to two chapters;
+    whole-context budget checks still reject oversized input without truncation.
+    All document groups remain recorded as available.
     """
     choices = list_history_sources(base_url, auth)
     catalog_sha = choices["catalog_sha"]
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in choices["items"]:
         groups.setdefault(str(item.get("document_title") or item["title"]), []).append(item)
-    if not groups:
-        raise GateError("no selectable synthesis source")
-    title, selected = min(groups.items(), key=lambda pair: (len(pair[1]), pair[0]))
+    selected = choices["items"][:2]
+    if len(selected) != 2:
+        raise GateError("person-state performance requires two complete published chapters")
+    title = " / ".join(dict.fromkeys(str(item.get("document_title") or item["title"]) for item in selected))
     return catalog_sha, [item["publication_id"] for item in selected], title, groups
 
 

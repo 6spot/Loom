@@ -229,13 +229,13 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
       const phase = locator?.phase_id ? `&phase=${encodeURIComponent(locator.phase_id)}` : "";
       navigate(`/entities/${encodeURIComponent(entity.canonicalId)}?catalog=${pub.catalog_sha}&version=${pub.version}&para=${encodeURIComponent(paragraphId)}${phase}${target ? `&return=${target.token}` : ""}`);
     }}>
-    {(close) => <nav className="reading-nearby" aria-label="附近的重要事件"><h2>读到这里</h2><ol>{nearby.map((entry) => <li key={`${entry.kind}:${entry.paragraph_id}`}><button type="button" aria-current={entry === pub.entry_points[nearbyIndex] ? "location" : undefined} onClick={() => { close(); jump(entry.paragraph_id); }}>{entry.label}<small>{historyTimeLabel(entry)}</small></button></li>)}</ol></nav>}
+    {(close) => nearby.length ? <nav className="reading-nearby" aria-label="附近的重要事件"><h2>读到这里</h2><ol>{nearby.map((entry) => <li key={`${entry.kind}:${entry.paragraph_id}`}><button type="button" aria-current={entry === pub.entry_points[nearbyIndex] ? "location" : undefined} onClick={() => { close(); jump(entry.paragraph_id); }}>{entry.label}<small>{historyTimeLabel(entry)}</small></button></li>)}</ol></nav> : null}
   </ReadingContextPanel>;
   const axis = <HistoryAxis sections={pub.navigation} activeOrdinal={active?.ordinal ?? 0}
     onNavigate={(id) => { setAxisOpen(false); jump(id); }} />;
   const factIds = toolsParagraph ? [...new Set([...toolsParagraph.segments.flatMap((s) => s.conclusion_ids), ...toolsParagraph.entities.flatMap((e) => e.states.map((s) => s.id))])] : [];
   return <section className="rpage history-reading" data-view="history-reading" data-version={pub.version} style={{ "--rpage-chrome-top": `${headerHeight}px` } as React.CSSProperties}>
-    <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button><span className="rpage-compact-time history-desktop-time">{historyTimeLabel(group)}</span>
+    <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button>
       <div className="rpage-tools">{narrow ? side : null}<button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button></div></div>
     {controller.issue ? <div className="history-load-error" role="alert"><p>无法定位这段正文。{controller.issue.detail}</p><button className="public-text-button" onClick={() => controller.restoreFromUrl()}>重试定位</button><Link to="/">返回首页</Link></div> : null}
     <div className="rpage-grid"><div className="rpage-axis-column history-desktop-axis">{axis}</div><div className="rpage-main history-body" ref={windowRef} aria-label="历史正文">

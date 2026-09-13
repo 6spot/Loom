@@ -10,7 +10,7 @@ if (!base || !args.includes("--base-url")) throw new Error("--base-url is requir
 const version = "a".repeat(64);
 const catalog = "c".repeat(64);
 const id = (n) => `hp_${n.toString(16).padStart(24, "0")}`;
-const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: 200 + i,
+const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: i === 3 ? null : 200 + i,
   period: i === 1 ? "测试历法的长时段（窄屏换行）" : null,
   label: `测试阶段 ${i}`, first_paragraph_id: id(i * 10), count: Math.min(10, 64 - i * 10) }));
 const entries = [
@@ -19,7 +19,7 @@ const entries = [
   { label: "荆州局势", kind: "event", ordinal: 45, event_id: "event-2" },
 ].map((entry) => ({ ...entry, paragraph_id: id(entry.ordinal), year: 200 + Math.floor(entry.ordinal / 10), period: null, excerpt: "合成浏览器测试入口，不是历史验收材料。" }));
 const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i, phase_id: `phase${i}`, group_id: `g${Math.floor(i / 10)}`,
-  segments: [{ text: `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 ? 1 : 10)}`,
+  segments: [{ text: i === 0 ? "很短的开篇，定位后仍应停在本段。" : `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 ? 1 : 10)}`,
     conclusion_ids: ["fact-1"], certainty: i === 21 ? "uncertain" : "clear", event_id: i === 20 || i === 5 ? "event-1" : null,
     event_relation: i === 20 ? "current" : i === 5 ? "retrospective" : null, event_text: i === 20 || i === 5 ? "赤壁之战" : null }],
   entities: [{ id: "person-1", name: "曹操", kind: "person", importance: "primary", states: [{ id: "state-1", label: "官职", value: i < 20 ? "测试前期官职" : "测试后期官职", certainty: "clear", reason: "仅用于交互测试" }] },
@@ -27,12 +27,10 @@ const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i
 }));
 const publication = { version, catalog_sha: catalog, title: "合成阅读测试", paragraph_count: paragraphs.length,
   first_paragraph_id: id(0), groups, entry_points: entries,
-  navigation: groups.map((group, n) => ({ id: group.first_paragraph_id, label: `${group.year} 年`, period: null,
-    start: n * 10, end: Math.min(63, n * 10 + 9), items: [
-      { paragraph_id: group.first_paragraph_id, ordinal: n * 10, label: group.label, period: group.period,
-        importance: entries.some((entry) => entry.ordinal === n * 10) ? "major" : "detail" },
-      ...entries.filter((entry) => entry.ordinal > n * 10 && entry.ordinal < (n + 1) * 10).map((entry) => ({ ...entry, importance: "major" })),
-    ] })),
+  navigation: groups.map((group, n) => ({ id: group.first_paragraph_id, label: group.year === null ? null : `${group.year} 年`, period: null,
+    start: n * 10, end: Math.min(63, n * 10 + 9),
+    items: entries.filter((entry) => entry.ordinal >= n * 10 && entry.ordinal < (n + 1) * 10).map((entry) => ({ ...entry, importance: "major" })),
+  })),
 };
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
@@ -65,19 +63,35 @@ try {
   await page.getByRole("link", { name: /汉末局势/ }).click();
   await expect(paragraph(0)).toBeVisible();
   await expect(page.locator('[data-test="reading-context-entity"]')).toContainText("测试前期官职");
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(0));
+  await expect(page.locator('[data-test="history-phase-status"]')).toHaveAttribute("data-phase-id", "phase0");
+  await page.setViewportSize({ width: 1440, height: 860 });
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(0));
+  await page.setViewportSize({ width: 1440, height: 900 });
   assert.equal(new URL(page.url()).search, "", "public positions use system ID path segments");
   await expect(page.locator('[data-test="history-phase-status"]')).toHaveText("");
   await expect(page.getByRole("heading", { name: "政权与机构" })).toHaveCount(0);
   await page.locator('[data-test="reading-context-more"]').click();
   await expect(page.getByRole("heading", { name: "政权与机构" })).toBeVisible();
-  const firstGroup = page.locator(".history-axis-section-toggle").first();
+  const axis = page.getByRole("navigation", { name: "历史时间轴" });
+  await expect(axis.locator(".history-axis-node")).toHaveCount(3);
+  await expect(axis.locator("[aria-expanded]")).toHaveCount(0);
+  await expect(axis.locator(".history-axis-time")).toHaveCount(6);
+  await expect(axis).not.toContainText("年代未详");
+  await expect(axis).not.toContainText("从这段读起");
+  await expect(axis).not.toContainText("测试阶段");
+  await expect(page.locator(".history-desktop-time")).toHaveCount(0);
+  const firstGroup = axis.locator(".history-axis-time").first();
   const groupUrl = page.url();
   const groupScroll = await page.evaluate(() => window.scrollY);
   await firstGroup.click();
-  await expect(firstGroup).toHaveAttribute("aria-expanded", "false");
-  assert.equal(page.url(), groupUrl, "folding a time interval does not navigate");
-  assert.equal(await page.evaluate(() => window.scrollY), groupScroll, "folding the axis does not move prose");
-  await firstGroup.click();
+  assert.equal(page.url(), groupUrl, "time ticks do not navigate or collapse the rail");
+  assert.equal(await page.evaluate(() => window.scrollY), groupScroll, "time ticks do not move prose");
   await page.getByRole("button", { name: "回到当前", exact: true }).click();
 
   await paragraph(18).scrollIntoViewIfNeeded();
@@ -173,10 +187,12 @@ try {
   await page.reload();
   await stableMobileTarget(16);
   await page.locator(".history-axis-open").click();
-  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 0/ }).click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /汉末局势/ }).click();
   await stableMobileTarget(0);
   await page.locator(".history-axis-open").click();
-  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /测试阶段 1/ }).click();
+  await page.getByRole("navigation", { name: "历史时间轴" }).getByRole("button", { name: /赤壁之战/ }).click();
+  await stableMobileTarget(20);
+  await page.goto(`${base}/history/${version}/${id(10)}`);
   await stableMobileTarget(10);
   await page.setViewportSize({ width: 390, height: 844 });
   await stableMobileTarget(10);
@@ -186,15 +202,17 @@ try {
   await page.mouse.wheel(0, 240);
   await stableMobileTarget(10);
 
-  // Native prose scrolling opens the current interval and reveals its node in
-  // the axis's own scrollport, including short-height desktop viewports.
+  // Native prose scrolling follows an undated interval with no event anchors
+  // in the axis's own scrollport, including short-height desktop viewports.
   await page.setViewportSize({ width: 1440, height: 540 });
   await page.goto(`${base}/history/${version}/${id(19)}`);
   await expect(paragraph(34)).toBeAttached();
   await paragraph(34).evaluate((node) => node.scrollIntoView({ block: "start" }));
   const proseTop = await paragraph(34).evaluate((node) => node.getBoundingClientRect().top);
   await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(34));
-  await expect(page.locator('.history-axis-node[aria-current="location"]')).toHaveAttribute("data-axis-target", id(30));
+  await expect(page.locator('.history-axis-section[data-current="true"]')).toHaveAttribute("data-axis-section", id(30));
+  await expect(page.locator('.history-axis-position[aria-current="location"]')).toHaveCount(1);
+  await expect(page.locator('.history-axis-time[aria-current="location"]')).toHaveCount(0);
   await expect.poll(() => page.locator(".history-axis-scroll").evaluate((box) => {
     const item = box.querySelector('[data-axis-current="true"]');
     const target = item.getBoundingClientRect(), viewport = box.getBoundingClientRect();
