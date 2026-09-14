@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HISTORY_POSITION_STRATEGY as strategy, historyPath, historyPositionKey, loadHistory, loadHistoryPage } from "../src/lib/history-api";
+import { HISTORY_POSITION_STRATEGY as strategy, HistoryPhaseError, historyPath, historyPositionKey, loadHistory, loadHistoryPage, loadHistoryPhase } from "../src/lib/history-api";
 import { isReadingLocator } from "../src/lib/reading-types";
 import { ReadingHistoryStore, ReadingStorage } from "../src/lib/reading-history";
 
@@ -81,5 +81,40 @@ describe("fixed narrative responses", () => {
     expect(String(fetcher.mock.calls[0]?.[0])).toContain(`version=${version}`);
     page.paragraphs[0].id = `ru_${"b".repeat(24)}`;
     await expect(loadHistoryPage(version, { at: id })).rejects.toThrow("不一致");
+  });
+
+  it("resolves the requested paragraph and its readable period without a first-page fallback", async () => {
+    const group = { id: "group-east", year: 198, period: "建安三年", label: "随孙策渡江", first_paragraph_id: id, count: 1 };
+    const publication = { version, catalog_sha: "d".repeat(64), title: "人物阶段测试", paragraph_count: 1,
+      first_paragraph_id: id, groups: [group], entry_points: [], navigation: [{ id, label: "随孙策渡江", period: "建安三年", start: 0, end: 0, items: [] }] };
+    const page = { publication_version: version, paragraphs: [{ id, ordinal: 0, phase_id: "phase-east", group_id: group.id, entities: [], segments: [] }],
+      start: 0, total: 1, previous_start: null, next_start: null };
+    const fetcher = vi.fn(async (input: unknown) => String(input).includes("/paragraphs?")
+      ? new Response(JSON.stringify(page))
+      : new Response(JSON.stringify({ publication })));
+    vi.stubGlobal("fetch", fetcher);
+
+    const result = await loadHistoryPhase(version, id);
+    expect(result.paragraph.id).toBe(id);
+    expect(result.paragraph.phase_id).toBe("phase-east");
+    expect(result.group).toEqual(group);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed for invalid and missing entity history locators", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ publication: null })));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(loadHistoryPhase("not-a-version", id)).rejects.toMatchObject<Partial<HistoryPhaseError>>({ code: "invalid_locator" });
+    expect(fetcher).not.toHaveBeenCalled();
+
+    const other = `hp_${"c".repeat(24)}`;
+    const publication = { version, catalog_sha: "d".repeat(64), title: "人物阶段测试", paragraph_count: 1,
+      first_paragraph_id: other, groups: [], entry_points: [], navigation: [{ id: other, label: null, period: null, start: 0, end: 0, items: [] }] };
+    const page = { publication_version: version, paragraphs: [{ id: other, ordinal: 0, phase_id: "phase-other", group_id: "missing", entities: [], segments: [] }],
+      start: 0, total: 1, previous_start: null, next_start: null };
+    fetcher.mockImplementation(async (input: unknown) => String(input).includes("/paragraphs?")
+      ? new Response(JSON.stringify(page))
+      : new Response(JSON.stringify({ publication })));
+    await expect(loadHistoryPhase(version, id)).rejects.toMatchObject<Partial<HistoryPhaseError>>({ code: "not_found" });
   });
 });

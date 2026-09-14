@@ -1,4 +1,4 @@
-import { fetchJSON } from "./api";
+import { ApiError, fetchJSON } from "./api";
 import type { ReadingLocator, NarrativeTime, ContextEntityView } from "./reading-types";
 import type { ReadingUrlStrategy } from "../hooks/useReadingPosition";
 import type { ReadingStateFact } from "../components/reading/ReadingContextPanel";
@@ -38,6 +38,24 @@ export interface HistoryPublication {
 export interface HistoryPage {
   publication_version: string; paragraphs: HistoryParagraph[]; start: number; total: number;
   previous_start: number | null; next_start: number | null;
+}
+export interface HistoryPhaseData {
+  publication: HistoryPublication;
+  page: HistoryPage;
+  paragraph: HistoryParagraph;
+  group: HistoryGroup | null;
+}
+export type HistoryPhaseErrorCode = "invalid_locator" | "not_found";
+
+/** A fixed history entity link must fail closed instead of silently changing paragraphs. */
+export class HistoryPhaseError extends Error {
+  readonly code: HistoryPhaseErrorCode;
+
+  constructor(code: HistoryPhaseErrorCode, message: string) {
+    super(message);
+    this.name = "HistoryPhaseError";
+    this.code = code;
+  }
 }
 export interface HistoryEvidence {
   id: string; relation: "support" | "supplement" | "contradict" | "background" | "incomparable";
@@ -142,8 +160,8 @@ function validNavigation(pub: HistoryPublication): boolean {
   }
   return cursor === pub.paragraph_count && pub.entry_points.every((entry) => entry && ids.has(entry.paragraph_id));
 }
-export async function loadHistory(version?: string | null): Promise<HistoryPublication | null> {
-  const response = await fetchJSON<{ publication: HistoryPublication | null }>(version === undefined || version === null ? API : `${API}?version=${encodeURIComponent(version)}`);
+export async function loadHistory(version?: string | null, signal?: AbortSignal): Promise<HistoryPublication | null> {
+  const response = await fetchJSON<{ publication: HistoryPublication | null }>(version === undefined || version === null ? API : `${API}?version=${encodeURIComponent(version)}`, { signal });
   const pub = response.publication;
   if (pub && (!SHA.test(pub.version) || (version != null && pub.version !== version) || !PARAGRAPH.test(pub.first_paragraph_id)
     || !Number.isInteger(pub.paragraph_count) || pub.paragraph_count < 1 || pub.paragraph_count > 256
@@ -157,6 +175,47 @@ export async function loadHistoryPage(version: string, query: { at?: string; sta
   const page = await fetchJSON<HistoryPage>(`${API}/paragraphs?${params}`, { signal });
   if (page.publication_version !== version || page.total > 256 || page.paragraphs.length > 50 || !page.paragraphs.every((p, n) => PARAGRAPH.test(p.id) && p.ordinal === page.start + n)) throw new Error("正文与当前历史版本不一致。");
   return page;
+}
+
+/**
+ * Resolve the paragraph and its human-readable period as one fixed locator.
+ * The API already rejects an unknown `at`, but checking the returned page here
+ * protects the entity page from any future broad-window response or stale proxy.
+ */
+export async function loadHistoryPhase(
+  version: string,
+  paragraphId: string,
+  signal?: AbortSignal,
+): Promise<HistoryPhaseData> {
+  if (!isHistoryLocator({ version, paragraph_id: paragraphId })) {
+    throw new HistoryPhaseError("invalid_locator", "历史段落位置无效，请从历史正文重新进入人物页。");
+  }
+  let publication: HistoryPublication | null;
+  let page: HistoryPage;
+  try {
+    [publication, page] = await Promise.all([
+      loadHistory(version, signal),
+      loadHistoryPage(version, { at: paragraphId }, signal),
+    ]);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404 && error.code === "not_found") {
+      throw new HistoryPhaseError("not_found", "这段历史不在当前固定版本中。");
+    }
+    throw error;
+  }
+  if (!publication) {
+    throw new HistoryPhaseError("not_found", "这份固定历史版本尚未发布。");
+  }
+  const paragraph = page.paragraphs.find((item) => item.id === paragraphId);
+  if (!paragraph) {
+    throw new HistoryPhaseError("not_found", "这段历史不在当前固定版本中。");
+  }
+  return {
+    publication,
+    page,
+    paragraph,
+    group: publication.groups.find((item) => item.id === paragraph.group_id) ?? null,
+  };
 }
 export async function loadHistoryConclusion(version: string, id: string) {
   const result = await fetchJSON<{ publication_version: string; conclusion: HistoryConclusion; source_relations: HistorySourceRelation[] }>(`${API}/conclusions/${encodeURIComponent(id)}?version=${encodeURIComponent(version)}`);

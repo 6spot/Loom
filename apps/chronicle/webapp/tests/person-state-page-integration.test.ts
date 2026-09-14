@@ -50,6 +50,29 @@ describe("entity page phase and source return", () => {
     expect(entityPage).toContain("source.people.find");
     expect(entityPage).toContain("不按名称或年份猜一份身份");
   });
+
+  it("renders a reader-first person surface and keeps technical records on demand", () => {
+    expect(entityPage).toContain("presentationOverview");
+    expect(entityPage).toContain("entity-reader-summary");
+    expect(entityPage).toContain("EntityExperienceTimeline");
+    expect(entityPage).toContain("entity-experience-entry");
+    expect(entityPage).toContain("entity-experience-timeline");
+    expect(entityPage).toContain("不代表完整生平");
+    expect(entityPage).toContain('<details className="entity-evidence"');
+    expect(entityPage).toContain("查看来源、不同说法与技术资料");
+    expect(entityPage).not.toContain("<p className=\"eyebrow\">Canonical Entity</p>");
+    expect(entityPage).not.toContain("canonical Events");
+    expect(entityPage).not.toContain("<h2>来源表示</h2>");
+    expect(entityPage).not.toContain("<h2>直接 Claims</h2>");
+  });
+
+  it("derives the phase display from the returned paragraph, never the first result", () => {
+    expect(entityPage).toContain("loadHistoryPhase");
+    expect(entityPage).toContain("historyTimeLabel(group)");
+    expect(entityPage).toContain("data-phase-id={paragraph.phase_id}");
+    expect(entityPage).not.toContain("query.data.paragraphs[0]");
+    expect(entityPage).toContain("没有找到这段固定历史版本，未显示其他段落的状态");
+  });
 });
 
 describe("source reading person state", () => {
@@ -206,4 +229,3 @@ describe("person-state draft lifecycle across URL scope switches", () => {
     expect(read2()).toBe("all-draft");
   });
 });
-
