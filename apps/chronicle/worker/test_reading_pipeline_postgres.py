@@ -188,15 +188,29 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             chapter_limits=chapter_contract.ChapterLimits(),
             job_id=job_id, **kwargs,
         )
-        if result[1] == "needs_review" and self.__class__ is ReadingPipelinePostgresTests:
-            self._approve_person_state(job_id)
-            result = worker.run_once(
-                self.database_url, worker=WORKER,
-                revision_source=lambda _job: (text, source_sha),
-                chapter_model=model.models,
-                chapter_limits=chapter_contract.ChapterLimits(),
-                job_id=job_id, **kwargs,
-            )
+        if result[1] == "needs_review" and (
+            self.__class__ is ReadingPipelinePostgresTests
+            or getattr(self, "AUTO_APPROVE_PERSON_STATE", False)
+        ):
+            # A narrative review also returns ``needs_review``. Only advance
+            # the current source-state gate when that exact open review exists;
+            # otherwise leave the narrative gate for its own test helper.
+            with psycopg.connect(self.database_url) as conn:
+                pending_person_state = conn.execute(
+                    "SELECT 1 FROM chronicle.review_items"
+                    " WHERE job_id = %s AND status = 'open'"
+                    " AND payload->>'scope' = 'person_state' LIMIT 1",
+                    (job_id,),
+                ).fetchone()
+            if pending_person_state:
+                self._approve_person_state(job_id)
+                result = worker.run_once(
+                    self.database_url, worker=WORKER,
+                    revision_source=lambda _job: (text, source_sha),
+                    chapter_model=model.models,
+                    chapter_limits=chapter_contract.ChapterLimits(),
+                    job_id=job_id, **kwargs,
+                )
         return result
 
     def _approve_person_state(self, job_id):
