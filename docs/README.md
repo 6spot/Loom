@@ -2,6 +2,8 @@
 
 This directory separates **architecture authority**, **application-development guidance**, **development/testing procedure**, **deployment/runbooks**, **public/operator guidance**, and **implementation audit history**. Do not duplicate one topic across those categories.
 
+Use this index to locate the owner of the current question or change. Read the applicable category and document; the links below are not a mandatory reading sequence. Task-based reading rules live in [`../AGENTS.md`](../AGENTS.md).
+
 ## Where to look
 
 ### Architecture
@@ -41,7 +43,7 @@ Application-specific development instructions belong under the application itsel
 
 Use [`development/README.md`](development/README.md) for current developer-facing procedures such as local PostgreSQL services, integration tests, task completion and worker verification.
 
-[`developer-guide.md`](developer-guide.md) is the developer reference for Architecture Index lookup, Amendment gating, Task Ledger workflow and Cargo dependency governance.
+[`developer-guide.md`](developer-guide.md) is the developer reference for Architecture Index lookup, Amendment gating, task planning/delivery and Cargo dependency governance.
 
 Development documents answer **how to build, test or verify the Loom implementation**. A workflow should have one current operational guide. When a procedure is replaced, update or remove the old guide rather than leaving competing instructions.
 
@@ -55,7 +57,7 @@ Task planning or acceptance criteria are not substitutes for these operational g
 
 ### Tasks
 
-Use [`tasks/README.md`](tasks/README.md) for the implementation task ledger and current initiatives/roadmaps.
+Use [`tasks/README.md`](tasks/README.md) for task plans, implementation history and current initiatives/roadmaps.
 
 Task files are durable audit records: scope, dependencies, status, progress and verification evidence. They are not architecture authority and should not become long-lived developer or deployment runbooks.
 

@@ -109,14 +109,41 @@ npm run smoke:dist
 
 ## Verification
 
-- `npm test && npm run build && npm run smoke:dist`
-- `cargo test` inside `apps/chronicle/server/`
-- Existing two-source browser smoke: `apps/chronicle/web/browser_smoke.py`
-- Historical World production-front smoke: `apps/chronicle/web/world_browser_smoke.py`
-  (World -> Event -> Entity -> persisted evidence, plus neighboring Coverage
-  semantics and historical-time-context preservation)
-- `node scripts/visual-verify.mjs` for focused Playwright/Chromium visual checks
-  against the real Rust server and its configured upstream.
+Choose the rows matching the change; this is not a checklist to run in full for
+every edit. Commands below run from `apps/chronicle/webapp/` unless another
+directory is named; paths beginning with `apps/` are relative to the repository
+root. Review, result reuse and required CI follow
+[`task-completion.md`](../../../docs/development/task-completion.md).
+
+| Changed behavior | Local verification |
+| --- | --- |
+| README or instructions only | Check changed text, links and command references. Do not rebuild the app solely for a prose change. |
+| React/TypeScript behavior, CSS, routes or frontend build configuration | Run existing Vitest tests for the changed behavior (`npm test -- <test-file>`); use `npm test` for shared changes or when the affected test set is unclear. Run `npm run build` and `npm run smoke:dist`, and keep the committed `../web/dist/` consistent. CSS/layout changes also need the visual check below. |
+| Visible layout or browser interaction | Exercise the affected route and states in the browser, including relevant viewport sizes. Use the matching component suite below; inspect its screenshots for layout changes. Shared navigation, CSS or components include affected consumers. |
+| Rust web-front routing, authentication, API proxying or asset embedding behavior | Run the affected Rust tests inside `apps/chronicle/server/`; use `cargo test` there when the affected test set is unclear. Frontend changes alone do not automatically require all server tests. |
+| Real public API/source/evidence integration | Use `apps/chronicle/web/browser_smoke.py` for the two-source flow or `apps/chronicle/web/world_browser_smoke.py` for World/Event/Entity/evidence, Coverage and historical-time behavior, according to the changed contract. |
+| Full web-front acceptance across Timeline/Event/Entity/Search/Studio | Use `node scripts/visual-verify.mjs` against the real Rust server and its configured upstream, with the expected fixture data. This broad legacy smoke is not the default check for every page edit. |
+
+For a CSS/copy-only change with no applicable Vitest test, use build/dist and
+browser verification. Do not add a test that merely repeats the chosen text or
+style value to satisfy this table.
+
+Select component suites by the surface they exercise:
+
+| Surface | Browser script |
+| --- | --- |
+| Source reading, axis, position, events or context | `scripts/reading-component-smoke.mjs` with the matching `--suite` (`content`, `axis`, `position`, `events` or `context`); use `all` for shared R2 behavior. |
+| Person states or their review | The same script with `--suite person-states` or `--suite person-state-review`; use `r3-all` for shared R3 behavior. |
+| Synthesized history and curated navigation | `scripts/history-component-smoke.mjs`. |
+| Narrative review | `scripts/narrative-review-component-smoke.mjs`. |
+| Studio upload, task progress, model comparison or retry | `scripts/studio-workspace-component-smoke.mjs`. |
+
+The runnable examples below show the Vite base URL and output arguments. Choose
+the matching examples instead of running all of them. Component suites use
+fixtures and do not replace real-stack acceptance required by the task. If no
+existing suite covers a changed interaction, verify that interaction directly
+and add contract-level coverage when needed; an unrelated green suite is not
+evidence for it.
 
 ## Public reading surface
 

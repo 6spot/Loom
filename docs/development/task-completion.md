@@ -2,6 +2,8 @@
 
 This guide describes the standard repository delivery path for executable Loom work.
 
+Requests limited to analysis, review or advice end with the requested report. If the user explicitly limits delivery to local changes or a draft PR, stop at that boundary and report the actual state; do not call it merged repository delivery.
+
 ## Completion sequence
 
 ```text
@@ -39,12 +41,30 @@ When a task note is already part of the delivery, update useful evidence there a
 
 Choose verification based on the changed contract and the current development/deployment guides.
 
+| Changed surface | Verification to select |
+| --- | --- |
+| Documentation or Agent instructions only | Review the changed rules for consistency, check local links and verify changed command examples against their owning scripts/configuration. Application builds and runtime suites are not added solely because a guide lists them. |
+| Code, configuration or build output | Run the checks that exercise the changed behavior and its callers, using the owning module's guide. Shared code changes include affected consumers. |
+| Database, service, browser or deployment behavior | Include the corresponding real-environment checks from the owning development/deployment guide. A stubbed or component-only result does not replace a required integration check. |
+
+Combine matching rows. A task's explicit acceptance requirements still apply, including verification of runnable examples when those examples are the changed behavior.
+
 - Run the focused tests, builds and static checks that exercise the modified behavior.
 - Use the repository's real integration environment when the task requires database, service, browser or deployment behavior.
 - Record checks that could not be run and why.
 - A successful unrelated suite does not substitute for verification of the changed contract.
 
-The current CI workflows remain the source for repository merge checks.
+For each check, record the command, result, tested revision/worktree state and relevant environment in the delivery evidence. Reuse a successful result within the task when those inputs are unchanged. Re-run affected checks after code, dependencies, configuration or test data/environment changes, after a failure is fixed, or when a new finding calls that result into question. Continuation, self-review and committing unchanged tested content are not by themselves reasons to repeat a suite. Do not use an older success to hide a current failure.
+
+The current CI workflows and repository merge rules remain the source for required checks. Local result reuse does not skip or waive CI required for the delivery revision.
+
+## Review
+
+Every delivered change receives self-review of the final diff, task scope, behavior, verification evidence and document consistency.
+
+Independent review is required when the user/task, the applicable canonical workflow or repository merge rules require it. Follow the specified reviewer and completion conditions. Without such a requirement, self-review satisfies the review stage; do not add another model, OCR installation or user-approval checkpoint merely because a Skill template suggests one.
+
+Reuse completed review for unchanged reviewed content. If the change affects reviewed behavior, obtain the required review for that change; any stricter repository review-dismissal rules still apply. Resolve findings that violate the task's acceptance or existing contracts before delivery.
 
 ## Task planning material
 

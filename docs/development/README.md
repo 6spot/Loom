@@ -2,15 +2,19 @@
 
 This directory contains the current operational procedures for developing and testing Loom.
 
+Use this index for the task categories defined in [`../../AGENTS.md`](../../AGENTS.md). Select the guide for the operation below and read its applicable sections; do not open every guide or follow every link. Documentation-only and read-only tasks do not acquire build, database or deployment requirements merely by opening this index.
+
 ## Current guides
 
-- [`../quickstart.md`](../quickstart.md) — V0 public quickstart from a clean checkout using only `loom-server` / `loom-client` / `loom-cli` (no Runtime/Storage imports, no direct DB).
-- [`../operator-guide.md`](../operator-guide.md) — V0 operator reference: Installed vs Binding vs Assembly, World Time vs Platform Time, logical Work vs lease, head/quiescence/budget, missing implementation/terminalization, Revision/Session provenance, replay vs rerun, fork ancestry, Agent visibility/CAS resample.
-- [`../developer-guide.md`](../developer-guide.md) — V0 developer reference: Architecture Index supersession lookup, Amendment gate, task planning/delivery, Cargo DAG and verification.
-- [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity envelope from M11 (`loom-bench`); larger-scale claims marked unproven/deferred.
-- [`task-completion.md`](task-completion.md) — standard repository delivery sequence: focused verification, review, required checks and PR merge.
-- [`postgres-tests.md`](postgres-tests.md) — local PostgreSQL 18 + pgvector integration-test service, environment and test commands.
-- [`runtime-worker.md`](runtime-worker.md) — v0 worker/executor topology and deterministic stress/restart evidence.
+| Operation or question | Guide |
+| --- | --- |
+| Start a clean checkout and exercise the public API | [`../quickstart.md`](../quickstart.md) — supported `loom-server` / `loom-client` / `loom-cli` workflow. |
+| Understand or diagnose engine operation and public runtime behavior | [`../operator-guide.md`](../operator-guide.md) — time, work, provenance, replay, scheduler and Agent behavior. |
+| Change core contracts or Cargo dependency edges | [`../developer-guide.md`](../developer-guide.md) — architecture lookup, Amendment gate and dependency governance. |
+| Assess measured capacity or a performance claim | [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity and unproven/deferred limits. |
+| Deliver an authorized repository change | [`task-completion.md`](task-completion.md) — verification, review, required checks and PR merge. |
+| Run PostgreSQL-backed tests | [`postgres-tests.md`](postgres-tests.md) — PostgreSQL 18 + pgvector environment and commands. |
+| Change or verify runtime worker/executor behavior | [`runtime-worker.md`](runtime-worker.md) — topology and deterministic stress/restart checks. |
 
 Deployment and production runbooks are intentionally separate under [`../deployment/README.md`](../deployment/README.md). Do not add a second deployment procedure here.
 
