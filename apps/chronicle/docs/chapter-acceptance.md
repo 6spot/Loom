@@ -42,8 +42,10 @@ python3 apps/chronicle/acceptance/staged_gate.py \
 ```
 
 CI 使用同一个入口的 `staged-gate` job。成功 manifest 必须包含候选版本 0.4、完整
-step history、review decisions、acceptance receipt、公开 publication/read evidence、
-失败关闭和重启证据；失败会以非零状态退出，并在
+step history、review decisions、公开 publication/read evidence、失败关闭和重启证据，
+并在 `terminal_jobs` 中为每个已完成的 0.4 source job 保留终态 detail、逐 chunk
+step history、output metadata 和完整 acceptance receipt。gate 会校验每个阶段、
+每个生产步骤、输出 hash 与 receipt 的绑定；任一证据缺失会 fail closed，并在
 `manifest.partial.json` 中保留阶段与失败位置。`--skip-browser` 只用于本地快速迭代。
 
 程序检查与人工内容判断分开：脚本检查 schema、source scope、hash、引用/原文锚点、状态

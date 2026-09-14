@@ -11,6 +11,7 @@ credential-free handoff and never falls back to fixture decisions.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import shutil
@@ -87,6 +88,8 @@ from reading_scale_fixture import (  # noqa: E402
 import staged_chapter_contract  # noqa: E402
 import staged_pipeline_fixture as staged_fixture  # noqa: E402
 import reading_contract  # noqa: E402
+import chapter_production  # noqa: E402
+from common import sha256_json  # noqa: E402
 
 STAGED_CHAPTER_MODEL = "chronicle-staged-fixture-0.4"
 STAGED_NARRATIVE_MODEL = "chronicle-staged-fixture-narrative"
@@ -95,6 +98,22 @@ GATE_VERSION = "0.4"
 BROWSER_MANIFEST_SCHEMA = "chronicle.person-state-flow-fixture"
 READING_BROWSER_MANIFEST_SCHEMA = "chronicle.reading-flow-fixture"
 READING_BROWSER_MANIFEST_VERSION = "0.1"
+STAGED_JOB_STAGES = (
+    "prepare",
+    "structure",
+    "segment",
+    "extract",
+    "assemble",
+    "resolve",
+    "publish",
+    "present",
+)
+STAGED_PRODUCTION_STEPS = frozenset(chapter_production.STEPS)
+STAGED_REQUIRED_PRODUCTION_STEPS = frozenset(
+    ("translation", "extraction", "linking", "review")
+)
+STAGED_STEP_OUTPUT_TYPE = "chapter-production-step"
+STAGED_ACCEPTANCE_OUTPUT_TYPE = "chapter-production-acceptance"
 
 
 # ---------------------------------------------------------------------------
@@ -452,6 +471,505 @@ def drive_job(
     raise GateError(f"job {job_id} still needs review after {max_review_rounds} rounds")
 
 
+def read_saved_output(
+    base_url: str, auth: str, job_id: str, output_sha256: str
+) -> dict[str, Any]:
+    """Read one complete protected output body through its paginated API.
+
+    Job detail intentionally exposes only output metadata.  The staged gate
+    needs the immutable acceptance receipt as evidence, so it follows the
+    documented result route and verifies that every page is contiguous before
+    parsing the saved JSON body.  This keeps prompts/provider configuration
+    behind the Studio projection while retaining the receipt that binds the
+    accepted chapter to its history and step outputs.
+    """
+    if not isinstance(output_sha256, str) or len(output_sha256) != 64:
+        raise GateError(f"job {job_id} has an invalid saved output hash")
+    chunks: list[str] = []
+    offset = 0
+    total_chars: int | None = None
+    seen_offsets: set[int] = set()
+    artifact_type: str | None = None
+    for _ in range(1024):
+        if offset in seen_offsets:
+            raise GateError(
+                f"job {job_id} output {output_sha256} repeated page offset {offset}"
+            )
+        seen_offsets.add(offset)
+        status, page = json_http(
+            base_url,
+            f"/api/v1/studio/jobs/{job_id}/outputs/{output_sha256}"
+            f"?offset={offset}&limit=16000",
+            auth=auth,
+        )
+        require_status(status, 200, page, "saved staged output")
+        if page.get("job_id") != job_id or page.get("output_sha256") != output_sha256:
+            raise GateError(
+                f"saved output {output_sha256} is not bound to job {job_id}"
+            )
+        if page.get("offset") != offset:
+            raise GateError(
+                f"saved output {output_sha256} returned a non-contiguous offset"
+            )
+        page_type = page.get("artifact_type")
+        if not isinstance(page_type, str) or not page_type:
+            raise GateError(f"saved output {output_sha256} has no artifact type")
+        if artifact_type is None:
+            artifact_type = page_type
+        elif artifact_type != page_type:
+            raise GateError(f"saved output {output_sha256} changed artifact type")
+        text = page.get("text")
+        if not isinstance(text, str):
+            raise GateError(f"saved output {output_sha256} has no readable body")
+        page_total = page.get("total_chars")
+        if not isinstance(page_total, int) or page_total < 0:
+            raise GateError(f"saved output {output_sha256} has an invalid total length")
+        if total_chars is None:
+            total_chars = page_total
+        elif total_chars != page_total:
+            raise GateError(f"saved output {output_sha256} changed total length")
+        chunks.append(text)
+        next_offset = page.get("next_offset")
+        if next_offset is None:
+            if offset + len(text) != total_chars:
+                raise GateError(
+                    f"saved output {output_sha256} ended before its declared length"
+                )
+            break
+        if (
+            not isinstance(next_offset, int)
+            or next_offset <= offset
+            or next_offset != offset + len(text)
+        ):
+            raise GateError(f"saved output {output_sha256} has an invalid next offset")
+        offset = next_offset
+    else:
+        raise GateError(f"saved output {output_sha256} exceeded the page bound")
+
+    try:
+        value = json.loads("".join(chunks))
+    except (TypeError, ValueError) as exc:
+        raise GateError(f"saved output {output_sha256} is not valid JSON") from exc
+    if not isinstance(value, dict):
+        raise GateError(f"saved output {output_sha256} is not a JSON object")
+    return {"artifact_type": artifact_type, "payload": value}
+
+
+def _sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        char in "0123456789abcdef" for char in value
+    )
+
+
+def validate_terminal_job_detail(
+    detail: Any, acceptance_receipts: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Validate the complete terminal evidence for one staged 0.4 job.
+
+    The public Studio projection is deliberately metadata-only for model
+    bodies, but it still contains the full lifecycle/stage/chunk/output
+    history.  Acceptance bodies are supplied separately by
+    :func:`read_saved_output`.  A completed job is not evidence-complete until
+    every chunk has a receipt whose step hashes point at this exact job's
+    saved step outputs.
+    """
+    errors: list[str] = []
+    if not isinstance(detail, dict):
+        raise GateError("0.4 terminal job detail is not a JSON object")
+    job_id = detail.get("job_id")
+    if not isinstance(job_id, str) or not job_id:
+        errors.append("job_id is missing")
+    if not isinstance(detail.get("revision_id"), str) or not detail.get("revision_id"):
+        errors.append("revision_id is missing")
+    if detail.get("job_kind") != "chapter":
+        errors.append(f"job_kind is not chapter: {detail.get('job_kind')!r}")
+    if detail.get("status") != "completed":
+        errors.append(f"terminal status is not completed: {detail.get('status')!r}")
+
+    reviews = detail.get("reviews")
+    if not isinstance(reviews, list):
+        errors.append("reviews history is missing")
+    else:
+        for index, review in enumerate(reviews):
+            if not isinstance(review, dict):
+                errors.append(f"reviews[{index}] is not an object")
+                continue
+            if not isinstance(review.get("review_id"), str) or not review.get("review_id"):
+                errors.append(f"reviews[{index}].review_id is missing")
+            if review.get("status") not in {"resolved", "dismissed"}:
+                errors.append(
+                    f"reviews[{index}] is not terminal: {review.get('status')!r}"
+                )
+    if detail.get("open_reviews") != 0:
+        errors.append(f"open review count is not zero: {detail.get('open_reviews')!r}")
+
+    stages = detail.get("stages")
+    stage_map: dict[str, dict[str, Any]] = {}
+    if not isinstance(stages, list) or not stages:
+        errors.append("stages history is missing")
+    else:
+        for index, stage in enumerate(stages):
+            if not isinstance(stage, dict):
+                errors.append(f"stages[{index}] is not an object")
+                continue
+            name = stage.get("stage")
+            if not isinstance(name, str):
+                errors.append(f"stages[{index}].stage is missing")
+            elif name in stage_map:
+                errors.append(f"stages contains duplicate {name!r}")
+            else:
+                stage_map[name] = stage
+        for name in STAGED_JOB_STAGES:
+            stage = stage_map.get(name)
+            if stage is None:
+                errors.append(f"stages is missing {name!r}")
+            elif stage.get("status") != "completed":
+                errors.append(
+                    f"stage {name!r} is not completed: {stage.get('status')!r}"
+                )
+        unknown = sorted(set(stage_map) - set(STAGED_JOB_STAGES))
+        if unknown:
+            errors.append(f"stages contains unknown entries: {unknown}")
+
+    outputs = detail.get("outputs")
+    output_by_sha: dict[str, dict[str, Any]] = {}
+    if not isinstance(outputs, list) or not outputs:
+        errors.append("outputs history is missing")
+        outputs = []
+    for index, output in enumerate(outputs):
+        if not isinstance(output, dict):
+            errors.append(f"outputs[{index}] is not an object")
+            continue
+        for field in ("output_id", "artifact_type", "artifact_sha256"):
+            if not output.get(field):
+                errors.append(f"outputs[{index}] is missing {field!r}")
+        digest = output.get("artifact_sha256")
+        if not _sha256(digest):
+            errors.append(f"outputs[{index}].artifact_sha256 is invalid")
+            continue
+        if digest in output_by_sha:
+            errors.append(f"outputs contains duplicate hash {digest}")
+        else:
+            output_by_sha[digest] = output
+        artifact_type = output.get("artifact_type")
+        if isinstance(artifact_type, str) and artifact_type in {
+            "chapter-production-attempt",
+            STAGED_STEP_OUTPUT_TYPE,
+            "chapter-production-draft",
+        }:
+            required_fields = ("status", "chunk_id")
+            if artifact_type in {"chapter-production-attempt", STAGED_STEP_OUTPUT_TYPE}:
+                required_fields = ("step", *required_fields)
+            for field in required_fields:
+                if not output.get(field):
+                    errors.append(
+                        f"output {digest} is missing production field {field!r}"
+                    )
+
+    if not any(
+        output.get("artifact_type") == "chapter-production-plan"
+        for output in outputs
+        if isinstance(output, dict)
+    ):
+        errors.append("outputs is missing the staged production plan")
+    step_outputs = {
+        digest: output
+        for digest, output in output_by_sha.items()
+        if output.get("artifact_type") == STAGED_STEP_OUTPUT_TYPE
+    }
+    acceptance_outputs = [
+        output
+        for output in outputs
+        if isinstance(output, dict)
+        and output.get("artifact_type") == STAGED_ACCEPTANCE_OUTPUT_TYPE
+    ]
+
+    receipt_entries_by_sha: dict[str, dict[str, Any]] = {}
+    for index, entry in enumerate(acceptance_receipts or []):
+        if not isinstance(entry, dict):
+            errors.append(f"acceptance_receipts[{index}] is not an object")
+            continue
+        if entry.get("artifact_type") != STAGED_ACCEPTANCE_OUTPUT_TYPE:
+            errors.append(f"acceptance_receipts[{index}] has an invalid artifact type")
+        if not isinstance(entry.get("output_id"), str) or not entry.get("output_id"):
+            errors.append(f"acceptance_receipts[{index}] is missing output_id")
+        digest = entry.get("output_sha256") or entry.get("artifact_sha256")
+        receipt = entry.get("production_receipt")
+        if not _sha256(digest):
+            errors.append(f"acceptance_receipts[{index}] has an invalid output hash")
+        if not isinstance(receipt, dict):
+            errors.append(f"acceptance_receipts[{index}] is missing production_receipt")
+        elif _sha256(digest):
+            if digest in receipt_entries_by_sha:
+                errors.append(f"acceptance_receipts repeats output hash {digest}")
+            else:
+                receipt_entries_by_sha[digest] = entry
+
+    chunks = detail.get("chunks")
+    if not isinstance(chunks, list) or not chunks:
+        errors.append("chunks history is missing")
+        chunks = []
+    required_output_types = {
+        "chapter-production-attempt",
+        STAGED_STEP_OUTPUT_TYPE,
+        "chapter-production-draft",
+    }
+    receipt_count = 0
+    step_history_count = 0
+    for index, chunk in enumerate(chunks):
+        if not isinstance(chunk, dict):
+            errors.append(f"chunks[{index}] is not an object")
+            continue
+        chunk_id = chunk.get("chunk_id")
+        if not isinstance(chunk_id, str) or not chunk_id:
+            errors.append(f"chunks[{index}].chunk_id is missing")
+            continue
+        if chunk.get("status") != "completed":
+            errors.append(
+                f"chunk {chunk_id!r} is not completed: {chunk.get('status')!r}"
+            )
+        runs = chunk.get("runs")
+        if not isinstance(runs, list) or not runs:
+            errors.append(f"chunk {chunk_id!r} has no run history")
+        elif not any(
+            isinstance(run, dict) and run.get("status") == "completed"
+            for run in runs
+        ):
+            errors.append(f"chunk {chunk_id!r} has no completed run")
+
+        production = chunk.get("production")
+        steps = production.get("steps") if isinstance(production, dict) else None
+        if not isinstance(steps, list) or not steps:
+            errors.append(f"chunk {chunk_id!r} has no production.steps history")
+            steps = []
+        observed_steps: set[str] = set()
+        active_step_digests: set[str] = set()
+        for step_index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                errors.append(f"chunk {chunk_id!r} production.steps[{step_index}] is not an object")
+                continue
+            name = step.get("step")
+            if not isinstance(name, str) or name not in STAGED_PRODUCTION_STEPS:
+                errors.append(f"chunk {chunk_id!r} has unknown production step {name!r}")
+                continue
+            observed_steps.add(name)
+            if step.get("status") != "completed":
+                errors.append(
+                    f"chunk {chunk_id!r} production step {name!r} is not completed"
+                )
+            digest = step.get("output_sha256")
+            if not _sha256(digest) or digest not in step_outputs:
+                errors.append(
+                    f"chunk {chunk_id!r} production step {name!r} has no saved step output"
+                )
+            else:
+                saved_step = step_outputs[digest]
+                if saved_step.get("chunk_id") != chunk_id:
+                    errors.append(
+                        f"chunk {chunk_id!r} production step {name!r} points outside its chunk"
+                    )
+                if saved_step.get("step") != name:
+                    errors.append(
+                        f"chunk {chunk_id!r} production step {name!r} points to a different step"
+                    )
+                if saved_step.get("status") != "completed":
+                    errors.append(
+                        f"chunk {chunk_id!r} production step {name!r} output is not completed"
+                    )
+                active_step_digests.add(digest)
+            step_history_count += 1
+        for name in sorted(STAGED_REQUIRED_PRODUCTION_STEPS - observed_steps):
+            errors.append(f"chunk {chunk_id!r} production history is missing {name!r}")
+
+        chunk_output_types = {
+            output.get("artifact_type")
+            for output in outputs
+            if isinstance(output, dict)
+            and isinstance(output.get("artifact_type"), str)
+            and output.get("chunk_id") == chunk_id
+        }
+        for output_type in sorted(required_output_types - chunk_output_types):
+            errors.append(f"chunk {chunk_id!r} outputs is missing {output_type!r}")
+
+        matching_acceptance = [
+            output
+            for output in acceptance_outputs
+            if output.get("chunk_id") == chunk_id
+        ]
+        if len(matching_acceptance) != 1:
+            errors.append(
+                f"chunk {chunk_id!r} must have one acceptance output, found {len(matching_acceptance)}"
+            )
+            continue
+        acceptance = matching_acceptance[0]
+        digest = acceptance.get("artifact_sha256")
+        receipt_entry = receipt_entries_by_sha.get(digest)
+        receipt = receipt_entry.get("production_receipt") if receipt_entry else None
+        if receipt_entry is None:
+            errors.append(
+                f"chunk {chunk_id!r} acceptance receipt body is missing for {digest}"
+            )
+            continue
+        receipt_count += 1
+        if receipt_entry.get("output_id") != acceptance.get("output_id"):
+            errors.append(f"chunk {chunk_id!r} receipt output id is not bound to its output")
+        required_receipt_fields = (
+            "schema",
+            "version",
+            "status",
+            "request_fingerprint",
+            "candidate_sha256",
+            "history_sha256",
+            "step_output_sha256s",
+            "decision",
+        )
+        for field in required_receipt_fields:
+            if field not in receipt:
+                errors.append(f"chunk {chunk_id!r} receipt is missing {field!r}")
+        if receipt.get("schema") != "chronicle.chapter-acceptance":
+            errors.append(f"chunk {chunk_id!r} receipt schema is invalid")
+        if receipt.get("version") != "0.1":
+            errors.append(f"chunk {chunk_id!r} receipt version is invalid")
+        if receipt.get("status") != "accepted":
+            errors.append(f"chunk {chunk_id!r} receipt is not accepted")
+        if receipt.get("chunk_id") != chunk_id:
+            errors.append(f"chunk {chunk_id!r} receipt is not bound to its chunk")
+        for field in ("request_fingerprint", "candidate_sha256", "history_sha256"):
+            if field in receipt and not _sha256(receipt[field]):
+                errors.append(f"chunk {chunk_id!r} receipt {field} is invalid")
+        refs = receipt.get("step_output_sha256s")
+        if not isinstance(refs, list) or not refs:
+            errors.append(f"chunk {chunk_id!r} receipt has no step output references")
+        else:
+            if all(isinstance(ref, str) for ref in refs) and len(refs) != len(set(refs)):
+                errors.append(f"chunk {chunk_id!r} receipt repeats a step output reference")
+            ref_set = {ref for ref in refs if isinstance(ref, str)}
+            for ref in refs:
+                if not _sha256(ref) or ref not in step_outputs:
+                    errors.append(f"chunk {chunk_id!r} receipt references missing step output {ref!r}")
+                elif step_outputs[ref].get("chunk_id") != chunk_id:
+                    errors.append(f"chunk {chunk_id!r} receipt references another chunk")
+            missing_active = sorted(active_step_digests - ref_set)
+            if missing_active:
+                errors.append(
+                    f"chunk {chunk_id!r} receipt omits active step outputs {missing_active}"
+                )
+        if not isinstance(receipt.get("decision"), dict) or not receipt["decision"]:
+            errors.append(f"chunk {chunk_id!r} receipt decision is missing")
+        if _sha256(digest) and sha256_json(receipt) != digest:
+            errors.append(f"chunk {chunk_id!r} receipt hash does not match its output")
+
+    if len(acceptance_outputs) != len(chunks):
+        errors.append(
+            f"acceptance output count {len(acceptance_outputs)} does not match chunk count {len(chunks)}"
+        )
+    if len(receipt_entries_by_sha) != len(acceptance_receipts or []):
+        errors.append("acceptance receipt hashes are duplicated")
+    if errors:
+        raise GateError(
+            f"0.4 terminal job detail incomplete for {job_id or '<unknown>'}: "
+            + "; ".join(errors)
+        )
+    return {
+        "status": "PASS",
+        "stage_count": len(stage_map),
+        "chunk_count": len(chunks),
+        "step_history_count": step_history_count,
+        "output_count": len(outputs),
+        "acceptance_receipt_count": receipt_count,
+    }
+
+
+def record_terminal_job(
+    evidence: "Evidence",
+    detail: Any,
+    *,
+    source_title: str,
+    acceptance_receipts: list[dict[str, Any]],
+    capture_error: str | None = None,
+) -> dict[str, Any]:
+    """Persist terminal detail before validating it, including failed evidence."""
+    record: dict[str, Any] = {
+        "source_title": source_title,
+        "job_id": detail.get("job_id") if isinstance(detail, dict) else None,
+        "revision_id": detail.get("revision_id") if isinstance(detail, dict) else None,
+        "status": detail.get("status") if isinstance(detail, dict) else None,
+        "terminal_detail": copy.deepcopy(detail),
+        "step_history": copy.deepcopy(
+            [
+                {"chunk_id": chunk.get("chunk_id"), "production": chunk.get("production")}
+                for chunk in (detail.get("chunks") or [])
+                if isinstance(chunk, dict)
+            ]
+            if isinstance(detail, dict)
+            else []
+        ),
+        "outputs": copy.deepcopy(detail.get("outputs"))
+        if isinstance(detail, dict)
+        else None,
+        "acceptance_receipts": copy.deepcopy(acceptance_receipts),
+    }
+    evidence.data.setdefault("terminal_jobs", []).append(record)
+    try:
+        if capture_error:
+            raise GateError(capture_error)
+        record["validation"] = validate_terminal_job_detail(
+            detail, acceptance_receipts
+        )
+    except GateError as exc:
+        record["validation"] = {"status": "FAIL", "error": str(exc)}
+        evidence.checkpoint()
+        raise
+    evidence.checkpoint()
+    return record
+
+
+def capture_terminal_job(
+    base_url: str,
+    auth: str,
+    detail: dict[str, Any],
+    evidence: "Evidence",
+    *,
+    source_title: str,
+) -> dict[str, Any]:
+    """Fetch every acceptance receipt and record/validate one source job."""
+    receipts: list[dict[str, Any]] = []
+    try:
+        outputs = detail.get("outputs")
+        if isinstance(outputs, list):
+            for output in outputs:
+                if not isinstance(output, dict) or output.get("artifact_type") != STAGED_ACCEPTANCE_OUTPUT_TYPE:
+                    continue
+                digest = output.get("artifact_sha256")
+                saved = read_saved_output(base_url, auth, detail.get("job_id", ""), digest)
+                if saved.get("artifact_type") != STAGED_ACCEPTANCE_OUTPUT_TYPE:
+                    raise GateError(
+                        f"job {detail.get('job_id')} acceptance output {digest} has the wrong type"
+                    )
+                receipts.append(
+                    {
+                        "output_id": output.get("output_id"),
+                        "artifact_type": output.get("artifact_type"),
+                        "output_sha256": digest,
+                        "production_receipt": saved.get("payload"),
+                    }
+                )
+    except GateError as exc:
+        return record_terminal_job(
+            evidence,
+            detail,
+            source_title=source_title,
+            acceptance_receipts=receipts,
+            capture_error=str(exc),
+        )
+    return record_terminal_job(
+        evidence,
+        detail,
+        source_title=source_title,
+        acceptance_receipts=receipts,
+    )
+
+
 def publish_upload(
     base_url: str, auth: str, upload: dict[str, Any], evidence: "Evidence"
 ) -> dict[str, Any]:
@@ -467,6 +985,13 @@ def publish_upload(
         raise GateError(
             f"source job {job['job_id']} did not publish: {current.get('status')}"
         )
+    capture_terminal_job(
+        base_url,
+        auth,
+        current,
+        evidence,
+        source_title=upload["work"] or Path(upload["upload"]).name,
+    )
     return {
         "document_id": document["document_id"],
         "revision_id": revision["revision_id"],
@@ -492,6 +1017,13 @@ def publish_revision(
         raise GateError(
             f"revision job {queued['job_id']} did not publish: {current.get('status')}"
         )
+    capture_terminal_job(
+        base_url,
+        auth,
+        current,
+        evidence,
+        source_title=label,
+    )
     return {
         "document_id": document_id,
         "revision_id": revision["revision_id"],
@@ -782,11 +1314,33 @@ def collect_source_person(
     for work in works:
         stream_id = work["stream_id"]
         catalog = work["catalog_sha"]
-        units = public_json(
-            base_url,
-            f"/api/v1/public/reading-streams/{stream_id}/units"
-            f"?catalog={catalog}&limit=10",
-        )["page"]["units"]
+        units: list[dict[str, Any]] = []
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        while True:
+            query = f"?catalog={catalog}&limit=10"
+            if cursor is not None:
+                query += "&cursor=" + urllib.parse.quote(cursor, safe="")
+            page = public_json(
+                base_url,
+                f"/api/v1/public/reading-streams/{stream_id}/units{query}",
+            ).get("page")
+            if not isinstance(page, dict) or not isinstance(page.get("units"), list):
+                raise GateError(
+                    f"source stream {stream_id} returned an invalid units page"
+                )
+            if not all(isinstance(unit, dict) for unit in page["units"]):
+                raise GateError(f"source stream {stream_id} returned a malformed unit")
+            units.extend(page["units"])
+            next_cursor = page.get("next_cursor")
+            if next_cursor is None:
+                break
+            if not isinstance(next_cursor, str) or not next_cursor:
+                raise GateError(f"source stream {stream_id} returned an invalid units cursor")
+            if next_cursor in seen_cursors:
+                raise GateError(f"source stream {stream_id} repeated a units cursor")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
         for unit in units:
             unit_id = unit["unit_id"]
             status, payload = json_http(
@@ -824,11 +1378,9 @@ def collect_source_person(
                         "section": "identities",
                         "state_count": entry["state_count"],
                     }
-                break
+                continue
             entry["error_code"] = (payload.get("error") or {}).get("code")
             probes.append(entry)
-        if positive is not None:
-            break
     if positive is None:
         raise GateError(f"no consistent source person-state read; probes={probes}")
     return positive, probes
@@ -1605,6 +2157,28 @@ def run_fixture(
         )
         evidence.checkpoint()
 
+        expected_terminal_job_ids = [work.get("job_id") for work in works]
+        terminal_jobs = evidence.data.get("terminal_jobs")
+        actual_terminal_job_ids = (
+            [record.get("job_id") for record in terminal_jobs]
+            if isinstance(terminal_jobs, list)
+            else []
+        )
+        terminal_jobs_complete = (
+            bool(expected_terminal_job_ids)
+            and actual_terminal_job_ids == expected_terminal_job_ids
+            and all(
+                isinstance(record, dict)
+                and (record.get("validation") or {}).get("status") == "PASS"
+                for record in (terminal_jobs or [])
+            )
+        )
+        if not terminal_jobs_complete:
+            raise GateError(
+                "terminal evidence does not cover every completed 0.4 source job: "
+                f"expected={expected_terminal_job_ids}, actual={actual_terminal_job_ids}"
+            )
+
         # Synthetic scale stream + browser manifests. When a browser run is
         # requested, park one real source job on person-state and one real
         # synthesis job on facts so the mixed queue has genuinely open forms.
@@ -1687,7 +2261,7 @@ def run_fixture(
             item.get("passed") for item in evidence.data["faults"].values()
         )
         evidence.data["criteria"] = {
-            "staged_0_4_source_to_acceptance": "PASS",
+            "staged_0_4_source_to_acceptance": "PASS" if terminal_jobs_complete else "FAIL",
             "scenario_coverage": "PASS" if evidence.data.get("scenario_coverage") else "FAIL",
             "source_person_state_publish_chain": "PASS",
             "composite_history_two_review_chain": "PASS",

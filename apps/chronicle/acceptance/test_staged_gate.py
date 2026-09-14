@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from jsonschema import Draft202012Validator
 
@@ -234,6 +235,172 @@ class GuardTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "multi_chapter_source_state_consistency"):
             gate.require_source_state_consistency([{"status": 409, "unit_id": "bad"}])
 
+
+class SourcePersonTests(unittest.TestCase):
+    def test_collects_every_work_and_later_unit_409(self):
+        works = [
+            {
+                "stream_id": "stream-a",
+                "catalog_sha": "a" * 64,
+                "unit_count": 2,
+            },
+            {
+                "stream_id": "stream-b",
+                "catalog_sha": "b" * 64,
+                "unit_count": 1,
+            },
+        ]
+        units_calls = []
+        people_calls = []
+
+        def fake_public(_base_url, path):
+            units_calls.append(path)
+            if path == "/api/v1/public/reading-streams/stream-a/units?catalog=" + "a" * 64 + "&limit=10":
+                return {"page": {"units": [{"unit_id": "unit-a-1"}], "next_cursor": "later"}}
+            if path == "/api/v1/public/reading-streams/stream-a/units?catalog=" + "a" * 64 + "&limit=10&cursor=later":
+                return {"page": {"units": [{"unit_id": "unit-a-2"}], "next_cursor": None}}
+            if path == "/api/v1/public/reading-streams/stream-b/units?catalog=" + "b" * 64 + "&limit=10":
+                return {"page": {"units": [{"unit_id": "unit-b-1"}], "next_cursor": None}}
+            raise AssertionError(path)
+
+        def fake_http(_base_url, path, **_kwargs):
+            if path.endswith("/people?catalog=" + "a" * 64 + "&limit=6") or path.endswith(
+                "/people?catalog=" + "b" * 64 + "&limit=6"
+            ):
+                people_calls.append(path)
+            if path.endswith("/unit-a-2/people?catalog=" + "a" * 64 + "&limit=6"):
+                return 409, {"error": {"code": "inconsistent"}}
+            if path.endswith("/unit-a-1/people?catalog=" + "a" * 64 + "&limit=6"):
+                return 200, {"people": [{"person_id": "person-a"}]}
+            if path.endswith("/unit-b-1/people?catalog=" + "b" * 64 + "&limit=6"):
+                return 200, {"people": [{"person_id": "person-b"}]}
+            if "/people/" in path:
+                return 200, {"items": [{"state_id": "state"}]}
+            raise AssertionError(path)
+
+        with mock.patch.object(gate, "public_json", side_effect=fake_public), mock.patch.object(
+            gate, "json_http", side_effect=fake_http
+        ):
+            person, probes = gate.collect_source_person("http://example.test", works)
+
+        self.assertEqual("unit-a-1", person["unit_id"])
+        self.assertEqual(["unit-a-1", "unit-a-2", "unit-b-1"], [p["unit_id"] for p in probes])
+        self.assertEqual(["unit-a-2"], [p["unit_id"] for p in gate.source_state_inconsistencies(probes)])
+        self.assertEqual(3, len(people_calls))
+        self.assertEqual(3, len(units_calls))
+
+
+class TerminalJobEvidenceTests(unittest.TestCase):
+    @staticmethod
+    def _detail_and_receipts():
+        chunk_id = "chunk-1"
+        step_digests = {
+            step: (chr(ord("a") + index) * 64)
+            for index, step in enumerate(("translation", "extraction", "linking", "review"))
+        }
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "chapter_id": "ch_1",
+            "chunk_id": chunk_id,
+            "request_fingerprint": "1" * 64,
+            "pipeline_fingerprint": "2" * 64,
+            "candidate_sha256": "3" * 64,
+            "history_sha256": "4" * 64,
+            "step_output_sha256s": list(step_digests.values()),
+            "decision": {"kind": "human"},
+            "draft_sha256": "5" * 64,
+        }
+        acceptance_sha = gate.sha256_json(receipt)
+        outputs = [
+            {"output_id": "plan-output", "artifact_type": "chapter-production-plan", "artifact_sha256": "6" * 64},
+            {"output_id": "attempt-output", "artifact_type": "chapter-production-attempt", "artifact_sha256": "7" * 64,
+             "step": "translation", "status": "started", "chunk_id": chunk_id},
+        ]
+        outputs.extend(
+            {
+                "output_id": f"{step}-output",
+                "artifact_type": gate.STAGED_STEP_OUTPUT_TYPE,
+                "artifact_sha256": digest,
+                "step": step,
+                "status": "completed",
+                "chunk_id": chunk_id,
+            }
+            for step, digest in step_digests.items()
+        )
+        outputs.extend(
+            [
+                {"output_id": "draft-output", "artifact_type": "chapter-production-draft", "artifact_sha256": "8" * 64,
+                 "step": "draft", "status": "draft", "chunk_id": chunk_id},
+                {"output_id": "acceptance-output", "artifact_type": gate.STAGED_ACCEPTANCE_OUTPUT_TYPE,
+                 "artifact_sha256": acceptance_sha, "chunk_id": chunk_id},
+            ]
+        )
+        detail = {
+            "job_id": "job-1",
+            "revision_id": "revision-1",
+            "job_kind": "chapter",
+            "status": "completed",
+            "open_reviews": 0,
+            "reviews": [],
+            "stages": [{"stage": stage, "status": "completed"} for stage in gate.STAGED_JOB_STAGES],
+            "chunks": [
+                {
+                    "chunk_id": chunk_id,
+                    "status": "completed",
+                    "runs": [{"run_id": "run-1", "status": "completed"}],
+                    "production": {
+                        "steps": [
+                            {"step": step, "status": "completed", "output_sha256": digest}
+                            for step, digest in step_digests.items()
+                        ]
+                    },
+                }
+            ],
+            "outputs": outputs,
+        }
+        receipts = [{
+            "output_id": "acceptance-output",
+            "artifact_type": gate.STAGED_ACCEPTANCE_OUTPUT_TYPE,
+            "output_sha256": acceptance_sha,
+            "production_receipt": receipt,
+        }]
+        return detail, receipts
+
+    def test_complete_terminal_detail_is_retained_in_manifest(self):
+        detail, receipts = self._detail_and_receipts()
+        self.assertEqual("PASS", gate.validate_terminal_job_detail(detail, receipts)["status"])
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = gate.Evidence(Path(tmp), {"schema": "test"})
+            record = gate.record_terminal_job(
+                evidence,
+                detail,
+                source_title="source",
+                acceptance_receipts=receipts,
+            )
+            manifest = json.loads((Path(tmp) / "manifest.partial.json").read_text())
+        self.assertEqual("PASS", record["validation"]["status"])
+        self.assertEqual(detail, manifest["terminal_jobs"][0]["terminal_detail"])
+        self.assertEqual(receipts, manifest["terminal_jobs"][0]["acceptance_receipts"])
+        self.assertEqual(len(detail["outputs"]), len(manifest["terminal_jobs"][0]["outputs"]))
+
+    def test_missing_receipt_fails_closed_and_is_checkpointed(self):
+        detail, _receipts = self._detail_and_receipts()
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = gate.Evidence(Path(tmp), {"schema": "test"})
+            with self.assertRaisesRegex(GateError, "acceptance receipt body is missing"):
+                gate.record_terminal_job(
+                    evidence,
+                    detail,
+                    source_title="source",
+                    acceptance_receipts=[],
+                )
+            manifest = json.loads((Path(tmp) / "manifest.partial.json").read_text())
+        failed = manifest["terminal_jobs"][0]
+        self.assertEqual("FAIL", failed["validation"]["status"])
+        self.assertEqual(detail, failed["terminal_detail"])
+        self.assertEqual("acceptance-output", failed["outputs"][-1]["output_id"])
 
 class BrowserManifestTests(unittest.TestCase):
     def _manifest(self):

@@ -12,7 +12,27 @@ import control_plane
 from common import PersistenceConflict, PersistenceError, sha256_json
 
 REQUEST_TYPE = "studio-production-request"
-RESULT_TYPES = ("chapter-production-attempt", "chapter-production-step", "chapter-production-draft")
+ACCEPTANCE_TYPE = "chapter-production-acceptance"
+RESULT_TYPES = (
+    "chapter-production-attempt",
+    "chapter-production-step",
+    "chapter-production-draft",
+    ACCEPTANCE_TYPE,
+)
+ACCEPTANCE_FIELDS = (
+    "schema",
+    "version",
+    "status",
+    "chapter_id",
+    "chunk_id",
+    "request_fingerprint",
+    "pipeline_fingerprint",
+    "candidate_sha256",
+    "history_sha256",
+    "step_output_sha256s",
+    "decision",
+    "draft_sha256",
+)
 
 
 def read_request(conn, job_id):
@@ -115,9 +135,14 @@ def output_page(conn, *, job_id, digest, offset=0, limit=16000):
     if not isinstance(payload, dict) or sha256_json(payload) != digest:
         raise PersistenceConflict("saved task result changed")
     # A positive allowlist: prompts, provider configuration, credentials,
-    # inputs and unrecognized transport fields never reach the browser.
-    safe = {key: payload[key] for key in ("step", "model", "status", "round", "attempt", "raw_text",
-            "parsed", "candidate", "issues", "validation_errors", "error") if key in payload}
+    # inputs and unrecognized transport fields never reach the browser. The
+    # acceptance receipt is a separate safe result: it contains only hashes,
+    # decision metadata and its chunk binding, never the candidate body.
+    if kind == ACCEPTANCE_TYPE:
+        safe = {key: payload[key] for key in ACCEPTANCE_FIELDS if key in payload}
+    else:
+        safe = {key: payload[key] for key in ("step", "model", "status", "round", "attempt", "raw_text",
+                "parsed", "candidate", "issues", "validation_errors", "error") if key in payload}
     text = json.dumps(safe, ensure_ascii=False, indent=2)
     if offset > len(text):
         raise PersistenceError("result page is outside the saved output")
