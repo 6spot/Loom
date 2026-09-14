@@ -3,43 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/ci.yml"
-      - ".github/CODEOWNERS"
-      - ".dockerignore"
-      - ".env.example"
-      - ".env.chronicle.example"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "**/Cargo.toml"
-      - "**/*.rs"
-      - "crates/loom-storage/**"
-      - "capabilities/**"
-      - "tests/**"
-      - "compose.test-db.yaml"
-      - "compose.yaml"
-      - "compose.chronicle.yaml"
-      - "Dockerfile"
-      - "docker/**"
-      - "deny.toml"
-      - "rust-toolchain.toml"
-      - "rustfmt.toml"
-      - "tools/check_architecture.py"
-      - "tools/check_storage_sql_ownership.py"
-      - "tools/test_validator_ready.py"
-      - "tools/validator_ready.py"
-      - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/scheduler-discovery/**"
-      - "docs/tasks/ci-governance/**"
-      - "docs/tasks/chronicle/first-round/**"
-      - "docs/tasks/chronicle/third-round/**"
-      - "README.md"
-      - "docs/quickstart.md"
-      - "docs/operator-guide.md"
-      - "apps/chronicle/**"
-      - "!apps/loom-validator/**"
+    branches: [main]
   pull_request: {}
 
 permissions:
@@ -58,219 +22,33 @@ jobs:
     name: Classify changes
     runs-on: ubuntu-latest
     outputs:
-      rust: ${{ steps.classify.outputs.rust }}
-      dependency: ${{ steps.classify.outputs.dependency }}
-      ledger: ${{ steps.classify.outputs.ledger }}
-      deployment: ${{ steps.classify.outputs.deployment }}
-      documentation: ${{ steps.classify.outputs.documentation }}
-      chronicle: ${{ steps.classify.outputs.chronicle }}
-      chronicle_python: ${{ steps.classify.outputs.chronicle_python }}
-      chronicle_rust: ${{ steps.classify.outputs.chronicle_rust }}
-      chronicle_web: ${{ steps.classify.outputs.chronicle_web }}
-      chronicle_deployment: ${{ steps.classify.outputs.chronicle_deployment }}
-      chronicle_corpus: ${{ steps.classify.outputs.chronicle_corpus }}
-      chronicle_contract: ${{ steps.classify.outputs.chronicle_contract }}
-      chronicle_first_round: ${{ steps.classify.outputs.chronicle_first_round }}
-      first_round_notes: ${{ steps.classify.outputs.first_round_notes }}
-      chronicle_third_round: ${{ steps.classify.outputs.chronicle_third_round }}
-      third_round_notes: ${{ steps.classify.outputs.third_round_notes }}
-
+      plan: ${{ steps.classify.outputs.plan }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Classify changed paths
+      - name: Classify affected contracts
         id: classify
-        shell: bash
-        run: |
-          set -euo pipefail
+        run: python3 tools/ci_routing.py classify --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
-          rust=false
-          dependency=false
-          ledger=false
-          deployment=false
-          documentation=false
-          chronicle=false
-          chronicle_python=false
-          chronicle_rust=false
-          chronicle_web=false
-          chronicle_deployment=false
-          chronicle_corpus=false
-          chronicle_contract=false
-          chronicle_first_round=false
-          first_round_notes=""
-          chronicle_third_round=false
-          third_round_notes=""
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            rust=true
-            dependency=true
-            ledger=true
-            deployment=true
-            documentation=true
-            chronicle=true
-            chronicle_python=true
-            chronicle_rust=true
-            chronicle_web=true
-            chronicle_deployment=true
-            chronicle_corpus=true
-            chronicle_contract=true
-            chronicle_first_round=true
-            chronicle_third_round=true
-          else
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              base="${{ github.event.pull_request.base.sha }}"
-              head="${{ github.event.pull_request.head.sha }}"
-            else
-              base="${{ github.event.before }}"
-              head="${{ github.sha }}"
-              if [[ "$base" =~ ^0+$ ]]; then
-                base="${head}^"
-              fi
-            fi
-
-            echo "Classifying changes from $base to $head"
-            git diff --name-only "$base" "$head" > /tmp/loom-ci-changed-files
-            cat /tmp/loom-ci-changed-files
-
-            while IFS= read -r path; do
-              [[ -n "$path" ]] || continue
-
-              case "$path" in
-                .github/workflows/ci.yml|.github/CODEOWNERS)
-                  rust=true
-                  dependency=true
-                  ledger=true
-                  deployment=true
-                  documentation=true
-                  chronicle=true
-                  chronicle_python=true
-                  chronicle_rust=true
-                  chronicle_web=true
-                  chronicle_deployment=true
-                  ;;
-              esac
-
-              case "$path" in
-                Cargo.lock)
-                  dependency=true
-                  rust=true
-                  ;;
-                Cargo.toml|*/Cargo.toml|deny.toml)
-                  dependency=true
-                  rust=true
-                  ;;
-              esac
-
-              case "$path" in
-                docs/tasks/scheduler-discovery/*|docs/tasks/ci-governance/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
-                  ledger=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/loom-validator/*)
-                  ;;
-                *.rs|capabilities/*|tests/*|rust-toolchain.toml|rustfmt.toml|tools/check_architecture.py|tools/check_storage_sql_ownership.py|crates/loom-storage/*)
-                  rust=true
-                  ;;
-              esac
-
-              case "$path" in
-                compose.yaml|Dockerfile|.dockerignore|.env.example|docker/*)
-                  deployment=true
-                  ;;
-              esac
-
-              case "$path" in
-                README.md|docs/quickstart.md|docs/operator-guide.md)
-                  documentation=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/*|compose.chronicle.yaml|.env.chronicle.example)
-                  chronicle=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/persistence/*|apps/chronicle/read_api/*|apps/chronicle/worker/*|apps/chronicle/ingestion/*|apps/chronicle/acceptance/*)
-                  chronicle_python=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/control_plane/*|apps/chronicle/server/*)
-                  chronicle_rust=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/web/*|apps/chronicle/webapp/*)
-                  chronicle_web=true
-                  ;;
-              esac
-
-              case "$path" in
-                compose.chronicle.yaml|.env.chronicle.example|apps/chronicle/Dockerfile)
-                  chronicle_deployment=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/corpus/*)
-                  chronicle_corpus=true
-                  ;;
-              esac
-
-              case "$path" in
-                apps/chronicle/persistence/chronicle_persist.py|apps/chronicle/persistence/test_migrate_only_unit.py|apps/chronicle/persistence/migrations/*|apps/chronicle/ingestion/schemas/*|apps/chronicle/persistence/chapter_contract.py)
-                  chronicle_contract=true
-                  ;;
-              esac
-
-              case "$path" in
-                docs/tasks/chronicle/first-round/*.md)
-                  chronicle_first_round=true
-                  first_round_notes="${first_round_notes} ${path}"
-                  ;;
-              esac
-
-              case "$path" in
-                docs/tasks/chronicle/third-round/*.md)
-                  chronicle_third_round=true
-                  third_round_notes="${third_round_notes} ${path}"
-                  ;;
-              esac
-            done < /tmp/loom-ci-changed-files
-          fi
-
-          {
-            echo "rust=$rust"
-            echo "dependency=$dependency"
-            echo "ledger=$ledger"
-            echo "deployment=$deployment"
-            echo "documentation=$documentation"
-            echo "chronicle=$chronicle"
-            echo "chronicle_python=$chronicle_python"
-            echo "chronicle_rust=$chronicle_rust"
-            echo "chronicle_web=$chronicle_web"
-            echo "chronicle_deployment=$chronicle_deployment"
-            echo "chronicle_corpus=$chronicle_corpus"
-            echo "chronicle_contract=$chronicle_contract"
-            echo "chronicle_first_round=$chronicle_first_round"
-            echo "first_round_notes=$first_round_notes"
-            echo "chronicle_third_round=$chronicle_third_round"
-            echo "third_round_notes=$third_round_notes"
-          } >> "$GITHUB_OUTPUT"
+  routing-tests:
+    name: CI routing and workflow contracts
+    needs: changes
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: python3 -m pip install -r tools/requirements-ci.txt
+      - run: python3 -m unittest discover -s tools -p 'test_ci_routing.py' -v
 
   documentation:
-    name: Active deployment documentation
+    name: Documentation and operational examples
     needs: changes
-    if: needs.changes.outputs.documentation == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['documentation']
     runs-on: ubuntu-latest
 
     steps:
@@ -278,6 +56,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate active deployment guidance
+        if: fromJSON(needs.changes.outputs.plan).steps.active_docs
         shell: bash
         run: |
           set -euo pipefail
@@ -295,16 +74,22 @@ jobs:
           grep -Eq 'LOOM_WORKER_POLL_MS' docs/quickstart.md docs/operator-guide.md
 
       - name: Validate Compose configuration and scheduler limit wiring
+        if: fromJSON(needs.changes.outputs.plan).steps.active_docs
         shell: bash
         run: |
           set -euo pipefail
           docker compose -f compose.yaml config --quiet
           docker compose -f compose.yaml config | grep -Fq 'LOOM_WORKER_SCHEDULER_POLL_LIMIT'
 
+      - name: Check changed documentation links
+        env:
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+        run: python3 tools/ci_routing.py docs
+
   ledger:
     name: Task ledger governance
     needs: changes
-    if: needs.changes.outputs.ledger == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['ledger']
     runs-on: ubuntu-latest
 
     steps:
@@ -323,7 +108,7 @@ jobs:
   dependency-policy:
     name: Dependency and security policy
     needs: changes
-    if: needs.changes.outputs.dependency == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['dependency-policy']
     runs-on: ubuntu-latest
 
     steps:
@@ -351,7 +136,7 @@ jobs:
   rust:
     name: Rust static checks
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['rust']
     runs-on: ubuntu-latest
 
     steps:
@@ -392,7 +177,7 @@ jobs:
   deployment:
     name: Loom Compose config
     needs: changes
-    if: needs.changes.outputs.deployment == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['deployment']
     runs-on: ubuntu-latest
 
     steps:
@@ -405,7 +190,7 @@ jobs:
   chronicle-static:
     name: Chronicle static checks
     needs: changes
-    if: needs.changes.outputs.chronicle == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-static']
     runs-on: ubuntu-latest
 
     steps:
@@ -413,7 +198,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Python syntax
-        if: needs.changes.outputs.chronicle_python == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_python
         run: |
           python3 -m compileall -q \
             apps/chronicle/persistence \
@@ -423,13 +208,13 @@ jobs:
             apps/chronicle/acceptance
 
       - name: Ingestion prototype unit tests
-        if: needs.changes.outputs.chronicle_python == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_python
         run: |
           python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_v0.py' -v
           python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_publication_v0.py' -v
 
       - name: Chapter generation, correction and provider regressions
-        if: needs.changes.outputs.chronicle_python == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_python
         run: |
           python3 -m pip install -r apps/chronicle/persistence/requirements.txt -r apps/chronicle/worker/requirements.txt
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*extraction_unit.py' -v
@@ -441,13 +226,13 @@ jobs:
           python3 -m unittest discover -s apps/chronicle/worker -p '*_unit.py' -v
 
       - name: Install Chronicle Rust toolchain
-        if: needs.changes.outputs.chronicle_rust == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_rust
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt
           rustup default "$RUST_VERSION"
 
       - name: Chronicle Rust format and static analysis
-        if: needs.changes.outputs.chronicle_rust == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_rust
         run: |
           set -euo pipefail
           for manifest in \
@@ -459,7 +244,7 @@ jobs:
           done
 
       - name: Set up Node
-        if: needs.changes.outputs.chronicle_web == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_web
         uses: actions/setup-node@v6
         with:
           node-version: "22"
@@ -467,7 +252,7 @@ jobs:
           cache-dependency-path: apps/chronicle/webapp/package-lock.json
 
       - name: Chronicle web build
-        if: needs.changes.outputs.chronicle_web == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_web
         run: |
           set -euo pipefail
           cd apps/chronicle/webapp
@@ -478,7 +263,7 @@ jobs:
           test -z "$(git status --porcelain -- apps/chronicle/web/dist)"
 
       - name: Chronicle Compose model
-        if: needs.changes.outputs.chronicle_deployment == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_deployment
         run: |
           docker compose \
             --env-file .env.chronicle.example \
@@ -488,7 +273,7 @@ jobs:
   chronicle-first-round:
     name: Chronicle first-round checks
     needs: changes
-    if: needs.changes.outputs.chronicle_corpus == 'true' || needs.changes.outputs.chronicle_contract == 'true' || needs.changes.outputs.chronicle_first_round == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-first-round']
     runs-on: ubuntu-latest
 
     steps:
@@ -496,60 +281,31 @@ jobs:
         uses: actions/checkout@v7
 
       - name: First-round acceptance corpus tests
-        if: needs.changes.outputs.chronicle_corpus == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_corpus
         run: |
           python3 -m unittest discover -s apps/chronicle/corpus -p 'test_first_round_pack.py' -v
           python3 -m unittest discover -s apps/chronicle/corpus -p 'test_source_pack_unit.py' -v
 
       - name: Install persistence test dependencies
-        if: needs.changes.outputs.chronicle_contract == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_contract
         run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
 
       - name: Migration-only and chapter contract tests
-        if: needs.changes.outputs.chronicle_contract == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_contract
         run: |
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_migrate_only_unit.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v
 
       - name: First-round note front-matter check
-        if: needs.changes.outputs.chronicle_first_round == 'true'
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_first_round
         env:
-          FIRST_ROUND_NOTES: ${{ needs.changes.outputs.first_round_notes }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Ledger-only changes must trigger a real scoped check without
-          # pulling the Rust/Postgres matrix: every touched first-round note
-          # keeps machine-readable task/issue/kind front matter whose task
-          # key matches the Txx filename.
-          for note in $FIRST_ROUND_NOTES; do
-            [[ "$note" == docs/tasks/chronicle/first-round/*.md ]] || continue
-            python3 - "$note" <<'EOF'
-          import re
-          import sys
-          from pathlib import Path
-          note = Path(sys.argv[1])
-          text = note.read_text(encoding="utf-8")
-          match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
-          if not match:
-              sys.exit(f"{note}: missing YAML front matter")
-          front = match.group(1)
-          for key in ("task: ", "issue: ", "kind: "):
-              if key not in front:
-                  sys.exit(f"{note}: front matter missing {key.strip()}")
-          task = re.search(r"^task:\s*(\S+)", front, re.MULTILINE).group(1)
-          if note.stem.startswith("T"):
-              expected = "C2-R1-" + note.stem.split("-", 1)[0]
-              if task != expected:
-                  sys.exit(f"{note}: task {task} does not match filename ({expected})")
-          print(f"{note}: front matter OK ({task})")
-          EOF
-          done
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+        run: python3 tools/ci_routing.py notes --round first
 
   chronicle-third-round:
     name: Chronicle third-round note and deliverable checks
     needs: changes
-    if: needs.changes.outputs.chronicle_third_round == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-third-round']
     runs-on: ubuntu-latest
 
     steps:
@@ -557,84 +313,41 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Third-round note front-matter check
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_third_round
         env:
-          THIRD_ROUND_NOTES: ${{ needs.changes.outputs.third_round_notes }}
-        shell: bash
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+        run: python3 tools/ci_routing.py notes --round third
+      - name: Third-round acceptance deliverables
         run: |
-          set -euo pipefail
-          # Every touched third-round note keeps machine-readable
-          # task/issue/kind front matter whose task key matches the Txx
-          # filename, and the automated-gate deliverables stay present.
-          for note in $THIRD_ROUND_NOTES; do
-            [[ "$note" == docs/tasks/chronicle/third-round/*.md ]] || continue
-            python3 - "$note" <<'EOF'
-          import re
-          import sys
-          from pathlib import Path
-          note = Path(sys.argv[1])
-          text = note.read_text(encoding="utf-8")
-          match = re.match(r"\A---\n(.*?)\n---\n", text, re.DOTALL)
-          if not match:
-              sys.exit(f"{note}: missing YAML front matter")
-          front = match.group(1)
-          for key in ("task: ", "issue: ", "kind: "):
-              if key not in front:
-                  sys.exit(f"{note}: front matter missing {key.strip()}")
-          task = re.search(r"^task:\s*(\S+)", front, re.MULTILINE).group(1)
-          if note.stem.startswith("T"):
-              expected = "C2-R3-" + note.stem.split("-", 1)[0]
-              if task != expected:
-                  sys.exit(f"{note}: task {task} does not match filename ({expected})")
-          print(f"{note}: front matter OK ({task})")
-          EOF
-          done
           for deliverable in \
             apps/chronicle/acceptance/third_round_gate.py \
             apps/chronicle/acceptance/test_third_round_gate.py \
             apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs \
             apps/chronicle/docs/person-state-acceptance.md; do
-            [[ -f "$deliverable" ]] || { echo "missing third-round deliverable: $deliverable" >&2; exit 1; }
+            test -f "$deliverable"
           done
+
+  chronicle:
+    name: Chronicle contract checks
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs.chronicle
+    uses: ./.github/workflows/chronicle.yml
+    with:
+      plan: ${{ needs.changes.outputs.plan }}
 
   repository-gate:
     name: Repository Gate
     if: always()
-    needs: [changes, documentation, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round, chronicle-third-round]
+    needs: [changes, routing-tests, documentation, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round, chronicle-third-round, chronicle]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Require successful applicable checks
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Require every selected check to succeed
         env:
-          CHANGES: ${{ needs.changes.result }}
-          DOCUMENTATION: ${{ needs.documentation.result }}
-          LEDGER: ${{ needs.ledger.result }}
-          DEPENDENCY_POLICY: ${{ needs.dependency-policy.result }}
-          RUST: ${{ needs.rust.result }}
-          DEPLOYMENT: ${{ needs.deployment.result }}
-          CHRONICLE_STATIC: ${{ needs.chronicle-static.result }}
-          CHRONICLE_FIRST_ROUND: ${{ needs.chronicle-first-round.result }}
-          CHRONICLE_THIRD_ROUND: ${{ needs.chronicle-third-round.result }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for result in \
-            "$CHANGES" \
-            "$DOCUMENTATION" \
-            "$LEDGER" \
-            "$DEPENDENCY_POLICY" \
-            "$RUST" \
-            "$DEPLOYMENT" \
-            "$CHRONICLE_STATIC" \
-            "$CHRONICLE_FIRST_ROUND" \
-            "$CHRONICLE_THIRD_ROUND"; do
-            case "$result" in
-              success|skipped) ;;
-              *)
-                echo "Required repository check ended with: $result" >&2
-                exit 1
-                ;;
-            esac
-          done
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_routing.py gate --group repository
 
   multica-wakeup:
     name: Notify Multica of CI failure

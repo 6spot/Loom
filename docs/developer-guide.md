@@ -122,7 +122,9 @@ Important focused procedures include:
 
 Choose verification based on the changed contract. A documentation-only edit should not automatically require every Rust/PostgreSQL lane, while Storage/SQL changes require PostgreSQL-aware verification.
 
-The repository CI workflow remains the current source for CI path routing.
+The shared classifier in `tools/ci_routing.py` owns CI path selection; workflows
+execute its plan. Follow [`development/ci.md`](development/ci.md) when changing
+routing, workflow dependencies or merge checks.
 
 Multica failure notifications are opt-in. Include a standalone
 `Multica-Issue: ME-123` line in the PR body before triggering PR CI. The shared

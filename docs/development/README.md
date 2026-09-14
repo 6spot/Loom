@@ -13,6 +13,7 @@ Use this index for the task categories defined in [`../../AGENTS.md`](../../AGEN
 | Change core contracts or Cargo dependency edges | [`../developer-guide.md`](../developer-guide.md) — architecture lookup, Amendment gate and dependency governance. |
 | Assess measured capacity or a performance claim | [`../capacity-envelope.md`](../capacity-envelope.md) — measured V0 capacity and unproven/deferred limits. |
 | Deliver an authorized repository change | [`task-completion.md`](task-completion.md) — verification, review, required checks and PR merge. |
+| Change CI path selection, job wiring or merge checks | [`ci.md`](ci.md) — shared classifier, functional routing and fail-closed gates. |
 | Run PostgreSQL-backed tests | [`postgres-tests.md`](postgres-tests.md) — PostgreSQL 18 + pgvector environment and commands. |
 | Change or verify runtime worker/executor behavior | [`runtime-worker.md`](runtime-worker.md) — topology and deterministic stress/restart checks. |
 
