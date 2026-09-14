@@ -8,11 +8,7 @@ from __future__ import annotations
 
 import copy
 import json
-import time
 import uuid
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
-from threading import Event
 
 import psycopg
 
@@ -23,8 +19,8 @@ import chapter_production_store as store
 import control_plane
 import staged_chapter_contract as contract
 import person_state_contract
+import step_runner
 from common import LeaseLost, PersistenceConflict, PersistenceError, sha256_json
-from model_provider import ModelProviderError
 from resolve_publish import require_unexpired_lease
 
 
@@ -94,33 +90,6 @@ class Runner:
             self.on_event(event, {"chapter_id": self.request["chapter_id"],
                                  "chunk_id": str(self.chunk_id), **values})
 
-    def _invoke(self, step, slot, prompt, cancelled):
-        model = self.models.model_for(step, slot)
-        started = time.monotonic()
-        try:
-            if cancelled.is_set():
-                raise ModelProviderError("model attempt cancelled before dispatch")
-            observed = getattr(model, "complete_with_receipt", None)
-            if callable(observed):
-                raw, receipt = observed(prompt, cancelled=cancelled.is_set)
-            else:  # Explicit in-process test injection, never an env fallback.
-                raw = model.complete(prompt)
-                receipt = {"status": "completed", "model": model.name, "usage": None,
-                           "elapsed_seconds": round(time.monotonic() - started, 3),
-                           "http_attempts": None, "injected_provider": True}
-            if not isinstance(raw, str):
-                return "", None, ["model returned a non-text value"], receipt, "invalid", None
-            if len(raw) > self.limits.max_response_chars:
-                return raw, None, ["model text exceeds response character limit"], receipt, "invalid", None
-            parsed, errors = protocol.parse_step(step, raw)
-            return raw, parsed, errors, receipt, "invalid" if errors else "completed", None
-        except ModelProviderError as exc:
-            return exc.raw_text, None, [], exc.receipt, "failed", str(exc)
-        except Exception as exc:
-            # Custom provider exceptions may embed a key or request. Only a
-            # safe class name is exposed; no exception repr enters Studio.
-            return "", None, [], {"usage": None, "elapsed_seconds": round(time.monotonic() - started, 3)}, "failed", f"model adapter failed ({type(exc).__name__})"
-
     def _semantic_errors(self, step, parsed, data):
         if step == "extraction":
             return (chapter_contract.chapter_extraction_errors(self.request, parsed)
@@ -164,86 +133,64 @@ class Runner:
             return errors
         return []
 
+    def _begin_step_attempt(self, **values):
+        with psycopg.connect(self.database_url) as conn:
+            return store.begin_attempt(
+                conn,
+                **self._write_args(),
+                plan=self.plan,
+                **values,
+            )
+
+    def _finish_step_attempt(self, **values):
+        with psycopg.connect(self.database_url) as conn:
+            return store.finish_attempt(conn, **self._write_args(), **values)
+
     def _execute(self, specs):
-        """All independent calls share one bounded pool; commits stay serial."""
+        """Run a chapter phase through the shared durable step scheduler."""
         self._heartbeat()
-        results = {}
-        pending = {}
-        ready = deque()
-        cancelled = Event()
-        started_at = time.monotonic()
-        for step, data, round in specs:
-            prompt = protocol.build_prompt(step, self.request, data, max_chars=self.limits.max_prompt_chars)
-            ready.extend((step, data, round, prompt, slot) for slot in self.models.steps[step])
-        pool = ThreadPoolExecutor(max_workers=self.models.max_parallel)
+        phase_specs = [
+            step_runner.StepSpec(step=step, data=data, round=round, dependencies=())
+            for step, data, round in specs
+        ]
+        runner = step_runner.StepRunner(
+            definitions=protocol.STEP_DEFINITIONS,
+            model_slots=lambda step: self.models.steps[step],
+            model_for=self.models.model_for,
+            model_config=self.models.config_for,
+            build_prompt=lambda step, data: protocol.build_prompt(
+                step, self.request, data, max_chars=self.limits.max_prompt_chars
+            ),
+            parse=protocol.parse_step,
+            semantic_errors=self._semantic_errors,
+            begin_attempt=self._begin_step_attempt,
+            finish_attempt=self._finish_step_attempt,
+            retry_prompt=lambda prompt, previous: protocol.retry_prompt(
+                prompt, previous, max_chars=self.limits.max_prompt_chars
+            ),
+            heartbeat=self._heartbeat,
+            max_parallel=self.models.max_parallel,
+            max_attempts=self.models.max_step_attempts,
+            max_response_chars=self.limits.max_response_chars,
+            wait_timeout_seconds=max(0.1, min(15, self.lease_seconds / 3)),
+            preparation_exceptions=(
+                store.StepBudgetExhausted,
+                protocol.RetryPromptLimitExceeded,
+            ),
+            on_event=lambda event, values: self._emit(event, **values),
+            event_prefix="chapter_step",
+        )
         try:
-            while ready or pending:
-                # Reserve attempts only when a worker is available. Pending
-                # calls never include an unbounded executor queue, so stopping
-                # a job cannot start fresh remote work while __exit__ waits.
-                while ready and len(pending) < self.models.max_parallel:
-                    self._heartbeat()
-                    step, data, round, prompt, slot = ready.popleft()
-                    identity = (step, slot)
-                    try:
-                        with psycopg.connect(self.database_url) as conn:
-                            record, reused = store.begin_attempt(conn, **self._write_args(), plan=self.plan,
-                                step=step, round=round, slot=slot, data=data, prompt=prompt,
-                                model_config=self.models.config_for(step, slot), max_attempts=self.models.max_step_attempts)
-                    except (store.StepBudgetExhausted, protocol.RetryPromptLimitExceeded) as exc:
-                        # Other completed independent results still get saved.
-                        results[identity] = {"status": "failed", "step": step, "slot": slot,
-                                             "error": str(exc), "validation_errors": [],
-                                             "preparation_error": str(exc)}
-                        continue
-                    if reused:
-                        results[identity] = record
-                        self._emit("chapter_step_reused", step=step, model=record["model"])
-                    else:
-                        self._emit("chapter_step_started", step=step, model=record["model"], attempt=record["attempt"])
-                        pending[pool.submit(self._invoke, step, slot, record["prompt"], cancelled)] = (record, data, prompt)
-                if not pending:
-                    continue
-                finished, _ = wait(pending, timeout=max(0.1, min(15, self.lease_seconds / 3)), return_when=FIRST_COMPLETED)
-                self._heartbeat()
-                for future in finished:
-                    attempt, data, base_prompt = pending.pop(future)
-                    raw, parsed, errors, receipt, status, error = future.result()
-                    if status == "completed":
-                        errors += self._semantic_errors(attempt["step"], parsed, data)
-                        if errors:
-                            status = "invalid"
-                    with psycopg.connect(self.database_url) as conn:
-                        record = store.finish_attempt(conn, **self._write_args(), attempt=attempt,
-                            raw_text=raw, parsed=parsed, validation_errors=errors, receipt=receipt,
-                            status=status, error=error)
-                    results[(attempt["step"], attempt["slot"])] = record
-                    self._emit("chapter_step_saved", step=attempt["step"], model=attempt["model"], status=status)
-                    if (status == "invalid" and attempt["step"] in protocol.FORMAT_RETRY_STEPS
-                            and attempt["attempt"] < self.models.max_step_attempts):
-                        # The same logical node consumes its next attempt;
-                        # the store attaches this saved result/diagnostics.
-                        # Successful parallel slots and other steps stay saved.
-                        ready.appendleft((attempt["step"], data, attempt["round"], base_prompt, attempt["slot"]))
-                if not finished:
-                    self._emit("chapter_step_waiting", elapsed_seconds=int(time.monotonic() - started_at),
-                               pending_steps=sorted({record["step"] for record, _data, _prompt in pending.values()}))
-        except BaseException:
-            cancelled.set()
-            for future in pending:
-                future.cancel()
-            pool.shutdown(wait=False, cancel_futures=True)
-            raise
-        else:
-            pool.shutdown(wait=True)
-        preparation_errors = [f"{step}/{slot}: {results[(step, slot)]['preparation_error']}"
-                              for step, slot in sorted(results)
-                              if results[(step, slot)].get("preparation_error")]
-        if preparation_errors:
-            # Drain and save independent completions before reporting a local
-            # budget/context failure, for every step including review/repair.
-            raise PipelineFailure('; '.join(preparation_errors) + "; saved earlier steps will be reused")
-        return {step: [results[(step, slot)] for slot in self.models.steps[step]] for step, _data, _round in specs}
+            return runner.execute(phase_specs)
+        except protocol.PromptLimitExceeded:
+            # Review/repair use the existing content gate for a complete
+            # candidate whose full context does not fit. Generation phases
+            # still fail the chapter job because no complete candidate exists.
+            if any(spec.step in ("review", "repair") for spec in phase_specs):
+                raise
+            raise PipelineFailure("complete-context prompt limit; saved earlier steps will be reused")
+        except step_runner.StepRunnerFailure as exc:
+            raise PipelineFailure(str(exc)) from exc
 
     def _group(self, step, data, round):
         return self._execute([(step, data, round)])[step]

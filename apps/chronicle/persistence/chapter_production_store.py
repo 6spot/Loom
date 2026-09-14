@@ -6,13 +6,14 @@ immutable output payloads; the ordinary chunk checkpoint is only a pointer.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 import control_plane
 import chapter_contract
 import chapter_production
 from common import PersistenceConflict, PersistenceError, sha256_json
 from resolve_publish import require_unexpired_lease
+from step_runner import StepInput
 
 PLAN_TYPE = "chapter-production-plan"
 ATTEMPT_TYPE = "chapter-production-attempt"
@@ -110,13 +111,21 @@ def freeze_pipeline(conn, *, job_id, chunk_id, worker, request, config) -> dict:
 
 def node_key(plan: dict, *, step: str, round: int, slot: str, data: dict,
              prompt: str, model_config: dict) -> str:
-    return sha256_json({"pipeline_fingerprint": plan["pipeline_fingerprint"],
-                       "step": step, "round": round, "slot": slot,
-                       "data": data, "prompt": prompt, "model_config": model_config})
+    return StepInput(
+        pipeline_fingerprint=plan["pipeline_fingerprint"],
+        step=step,
+        round=round,
+        slot=slot,
+        data=data,
+        prompt=prompt,
+        model_config=model_config,
+    ).fingerprint()
 
 
 def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
-                  data, prompt, model_config, max_attempts) -> tuple[dict, bool]:
+                  data, prompt, model_config, max_attempts,
+                  retryable: bool | None = None,
+                  retry_prompt: Callable[[str, dict[str, Any]], str] | None = None) -> tuple[dict, bool]:
     """Return a saved complete result or reserve exactly one finite attempt.
 
     A crash before saving a response consumes an attempt, since whether the
@@ -135,7 +144,11 @@ def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
             return completed[0], True
         invalid = [row for row in results if row["status"] == "invalid"]
         previous = max(invalid, key=lambda row: row["attempt"]) if invalid else None
-        if previous is not None and step not in chapter_production.FORMAT_RETRY_STEPS:
+        if retryable is None:
+            definition = chapter_production.STEP_DEFINITIONS.get(step)
+            retryable = (definition.retryable if definition is not None
+                         else step in chapter_production.FORMAT_RETRY_STEPS)
+        if previous is not None and not retryable:
             # Reuse the malformed opinion for the existing human gate even
             # if a later sibling failed or the attempt budget is exhausted.
             # A new model response must not erase an unresolved objection.
@@ -148,8 +161,11 @@ def begin_attempt(conn, *, job_id, chunk_id, worker, plan, step, round, slot,
         # its exact feedback on resume without spending a fresh node budget.
         actual_prompt = prompt
         if previous is not None:
-            actual_prompt = chapter_production.retry_prompt(
-                prompt, previous, max_chars=plan["request"]["limits"]["max_prompt_chars"])
+            if retry_prompt is None:
+                actual_prompt = chapter_production.retry_prompt(
+                    prompt, previous, max_chars=plan["request"]["limits"]["max_prompt_chars"])
+            else:
+                actual_prompt = retry_prompt(prompt, previous)
         return append_output(conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
             artifact_type=ATTEMPT_TYPE, payload={
                 "schema": "chronicle.chapter-step-attempt", "version": "0.1",

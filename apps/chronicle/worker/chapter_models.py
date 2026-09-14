@@ -42,6 +42,13 @@ class ChapterModels:
     def public_config(self) -> dict:
         return {"version": protocol.VERSION, "models": copy.deepcopy(self.profiles),
                 "steps": {key: list(value) for key, value in self.steps.items()},
+                "step_definitions": {
+                    key: {
+                        "dependencies": list(definition.dependencies),
+                        "retryable": definition.retryable,
+                    }
+                    for key, definition in protocol.STEP_DEFINITIONS.items()
+                },
                 "max_parallel": self.max_parallel, "max_step_attempts": self.max_step_attempts,
                 "max_repair_rounds": self.max_repair_rounds,
                 "format_retry_steps": list(protocol.FORMAT_RETRY_STEPS),

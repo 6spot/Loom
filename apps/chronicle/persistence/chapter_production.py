@@ -16,14 +16,26 @@ from jsonschema import Draft202012Validator
 import chapter_contract
 import person_state_contract
 from common import PersistenceError, sha256_json
+from step_runner import StepDefinition
 
 VERSION = "chapter-production/0.2"
 STEPS = ("translation", "extraction", "comparison", "linking", "review", "repair")
+# The graph is data, not scheduler code.  ``staged_chapter`` may execute a
+# selected phase with already assembled inputs by passing an explicit empty
+# dependency tuple; a full reusable runner can use these barriers directly.
+STEP_DEFINITIONS = {
+    "translation": StepDefinition("translation"),
+    "extraction": StepDefinition("extraction"),
+    "comparison": StepDefinition("comparison", retryable=False),
+    "linking": StepDefinition("linking", dependencies=("translation", "extraction")),
+    "review": StepDefinition("review", dependencies=("linking",), retryable=False),
+    "repair": StepDefinition("repair", dependencies=("review",)),
+}
 # A malformed opinion may already contain a substantive objection. Letting a
 # later format retry replace it could erase that objection without a decision.
 # Those two steps use the existing human gate instead; generation/patching
 # still has its own bounded format correction followed by content review.
-FORMAT_RETRY_STEPS = ("translation", "extraction", "linking", "repair")
+FORMAT_RETRY_STEPS = tuple(step for step in STEPS if STEP_DEFINITIONS[step].retryable)
 MAX_PATCHES = 128
 
 
