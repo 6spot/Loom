@@ -24,6 +24,9 @@
   调用。T01–T03 迁移有效定义和回归后删除旧顶层协议与旧运行分支。
 - `/world`、`/timeline`、`/events/{id}` 仍有真实导航调用。T18 在新人物/全局阅读
   接好后统一退役及改链，不能留下死链接。
+- R2/R3 浏览器 gate 仍使用冻结的联合模型；它们通过显式的
+  `acceptance/fixture_worker.py` 测试适配调用共享 worker 库，只允许本地固定
+  fixture 配置。正式生产不接受这些模型；T01 迁移当前夹具后删除该适配。
 - 多史料核对史实不替代身份同一性核对；0007 的人工决定/负约束保留。
 - 背景技能和离线图库是可用工具，缺的是产品上传、保存关联与阅读渲染。
 - `chronicle_persist.py`、migrations 等是命令/启动入口，不能仅按 import 判死。
@@ -38,7 +41,7 @@
 - Python：723 项 persistence 单元、157 项 worker 单元、44 项离线工具测试、3 项 sidecar HTTP 边界测试通过。
 - PostgreSQL：24 项 staged chapter、3 项 resolve/publish、7 项身份冲突、2 项 published corpus 边界测试通过。
 - Rust：测试服务器隔离目录、Rust 1.97.1，62 项 server 测试及 fmt/clippy 全部通过。首次运行发现并更新了一条仍期待旧章节别名成功的测试；修正后完整 server suite 通过。
-- 文档/CI：39 份变更文档链接、20 个叶任务依赖图及 Issue 对应、`git diff --check HEAD` 通过；CI 路由 45 项测试和 actionlint 通过；Compose 含 worker profile 的配置校验通过。
+- 文档/CI：41 份变更文档链接、20 个叶任务依赖图及 Issue 对应、diff 格式检查通过；CI 路由 45 项测试和 actionlint 通过；Compose 含 worker profile 及隔离 fixture 覆盖的配置校验通过。修复浏览器接线后，R2/R3 gate 单元测试分别 31/19 项通过。
 <!-- verification:end -->
 
 可复验命令及环境：
@@ -48,6 +51,11 @@
 - 测试服务器隔离目录 `/root/loom-verification/chronicle-cleanup-20260914` 使用 PostgreSQL 18 子库，运行 staged chapter、resolve/publish、身份冲突和 published corpus 测试；未使用部署库。
 - 同一隔离目录使用 Rust 1.97.1 执行 server manifest 的 `cargo test`、`cargo fmt --check` 和 `cargo clippy --all-targets -- -D warnings`，使用工作区默认 target。
 - `python -m unittest discover -s tools -p 'test_ci_routing.py' -v`、actionlint 及 `tools/ci_routing.py` 的变更文档检查；Compose 以本次 example env 执行 `docker compose --profile worker config --quiet`。
+
+首次 CI 暴露了浏览器 gate 仍从生产 CLI 启动旧 fixture 的接线遗漏，导致 worker
+拒绝启动、gate 等待任务。已取消该候选的 CI，改为上述显式测试适配；新增回归
+同时证明 fixture 调用共享库且正式生产仍拒绝同一配置，完整浏览器结果由修复后
+PR required checks 给出，不把被取消的运行写成通过。
 
 算法迁移还对比了改名前后的 AST：除异常类去除 prototype 依赖、模型 prompt/调用
 移回离线模块外，正式候选与 catalog 算法的函数定义未改变。最终 diff 已自审；

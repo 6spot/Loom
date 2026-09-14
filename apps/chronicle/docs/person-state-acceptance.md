@@ -7,6 +7,9 @@
 第一轮见 `chapter-acceptance.md` / `final-acceptance.md`，第二轮见
 `reading-acceptance.md`。T15 的真实内容验收接力在本文 §3。
 
+fixture 模式复用[第二轮说明](reading-acceptance.md)中的隔离测试 worker
+适配与 Compose 覆盖，只使用本地冻结模型。正式生产入口不接受这类模型。
+
 ## 入口
 
 - `apps/chronicle/acceptance/third_round_gate.py`：统一薄入口，`--mode fixture|live`。
