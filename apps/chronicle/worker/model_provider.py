@@ -49,8 +49,8 @@ except ImportError:  # pragma: no cover - package import path
     )
     from .presentation_model_schema import presentation_text_format
 
-#: Frozen joint-provider generation (new live chapter work uses staged 0.4
-#: through chapter_models, never this whole-candidate provider).
+#: Frozen joint-provider generation retained for the C1 branch until T03.
+#: Current production uses the staged ChapterModels entry instead.
 PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.3"
 
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0

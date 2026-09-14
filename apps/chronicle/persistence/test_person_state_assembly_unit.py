@@ -1,7 +1,7 @@
 """Unit tests for Chronicle C2-R3-T03 person-state evidence assembly.
 
-Covers the third-round assembly contract from ``person-state-reading.md``
-sections 3-4: the accepted 0.3 ``person_states`` block of every chapter is
+    Covers the third-round assembly contract from ``person-state-reading.md``
+    sections 3-4: the accepted 0.4 ``person_states`` block of every chapter is
 lifted into one revision namespace, phase/fact/order/continuity/disagreement
 local IDs get a chapter-bound namespace, entity/event/Claim references reuse
 the same ``(chapter_index, local_ref) -> revision_ref`` map as every other
@@ -25,8 +25,10 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import assembly as A  # noqa: E402
+import chapter_contract as C  # noqa: E402
 import person_state_assembly as PSA  # noqa: E402
 import person_state_contract as PSC  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
 from common import PersistenceError, sha256_json  # noqa: E402
 
 REVISION = "rev-r3-t03"
@@ -119,7 +121,7 @@ def _anchor(chapter_id: str, anchor_id: str) -> dict:
         "first_block_id": "b_001",
         "last_block_id": "b_001",
         "quote": "原文",
-        "quote_sha256": "q" * 64,
+        "quote_sha256": "a" * 64,
         "occurrence": 1,
         "start": 0,
         "end": 2,
@@ -254,16 +256,61 @@ def _artifact(
     person_states: dict,
     candidates: list[dict],
     anchors: list[dict],
-    version: str = "0.3",
+    version: str = "0.4",
 ) -> dict:
+    chapter_index = 1 if chapter_id.endswith("002") else 0
+    text = f"{entity_name}受任。"
     reading = {
-        "units": [{"block_id": "t_001"}],
+        "units": [
+            {
+                "block_id": "t_001",
+                "narrative_time": {
+                    "mode": "unknown",
+                    "event_refs": [],
+                    "from_block_id": None,
+                    "source_selections": [],
+                },
+                "current_event_refs": [],
+                "event_spans": [],
+                "context_entities": [
+                    {
+                        "entity_ref": "ent_001",
+                        "importance": "primary",
+                        "source_selections": [_selection(entity_name)],
+                        "event_roles": [],
+                    }
+                ],
+            }
+        ],
         "warnings": [],
-        "context_entities": [],
+    }
+    source_scope = {
+        "schema": "chronicle.chapter-source-scope",
+        "version": "0.1",
+        "chapter_id": chapter_id,
+        "revision_id": REVISION,
+        "source_sha256": SHA,
+        "normalized_sha256": NORM,
+        "revision_normalized_sha256": NORM,
+        "chapter_content_sha256": NORM,
+        "chapter_start": chapter_index * 10,
+        "chapter_end": (chapter_index + 1) * 10,
+        "offset_unit": "chars-normalized-utf8",
+        "body_block_ids": ["b_001"],
+        "fragments": [
+            {
+                "id": "sf_" + f"{chapter_index:024x}",
+                "block_id": "b_001",
+                "role": "body",
+                "start": chapter_index * 10,
+                "end": (chapter_index + 1) * 10,
+                "text_sha256": NORM,
+            }
+        ],
     }
     candidate = {
         "schema": "chronicle.chapter-candidate",
-        "version": "0.3",
+        "version": "0.4",
         "chapter_id": chapter_id,
         "bundle": {
             "schema_version": "0.1",
@@ -286,6 +333,19 @@ def _artifact(
         "warnings": [],
         "reading": reading,
         "person_states": person_states,
+        "source_scope": source_scope,
+    }
+    candidate_sha256 = sha256_json(candidate)
+    request_fingerprint = sha256_json({"chapter_id": chapter_id, "revision_id": REVISION})
+    receipt = {
+        "schema": "chronicle.chapter-acceptance",
+        "version": "0.1",
+        "status": "accepted",
+        "request_fingerprint": request_fingerprint,
+        "candidate_sha256": candidate_sha256,
+        "history_sha256": "c" * 64,
+        "step_output_sha256s": ["d" * 64],
+        "decision": {"kind": "human"},
     }
     core = {
         "schema": "chronicle.chapter-artifact",
@@ -295,25 +355,28 @@ def _artifact(
         "source_sha256": SHA,
         "normalized_sha256": NORM,
         "candidate": candidate,
-        "candidate_sha256": sha256_json(candidate),
+        "candidate_sha256": candidate_sha256,
         "anchors": anchors,
-        "request_fingerprint": f"fp-{chapter_id}",
+        "request_fingerprint": request_fingerprint,
         "producing_run": {
             "run_id": f"run-{chapter_id}",
             "model": "m",
-            "prompt_schema_version": "0.3",
+            "prompt_schema_version": "0.4",
         },
         "reading": reading,
         "reading_sha256": sha256_json(reading),
         "person_states": person_states,
         "person_states_sha256": sha256_json(person_states),
         "person_state_candidates": candidates,
+        "production_receipt": receipt,
     }
     artifact = dict(core)
     artifact["artifact_sha256"] = sha256_json(core)
     artifact["reading_units"] = [
         _reading_unit("t_001", f"{entity_name}受任。", "ent_001")
     ]
+    for unit in artifact["reading_units"]:
+        unit["artifact_sha256"] = artifact["artifact_sha256"]
     return artifact
 
 
@@ -473,7 +536,7 @@ class PersonStateAssemblyTests(unittest.TestCase):
             two["report"]["person_state"]["person_states_sha256"],
         )
 
-    def test_0_1_and_0_2_paths_leave_state_empty(self) -> None:
+    def test_retired_generations_are_rejected(self) -> None:
         first, _, _ = _two_chapters()
         plain = copy.deepcopy(first)
         plain["version"] = "0.1"
@@ -487,13 +550,10 @@ class PersonStateAssemblyTests(unittest.TestCase):
         plain.pop("person_states_sha256", None)
         plain.pop("person_state_candidates", None)
         plain["candidate_sha256"] = sha256_json(plain["candidate"])
-        result = A.assemble_chapters(
-            accepted_artifacts=[plain], chapter_plan=_plan([plain["chapter_id"]])
-        )
-        self.assertEqual([], result["person_states"]["phases"])
-        self.assertEqual([], result["person_state_evidence"])
-        self.assertEqual("0.1", result["report"]["candidate_version"])
-        self.assertIsNone(result["report"]["person_state"])
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(
+                accepted_artifacts=[plain], chapter_plan=_plan([plain["chapter_id"]])
+            )
 
 
 class PersonStateAssemblyFailureTests(unittest.TestCase):
@@ -693,6 +753,7 @@ class RealFixtureAssemblyTests(unittest.TestCase):
     """Mechanism evidence on the T01 accepted fixture (real product shape)."""
 
     def _fixture_plan(self, artifact: dict) -> dict:
+        scope = artifact["candidate"]["source_scope"]
         return {
             "version": "c2r1-chapters-v1",
             "plan_sha256": "p" * 64,
@@ -704,22 +765,50 @@ class RealFixtureAssemblyTests(unittest.TestCase):
                     "chapter_id": artifact["chapter_id"],
                     "chapter_index": 0,
                     "title": "fixture",
-                    "start": 0,
-                    "end": 1,
+                    "start": scope["chapter_start"],
+                    "end": scope["chapter_end"],
                     "content_sha256": artifact["normalized_sha256"],
                 }
             ],
         }
 
-    def test_t01_accepted_fixture_assembles_into_state_evidence(self) -> None:
-        artifact = json.loads(
-            (FIXTURES / "artifact-accepted.json").read_text(encoding="utf-8")
+    def _current_fixture_artifact(self) -> dict:
+        request = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+        candidate = json.loads((FIXTURES / "candidate-valid.json").read_text(encoding="utf-8"))
+        request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+        request["chapter_start"] = 0
+        request["chapter_end"] = len(request["normalized_text"])
+        request["revision_normalized_sha256"] = request["normalized_sha256"]
+        request["source_scope"] = S.build_source_scope(request)
+        request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+        candidate["version"] = "0.4"
+        candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+        run = {
+            "run_id": "r3-regression",
+            "model": "unit-test",
+            "prompt_schema_version": "0.4",
+        }
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "request_fingerprint": C.request_fingerprint(request),
+            "candidate_sha256": sha256_json(candidate),
+            "history_sha256": "a" * 64,
+            "step_output_sha256s": ["b" * 64],
+            "decision": {"kind": "automatic"},
+        }
+        return S.accept_staged_candidate(
+            request, candidate, producing_run=run, production_receipt=receipt
         )
+
+    def test_t01_accepted_fixture_assembles_into_state_evidence(self) -> None:
+        artifact = self._current_fixture_artifact()
         result = A.assemble_chapters(
             accepted_artifacts=[artifact], chapter_plan=self._fixture_plan(artifact)
         )
         states = result["person_states"]
-        self.assertEqual("0.3", result["report"]["candidate_version"])
+        self.assertEqual("0.4", result["report"]["candidate_version"])
         self.assertEqual(3, len(states["phases"]))
         self.assertEqual(4, len(states["facts"]))
         self.assertEqual(3, len(states["unit_phases"]))
@@ -744,9 +833,7 @@ class RealFixtureAssemblyTests(unittest.TestCase):
         )
 
     def test_fixture_assembly_is_repeatable(self) -> None:
-        artifact = json.loads(
-            (FIXTURES / "artifact-accepted.json").read_text(encoding="utf-8")
-        )
+        artifact = self._current_fixture_artifact()
         plan = self._fixture_plan(artifact)
         one = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=plan)
         two = A.assemble_chapters(
@@ -765,9 +852,7 @@ class RealFixtureAssemblyTests(unittest.TestCase):
         # End-to-end regression (T03 review): every anchor id a
         # person-state candidate cites must resolve to a hash-bound anchor
         # payload carried by the assembled artifact, not just a bare id.
-        artifact = json.loads(
-            (FIXTURES / "artifact-accepted.json").read_text(encoding="utf-8")
-        )
+        artifact = self._current_fixture_artifact()
         result = A.assemble_chapters(
             accepted_artifacts=[artifact], chapter_plan=self._fixture_plan(artifact)
         )
@@ -820,14 +905,33 @@ class AcceptanceBindingTests(unittest.TestCase):
         candidate = json.loads(
             (FIXTURES / "candidate-valid.json").read_text(encoding="utf-8")
         )
-        return PSC.accept_person_state_candidate(
+        request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+        request["chapter_start"] = 0
+        request["chapter_end"] = len(request["normalized_text"])
+        request["revision_normalized_sha256"] = request["normalized_sha256"]
+        request["source_scope"] = S.build_source_scope(request)
+        request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+        candidate["version"] = "0.4"
+        candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "request_fingerprint": C.request_fingerprint(request),
+            "candidate_sha256": sha256_json(candidate),
+            "history_sha256": "a" * 64,
+            "step_output_sha256s": ["b" * 64],
+            "decision": {"kind": "automatic"},
+        }
+        return S.accept_staged_candidate(
             request,
             candidate,
             producing_run={
                 "run_id": "r3-regression",
                 "model": "unit-test",
-                "prompt_schema_version": "0.3",
+                "prompt_schema_version": "0.4",
             },
+            production_receipt=receipt,
         )
 
     def test_accepted_artifact_carries_every_state_anchor_payload(self) -> None:

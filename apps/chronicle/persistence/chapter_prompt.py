@@ -24,43 +24,35 @@ from typing import Any
 
 from common import PersistenceError
 
-#: Whole-chapter prompt template version (0.1 joint product).
-#: Persisted earlier runs retain their own template version and fingerprint.
-PROMPT_VERSION = "c2r1-chapter-prompt-v11"
+#: Current whole-chapter prompt template version.
+PROMPT_VERSION = "c2r4-chapter-prompt-v1"
 
-#: Reading-annotation (0.2) prompt template version. Bound into the
-#: producing run of every accepted 0.2 artifact so 0.1/0.2 runs stay
-#: distinguishable in run history.
-READING_PROMPT_VERSION = "c2r2-chapter-prompt-v5"
+#: Compatibility names resolve to the current prompt contract.
+READING_PROMPT_VERSION = PROMPT_VERSION
+PERSON_STATE_PROMPT_VERSION = PROMPT_VERSION
 
-#: Person-state (0.3) prompt template version. Bound into the producing run
-#: of every accepted 0.3 artifact so 0.1/0.2/0.3 runs stay distinguishable.
-PERSON_STATE_PROMPT_VERSION = "c2r3-chapter-prompt-v3"
-
-#: Joint candidate marker the model must emit (T01 contract).
+#: Current joint candidate marker the model must emit.
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
-CANDIDATE_VERSION = "0.1"
+CANDIDATE_VERSION = "0.4"
 
-#: Reading-annotation candidate version (second round).
-READING_CANDIDATE_VERSION = "0.2"
+#: Compatibility names resolve to the current candidate contract.
+READING_CANDIDATE_VERSION = CANDIDATE_VERSION
 
-#: Person-state candidate version (third round); registered production.
-PERSON_STATE_CANDIDATE_VERSION = "0.3"
+PERSON_STATE_CANDIDATE_VERSION = CANDIDATE_VERSION
 
 #: Every candidate version this renderer can address.
 SUPPORTED_CANDIDATE_VERSIONS = (
     CANDIDATE_VERSION,
-    READING_CANDIDATE_VERSION,
-    PERSON_STATE_CANDIDATE_VERSION,
 )
 
 #: Offset unit for every block coordinate in the rendered chapter.
 OFFSET_UNIT = "chars-normalized-utf8"
 
 JOINT_PRODUCT_GUIDE = r'''JOINT PRODUCT SHAPE (field names are exact; this is shape guidance, not source facts)
-Emit exactly one JSON object with schema="chronicle.chapter-candidate", version="0.1",
+Emit exactly one JSON object with schema="chronicle.chapter-candidate", version="0.4",
 and chapter_id copied verbatim from CHAPTER REQUEST. Required top-level keys:
-bundle, translation, mentions, record_sources, warnings.
+bundle, translation, mentions, record_sources, reading, person_states, warnings,
+source_scope.
 bundle: {schema_version:"0.1", source, entities[], events[], claims[], warnings[]}.
 Use temp_id only (src_*/ent_*/evt_*/clm_*), numbered sequentially from 001
 within each kind (ent_001, ent_002, ...; the numeric part must stay within
@@ -90,6 +82,9 @@ record_sources[]: {record_ref, record_kind, selections[]} — every Entity/Event
 needs a non-empty selections[] entry; claim evidence.text must equal its first
 selection quote and evidence.source_ref must name the bundle source.
 warnings[]: {type, message} — a warning never substitutes for structural validity.
+reading and person_states carry the current contract's complete annotations.
+source_scope is the program-derived binding copied from CHAPTER REQUEST; do not
+alter its coordinates, hashes, fragments or body_block_ids.
 extraction: {method:"model", job_id, confidence}. time: null OR
 {original_text, source_calendar:{system,era?,era_year?,month?,day?,inherited_fields:[]},
  normalized:null|{calendar, year, month, day, precision, conversion_status}}.
@@ -170,7 +165,7 @@ TRANSLATION_RULES = r'''FULL-TEXT FAITHFUL TRANSLATION RULES
   source characters. A Simplified character where the source has Traditional
   (or vice versa) is a grounding failure, not a spelling variant.'''
 
-READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (0.2 only; every unit is explained by the WHOLE chapter)
+READING_ANNOTATION_GUIDE = r'''READING ANNOTATION SHAPE (current 0.4 contract; every unit is explained by the WHOLE chapter)
 Add one top-level "reading" object beside bundle/translation/mentions/record_sources:
 reading: {units:[...], warnings:[...]}. reading.units MUST contain exactly one unit per
 translation block, in the SAME order, no missing or duplicate block_id.
@@ -269,7 +264,7 @@ READING UNIT EXAMPLE (shape only):
  "source_selections":[{"first_block_id":"b_001","last_block_id":"b_001","quote":"曹操",
  "occurrence":1}],"event_roles":[{"event_ref":"evt_001","participant_index":0}]}]}'''
 
-PERSON_STATE_GUIDE = r'''PERSON STATE SHAPE (0.3 only; the same whole chapter, with reading annotations kept)
+PERSON_STATE_GUIDE = r'''PERSON STATE SHAPE (current 0.4 contract; the same whole chapter, with reading annotations kept)
 Add one top-level "person_states" object beside bundle/translation/mentions/record_sources/reading:
 person_states: {phases:[], phase_orders:[], unit_phases:[], facts:[], continuities:[], disagreements:[]}.
 Every local ref below is chapter-local and must close inside this chapter; never return a canonical
@@ -333,7 +328,7 @@ operation "start", qualification "ordinary", attribution "narrator".'''
 
 _MAX_CORRECTION_ERRORS = 20
 _MAX_CORRECTION_DIAGNOSTIC_CHARS = 1800
-# The reading/state product has more independently grounded fields than 0.1.
+# The current product has independently grounded reading and state fields.
 # The v4 live failure had 16 errors, but the old 1,800-character envelope hid
 # two distinct context selectors. Keep a bounded, versioned envelope that can
 # carry this whole repair; the final rendered prompt still obeys ChapterLimits.
@@ -523,7 +518,7 @@ def request_candidate_version(request: dict[str, Any]) -> str:
     """Return the candidate version a request must produce.
 
     Requests that do not declare a candidate version default to the
-    registered production version (0.3 person-state joint product); an
+    registered production version (0.4 joint product); an
     unregistered version fails closed here instead of guessing.
     """
     versions = request.get("schema_versions") if isinstance(request, dict) else None
@@ -549,21 +544,9 @@ def prompt_version_for(candidate_version: str) -> str:
 
 def _joint_guide_for(candidate_version: str) -> str:
     """Render the joint-product shape guide for one candidate version."""
-    if candidate_version == CANDIDATE_VERSION:
-        return JOINT_PRODUCT_GUIDE
-    if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
-        return JOINT_PRODUCT_GUIDE.replace(
-            'version="0.1"', 'version="0.3"'
-        ).replace(
-            "bundle, translation, mentions, record_sources, warnings.",
-            "bundle, translation, mentions, record_sources, reading, person_states, warnings.",
-        )
-    return JOINT_PRODUCT_GUIDE.replace(
-        'version="0.1"', 'version="0.2"'
-    ).replace(
-        "bundle, translation, mentions, record_sources, warnings.",
-        "bundle, translation, mentions, record_sources, reading, warnings.",
-    )
+    if candidate_version not in SUPPORTED_CANDIDATE_VERSIONS:
+        raise PersistenceError(f"unsupported chapter-candidate version {candidate_version!r}")
+    return JOINT_PRODUCT_GUIDE
 
 
 def render_chapter_prompt(
@@ -579,10 +562,9 @@ def render_chapter_prompt(
     full normalized text verbatim, including the tail — for both the
     initial call and the single bounded correction. A correction appends
     the compacted diagnostics plus the previous candidate and requires one
-    complete regenerated chapter product. Requests that declare candidate
-    version 0.2 carry the reading-annotation guide; version 0.3 carries the
-    reading guide plus the person-state guide; both the initial and the
-    correction round explain every unit and phase from the whole chapter.
+    complete regenerated chapter product. Current requests carry the reading
+    and person-state guides; both the initial and correction round explain
+    every unit and phase from the whole chapter.
     """
     request = _require_request(request)
     candidate_version = request_candidate_version(request)
@@ -603,20 +585,15 @@ def render_chapter_prompt(
             "source passages to fit the bundle or reading metadata into the response.\n"
         )
     if candidate_version == PERSON_STATE_CANDIDATE_VERSION:
-        reading_guide = reading_guide.replace(
-            "READING ANNOTATION SHAPE (0.2 only;",
-            "READING ANNOTATION SHAPE (0.3 inherits 0.2;",
-            1,
-        )
         reading_guide += "\n\n" + PERSON_STATE_GUIDE
     if validation_errors is not None and previous_candidate is None:
         raise PersistenceError("a correction re-ask requires the previous candidate")
     if validation_errors is not None and not isinstance(validation_errors, list):
         raise PersistenceError("validation_errors must be a list of strings")
-    if preserve_translation and (
-        validation_errors is None or candidate_version == CANDIDATE_VERSION
-    ):
-        raise PersistenceError("translation preservation requires a 0.2/0.3 correction")
+    if preserve_translation and validation_errors is None:
+        raise PersistenceError(
+            "translation preservation requires a current 0.4 correction"
+        )
 
     correction = ""
     if validation_errors is not None:
@@ -720,9 +697,8 @@ def render_chapter_prompt(
         "schema_versions": request.get("schema_versions"),
         "prompt_version": prompt_version,
     }
-    # Keep the frozen 0.1 rendering byte-for-byte. For reading/state products,
-    # put the actual repair task AFTER the complete source, where it is not
-    # displaced by another full-chapter translation instruction/input.
+    # Put the repair task after the complete source so it is not displaced by
+    # another full-chapter translation instruction/input.
     correction_before = correction if candidate_version == CANDIDATE_VERSION else ""
     correction_after = correction if candidate_version != CANDIDATE_VERSION else ""
     return f'''You are Chronicle whole-chapter joint translation and extraction. Return exactly one compact JSON object and no prose/Markdown.

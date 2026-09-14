@@ -58,8 +58,9 @@ import chapter_contract
 import chapter_plan
 import chapter_store
 import control_plane
-import fixture_model
 import reading_store
+import staged_pipeline_fixture
+from common import sha256_json
 
 UNITS = int("__GATE_SCALE_UNITS__")
 GROUPS = int("__GATE_SCALE_GROUPS__")
@@ -135,12 +136,9 @@ with psycopg.connect(database_url) as conn:
     chunk_id = control_plane.record_chunk(
         conn, job_id=job_id, section_id=section_id, chunk_index=0,
         source_start=0, source_end=len(TEXT),
-        source_sha256=sha(TEXT), content_sha256=sha("scale-chunk"),
+        source_sha256=sha(TEXT), content_sha256=sha(TEXT),
     )
     control_plane.set_chunk_status(conn, chunk_id=chunk_id, status="running")
-    run_id, _ = control_plane.record_chunk_run(
-        conn, chunk_id=chunk_id, status="running", worker=WORKER
-    )
 
     limits = chapter_contract.ChapterLimits()
     locator = {
@@ -149,27 +147,84 @@ with psycopg.connect(database_url) as conn:
         "normalized_sha256": sha(TEXT),
     }
     plan = chapter_plan.plan_chapters(TEXT, locator, "scale.txt", limits=limits)
-    request = chapter_plan.build_chapter_request(plan, 0, TEXT, limits=limits)
-    request["normalized_sha256"] = sha(request["normalized_text"])
-    mention = pick_mention(request["normalized_text"], set())
-    spec = {
-        "chapter_id": request["chapter_id"],
-        "revision_id": request["revision_id"],
-        "source_title": "synthetic-scale",
-        "translation_text": f"合成譯文（{mention}）",
-        "entities": [{"mention": mention, "type": "person", "name": mention}],
-        "event": {"type": "battle", "title": "合成事件"},
-        "predicate": "affected",
+    request = chapter_plan.build_chapter_request(
+        plan, 0, TEXT, limits=limits, candidate_version="0.4"
+    )
+    source = {
+        key: request[key]
+        for key in (
+            "chapter_id",
+            "title",
+            "source_sha256",
+            "normalized_sha256",
+            "normalized_text",
+            "blocks",
+            "required_block_ids",
+            "source_scope",
+        )
     }
-    candidate = fixture_model.build_reading_chapter_candidate(request, spec)
+    candidate = staged_pipeline_fixture.candidate_for_source(source)
+    request_fingerprint = chapter_contract.request_fingerprint(request)
+    candidate_sha256 = sha256_json(candidate)
+    step_output_sha256s = []
+    for step in ("translation", "extraction", "linking", "review"):
+        payload = {
+            "step": step,
+            "candidate_sha256": candidate_sha256,
+            "synthetic": True,
+        }
+        output_sha256 = sha256_json(payload)
+        control_plane.record_output_fenced(
+            conn,
+            job_id=job_id,
+            revision_id=revision_id,
+            worker=WORKER,
+            artifact_type="chapter-production-step",
+            artifact_sha256=output_sha256,
+            payload=payload,
+        )
+        step_output_sha256s.append(output_sha256)
+    production_receipt = {
+        "schema": "chronicle.chapter-acceptance",
+        "version": "0.1",
+        "status": "accepted",
+        "request_fingerprint": request_fingerprint,
+        "candidate_sha256": candidate_sha256,
+        "history_sha256": sha256_json({"synthetic": True, "history": []}),
+        "step_output_sha256s": step_output_sha256s,
+        "decision": {"status": "accepted", "synthetic": True},
+    }
+    control_plane.record_output_fenced(
+        conn,
+        job_id=job_id,
+        revision_id=revision_id,
+        worker=WORKER,
+        artifact_type="chapter-production-acceptance",
+        artifact_sha256=sha256_json(production_receipt),
+        payload=production_receipt,
+    )
+    run_checkpoint = {
+        "request_fingerprint": request_fingerprint,
+        "production_receipt": production_receipt,
+        "accepted": True,
+        "synthetic": True,
+    }
+    run_id, _ = control_plane.record_chunk_run(
+        conn,
+        chunk_id=chunk_id,
+        status="completed",
+        worker=WORKER,
+        checkpoint=run_checkpoint,
+    )
     producing_run = {
         "run_id": str(run_id),
-        "model": "fixture:c2r2-scale:reading-chapter",
-        "prompt_schema_version": "c2r2-scale",
+        "model": "staged-scale-fixture",
+        "prompt_schema_version": "chapter-production/0.2",
     }
     artifact_sha256 = chapter_store.record_accepted_chapter_fenced(
         conn, job_id=job_id, chunk_id=chunk_id, worker=WORKER,
         request=request, candidate=candidate, producing_run=producing_run,
+        production_receipt=production_receipt,
     )
 
     catalog = {

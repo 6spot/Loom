@@ -22,17 +22,85 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import chapter_contract as C  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r1-contract"
 
 
+def _current_request(raw: dict | None = None) -> dict:
+    request = copy.deepcopy(
+        raw if raw is not None
+        else json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+    )
+    reference = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+    request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+    request["chapter_start"] = 0
+    request["chapter_end"] = len(request["normalized_text"])
+    request["revision_normalized_sha256"] = reference["normalized_sha256"]
+    scope_request = copy.deepcopy(reference)
+    scope_request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+    scope_request["chapter_start"] = 0
+    scope_request["chapter_end"] = len(scope_request["normalized_text"])
+    scope_request["revision_normalized_sha256"] = scope_request["normalized_sha256"]
+    scope = S.build_source_scope(scope_request)
+    request["source_scope"] = scope
+    request["required_block_ids"] = list(scope["body_block_ids"])
+    return request
+
+
+def _current_candidate(candidate: dict, request: dict) -> dict:
+    candidate = copy.deepcopy(candidate)
+    candidate["version"] = "0.4"
+    candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+    if "reading" not in candidate:
+        candidate["reading"] = {
+            "units": [
+                {
+                    "block_id": block["block_id"],
+                    "narrative_time": {
+                        "mode": "unknown",
+                        "event_refs": [],
+                        "from_block_id": None,
+                        "source_selections": [],
+                    },
+                    "current_event_refs": [],
+                    "event_spans": [],
+                    "context_entities": [],
+                }
+                for block in candidate.get("translation", {}).get("blocks", [])
+            ],
+            "warnings": [],
+        }
+    candidate.setdefault(
+        "person_states",
+        {
+            "phases": [],
+            "phase_orders": [],
+            "unit_phases": [],
+            "facts": [],
+            "continuities": [],
+            "disagreements": [],
+        },
+    )
+    return candidate
+
+
 def load(name: str) -> dict:
-    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    value = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    if name.startswith("candidate-"):
+        return _current_candidate(value, _current_request())
+    if name.startswith("request"):
+        return _current_request(value)
+    return value
 
 
 def base() -> tuple[dict, dict]:
-    return load("request.json"), load("candidate-valid.json")
+    request = _current_request()
+    return request, _current_candidate(
+        json.loads((FIXTURES / "candidate-valid.json").read_text(encoding="utf-8")),
+        request,
+    )
 
 
 def assert_rejected(test: unittest.TestCase, report: dict, category: str) -> None:
@@ -66,25 +134,15 @@ class ChapterLimitsTests(unittest.TestCase):
 
 
 class CandidateAcceptanceTests(unittest.TestCase):
-    def test_valid_candidate_passes_and_accepts(self) -> None:
+    def test_valid_candidate_passes_but_direct_acceptance_is_retired(self) -> None:
         request, candidate = base()
         report = C.validate_chapter_candidate(request, candidate)
         self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
-        artifact = C.accept_chapter_candidate(
-            request, candidate,
-            producing_run={"run_id": "run_t", "model": "m", "prompt_schema_version": "v"},
-        )
-        self.assertEqual(artifact["schema"], "chronicle.chapter-artifact")
-        self.assertEqual(artifact["chapter_id"], request["chapter_id"])
-        self.assertTrue(artifact["anchors"])
-        self.assertEqual(artifact["request_fingerprint"], C.request_fingerprint(request))
-        # Anchors bind revision/chapter/hashes and verify against text.
-        text = request["normalized_text"]
-        for anchor in artifact["anchors"]:
-            self.assertEqual(anchor["revision_id"], request["revision_id"])
-            self.assertEqual(anchor["chapter_id"], request["chapter_id"])
-            self.assertEqual(anchor["source_sha256"], request["source_sha256"])
-            self.assertEqual(text[anchor["start"]:anchor["end"]], anchor["quote"])
+        with self.assertRaisesRegex(PersistenceError, "direct chapter acceptance is retired"):
+            C.accept_chapter_candidate(
+                request, candidate,
+                producing_run={"run_id": "run_t", "model": "m", "prompt_schema_version": "v"},
+            )
 
     def test_translation_only_shape_rejected(self) -> None:
         request, _ = base()
@@ -460,16 +518,15 @@ class TimeAndSchemaTests(unittest.TestCase):
         )
 
     def test_schemas_and_fixture_fields_agree(self) -> None:
-        candidate_schema = json.loads(
-            (HERE.parent / "ingestion" / "schemas"
-             / "chronicle-chapter-candidate-v0.1.schema.json").read_text(encoding="utf-8")
-        )
         _, candidate = base()
-        top_schema_keys = {"schema", "version", "chapter_id", "bundle", "translation",
-                           "mentions", "record_sources", "warnings"}
+        top_schema_keys = {
+            "schema", "version", "chapter_id", "bundle", "translation",
+            "mentions", "record_sources", "reading", "person_states",
+            "warnings", "source_scope",
+        }
         self.assertEqual(set(candidate.keys()), top_schema_keys)
         self.assertEqual(
-            set(candidate_schema["properties"].keys()), top_schema_keys
+            set(C.candidate_schema()["properties"].keys()), top_schema_keys
         )
 
     def test_resolution_v02_structure(self) -> None:
@@ -547,16 +604,16 @@ class ForgedReportTests(unittest.TestCase):
                 report={"passed": True, "errors": {}},
             )
 
-    def test_matching_report_accepts(self) -> None:
+    def test_matching_report_cannot_bypass_staged_receipt(self) -> None:
         request, candidate = base()
         report = C.validate_chapter_candidate(request, candidate)
         self.assertTrue(report["passed"])
-        artifact = C.accept_chapter_candidate(
-            request, candidate,
-            producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
-            report=report,
-        )
-        self.assertEqual(artifact["chapter_id"], request["chapter_id"])
+        with self.assertRaisesRegex(PersistenceError, "direct chapter acceptance is retired"):
+            C.accept_chapter_candidate(
+                request, candidate,
+                producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+                report=report,
+            )
 
     def test_stale_report_for_other_candidate_rejected(self) -> None:
         request, candidate = base()

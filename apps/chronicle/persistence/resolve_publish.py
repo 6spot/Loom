@@ -1040,11 +1040,10 @@ def build_chapter_publication(
     person/event blurb for the full text; ``present`` re-checks exactly
     this before serving.
 
-    For a 0.2 reading book the caller passes the revision-assembled
+    For a current 0.4 reading book the caller passes the revision-assembled
     ``translation_blocks`` (``block_id`` remapped to the revision namespace)
     so the reading units, whose block IDs are the same remapped IDs, resolve
-    their body in this very publication. A 0.1 publication keeps the frozen
-    chapter-local candidate blocks.
+    their body in this very publication.
     """
     artifact = artifact_entry.get("artifact")
     if not isinstance(artifact, dict):
@@ -1090,21 +1089,11 @@ def build_chapter_publication(
     }
 
 
-#: Accepted chapter artifact generation that carries reading annotations.
-READING_ARTIFACT_VERSION = reading_contract.ARTIFACT_VERSION
-
-#: Accepted chapter artifact generation that additionally carries the 0.3
-#: ``person_states`` block (C2-R3-T01/T02; T08 publishes it).
-PERSON_STATE_ARTIFACT_VERSION = "0.3"
-STAGED_ARTIFACT_VERSION = "0.4"
-
-#: Chapter artifact generations the atomic chapter publish accepts.
-CHAPTER_ARTIFACT_VERSIONS = (
-    chapter_store.ARTIFACT_VERSION,
-    READING_ARTIFACT_VERSION,
-    PERSON_STATE_ARTIFACT_VERSION,
-    STAGED_ARTIFACT_VERSION,
-)
+#: The current staged artifact is the only chapter product accepted by the
+# atomic publication path. Reading and person-state data are part of this
+# same 0.4 artifact rather than separate top-level generations.
+CHAPTER_ARTIFACT_VERSION = chapter_store.ARTIFACT_VERSION
+CHAPTER_ARTIFACT_VERSIONS = (CHAPTER_ARTIFACT_VERSION,)
 
 #: Control-plane output type for the frozen person-state review plan. Kept
 #: distinct from the chapter review plan so resolve reuses the exact frozen
@@ -1308,7 +1297,7 @@ def build_reading_stream_payload(
 
     The store consumes a flattened occurrence shape (``event_kind`` +
     ``bundle_label``/``record_ref``), explicit group unit ranges, and the
-    accepted-artifact key each unit's publication was written under. A 0.2
+    accepted-artifact key each unit's publication was written under. A current
     artifact's embedded ``artifact_sha256`` is its reading-excluded core hash
     (the identity unit IDs were derived from), while ``chapter_artifacts`` /
     ``chapter_publications`` key the whole accepted product; the reading index
@@ -1506,7 +1495,7 @@ def build_person_state_plan(
     final_resolutions: list[dict[str, Any]],
     base_catalog_sha256: str,
 ) -> dict[str, Any]:
-    """Freeze the person-state review plan over the accepted 0.3 evidence.
+    """Freeze the person-state review plan over the accepted 0.4 evidence.
 
     Wraps :func:`person_state_review.build_person_state_review_plan` with the
     revision-level bindings the chapter pipeline already owns (final identity
@@ -1887,7 +1876,7 @@ def validate_frozen_person_state_inputs(
     final_resolutions: list[dict[str, Any]],
     base_catalog_sha256: str,
 ) -> None:
-    """Re-verify the frozen 0.3 state inputs at the publication boundary.
+    """Re-verify the frozen 0.4 state inputs at the publication boundary.
 
     Resolve freezes the plan over the accepted artifacts, the assembled
     ``person_states``/evidence manifests, the final Resolution hashes and the
@@ -1903,7 +1892,7 @@ def validate_frozen_person_state_inputs(
     manifests = evidence.get("evidence_manifests")
     if not isinstance(states, dict) or not isinstance(manifests, list):
         raise PersistenceError(
-            f"job {job_id} person-state evidence is not a frozen 0.3 assembly"
+            f"job {job_id} person-state evidence is not a frozen 0.4 assembly"
         )
     assembled_hash = sha256_json(states)
     if assembled_hash != plan.get("assembled_hash"):
@@ -2157,7 +2146,7 @@ def publish_chapters(
     raises :class:`PublicationPlanStale` and writes nothing: the old
     plan and its evidence are kept, nothing is auto-passed.
 
-    When the accepted chapters are 0.2 reading artifacts, the caller must
+    When the accepted chapters are current 0.4 reading artifacts, the caller must
     pass the exact T03 ``chapter_plan`` used for the accepted products; the
     plan is strictly bound to the persisted T03/assembled record
     (:func:`require_chapter_plan_binding`) and the re-assembled bundle must
@@ -2166,8 +2155,7 @@ def publish_chapters(
     the immutable reading projection (T04) and persists the whole reading
     stream/units/groups/occurrences (T05) before the checkpoint commits, so a
     job either publishes catalog + complete chapters + full reading index
-    together or publishes nothing. A 0.1 job keeps the first-round behavior
-    and writes no reading rows.
+    together or publishes nothing.
 
     The lease is re-verified on the live clock (``clock_timestamp``) after
     the expensive catalog/assembly computation, after the reading compile and
@@ -2223,14 +2211,13 @@ def publish_chapters(
                 f"generations {sorted(str(v) for v in artifact_versions)}; "
                 "refusing to publish a mixed-generation book"
             )
-        person_state_path = artifact_versions in (
-            {PERSON_STATE_ARTIFACT_VERSION}, {STAGED_ARTIFACT_VERSION},
-        )
-        reading_path = artifact_versions in (
-            {READING_ARTIFACT_VERSION},
-            {PERSON_STATE_ARTIFACT_VERSION},
-            {STAGED_ARTIFACT_VERSION},
-        )
+        if artifact_versions != {CHAPTER_ARTIFACT_VERSION}:
+            raise PersistenceError(
+                f"job {job_id} carries unsupported chapter artifact generation "
+                f"{sorted(str(v) for v in artifact_versions)}"
+            )
+        person_state_path = True
+        reading_path = True
         if reading_path and not isinstance(chapter_plan, dict):
             raise PersistenceError(
                 f"job {job_id} carries reading artifacts but no chapter "
@@ -2272,7 +2259,7 @@ def publish_chapters(
             raw_manifests = assembled_payload.get("person_state_evidence")
             if not isinstance(raw_states, dict) or not isinstance(raw_manifests, list):
                 raise PersistenceError(
-                    f"job {job_id} carries 0.3 artifacts but no persisted "
+                    f"job {job_id} carries 0.4 artifacts but no persisted "
                     "person-state assembly; refusing to publish a partial state "
                     "projection (run assemble first)"
                 )
@@ -2454,7 +2441,7 @@ def publish_chapters(
                 )
             if person_state_path:
                 # Independent of the persisted assembled row and the plan row:
-                # re-derive the 0.3 state block and evidence manifests from the
+                # re-derive the 0.4 state block and evidence manifests from the
                 # accepted artifacts under the bound chapter plan and require
                 # the frozen digests. Any manifest/artifact/source/normalized/
                 # person_states drift fails here, before any public write.

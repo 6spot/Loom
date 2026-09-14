@@ -7,15 +7,13 @@ access (Amendment 0006). Implements ``continuous-reading.md`` sections
 
 - :class:`ReadingLimits` fixes the engineering envelope (block, span,
   context, page/preview sizes) used by the later API/publication tasks.
-- :func:`validate_reading_annotations` validates a
-  ``chronicle.chapter-candidate / 0.2``: it first reuses the frozen
-  first-round validation on the unchanged sub-document (so 0.1
-  semantics are not rewritten), then checks reading-unit coverage, source
-  reference closure, narrative-time rules, translation-span coordinates,
-  event roles, and the canonical-ID/URL discipline.
-- :func:`accept_reading_candidate` accepts only passing candidates and
-  emits a ``chronicle.chapter-artifact / 0.2`` with program-resolved
-  translation spans, unit IDs, segments and reading annotations.
+- :func:`validate_reading_annotations` validates the current 0.4 candidate
+  with the shared chapter validator, then checks reading-unit coverage,
+  source reference closure, narrative-time rules, translation-span
+  coordinates, event roles, and the canonical-ID/URL discipline.
+- Direct reading acceptance is retired; ``staged_chapter_contract`` emits
+  the receipt-bound current artifact with program-resolved translation
+  spans, unit IDs, segments and reading annotations.
 - :func:`compile_time_groups` is the pre-publication pure compiler for
   narrative-time axis groups.
 - ``example_*`` builders and :func:`validate_reading_dto` fix the public
@@ -40,13 +38,13 @@ from typing import Any
 import chapter_contract as _chapter
 from common import PersistenceError, canonical_json_bytes, sha256_json
 
-#: Model-generatable candidate marker (second round).
+#: Current model-generatable candidate marker.
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
-CANDIDATE_VERSION = "0.2"
+CANDIDATE_VERSION = _chapter.CANDIDATE_VERSION
 
-#: Program-accepted artifact marker (second round).
+#: Current program-accepted artifact marker.
 ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
-ARTIFACT_VERSION = "0.2"
+ARTIFACT_VERSION = _chapter.ARTIFACT_VERSION
 
 #: Reading DTO bundle marker.
 READING_SCHEMA = "chronicle.reading"
@@ -109,24 +107,14 @@ _UUID_RE = re.compile(
 _URL_RE = re.compile(r"^https?://")
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "ingestion" / "schemas"
-CANDIDATE_V01_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.1.schema.json"
-CANDIDATE_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.2.schema.json"
-ARTIFACT_V01_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.1.schema.json"
-ARTIFACT_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.2.schema.json"
+CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.4.schema.json"
+ARTIFACT_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.4.schema.json"
+SHARED_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-shared-v0.4.schema.json"
 READING_SCHEMA_PATH = SCHEMA_DIR / "chronicle-reading-v0.1.schema.json"
 
-CANDIDATE_V01_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.1.schema.json"
-)
-CANDIDATE_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.2.schema.json"
-)
-ARTIFACT_V01_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.1.schema.json"
-)
-ARTIFACT_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json"
-)
+CANDIDATE_SCHEMA_ID = _chapter.CANDIDATE_SCHEMA_ID
+ARTIFACT_SCHEMA_ID = _chapter.ARTIFACT_SCHEMA_ID
+SHARED_SCHEMA_ID = _chapter.SHARED_SCHEMA_ID
 READING_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-reading-v0.1.schema.json"
 )
@@ -206,7 +194,7 @@ class ReadingLimits:
 
 
 # ---------------------------------------------------------------------------
-# Schema loading (v0.2 reuses the frozen v0.1 definitions by $ref)
+# Schema loading for the current candidate/artifact and the reading DTOs.
 # ---------------------------------------------------------------------------
 
 
@@ -226,17 +214,10 @@ def _load_schema(path_str: str, expected_id: str) -> dict[str, Any]:
 
 @lru_cache(maxsize=8)
 def _schema_bundle() -> dict[str, dict[str, Any]]:
-    """Load every schema needed to resolve the 0.2 cross-file $refs."""
-    schemas: dict[str, dict[str, Any]] = {}
-    for path, schema_id in (
-        (CANDIDATE_V01_SCHEMA_PATH, CANDIDATE_V01_SCHEMA_ID),
-        (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
-        (ARTIFACT_V01_SCHEMA_PATH, ARTIFACT_V01_SCHEMA_ID),
-        (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
-        (READING_SCHEMA_PATH, READING_SCHEMA_ID),
-    ):
-        schema = _load_schema(str(path), schema_id)
-        schemas[schema_id] = schema
+    """Load the current chapter roots/shared definitions plus reading DTOs."""
+    schemas: dict[str, dict[str, Any]] = dict(_chapter._schema_bundle())
+    reading = _load_schema(str(READING_SCHEMA_PATH), READING_SCHEMA_ID)
+    schemas[READING_SCHEMA_ID] = reading
     return schemas
 
 
@@ -253,12 +234,12 @@ def _registry() -> Any:
     return registry
 
 
-def candidate_v02_schema() -> dict[str, Any]:
-    return _schema_bundle()[CANDIDATE_V02_SCHEMA_ID]
+def candidate_schema() -> dict[str, Any]:
+    return _schema_bundle()[CANDIDATE_SCHEMA_ID]
 
 
-def artifact_v02_schema() -> dict[str, Any]:
-    return _schema_bundle()[ARTIFACT_V02_SCHEMA_ID]
+def artifact_schema() -> dict[str, Any]:
+    return _schema_bundle()[ARTIFACT_SCHEMA_ID]
 
 
 def reading_schema() -> dict[str, Any]:
@@ -706,12 +687,12 @@ def _typed_refs(block: Any, field: str) -> list[str]:
 def validate_reading_annotations(
     request: dict[str, Any], candidate: dict[str, Any]
 ) -> dict[str, Any]:
-    """Validate a 0.2 candidate's reading annotations against its request.
+    """Validate the current candidate's reading annotations.
 
-    Reuses the frozen first-round validator on the unchanged 0.1
-    sub-document first, then adds second-round coverage, reference,
-    time, span, context and canonical-ID checks. Any single failing part
-    rejects the whole candidate.
+    The shared chapter validator runs on the same current candidate, then
+    this owner adds reading coverage, reference, time, span, context and
+    program-owned-field checks. Retired top-level chapter generations never
+    enter this path.
     """
     schema_errors: list[str] = []
     chapter_errors: list[str] = []
@@ -730,7 +711,7 @@ def validate_reading_annotations(
         candidate = {}
 
     schema_errors.extend(
-        _iter_schema_errors(candidate_v02_schema(), candidate, registry=_registry())
+        _iter_schema_errors(candidate_schema(), candidate, registry=_registry())
     )
 
     try:
@@ -739,13 +720,10 @@ def validate_reading_annotations(
         request_blocks = {}
         ref_errors.append(f"request: {exc}")
 
-    # First-round semantics are reused verbatim on the unchanged sub-document.
+    # Core chapter semantics are reused on the unchanged current candidate.
     if isinstance(request, dict) and isinstance(candidate, dict):
-        subset = copy.deepcopy(candidate)
-        subset.pop("reading", None)
-        subset["version"] = "0.1"
         try:
-            chapter_report = _chapter.validate_chapter_candidate(request, subset)
+            chapter_report = _chapter.validate_chapter_candidate(request, candidate)
             chapter_errors.extend(_chapter.flatten_validation_errors(chapter_report))
         except (TypeError, AttributeError, KeyError) as exc:  # fail closed
             chapter_errors.append(f"first-round validation raised {type(exc).__name__}: {exc}")
@@ -1283,64 +1261,11 @@ def accept_reading_candidate(
     producing_run: dict[str, Any],
     report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Accept a passing 0.2 candidate and emit its bound 0.2 artifact.
-
-    Validation is always recomputed; a caller-supplied ``report`` is only
-    a consistency check and can never accept a bad candidate. Every
-    program-bound value (hashes, offsets, unit IDs, segments) is computed
-    here, never read from the candidate. ``artifact_sha256`` binds the
-    artifact core; it deliberately excludes ``reading_units`` so unit IDs
-    can be derived from it.
-    """
-    if not isinstance(producing_run, dict):
-        raise PersistenceError("producing_run must be a JSON object")
-    for key in ("run_id", "model", "prompt_schema_version"):
-        if not isinstance(producing_run.get(key), str) or not producing_run[key]:
-            raise PersistenceError(f"producing_run requires non-empty {key!r}")
-    fresh = validate_reading_annotations(request, candidate)
-    if report is not None:
-        if not isinstance(report, dict):
-            raise PersistenceError("supplied validation report must be a JSON object")
-        if bool(report.get("passed")) != bool(fresh["passed"]) or set(
-            flatten_reading_errors(report)
-        ) != set(flatten_reading_errors(fresh)):
-            raise PersistenceError(
-                "supplied validation report does not match this request/candidate pair; "
-                "refusing to accept (fail closed)"
-            )
-    if not fresh.get("passed"):
-        detail = "; ".join(flatten_reading_errors(fresh))
-        raise PersistenceError(f"reading candidate failed validation: {detail}")
-
-    subset = copy.deepcopy(candidate)
-    subset.pop("reading", None)
-    subset["version"] = "0.1"
-    anchors = _chapter.collect_anchors(request, subset)
-    candidate_copy = copy.deepcopy(candidate)
-    candidate_sha256 = sha256_json(candidate_copy)
-    reading = copy.deepcopy(candidate_copy.get("reading"))
-    reading_sha256 = sha256_json(reading)
-    core: dict[str, Any] = {
-        "schema": ARTIFACT_SCHEMA,
-        "version": ARTIFACT_VERSION,
-        "chapter_id": request["chapter_id"],
-        "revision_id": request["revision_id"],
-        "source_sha256": request["source_sha256"],
-        "normalized_sha256": request["normalized_sha256"],
-        "candidate": candidate_copy,
-        "candidate_sha256": candidate_sha256,
-        "anchors": anchors,
-        "request_fingerprint": _chapter.request_fingerprint(request),
-        "producing_run": copy.deepcopy(producing_run),
-        "reading": reading,
-        "reading_sha256": reading_sha256,
-    }
-    artifact_sha256 = sha256_json(core)
-    reading_units = _resolve_reading_units(candidate_copy, request, artifact_sha256)
-    artifact = dict(core)
-    artifact["artifact_sha256"] = artifact_sha256
-    artifact["reading_units"] = reading_units
-    return artifact
+    """Reject direct reading acceptance outside the current staged owner."""
+    raise PersistenceError(
+        "direct reading acceptance is retired; current 0.4 candidates must be "
+        "accepted by staged_chapter_contract with a production receipt"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1604,9 +1529,9 @@ __all__ = [
     "SPAN_STATUSES",
     "TimeKey",
     "accept_reading_candidate",
-    "artifact_v02_schema",
+    "artifact_schema",
     "build_reading_segments",
-    "candidate_v02_schema",
+    "candidate_schema",
     "compile_time_groups",
     "detect_unit_id_collisions",
     "example_event_preview",

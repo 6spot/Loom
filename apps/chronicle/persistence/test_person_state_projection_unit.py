@@ -15,6 +15,7 @@ validator can be run directly on the compiled output.
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import unittest
@@ -25,10 +26,12 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import assembly as A  # noqa: E402
+import chapter_contract as C  # noqa: E402
 import person_state_contract as P  # noqa: E402
 import person_state_projection as PP  # noqa: E402
 import reading_contract as RC  # noqa: E402
 import reading_projection as RP  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 PERSON = "ent_002"
@@ -955,10 +958,45 @@ class RealReadingManifestRegressionTests(unittest.TestCase):
         candidate = json.loads(
             (self.C2R2_FIXTURES / "candidate-valid.json").read_text(encoding="utf-8")
         )
-        artifact = RC.accept_reading_candidate(
+        request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+        request["chapter_start"] = 0
+        request["chapter_end"] = len(request["normalized_text"])
+        request["revision_normalized_sha256"] = request["normalized_sha256"]
+        request["source_scope"] = S.build_source_scope(request)
+        request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+        candidate["version"] = "0.4"
+        candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+        candidate["person_states"] = {
+            "phases": [],
+            "phase_orders": [],
+            "unit_phases": [
+                {
+                    "block_id": unit["block_id"],
+                    "mode": "unknown",
+                    "phase_refs": [],
+                    "source_selections": [],
+                }
+                for unit in candidate["reading"]["units"]
+            ],
+            "facts": [],
+            "continuities": [],
+            "disagreements": [],
+        }
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "request_fingerprint": C.request_fingerprint(request),
+            "candidate_sha256": P.sha256_json(candidate),
+            "history_sha256": "a" * 64,
+            "step_output_sha256s": ["b" * 64],
+            "decision": {"kind": "automatic"},
+        }
+        artifact = S.accept_staged_candidate(
             request,
             candidate,
             producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+            production_receipt=receipt,
         )
         plan = {
             "version": "c2r1-chapters-v1",
@@ -972,7 +1010,7 @@ class RealReadingManifestRegressionTests(unittest.TestCase):
                     "chapter_index": 0,
                     "title": "contract chapter",
                     "start": 0,
-                    "end": 36,
+                    "end": request["chapter_end"],
                     "content_sha256": request["normalized_sha256"],
                 }
             ],

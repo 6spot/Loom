@@ -68,7 +68,7 @@ def _request_from_source(source):
         "chapter_start": scope["chapter_start"],
         "chapter_end": scope["chapter_end"],
         "revision_normalized_sha256": scope["revision_normalized_sha256"],
-        "schema_versions": {"candidate": "0.3", "bundle": "0.1"},
+        "schema_versions": {"candidate": "0.4", "bundle": "0.1"},
     }
 
 

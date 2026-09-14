@@ -21,11 +21,14 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import assembly as A  # noqa: E402
+import person_state_contract as PSC  # noqa: E402
 from common import PersistenceError, sha256_json  # noqa: E402
 
 REVISION = "rev-r2-test"
 SHA = "a" * 64
 NORM = "b" * 64
+CH0 = "ch_000000000000000000000000"
+CH1 = "ch_000000000000000000000001"
 
 
 def _meta() -> dict:
@@ -111,8 +114,10 @@ def _block(block_id: str, text: str, entity_refs: list[str], event_refs: list[st
 
 
 def _anchor(chapter_id: str, anchor_id: str) -> dict:
+    import hashlib
+
     return {
-        "anchor_id": anchor_id,
+        "anchor_id": "anc_" + hashlib.sha256(chapter_id.encode("utf-8")).hexdigest()[:16],
         "revision_id": REVISION,
         "chapter_id": chapter_id,
         "source_sha256": SHA,
@@ -120,7 +125,7 @@ def _anchor(chapter_id: str, anchor_id: str) -> dict:
         "first_block_id": "b_001",
         "last_block_id": "b_001",
         "quote": "曹操",
-        "quote_sha256": "q" * 64,
+        "quote_sha256": "a" * 64,
         "occurrence": 1,
         "start": 0,
         "end": 2,
@@ -151,6 +156,7 @@ def _reading_unit(
         "current_event_refs": [] if mode in ("inherit", "unknown") else [event_ref],
         "resolved_spans": [],
         "context_entities": [],
+        "segments": [{"kind": "text", "text": text}],
     }
     if context:
         unit["context_entities"].append(
@@ -184,11 +190,70 @@ def _artifact(
     events: list[dict],
     blocks: list[dict],
     reading_units: list[dict],
-    version: str = "0.2",
+    version: str = "0.4",
 ) -> dict:
+    chapter_index = 1 if chapter_id == CH1 else 0
+    reading = {"units": [], "warnings": []}
+    for unit in reading_units:
+        mode = unit["narrative_time"]["mode"]
+        source_selection = {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": "正文",
+            "occurrence": 1,
+        }
+        narrative = copy.deepcopy(unit["narrative_time"])
+        narrative["source_selections"] = [] if mode == "unknown" else [source_selection]
+        reading["units"].append(
+            {
+                "block_id": unit["block_id"],
+                "narrative_time": narrative,
+                "current_event_refs": list(unit.get("current_event_refs") or []),
+                "event_spans": [],
+                "context_entities": [
+                    {
+                        "entity_ref": context["entity_ref"],
+                        "importance": context["importance"],
+                        "source_selections": [copy.deepcopy(source_selection)],
+                        "event_roles": [
+                            {
+                                "event_ref": role["event_ref"],
+                                "participant_index": role["participant_index"],
+                            }
+                            for role in context.get("event_roles") or []
+                        ],
+                    }
+                    for context in unit.get("context_entities") or []
+                ],
+            }
+        )
+    source_scope = {
+        "schema": "chronicle.chapter-source-scope",
+        "version": "0.1",
+        "chapter_id": chapter_id,
+        "revision_id": REVISION,
+        "source_sha256": SHA,
+        "normalized_sha256": NORM,
+        "revision_normalized_sha256": NORM,
+        "chapter_content_sha256": NORM,
+        "chapter_start": chapter_index * 10,
+        "chapter_end": (chapter_index + 1) * 10,
+        "offset_unit": "chars-normalized-utf8",
+        "body_block_ids": ["b_001"],
+        "fragments": [
+            {
+                "id": "sf_" + f"{chapter_index:024x}",
+                "block_id": "b_001",
+                "role": "body",
+                "start": chapter_index * 10,
+                "end": (chapter_index + 1) * 10,
+                "text_sha256": NORM,
+            }
+        ],
+    }
     candidate = {
         "schema": "chronicle.chapter-candidate",
-        "version": "0.2" if version == "0.2" else "0.1",
+        "version": "0.4",
         "chapter_id": chapter_id,
         "bundle": {
             "schema_version": "0.1",
@@ -202,6 +267,24 @@ def _artifact(
         "mentions": [],
         "record_sources": [],
         "warnings": [],
+        "reading": reading,
+        "person_states": {
+            "phases": [],
+            "phase_orders": [],
+            "unit_phases": [
+                {
+                    "block_id": unit["block_id"],
+                    "mode": "unknown",
+                    "phase_refs": [],
+                    "source_selections": [],
+                }
+                for unit in reading_units
+            ],
+            "facts": [],
+            "continuities": [],
+            "disagreements": [],
+        },
+        "source_scope": source_scope,
     }
     artifact = {
         "schema": "chronicle.chapter-artifact",
@@ -212,19 +295,43 @@ def _artifact(
         "normalized_sha256": NORM,
         "candidate": candidate,
         "anchors": [_anchor(chapter_id, f"anc_{chapter_id}")],
-        "request_fingerprint": f"fp-{chapter_id}",
+        "request_fingerprint": sha256_json({"chapter_id": chapter_id, "revision_id": REVISION}),
         "producing_run": {"run_id": f"run-{chapter_id}", "model": "m", "prompt_schema_version": "v"},
+        "reading": reading,
+        "reading_sha256": sha256_json(reading),
+        "person_states": copy.deepcopy(candidate["person_states"]),
+        "person_states_sha256": sha256_json(candidate["person_states"]),
+        "person_state_candidates": [
+            {
+                "candidate_key": PSC.candidate_key_for(
+                    kind="unit_phase", chapter_id=chapter_id,
+                    item_ref=unit["block_id"], anchor_ids=[],
+                ),
+                "kind": "unit_phase",
+                "item_ref": unit["block_id"],
+                "phase_ids": [],
+                "anchor_ids": [],
+                "source_fact_refs": [],
+            }
+            for unit in reading_units
+        ],
+        "production_receipt": {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "request_fingerprint": sha256_json({"chapter_id": chapter_id, "revision_id": REVISION}),
+            "candidate_sha256": sha256_json(candidate),
+            "history_sha256": "c" * 64,
+            "step_output_sha256s": ["d" * 64],
+            "decision": {"kind": "human"},
+        },
     }
-    if version == "0.2":
-        reading = {"units": [{"block_id": unit["block_id"]} for unit in reading_units], "warnings": []}
-        candidate["reading"] = reading
-        artifact["reading"] = reading
-        artifact["reading_sha256"] = sha256_json(reading)
     artifact["candidate_sha256"] = sha256_json(candidate)
-    if version == "0.2":
-        # Accepted 0.2 hash binds the artifact core excluding reading_units.
-        artifact["artifact_sha256"] = sha256_json(dict(artifact))
-        artifact["reading_units"] = reading_units
+    artifact["artifact_sha256"] = sha256_json(artifact)
+    artifact["reading_units"] = copy.deepcopy(reading_units)
+    for ordinal, unit in enumerate(artifact["reading_units"]):
+        unit["ordinal"] = ordinal
+        unit["artifact_sha256"] = artifact["artifact_sha256"]
     return artifact
 
 
@@ -252,14 +359,14 @@ def _plan(chapter_ids: list[str]) -> dict:
 def _two_chapter_artifacts() -> tuple[dict, dict, dict]:
     events = [_event("evt_001", "戰役", participants=["ent_001"], time=_time())]
     first = _artifact(
-        "ch_000",
+        CH0,
         entities=[_entity("ent_001", "曹操")],
         events=events,
         blocks=[_block("t_001", "曹操出戰。", ["ent_001"], ["evt_001"])],
         reading_units=[_reading_unit("t_001", "曹操出戰。")],
     )
     second = _artifact(
-        "ch_001",
+        CH1,
         entities=[_entity("ent_001", "曹操"), _entity("ent_002", "周瑜")],
         events=[_event("evt_001", "戰役", participants=["ent_002"], time=_time())],
         blocks=[_block("t_001", "周瑜出戰。", ["ent_002"], ["evt_001"])],
@@ -267,7 +374,7 @@ def _two_chapter_artifacts() -> tuple[dict, dict, dict]:
             _reading_unit("t_001", "周瑜出戰。", entity_ref="ent_002", event_ref="evt_001")
         ],
     )
-    return first, second, _plan(["ch_000", "ch_001"])
+    return first, second, _plan([CH0, CH1])
 
 
 class ReadingRemapTests(unittest.TestCase):
@@ -276,8 +383,8 @@ class ReadingRemapTests(unittest.TestCase):
         result = A.assemble_chapters(accepted_artifacts=[first, second], chapter_plan=plan)
         units = {(unit["chapter_id"], unit["chapter_block_id"]): unit for unit in result["reading_units"]}
         self.assertEqual(2, len(units))
-        first_unit = units[("ch_000", "t_001")]
-        second_unit = units[("ch_001", "t_001")]
+        first_unit = units[(CH0, "t_001")]
+        second_unit = units[(CH1, "t_001")]
         # The same chapter-local IDs map to distinct revision refs.
         self.assertEqual("t_000001", first_unit["block_id"])
         self.assertEqual("t_001001", second_unit["block_id"])
@@ -296,7 +403,7 @@ class ReadingRemapTests(unittest.TestCase):
     def test_inherit_from_block_remaps_to_revision_block(self) -> None:
         events = [_event("evt_001", "戰役", participants=["ent_001"], time=_time())]
         artifact = _artifact(
-            "ch_000",
+            CH0,
             entities=[_entity("ent_001", "曹操")],
             events=events,
             blocks=[
@@ -308,7 +415,7 @@ class ReadingRemapTests(unittest.TestCase):
                 _reading_unit("t_002", "其後續戰。", mode="inherit", from_block_id="t_001"),
             ],
         )
-        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan([CH0]))
         units = {unit["chapter_block_id"]: unit for unit in result["reading_units"]}
         self.assertEqual("t_000001", units["t_002"]["narrative_time"]["from_block_id"])
         self.assertEqual("inherit", units["t_002"]["narrative_time"]["mode"])
@@ -322,7 +429,7 @@ class ReadingRemapTests(unittest.TestCase):
         self.assertEqual(sha256_json(one["reading_units"]), sha256_json(two["reading_units"]))
         self.assertEqual(sha256_json(one["bundle"]), sha256_json(two["bundle"]))
 
-    def test_0_1_path_leaves_reading_empty(self) -> None:
+    def test_retired_generation_is_rejected(self) -> None:
         first, second, _ = _two_chapter_artifacts()
         plain = {
             "schema": first["schema"],
@@ -337,9 +444,8 @@ class ReadingRemapTests(unittest.TestCase):
             "request_fingerprint": first["request_fingerprint"],
         }
         plain["candidate_sha256"] = sha256_json(plain["candidate"])
-        result = A.assemble_chapters(accepted_artifacts=[plain], chapter_plan=_plan(["ch_000"]))
-        self.assertEqual([], result["reading_units"])
-        self.assertEqual("0.1", result["report"]["candidate_version"])
+        with self.assertRaises(PersistenceError):
+            A.assemble_chapters(accepted_artifacts=[plain], chapter_plan=_plan([CH0]))
 
 
 class ReadingAssemblyFailureTests(unittest.TestCase):
@@ -354,21 +460,21 @@ class ReadingAssemblyFailureTests(unittest.TestCase):
         plain.pop("reading_units", None)
         plain["candidate_sha256"] = sha256_json(plain["candidate"])
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[plain, second], chapter_plan=_plan(["ch_000", "ch_001"]))
+            A.assemble_chapters(accepted_artifacts=[plain, second], chapter_plan=_plan([CH0, CH1]))
 
     def test_tampered_reading_bytes_fail_closed(self) -> None:
         first, _, _ = _two_chapter_artifacts()
         bad = copy.deepcopy(first)
         bad["reading_sha256"] = "0" * 64
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan([CH0]))
 
     def test_missing_reading_unit_fails_closed(self) -> None:
         first, _, _ = _two_chapter_artifacts()
         bad = copy.deepcopy(first)
         bad["reading_units"] = []
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan([CH0]))
 
     def test_dangling_reading_ref_fails_closed(self) -> None:
         first, _, _ = _two_chapter_artifacts()
@@ -376,7 +482,7 @@ class ReadingAssemblyFailureTests(unittest.TestCase):
         bad["reading_units"][0]["current_event_refs"] = ["evt_999"]
         bad["reading_units"][0]["narrative_time"]["event_refs"] = ["evt_999"]
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan([CH0]))
 
     def test_broken_inheritance_from_block_fails_closed(self) -> None:
         first, _, _ = _two_chapter_artifacts()
@@ -389,7 +495,7 @@ class ReadingAssemblyFailureTests(unittest.TestCase):
         }
         bad["reading_units"][0]["current_event_refs"] = []
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan([CH0]))
 
 
 class AcceptedHashAndBlockOrderTests(unittest.TestCase):
@@ -398,7 +504,7 @@ class AcceptedHashAndBlockOrderTests(unittest.TestCase):
     def test_accepted_artifact_hash_is_preserved_not_recomputed(self) -> None:
         first, second, plan = _two_chapter_artifacts()
         result = A.assemble_chapters(accepted_artifacts=[first, second], chapter_plan=plan)
-        expected = {"ch_000": first["artifact_sha256"], "ch_001": second["artifact_sha256"]}
+        expected = {CH0: first["artifact_sha256"], CH1: second["artifact_sha256"]}
         for unit in result["reading_units"]:
             self.assertEqual(expected[unit["chapter_id"]], unit["artifact_sha256"])
         self.assertEqual(expected, result["report"]["chapter_artifacts"])
@@ -411,44 +517,44 @@ class AcceptedHashAndBlockOrderTests(unittest.TestCase):
         bad = copy.deepcopy(first)
         bad["artifact_sha256"] = "0" * 64
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[bad], chapter_plan=_plan([CH0]))
 
     def test_colliding_remapped_block_ids_fail_closed(self) -> None:
         artifact = _artifact(
-            "ch_000",
+            CH0,
             entities=[_entity("ent_001", "曹操")],
             events=[],
             blocks=[_block("foo", "第一。", ["ent_001"], []), _block("t_001", "第二。", ["ent_001"], [])],
             reading_units=[_reading_unit("foo", "第一。"), _reading_unit("t_001", "第二。")],
         )
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan([CH0]))
 
     def test_duplicate_local_block_ids_fail_closed(self) -> None:
         artifact = _artifact(
-            "ch_000",
+            CH0,
             entities=[_entity("ent_001", "曹操")],
             events=[],
             blocks=[_block("t_001", "第一。", ["ent_001"], []), _block("t_001", "第二。", ["ent_001"], [])],
             reading_units=[_reading_unit("t_001", "第一。")],
         )
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan([CH0]))
 
     def test_colliding_remapped_entity_ids_fail_closed(self) -> None:
         artifact = _artifact(
-            "ch_000",
+            CH0,
             entities=[_entity("foo", "曹操"), _entity("ent_001", "劉備")],
             events=[],
             blocks=[_block("t_001", "曹操。", ["foo", "ent_001"], [])],
             reading_units=[_reading_unit("t_001", "曹操。", entity_ref="foo", mode="unknown")],
         )
         with self.assertRaises(PersistenceError):
-            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+            A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan([CH0]))
 
     def test_source_order_is_preserved_for_nonstandard_block_ids(self) -> None:
         artifact = _artifact(
-            "ch_000",
+            CH0,
             entities=[_entity("ent_001", "曹操")],
             events=[_event("evt_001", "戰役", participants=["ent_001"], time=_time())],
             blocks=[
@@ -457,7 +563,7 @@ class AcceptedHashAndBlockOrderTests(unittest.TestCase):
             ],
             reading_units=[_reading_unit("t_100", "第一。"), _reading_unit("t_001", "第二。")],
         )
-        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan(["ch_000"]))
+        result = A.assemble_chapters(accepted_artifacts=[artifact], chapter_plan=_plan([CH0]))
         self.assertEqual(
             ["t_000100", "t_000001"],
             [block["block_id"] for block in result["translation_blocks"]],

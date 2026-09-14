@@ -23,6 +23,7 @@ if str(HERE) not in sys.path:
 
 import chapter_contract as C  # noqa: E402
 import reading_contract as R  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r2-contract"
@@ -34,11 +35,66 @@ PUBLICATION_ID = "0192f0a0-0000-7000-8000-00000000bb02"
 
 
 def load(name: str) -> dict:
-    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    value = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    if name.startswith("candidate-"):
+        request = _current_request()
+        value["version"] = "0.4"
+        value["source_scope"] = copy.deepcopy(request["source_scope"])
+        value.setdefault(
+            "person_states",
+            {
+                "phases": [],
+                "phase_orders": [],
+                "unit_phases": [
+                    {
+                        "block_id": unit["block_id"],
+                        "mode": "unknown",
+                        "phase_refs": [],
+                        "source_selections": [],
+                    }
+                    for unit in value.get("reading", {}).get("units", [])
+                ],
+                "facts": [],
+                "continuities": [],
+                "disagreements": [],
+            },
+        )
+    return value
+
+
+def _current_request() -> dict:
+    request = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+    request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+    request["chapter_start"] = 0
+    request["chapter_end"] = len(request["normalized_text"])
+    request["revision_normalized_sha256"] = request["normalized_sha256"]
+    request["source_scope"] = S.build_source_scope(request)
+    request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+    return request
 
 
 def base() -> tuple[dict, dict]:
-    return load("request.json"), load("candidate-valid.json")
+    request = _current_request()
+    candidate = json.loads((FIXTURES / "candidate-valid.json").read_text(encoding="utf-8"))
+    candidate["version"] = "0.4"
+    candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+    candidate["person_states"] = {
+        "phases": [],
+        "phase_orders": [],
+        "unit_phases": [
+            {
+                "block_id": unit["block_id"],
+                "mode": "unknown",
+                "phase_refs": [],
+                "source_selections": [],
+            }
+            for unit in candidate["reading"]["units"]
+        ],
+        "facts": [],
+        "continuities": [],
+        "disagreements": [],
+    }
+    return request, candidate
 
 
 def assert_rejected(test: unittest.TestCase, report: dict, category: str) -> None:
@@ -128,8 +184,7 @@ class ReadingCandidateTests(unittest.TestCase):
         report = R.validate_reading_annotations(request, candidate)
         self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
         self.assertEqual(report["errors"]["chapter"], [])
-        subset = {k: v for k, v in candidate.items() if k != "reading"} | {"version": "0.1"}
-        self.assertTrue(C.validate_chapter_candidate(request, subset)["passed"])
+        self.assertTrue(C.validate_chapter_candidate(request, candidate)["passed"])
 
     def test_missing_block_annotation_rejected(self) -> None:
         request, _ = base()
@@ -248,14 +303,26 @@ class AcceptanceTests(unittest.TestCase):
     def test_accept_emits_bound_artifact(self) -> None:
         request, candidate = base()
         producing_run = {"run_id": "r", "model": "m", "prompt_schema_version": "v"}
-        artifact = R.accept_reading_candidate(
-            request, candidate, producing_run=producing_run
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "request_fingerprint": C.request_fingerprint(request),
+            "candidate_sha256": R.sha256_json(candidate),
+            "history_sha256": "a" * 64,
+            "step_output_sha256s": ["b" * 64],
+            "decision": {"kind": "automatic"},
+        }
+        artifact = S.accept_staged_candidate(
+            request, candidate, producing_run=producing_run,
+            production_receipt=receipt,
         )
-        again = R.accept_reading_candidate(
-            request, candidate, producing_run=producing_run
+        again = S.accept_staged_candidate(
+            request, candidate, producing_run=producing_run,
+            production_receipt=receipt,
         )
         self.assertEqual(artifact["schema"], "chronicle.chapter-artifact")
-        self.assertEqual(artifact["version"], "0.2")
+        self.assertEqual(artifact["version"], "0.4")
         self.assertEqual(artifact["artifact_sha256"], again["artifact_sha256"])
         self.assertEqual(len(artifact["artifact_sha256"]), 64)
         self.assertEqual(len(artifact["reading_units"]), 3)
@@ -272,7 +339,7 @@ class AcceptanceTests(unittest.TestCase):
             )
             self.assertEqual(unit["unit_id"], expected)
         self.assertEqual(
-            R._iter_schema_errors(R.artifact_v02_schema(), artifact, registry=R._registry()), []
+            R._iter_schema_errors(R.artifact_schema(), artifact, registry=R._registry()), []
         )
 
     def test_accept_rejects_failing_candidate(self) -> None:
@@ -296,9 +363,15 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_role_value_is_copied_by_program(self) -> None:
         request, candidate = base()
-        artifact = R.accept_reading_candidate(
+        artifact = S.accept_staged_candidate(
             request, candidate,
             producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+            production_receipt={
+                "schema": "chronicle.chapter-acceptance", "version": "0.1",
+                "status": "accepted", "request_fingerprint": C.request_fingerprint(request),
+                "candidate_sha256": R.sha256_json(candidate), "history_sha256": "a" * 64,
+                "step_output_sha256s": ["b" * 64], "decision": {"kind": "automatic"},
+            },
         )
         unit = {u["block_id"]: u for u in artifact["reading_units"]}["t_002"]
         roles = {

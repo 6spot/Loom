@@ -1,9 +1,10 @@
-"""Pure 0.4 chapter contracts: source scope, validation and accepted products.
+"""Current chapter contracts: source scope, validation and accepted products.
 
 Source segmentation is deterministic bookkeeping for one complete chapter;
-it never creates translation tasks. Frozen 0.3 validators own the unchanged
-candidate sub-document. Only this generation excludes explicitly bracketed
-annotations from required translation coverage and binds content acceptance.
+it never creates translation tasks. The current shared chapter definitions
+and the reading/person-state owners validate one unchanged 0.4 candidate.
+Only this generation excludes explicitly bracketed annotations from required
+translation coverage and binds content acceptance.
 """
 
 from __future__ import annotations
@@ -158,18 +159,6 @@ def build_source_scope(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _legacy_candidate(candidate: dict[str, Any], version: str) -> dict[str, Any]:
-    """Use frozen validators on their own sub-document, never emit it."""
-    subset = copy.deepcopy(candidate)
-    subset.pop("source_scope", None)
-    if version in ("0.1", "0.2"):
-        subset.pop("person_states", None)
-    if version == "0.1":
-        subset.pop("reading", None)
-    subset["version"] = version
-    return subset
-
-
 def _body_coverage_errors(
     request: dict[str, Any], candidate: dict[str, Any], scope: dict[str, Any]
 ) -> list[str]:
@@ -194,7 +183,7 @@ def _body_coverage_errors(
 
 
 def validate_staged_candidate(request: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
-    """Validate all 0.4 fields and the unchanged frozen 0.3 sub-document."""
+    """Validate all current fields on one unchanged 0.4 candidate."""
     errors = _schema_errors(C.candidate_schema_for("0.4"), candidate)
     inherited: dict[str, Any] = {}
     expected_scope = None
@@ -219,14 +208,11 @@ def validate_staged_candidate(request: dict[str, Any], candidate: dict[str, Any]
     if isinstance(candidate, dict) and isinstance(request, dict):
         if expected_scope is not None and candidate.get("source_scope") != expected_scope:
             errors.append("candidate source_scope differs from the program-derived source scope")
-        subset = _legacy_candidate(candidate, "0.3")
-        # The base validator checks the exact full source and all of its
-        # references. Only its required body list is generation-specific.
         inherited_request = copy.deepcopy(request)
         if expected_scope is not None:
             inherited_request["required_block_ids"] = list(expected_scope["body_block_ids"])
         try:
-            inherited = P.validate_person_state_candidate(inherited_request, subset)
+            inherited = P.validate_person_state_candidate(inherited_request, candidate)
             if expected_scope is not None:
                 errors.extend(_body_coverage_errors(request, candidate, expected_scope))
         except (PersistenceError, TypeError, AttributeError, KeyError, ValueError) as exc:
@@ -255,7 +241,7 @@ def validate_production_receipt(
     receipt: Any, *, request_fingerprint: str, candidate_sha256: str
 ) -> list[str]:
     """Validate receipt binding; persisted history authority is checked by the store."""
-    schema = C.artifact_schema_for("0.4")
+    schema = C._schema_bundle()[C.SHARED_SCHEMA_ID]
     errors = _schema_errors({
         "$ref": schema["$id"] + "#/$defs/production_receipt"
     }, receipt)
@@ -291,7 +277,7 @@ def accept_staged_candidate(
     if receipt_errors:
         raise PersistenceError("invalid production receipt: " + "; ".join(receipt_errors))
     anchors = P._merge_anchor_records(
-        C.collect_anchors(request, _legacy_candidate(candidate, "0.1")),
+        C.collect_anchors(request, candidate),
         P.collect_person_state_anchors(candidate, request),
         "staged chapter acceptance",
     )

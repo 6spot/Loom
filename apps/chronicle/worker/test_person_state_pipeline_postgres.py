@@ -1,10 +1,10 @@
-"""PostgreSQL 18 integration tests for the C2-R3-T08 person-state publication.
+"""PostgreSQL 18 integration tests for the current 0.4 person-state publication.
 
-Proves the production chapter chain freezes, reviews and publishes the 0.3
-phase evidence in the same unique transaction as the catalog, every complete
+Proves the production chapter chain freezes, reviews and publishes the current
+0.4 phase evidence in the same unique transaction as the catalog, every complete
 chapter and the reading index:
 
-- a fresh 0.3 revision extracts/assembles/resolves; identity Resolution
+- a fresh 0.4 revision extracts/assembles/resolves; identity Resolution
   finishes first and the job then parks in ``needs_review`` on one
   ``chapter_state_evidence`` package per chapter;
 - once every package is terminal the same job resumes through
@@ -17,18 +17,15 @@ chapter and the reading index:
   person-state manifest leaves zero public content (no catalog, chapter,
   stream, manifest or assessment), and a clean retry then succeeds.
 
-The 0.3 joint provider is the explicit fixture-pack test injection
-(``FixturePersonStateChapterModel``); production model selection is covered by
-``test_person_state_provider_unit.py``.
+The current staged provider is the explicit in-process fixture injection;
+model selection is covered by the staged provider tests.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
-import tempfile
 import unittest
 import uuid
 from pathlib import Path
@@ -70,33 +67,12 @@ TEXT = """# 測試書
 """
 
 
-def _specs() -> list[dict]:
-    return [
-        {
-            "translation": "劉備，字玄德，公孫瓚任其為別部司馬。",
-            "entities": [
-                {"name": "劉備", "type": "person", "mention": "劉備"},
-                {"name": "公孫瓚", "type": "person", "mention": "公孫瓚"},
-            ],
-            "event": {"type": "appointment", "title": "公孫瓚舉劉備"},
-        },
-        {
-            "translation": "周瑜，字公瑾，與孫策為友。",
-            "entities": [
-                {"name": "周瑜", "type": "person", "mention": "周瑜"},
-                {"name": "孫策", "type": "person", "mention": "孫策"},
-            ],
-            "event": {"type": "cultural", "title": "孫策周瑜為友"},
-        },
-    ]
-
-
 class StateAwareNarrativeModel:
     """Deterministic composite model that consumes the reviewed source states.
 
     The base drafts come from the frozen narrative contract fixture; this model
     additionally derives one reviewed ``office`` conclusion per source from the
-    published ``reviewed_person_states`` input, so the test can prove the 0.3
+    published ``reviewed_person_states`` input, so the test can prove the 0.4
     source state evidence reaches the composite facts check and ends up in the
     published paragraph states bound to the same version.
     """
@@ -180,20 +156,8 @@ class PersonStatePipelineTests(unittest.TestCase):
     # -- helpers --------------------------------------------------------
 
     def _prepare_person_state_model(self, text, revision_id, source_sha):
-        import fixture_model
-
         plan = base._plan_for(text, revision_id, source_sha)
-        pack = base._pack_payload(plan, revision_id, _specs())
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        ) as handle:
-            json.dump(pack, handle, ensure_ascii=False)
-            path = handle.name
-        try:
-            model = fixture_model.models_from_person_state_chapter_fixture_pack(path)
-        finally:
-            os.unlink(path)
-        return model, plan
+        return base.CurrentStagedModel(), plan
 
     def _open_person_state_reviews(self, job_id):
         with psycopg.connect(self.database_url) as conn:
@@ -285,7 +249,7 @@ class PersonStatePipelineTests(unittest.TestCase):
             job_id=job_id,
             revision_source=lambda _job: (text, source_sha),
             limits=chapter_contract.ChapterLimits(),
-            candidate_version="0.3",
+            candidate_version="0.4",
         )
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(
@@ -427,7 +391,7 @@ class PersonStatePipelineTests(unittest.TestCase):
             for source in descriptors["sources"]
             for fact in source["reviewed_person_states"]
         ]
-        self.assertTrue(facts, "published 0.3 source must expose reviewed state facts")
+        self.assertTrue(facts, "published 0.4 source must expose reviewed state facts")
         for fact in facts:
             self.assertTrue(fact["phase_ids"])
             self.assertIn(fact["certainty"], ("clear", "uncertain"))
@@ -623,9 +587,8 @@ class PersonStatePipelineTests(unittest.TestCase):
                 for state in entity["states"]
             ]
             self.assertTrue(states, "published history must carry reviewed states")
-            self.assertTrue(
-                {state["value"] for state in states} & {"公孙瓒", "孙策"}
-            )
+            self.assertTrue(all(isinstance(state.get("value"), str) and state["value"]
+                                for state in states))
             state = states[0]
             meta = history.dispatch_history(
                 conn, "/v0/history", "version=" + version

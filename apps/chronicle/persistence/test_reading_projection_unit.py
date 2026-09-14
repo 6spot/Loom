@@ -22,8 +22,11 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import assembly as A  # noqa: E402
+import chapter_contract as C  # noqa: E402
+import person_state_contract as PSC  # noqa: E402
 import reading_contract as RC  # noqa: E402
 import reading_projection as RP  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
 from common import PersistenceError, canonical_json_bytes, sha256_json  # noqa: E402
 
 FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r2-contract"
@@ -150,8 +153,10 @@ def _block(block_id: str, text: str, entity_refs: list[str], event_refs: list[st
 
 
 def _anchor(chapter_id: str, anchor_id: str) -> dict:
+    # The current shared contract owns the fixed-width anchor namespace.
+    anchor_suffix = hashlib.sha256(chapter_id.encode("utf-8")).hexdigest()[:16]
     return {
-        "anchor_id": anchor_id,
+        "anchor_id": "anc_" + anchor_suffix,
         "revision_id": REVISION,
         "chapter_id": chapter_id,
         "source_sha256": SHA,
@@ -159,7 +164,7 @@ def _anchor(chapter_id: str, anchor_id: str) -> dict:
         "first_block_id": "b_001",
         "last_block_id": "b_001",
         "quote": "曹操",
-        "quote_sha256": "q" * 64,
+        "quote_sha256": "a" * 64,
         "occurrence": 1,
         "start": 0,
         "end": 2,
@@ -245,10 +250,90 @@ def _artifact(
     blocks: list[dict],
     reading_units: list[dict],
 ) -> dict:
-    reading = {"units": [{"block_id": unit["block_id"]} for unit in reading_units], "warnings": []}
+    chapter_index = 1 if chapter_id == CH1 else 0
+
+    def selection(quote: str) -> dict:
+        return {
+            "first_block_id": "b_001",
+            "last_block_id": "b_001",
+            "quote": quote or "正文",
+            "occurrence": 1,
+        }
+
+    reading = {"units": [], "warnings": []}
+    for unit in reading_units:
+        source_selection = selection(unit["text_hash"][:8])
+        mode = unit["narrative_time"]["mode"]
+        narrative_time = copy.deepcopy(unit["narrative_time"])
+        narrative_time["source_selections"] = (
+            [] if mode == "unknown" else [copy.deepcopy(source_selection)]
+        )
+        event_spans = []
+        for span in unit.get("resolved_spans") or []:
+            event_spans.append(
+                {
+                    "span_id": span["span_id"],
+                    "selection": {"quote": span["quote"], "occurrence": 1},
+                    "status": span["status"],
+                    "target_ref": span["target_ref"],
+                    "candidate_refs": list(span.get("candidate_refs") or []),
+                    "relation": span["relation"],
+                    "source_selections": [copy.deepcopy(source_selection)],
+                }
+            )
+        contexts = []
+        for context in unit.get("context_entities") or []:
+            contexts.append(
+                {
+                    "entity_ref": context["entity_ref"],
+                    "importance": context["importance"],
+                    "source_selections": [copy.deepcopy(source_selection)],
+                    "event_roles": [
+                        {
+                            "event_ref": role["event_ref"],
+                            "participant_index": role["participant_index"],
+                        }
+                        for role in context.get("event_roles") or []
+                    ],
+                }
+            )
+        reading["units"].append(
+            {
+                "block_id": unit["block_id"],
+                "narrative_time": narrative_time,
+                "current_event_refs": list(unit.get("current_event_refs") or []),
+                "event_spans": event_spans,
+                "context_entities": contexts,
+            }
+        )
+
+    source_scope = {
+        "schema": "chronicle.chapter-source-scope",
+        "version": "0.1",
+        "chapter_id": chapter_id,
+        "revision_id": REVISION,
+        "source_sha256": SHA,
+        "normalized_sha256": NORM,
+        "revision_normalized_sha256": NORM,
+        "chapter_content_sha256": NORM,
+        "chapter_start": chapter_index * 10,
+        "chapter_end": (chapter_index + 1) * 10,
+        "offset_unit": "chars-normalized-utf8",
+        "body_block_ids": ["b_001"],
+        "fragments": [
+            {
+                "id": "sf_" + hashlib.sha256(chapter_id.encode("utf-8")).hexdigest()[:24],
+                "block_id": "b_001",
+                "role": "body",
+                "start": chapter_index * 10,
+                "end": (chapter_index + 1) * 10,
+                "text_sha256": NORM,
+            }
+        ],
+    }
     candidate = {
         "schema": "chronicle.chapter-candidate",
-        "version": "0.2",
+        "version": "0.4",
         "chapter_id": chapter_id,
         "bundle": {
             "schema_version": "0.1",
@@ -263,27 +348,96 @@ def _artifact(
         "record_sources": [],
         "warnings": [],
         "reading": reading,
+        "person_states": {
+            "phases": [],
+            "phase_orders": [],
+            "unit_phases": [
+                {
+                    "block_id": unit["block_id"],
+                    "mode": "unknown",
+                    "phase_refs": [],
+                    "source_selections": [],
+                }
+                for unit in reading_units
+            ],
+            "facts": [],
+            "continuities": [],
+            "disagreements": [],
+        },
+        "source_scope": source_scope,
+    }
+    request = {
+        "chapter_id": chapter_id,
+        "revision_id": REVISION,
+        "source_sha256": SHA,
+        "normalized_sha256": NORM,
+    }
+    candidate_sha256 = sha256_json(candidate)
+    request_fingerprint = sha256_json({"chapter_id": chapter_id, "revision_id": REVISION})
+    person_state_candidates = [
+        {
+            "candidate_key": PSC.candidate_key_for(
+                kind="unit_phase", chapter_id=chapter_id,
+                item_ref=unit["block_id"], anchor_ids=[],
+            ),
+            "kind": "unit_phase",
+            "item_ref": unit["block_id"],
+            "phase_ids": [],
+            "anchor_ids": [],
+            "source_fact_refs": [],
+        }
+        for unit in reading_units
+    ]
+    receipt = {
+        "schema": "chronicle.chapter-acceptance",
+        "version": "0.1",
+        "status": "accepted",
+        "request_fingerprint": request_fingerprint,
+        "candidate_sha256": candidate_sha256,
+        "history_sha256": "c" * 64,
+        "step_output_sha256s": ["d" * 64],
+        "decision": {"kind": "human"},
     }
     artifact = {
         "schema": "chronicle.chapter-artifact",
-        "version": "0.2",
+        "version": "0.4",
         "chapter_id": chapter_id,
         "revision_id": REVISION,
         "source_sha256": SHA,
         "normalized_sha256": NORM,
         "candidate": candidate,
         "anchors": [_anchor(chapter_id, f"anc_{chapter_id}")],
-        "request_fingerprint": f"fp-{chapter_id}",
+        "request_fingerprint": request_fingerprint,
         "producing_run": {"run_id": f"run-{chapter_id}", "model": "m", "prompt_schema_version": "v"},
         "reading": reading,
         "reading_sha256": sha256_json(reading),
+        "person_states": copy.deepcopy(candidate["person_states"]),
+        "person_states_sha256": sha256_json(candidate["person_states"]),
+        "person_state_candidates": person_state_candidates,
+        "production_receipt": receipt,
     }
-    artifact["candidate_sha256"] = sha256_json(candidate)
-    # Accepted 0.2 hash binds the artifact core excluding reading_units
-    # (reading_contract.accept_reading_candidate); reading_units never
-    # participates in the canonical artifact hash.
+    artifact["candidate_sha256"] = candidate_sha256
+    # Current staged acceptance binds the artifact core excluding derived
+    # reading_units; those unit IDs include the accepted artifact hash.
     artifact["artifact_sha256"] = sha256_json(artifact)
-    artifact["reading_units"] = reading_units
+    resolved_units = RC._resolve_reading_units(
+        candidate, request, artifact["artifact_sha256"]
+    )
+    # Keep the legacy fixture's deliberate missing-role contradiction visible
+    # at the current artifact boundary. Valid staged acceptance would reject
+    # it before resolution; this synthetic helper reaches assembly directly.
+    for source_unit, resolved_unit in zip(reading_units, resolved_units):
+        for source_context, resolved_context in zip(
+            source_unit.get("context_entities") or [],
+            resolved_unit.get("context_entities") or [],
+        ):
+            for source_role, resolved_role in zip(
+                source_context.get("event_roles") or [],
+                resolved_context.get("event_roles") or [],
+            ):
+                if source_role.get("role") is None:
+                    resolved_role["role"] = None
+    artifact["reading_units"] = resolved_units
     return artifact
 
 
@@ -392,8 +546,46 @@ def _compile(
 def _real_fixture_artifact() -> dict:
     request = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
     candidate = json.loads((FIXTURES / "candidate-valid.json").read_text(encoding="utf-8"))
-    return RC.accept_reading_candidate(
-        request, candidate, producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"}
+    request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+    request["chapter_start"] = 0
+    request["chapter_end"] = len(request["normalized_text"])
+    request["revision_normalized_sha256"] = request["normalized_sha256"]
+    request["source_scope"] = S.build_source_scope(request)
+    request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+    candidate["version"] = "0.4"
+    candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+    candidate["person_states"] = {
+        "phases": [],
+        "phase_orders": [],
+        "unit_phases": [
+            {
+                "block_id": unit["block_id"],
+                "mode": "unknown",
+                "phase_refs": [],
+                "source_selections": [],
+            }
+            for unit in candidate["reading"]["units"]
+        ],
+        "facts": [],
+        "continuities": [],
+        "disagreements": [],
+    }
+    candidate_sha256 = sha256_json(candidate)
+    receipt = {
+        "schema": "chronicle.chapter-acceptance",
+        "version": "0.1",
+        "status": "accepted",
+        "request_fingerprint": C.request_fingerprint(request),
+        "candidate_sha256": candidate_sha256,
+        "history_sha256": "c" * 64,
+        "step_output_sha256s": ["d" * 64],
+        "decision": {"kind": "human"},
+    }
+    return S.accept_staged_candidate(
+        request,
+        candidate,
+        producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "v"},
+        production_receipt=receipt,
     )
 
 
@@ -455,6 +647,8 @@ class RealFixtureCompilationTests(unittest.TestCase):
                     {
                         "chapter_id": "ch_756922e9af0d759d29d7475f",
                         "chapter_index": 0,
+                        "start": 0,
+                        "end": 36,
                         "content_sha256": json.loads((FIXTURES / "request.json").read_text())["normalized_sha256"],
                     }
                 ],

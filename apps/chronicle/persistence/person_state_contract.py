@@ -8,16 +8,15 @@ machine-checkable shared contracts consumed by T02-T15:
 
 - :class:`PersonStateLimits` fixes the engineering envelope (phase /
   fact / assertion caps, per-unit phase bounds, page sizes).
-- :func:`validate_person_state_candidate` validates a
-  ``chronicle.chapter-candidate / 0.3``: it first reuses the frozen 0.2
-  reading validator on the unchanged sub-document (so 0.1/0.2 semantics
-  are not rewritten), then checks unit-phase coverage, local reference
-  closure, phase DAG acyclicity, dimension/subject typing, continuity
-  ordering and the canonical-ID/URL discipline.
-- :func:`accept_person_state_candidate` accepts only passing candidates
-  and emits a ``chronicle.chapter-artifact / 0.3`` with program-resolved
-  reading units, the accepted ``person_states`` block, its hash and the
-  stable ``person_state_candidates`` keys with resolved source anchors.
+- :func:`validate_person_state_candidate` validates the current 0.4
+  candidate with the shared reading validator, then checks unit-phase
+  coverage, local reference closure, phase DAG acyclicity,
+  dimension/subject typing, continuity ordering and the canonical-ID/URL
+  discipline.
+- Direct person-state acceptance is retired; ``staged_chapter_contract``
+  emits the receipt-bound current artifact with program-resolved reading
+  units, the accepted ``person_states`` block, its hash and stable
+  ``person_state_candidates`` keys with resolved source anchors.
 - :func:`remap_person_state_evidence` keeps one revision namespace and
   preserves origin chapter/local refs plus hashes.
 - :func:`compile_person_state_projection` is the pre-publication pure
@@ -48,13 +47,13 @@ import chapter_contract as _chapter
 import reading_contract as _reading
 from common import PersistenceError, canonical_json_bytes, sha256_json
 
-#: Model-generatable candidate marker (third round).
+#: Current model-generatable candidate marker.
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
-CANDIDATE_VERSION = "0.3"
+CANDIDATE_VERSION = _chapter.CANDIDATE_VERSION
 
-#: Program-accepted artifact marker (third round).
+#: Current program-accepted artifact marker.
 ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
-ARTIFACT_VERSION = "0.3"
+ARTIFACT_VERSION = _chapter.ARTIFACT_VERSION
 
 #: Person-state machine contract version (enters fingerprints).
 CONTRACT_VERSION = "person-state-contract/0.1"
@@ -151,32 +150,14 @@ _URL_RE = re.compile(r"^https?://")
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "ingestion" / "schemas"
 
-CANDIDATE_V01_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.1.schema.json"
-CANDIDATE_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.2.schema.json"
-CANDIDATE_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.3.schema.json"
-ARTIFACT_V01_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.1.schema.json"
-ARTIFACT_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.2.schema.json"
-ARTIFACT_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.3.schema.json"
+CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.4.schema.json"
+ARTIFACT_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.4.schema.json"
+SHARED_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-shared-v0.4.schema.json"
 PERSON_STATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-person-state-v0.1.schema.json"
 
-CANDIDATE_V01_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.1.schema.json"
-)
-CANDIDATE_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.2.schema.json"
-)
-CANDIDATE_V03_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.3.schema.json"
-)
-ARTIFACT_V01_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.1.schema.json"
-)
-ARTIFACT_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json"
-)
-ARTIFACT_V03_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.3.schema.json"
-)
+CANDIDATE_SCHEMA_ID = _chapter.CANDIDATE_SCHEMA_ID
+ARTIFACT_SCHEMA_ID = _chapter.ARTIFACT_SCHEMA_ID
+SHARED_SCHEMA_ID = _chapter.SHARED_SCHEMA_ID
 PERSON_STATE_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-person-state-v0.1.schema.json"
 )
@@ -242,7 +223,7 @@ class PersonStateLimits:
 
 
 # ---------------------------------------------------------------------------
-# Schema loading (0.3 reuses frozen 0.1/0.2 definitions by $ref)
+# Schema loading for the current chapter roots/shared definitions and DTOs.
 # ---------------------------------------------------------------------------
 
 
@@ -262,18 +243,9 @@ def _load_schema(path_str: str, expected_id: str) -> dict[str, Any]:
 
 @lru_cache(maxsize=8)
 def _schema_bundle() -> dict[str, dict[str, Any]]:
-    schemas: dict[str, dict[str, Any]] = {}
-    for path, schema_id in (
-        (CANDIDATE_V01_SCHEMA_PATH, CANDIDATE_V01_SCHEMA_ID),
-        (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
-        (CANDIDATE_V03_SCHEMA_PATH, CANDIDATE_V03_SCHEMA_ID),
-        (ARTIFACT_V01_SCHEMA_PATH, ARTIFACT_V01_SCHEMA_ID),
-        (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
-        (ARTIFACT_V03_SCHEMA_PATH, ARTIFACT_V03_SCHEMA_ID),
-        (PERSON_STATE_SCHEMA_PATH, PERSON_STATE_SCHEMA_ID),
-    ):
-        schema = _load_schema(str(path), schema_id)
-        schemas[schema_id] = schema
+    schemas: dict[str, dict[str, Any]] = dict(_chapter._schema_bundle())
+    person_state = _load_schema(str(PERSON_STATE_SCHEMA_PATH), PERSON_STATE_SCHEMA_ID)
+    schemas[PERSON_STATE_SCHEMA_ID] = person_state
     return schemas
 
 
@@ -290,12 +262,12 @@ def _registry() -> Any:
     return registry
 
 
-def candidate_v03_schema() -> dict[str, Any]:
-    return _schema_bundle()[CANDIDATE_V03_SCHEMA_ID]
+def candidate_schema() -> dict[str, Any]:
+    return _schema_bundle()[CANDIDATE_SCHEMA_ID]
 
 
-def artifact_v03_schema() -> dict[str, Any]:
-    return _schema_bundle()[ARTIFACT_V03_SCHEMA_ID]
+def artifact_schema() -> dict[str, Any]:
+    return _schema_bundle()[ARTIFACT_SCHEMA_ID]
 
 
 def person_state_schema() -> dict[str, Any]:
@@ -540,12 +512,12 @@ def _selection_errors(
 def validate_person_state_candidate(
     request: dict[str, Any], candidate: dict[str, Any]
 ) -> dict[str, Any]:
-    """Validate a 0.3 candidate's ``person_states`` against its request.
+    """Validate the current candidate's ``person_states`` against its request.
 
-    Reuses the frozen 0.2 reading validator on the unchanged sub-document
-    first, then adds third-round coverage, reference, phase-graph,
-    typing, continuity and canonical-ID checks. Any failing part rejects
-    the whole candidate.
+    The current reading validator runs on the same candidate first, then
+    this owner adds coverage, reference, phase-graph, typing, continuity
+    and canonical-ID checks. Retired chapter generations never enter this
+    path.
     """
     return _validate_person_state_components(request, candidate, include_reading=True)
 
@@ -582,7 +554,7 @@ def _validate_person_state_components(
 
     if include_reading:
         schema_errors.extend(
-            _iter_schema_errors(candidate_v03_schema(), candidate, registry=_registry())
+            _iter_schema_errors(candidate_schema(), candidate, registry=_registry())
         )
 
     try:
@@ -591,13 +563,10 @@ def _validate_person_state_components(
         request_blocks = {}
         ref_errors.append(f"request: {exc}")
 
-    # Reuse the frozen second-round semantics verbatim on the 0.2 subset.
+    # Reuse current reading semantics on the unchanged candidate.
     if include_reading and isinstance(request, dict):
-        subset = copy.deepcopy(candidate)
-        subset.pop("person_states", None)
-        subset["version"] = "0.2"
         try:
-            reading_report = _reading.validate_reading_annotations(request, subset)
+            reading_report = _reading.validate_reading_annotations(request, candidate)
             reading_errors.extend(_reading.flatten_reading_errors(reading_report))
         except (TypeError, AttributeError, KeyError) as exc:  # fail closed
             reading_errors.append(f"second-round validation raised {type(exc).__name__}: {exc}")
@@ -1019,7 +988,7 @@ def _merge_anchor_records(
 def build_person_state_candidates(
     candidate: dict[str, Any], request: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Compute the stable review candidate keys for an accepted 0.3 candidate."""
+    """Compute stable review candidate keys for the current candidate."""
     request_blocks = _chapter._require_request(request)
     person_states = candidate.get("person_states") if isinstance(candidate.get("person_states"), dict) else {}
     chapter_id = request["chapter_id"]
@@ -1071,84 +1040,11 @@ def accept_person_state_candidate(
     producing_run: dict[str, Any],
     report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Accept a passing 0.3 candidate and emit its bound 0.3 artifact.
-
-    Validation is always recomputed; a caller-supplied ``report`` is only
-    a consistency check and can never accept a bad candidate. Every
-    program-bound value (hashes, offsets, unit IDs, candidate keys,
-    anchors) is computed here, never read from the candidate.
-    """
-    if not isinstance(producing_run, dict):
-        raise PersistenceError("producing_run must be a JSON object")
-    for key in ("run_id", "model", "prompt_schema_version"):
-        if not isinstance(producing_run.get(key), str) or not producing_run[key]:
-            raise PersistenceError(f"producing_run requires non-empty {key!r}")
-    fresh = validate_person_state_candidate(request, candidate)
-    if report is not None:
-        if not isinstance(report, dict):
-            raise PersistenceError("supplied validation report must be a JSON object")
-        if bool(report.get("passed")) != bool(fresh["passed"]) or set(
-            flatten_person_state_errors(report)
-        ) != set(flatten_person_state_errors(fresh)):
-            raise PersistenceError(
-                "supplied validation report does not match this request/candidate pair; "
-                "refusing to accept (fail closed)"
-            )
-    if not fresh.get("passed"):
-        detail = "; ".join(flatten_person_state_errors(fresh))
-        raise PersistenceError(f"person-state candidate failed validation: {detail}")
-
-    subset_v01 = copy.deepcopy(candidate)
-    subset_v01.pop("person_states", None)
-    subset_v01.pop("reading", None)
-    subset_v01["version"] = "0.1"
-    # The 0.1 subset only anchors mentions/record_sources/translation. The
-    # person-state selections cite their own anchors, so their payloads must be
-    # unioned in; otherwise the accepted artifact advertises anchor ids the
-    # immutable source reader cannot resolve (C2-R3-T03 review).
-    anchors = _merge_anchor_records(
-        _chapter.collect_anchors(request, subset_v01),
-        collect_person_state_anchors(candidate, request),
-        "person-state acceptance",
+    """Reject direct person-state acceptance outside the staged owner."""
+    raise PersistenceError(
+        "direct person-state acceptance is retired; current 0.4 candidates must be "
+        "accepted by staged_chapter_contract with a production receipt"
     )
-
-    candidate_copy = copy.deepcopy(candidate)
-    candidate_sha256 = sha256_json(candidate_copy)
-    reading = copy.deepcopy(candidate_copy.get("reading"))
-    reading_sha256 = sha256_json(reading)
-    person_states = copy.deepcopy(candidate_copy.get("person_states"))
-    person_states_sha256 = sha256_json(person_states)
-    # The candidate metadata is generated here and bound into artifact_sha256
-    # (unlike the reading units, its keys do not depend on the artifact hash),
-    # so a truncated/edited candidate list can never survive as accepted.
-    person_state_candidates = build_person_state_candidates(candidate_copy, request)
-    core: dict[str, Any] = {
-        "schema": ARTIFACT_SCHEMA,
-        "version": ARTIFACT_VERSION,
-        "chapter_id": request["chapter_id"],
-        "revision_id": request["revision_id"],
-        "source_sha256": request["source_sha256"],
-        "normalized_sha256": request["normalized_sha256"],
-        "candidate": candidate_copy,
-        "candidate_sha256": candidate_sha256,
-        "anchors": anchors,
-        "request_fingerprint": _chapter.request_fingerprint(request),
-        "producing_run": copy.deepcopy(producing_run),
-        "reading": reading,
-        "reading_sha256": reading_sha256,
-        "person_states": person_states,
-        "person_states_sha256": person_states_sha256,
-    }
-    artifact_sha256 = sha256_json({**core, "person_state_candidates": person_state_candidates})
-    subset_v02 = copy.deepcopy(candidate)
-    subset_v02.pop("person_states", None)
-    subset_v02["version"] = "0.2"
-    reading_units = _reading._resolve_reading_units(subset_v02, request, artifact_sha256)
-    artifact = dict(core)
-    artifact["artifact_sha256"] = artifact_sha256
-    artifact["reading_units"] = reading_units
-    artifact["person_state_candidates"] = person_state_candidates
-    return artifact
 
 
 # ---------------------------------------------------------------------------
@@ -1159,7 +1055,7 @@ def accept_person_state_candidate(
 def remap_person_state_evidence(
     chapter_artifacts: list[dict[str, Any]], revision_ref_map: dict[str, Any]
 ) -> list[dict[str, Any]]:
-    """Remap accepted 0.3 artifacts into one revision namespace.
+    """Remap accepted current artifacts into one revision namespace.
 
     Each returned evidence manifest keeps its origin chapter/local refs
     and content hashes; the caller's ``revision_ref_map`` may only relabel
@@ -1172,8 +1068,10 @@ def remap_person_state_evidence(
     for artifact in chapter_artifacts:
         if not isinstance(artifact, dict):
             continue
-        if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (ARTIFACT_VERSION, "0.4"):
-            raise PersistenceError("remap input must be chronicle.chapter-artifact / 0.3 or 0.4")
+        if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") != ARTIFACT_VERSION:
+            raise PersistenceError(
+                "remap input must be the current chronicle.chapter-artifact / 0.4"
+            )
         chapter_id = artifact.get("chapter_id")
         mapping = revision_ref_map.get(chapter_id) if isinstance(chapter_id, str) else None
         mapping = mapping if isinstance(mapping, dict) else {}
@@ -2129,11 +2027,11 @@ __all__ = [
     "REVIEW_VERSION",
     "STATE_DIMENSIONS",
     "accept_person_state_candidate",
-    "artifact_v03_schema",
+    "artifact_schema",
     "assert_link_kind_scope",
     "build_person_state_candidates",
     "candidate_key_for",
-    "candidate_v03_schema",
+    "candidate_schema",
     "collect_person_state_anchors",
     "compile_person_state_disagreements",
     "compile_person_state_projection",

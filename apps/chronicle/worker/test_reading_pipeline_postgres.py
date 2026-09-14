@@ -1,9 +1,9 @@
-"""PostgreSQL 18 integration tests for the C2-R2-T06 reading publication wiring.
+"""PostgreSQL 18 integration tests for the current 0.4 reading publication wiring.
 
 Proves the production chapter chain publishes the canonical catalog, every
 complete chapter and the whole immutable reading index in one transaction:
 
-- a fresh 0.2 revision flows through extract/assemble/resolve/publish/present
+- a fresh 0.4 revision flows through extract/assemble/resolve/publish/present
   and exposes exactly one reading stream whose units reassemble the published
   translation blocks and whose groups/occurrences are readable by the T05
   helpers;
@@ -13,13 +13,12 @@ complete chapter and the whole immutable reading index in one transaction:
   reading index and before the publish checkpoint leaves zero public content
   (no catalog, no chapter publication, no reading stream/unit/group/
   occurrence), and a clean retry then succeeds;
-- a chapter plan whose content hashes drift from the accepted 0.2 artifacts is
+- a chapter plan whose content hashes drift from the accepted 0.4 artifacts is
   rejected fail-closed with no public rows.
 
-The joint reading model is the explicit 0.2 fixture-pack test injection
-(``FixtureReadingChapterModel``); production model selection is covered by
-``test_reading_provider_unit.py``. The stream/event read APIs belong to
-T07/T08 and are not fabricated here.
+The current staged model is the explicit in-process fixture injection; model
+transport selection is covered by the staged provider tests. The stream/event
+read APIs belong to T07/T08 and are not fabricated here.
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import time
 import unittest
 import uuid
@@ -55,9 +53,11 @@ from migrations import apply_migrations  # noqa: E402
 
 import chapter_stage as stage  # noqa: E402
 import ingestion_worker as worker  # noqa: E402
+import person_state_review  # noqa: E402
 import reading_projection as RP  # noqa: E402
 import reading_store  # noqa: E402
 import resolve_publish as R  # noqa: E402
+from staged_pipeline_fixture import ScriptedModels  # noqa: E402
 
 
 DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
@@ -116,68 +116,16 @@ def _plan_for(text: str, revision_id: uuid.UUID, source_sha: str) -> dict:
     )
 
 
-def _reading_specs() -> list[dict]:
-    return [
-        {
-            "translation": "劉備，字玄德，乃漢室宗親，以織席販履為業。",
-            "entities": [{"name": "劉備", "type": "person", "mention": "劉備"}],
-            "event": {"type": "other", "title": "劉備織席販履"},
-        },
-        {
-            "translation": "周瑜，字公瑾，姿貌雄偉，精通音律，時人稱之。",
-            "entities": [{"name": "周瑜", "type": "person", "mention": "周瑜"}],
-            "event": {"type": "cultural", "title": "周瑜顧曲"},
-        },
-    ]
+class CurrentStagedModel:
+    """Current staged fixture plus a scalar call counter for assertions."""
 
+    def __init__(self) -> None:
+        self.script = ScriptedModels()
+        self.models = self.script.models
 
-def _pack_payload(plan: dict, revision_id: uuid.UUID, specs: list[dict]) -> dict:
-    chapters = []
-    for chapter, spec in zip(plan["chapters"], specs):
-        chapters.append(
-            {
-                "chapter_id": chapter["chapter_id"],
-                "revision_id": str(revision_id),
-                "source_title": "測試書",
-                "translation_text": spec["translation"],
-                "entities": spec["entities"],
-                "event": spec["event"],
-                "predicate": "affected",
-            }
-        )
-    return {
-        "schema": "chronicle.chapter-fixture-pack",
-        "version": "0.1",
-        "model_version": "t06-reading-test",
-        "chapters": chapters,
-    }
-
-
-def _load_reading_fixture_model(pack: dict):
-    import fixture_model  # noqa: E402
-
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8"
-    ) as handle:
-        json.dump(pack, handle, ensure_ascii=False)
-        path = handle.name
-    try:
-        return fixture_model.models_from_reading_chapter_fixture_pack(path)
-    finally:
-        os.unlink(path)
-
-
-class CountingReadingModel:
-    """0.2 fixture provider that counts how many model calls were issued."""
-
-    def __init__(self, inner) -> None:
-        self.inner = inner
-        self.name = inner.name
-        self.calls = 0
-
-    def complete(self, prompt: str) -> str:
-        self.calls += 1
-        return self.inner.complete(prompt)
+    @property
+    def calls(self) -> int:
+        return sum(self.script.calls.values())
 
 
 class ReadingPipelinePostgresTests(unittest.TestCase):
@@ -230,17 +178,66 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
 
     def _prepare_model(self, text, revision_id, source_sha, specs=None):
         plan = _plan_for(text, revision_id, source_sha)
-        pack = _pack_payload(plan, revision_id, specs or _reading_specs())
-        return CountingReadingModel(_load_reading_fixture_model(pack)), plan
+        return CurrentStagedModel(), plan
 
     def _run_once(self, job_id, text, source_sha, model, **kwargs):
-        return worker.run_once(
+        result = worker.run_once(
             self.database_url, worker=WORKER,
             revision_source=lambda _job: (text, source_sha),
-            chapter_model=model,
+            chapter_model=model.models,
             chapter_limits=chapter_contract.ChapterLimits(),
             job_id=job_id, **kwargs,
         )
+        if result[1] == "needs_review" and self.__class__ is ReadingPipelinePostgresTests:
+            self._approve_person_state(job_id)
+            result = worker.run_once(
+                self.database_url, worker=WORKER,
+                revision_source=lambda _job: (text, source_sha),
+                chapter_model=model.models,
+                chapter_limits=chapter_contract.ChapterLimits(),
+                job_id=job_id, **kwargs,
+            )
+        return result
+
+    def _approve_person_state(self, job_id):
+        with psycopg.connect(self.database_url) as conn:
+            stored = R.read_person_state_plan_output(conn, job_id=job_id)
+        if not isinstance(stored, dict) or not isinstance(stored.get("plan"), dict):
+            raise AssertionError("current 0.4 run did not persist a person-state plan")
+        plan = stored["plan"]
+        with psycopg.connect(self.database_url) as conn:
+            rows = conn.execute(
+                "SELECT review_id, payload FROM chronicle.review_items"
+                " WHERE job_id = %s AND payload->>'scope' = 'person_state'"
+                " ORDER BY created_at, review_id",
+                (job_id,),
+            ).fetchall()
+            for review_id, payload in rows:
+                package = next(
+                    item for item in plan["packages"]
+                    if item["chapter_id"] == payload["chapter_id"]
+                )
+                person_state_review.resolve_person_state_review(
+                    conn,
+                    job_id=job_id,
+                    review_id=review_id,
+                    plan=plan,
+                    decision={
+                        "default_assessment": "supported",
+                        "rationale": "测试夹具中的当前阶段证据已核对。",
+                        "overrides": [
+                            {
+                                "candidate_id": candidate["candidate_key"],
+                                "assessment": "supported",
+                                "rationale": "测试夹具中的原文锚点支持。",
+                            }
+                            for candidate in package["candidates"]
+                        ],
+                    },
+                )
+            conn.commit()
+            control_plane.resume_job(conn, job_id=job_id)
+            conn.commit()
 
     def _reading_stream_row(self, revision_id):
         with psycopg.connect(self.database_url) as conn:
@@ -280,7 +277,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             conn.commit()
 
     def _run_to_publish(self, text: str):
-        """Drive the chapter chain to a running publish stage (0.2 artifacts)."""
+        """Drive the chapter chain to a running publish stage (0.4 artifacts)."""
         job_id, revision_id, source_sha = self._queue_job(text)
         model, plan = self._prepare_model(text, revision_id, source_sha)
         with psycopg.connect(self.database_url) as conn:
@@ -296,7 +293,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             self.database_url, job_id=job_id,
             revision_source=lambda _job: (text, source_sha),
             limits=chapter_contract.ChapterLimits(),
-            candidate_version="0.2",
+            candidate_version="0.4",
         )
         self.assertEqual(
             "ok",
@@ -316,7 +313,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             "ok",
             stage.execute_chapter_extract(
                 self.database_url, job_id=job_id, worker=WORKER,
-                plan=plan, requests=requests, model=model,
+                plan=plan, requests=requests, model=model.models,
                 limits=chapter_contract.ChapterLimits(), lease_seconds=300,
             ),
         )
@@ -324,13 +321,31 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             self.database_url, job_id=job_id, worker=WORKER,
             plan=plan, lease_seconds=300,
         )
-        self.assertEqual(
-            "ok",
-            stage.execute_chapter_resolve(
+        outcome = stage.execute_chapter_resolve(
+            self.database_url, job_id=job_id, worker=WORKER,
+            plan=plan, lease_seconds=300,
+        )
+        if outcome == "needs_review":
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.advance_stage(
+                    conn, job_id=job_id, stage="resolve", status="needs_review",
+                    error="current person-state review pending",
+                )
+                control_plane.set_job_status(
+                    conn, job_id=job_id, status="needs_review",
+                    error="current person-state review pending",
+                )
+            self._approve_person_state(job_id)
+            with psycopg.connect(self.database_url) as conn:
+                control_plane.claim_job(
+                    conn, worker=WORKER, lease_seconds=300, job_id=job_id
+                )
+                conn.commit()
+            outcome = stage.execute_chapter_resolve(
                 self.database_url, job_id=job_id, worker=WORKER,
                 plan=plan, lease_seconds=300,
-            ),
-        )
+            )
+        self.assertEqual("ok", outcome)
         return job_id, revision_id, source_sha, plan, model
 
     def _publish(self, job_id, plan):
@@ -360,7 +375,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             accepted = chapter_store.read_accepted_chapters(conn, job_id=job_id)
             self.assertEqual(2, len(accepted))
             for entry in accepted:
-                self.assertEqual("0.2", entry["artifact"]["version"])
+                self.assertEqual("0.4", entry["artifact"]["version"])
                 self.assertTrue(entry["artifact"].get("reading_units"))
             published = chapter_store.list_published_chapters(
                 conn, job_id=job_id, limit=100
@@ -371,7 +386,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             catalog_sha = R.sha256_json(catalog)
 
         row = self._reading_stream_row(revision_id)
-        self.assertIsNotNone(row, "0.2 publish must expose one reading stream")
+        self.assertIsNotNone(row, "0.4 publish must expose one reading stream")
         stream_id = str(row[0])
         self.assertEqual(2, int(row[2]))
         self.assertEqual(1, int(row[3]))
@@ -424,12 +439,13 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
                     ),
                 )
 
-        # Occurrences are reverse-indexed for the current narrative events.
+        # Occurrences are reverse-indexed for the current narrative events or
+        # their resolved translated spans.
         with psycopg.connect(self.database_url) as conn:
             occurrences = conn.execute(
                 """
                 SELECT count(*) FROM chronicle.reading_event_occurrences
-                WHERE stream_id = %s AND event_kind = 'current'
+                WHERE stream_id = %s AND event_kind IN ('current', 'span')
                 """,
                 (uuid.UUID(stream_id),),
             ).fetchone()[0]
@@ -635,7 +651,7 @@ class ReadingPipelinePostgresTests(unittest.TestCase):
             self.assertEqual(0, count, f"{table} leaked after plan drift")
         self.assertIsNone(self._reading_stream_row(revision_id))
 
-        # A 0.2 accepted job without a chapter plan cannot publish a reading
+        # A current accepted job without a chapter plan cannot publish a reading
         # index either: it fails closed rather than publishing chapters alone.
         with psycopg.connect(self.database_url) as conn:
             with self.assertRaises(PersistenceError):

@@ -26,7 +26,6 @@ for path in (HERE, PERSISTENCE):
 
 import chapter_stage as S  # noqa: E402
 import model_provider as M  # noqa: E402
-import narrative_stage  # noqa: E402
 from common import PersistenceError  # noqa: E402
 
 
@@ -87,47 +86,37 @@ class ChapterModelTimeoutTests(unittest.TestCase):
         for value in ("45.5", "900", "2400"):
             env = live_env({
                 "CHRONICLE_MODEL_TIMEOUT_SECONDS": value,
-                "CHRONICLE_EXTRACTION_MODEL": "extract",
-                "CHRONICLE_PRESENTATION_MODEL": "present",
-                "CHRONICLE_NARRATIVE_MODEL": "narrative",
                 "CHRONICLE_CHAPTER_REVIEW_MODELS": "review-a,review-b",
             })
             with self.subTest(timeout=value), mock.patch.dict(os.environ, env, clear=True):
                 staged = S.chapter_model_from_env()
-                providers = [*M.models_from_env(), narrative_stage.model_from_env(),
-                    S.chapter_model_from_env(live_env({
-                        "CHRONICLE_CHAPTER_MODEL": "fixture:chapter",
-                        "CHRONICLE_MODEL_TIMEOUT_SECONDS": value})),
-                    M.build_chapter_model("joint", env["CHRONICLE_MODEL_ENDPOINT"]),
-                    M.ResponsesHTTPModel(name="direct", endpoint=env["CHRONICLE_MODEL_ENDPOINT"]),
-                    *staged.providers.values()]
+                providers = list(staged.providers.values())
                 for provider in providers:
                     self.assertEqual(float(value), provider.timeout_seconds, provider.name)
 
 
 class ChapterModelVersionTests(unittest.TestCase):
     def test_environment_selection_keeps_worker_and_strict_format_together(self) -> None:
-        for name, expected in (
-            ("live-chapter-model", "0.4"),
-            ("fixture:person-state-chapter", "0.3"),
-            ("fixture:reading-chapter", "0.2"),
-            ("fixture:chapter", "0.1"),
+        model = S.chapter_model_from_env(
+            live_env({"CHRONICLE_CHAPTER_MODEL": "live-chapter-model"})
+        )
+        self.assertEqual("0.4", S.candidate_version_for_model(model))
+        self.assertIsNone(model.model_for("translation", "executor").text_format)
+        self.assertEqual(
+            {"type": "json_object"},
+            model.model_for("extraction", "executor").text_format,
+        )
+        for name in (
+            "fixture:person-state-chapter",
+            "fixture:reading-chapter",
+            "fixture:chapter",
         ):
-            with self.subTest(name=name):
-                model = S.chapter_model_from_env(
-                    live_env({"CHRONICLE_CHAPTER_MODEL": name})
-                )
-                self.assertEqual(expected, S.candidate_version_for_model(model))
-                if expected == "0.4":
-                    self.assertIsNone(model.model_for("translation", "executor").text_format)
-                    self.assertEqual({"type": "json_object"}, model.model_for("extraction", "executor").text_format)
-                    continue
-                self.assertEqual(
-                    expected,
-                    model.text_format["schema"]["properties"]["version"]["const"],
-                )
+            with self.subTest(name=name), self.assertRaisesRegex(
+                PersistenceError, "retired joint chapter providers"
+            ):
+                S.chapter_model_from_env(live_env({"CHRONICLE_CHAPTER_MODEL": name}))
 
-    def test_explicit_factory_version_wins_over_the_model_name(self) -> None:
+    def test_explicit_retired_factory_versions_fail_closed(self) -> None:
         for version in ("0.1", "0.2", "0.3"):
             with self.subTest(version=version):
                 model = M.build_chapter_model(
@@ -135,7 +124,12 @@ class ChapterModelVersionTests(unittest.TestCase):
                     "https://gateway.example/v1/responses",
                     candidate_version=version,
                 )
-                self.assertEqual(version, S.candidate_version_for_model(model))
+                with self.assertRaisesRegex(PersistenceError, "unsupported candidate version"):
+                    S.candidate_version_for_model(model)
+
+    def test_current_factory_version_is_accepted(self) -> None:
+        model = SimpleNamespace(name="chapter-live", candidate_version="0.4")
+        self.assertEqual("0.4", S.candidate_version_for_model(model))
 
     def test_unsupported_declared_version_fails_closed(self) -> None:
         with self.assertRaisesRegex(PersistenceError, "unsupported candidate version"):

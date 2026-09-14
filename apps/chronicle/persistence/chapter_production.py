@@ -120,11 +120,13 @@ def _self_contained_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def step_schema(step: str) -> dict[str, Any] | None:
-    """Output schemas reuse the frozen product shapes; text has no wrapper."""
+    """Output schemas reuse the current shared product shapes; text has no wrapper."""
     if step == "translation":
         return None
     if step in ("extraction", "linking"):
-        schema = copy.deepcopy(person_state_contract.candidate_v03_schema())
+        schema = copy.deepcopy(person_state_contract.candidate_schema())
+        shared = person_state_contract._schema_bundle()[chapter_contract.SHARED_SCHEMA_ID]
+        schema["$defs"] = copy.deepcopy(shared["$defs"])
         schema["$id"] = f"https://loom.local/chronicle/schemas/chapter-step-{step}-v0.1"
         schema["title"] = f"Chronicle staged chapter {step}"
         schema.pop("description", None)
@@ -135,15 +137,18 @@ def step_schema(step: str) -> dict[str, Any] | None:
             state = schema["$defs"]["person_states"]
             state["properties"].pop("unit_phases")
             state["required"].remove("unit_phases")
+            # Inline the edited state shape before closing external refs.  A
+            # local ``$ref`` would resolve through the original shared
+            # resource and silently restore the removed linking-owned field.
+            schema["properties"]["person_states"] = copy.deepcopy(state)
         else:
-            v01 = chapter_contract.candidate_schema()
-            link = copy.deepcopy(v01["$defs"]["translation_block"])
+            link = copy.deepcopy(schema["$defs"]["translation_block"])
             link["properties"].pop("text")
             link["required"].remove("text")
-            # Local references in v0.1 belong to that schema, not this step.
+            # Local references resolve through the current shared definitions.
             for name in ("entity_refs", "event_refs"):
                 link["properties"][name]["items"] = {
-                    "$ref": "chronicle-chapter-candidate-v0.1.schema.json#/$defs/reference"}
+                    "$ref": "#/$defs/reference"}
             schema["properties"] = {
                 "chapter_id": schema["properties"]["chapter_id"],
                 "translation_links": {"type": "array", "minItems": 1, "items": link},
