@@ -295,6 +295,9 @@ jobs:
           c = m["criteria"]
           assert m["result"] == "PASS" and m["mode"] == "fixture" and m["fixture_only"], m
           assert c["staged_0_4_source_to_acceptance"] == "PASS", c
+          terminal_jobs = m["terminal_jobs"]
+          assert [job["job_id"] for job in terminal_jobs] == [work["job_id"] for work in m["works"]], terminal_jobs
+          assert all((job.get("validation") or {}).get("status") == "PASS" for job in terminal_jobs), terminal_jobs
           assert c["scenario_coverage"] == "PASS", c
           assert c["negative_faults"] == "PASS", c
           assert c["scale_contract"] == "PASS", c
@@ -309,7 +312,7 @@ jobs:
           runs = perf["evidence"]["runs"]
           assert len(runs) == 5, runs
           assert all(r["active_p95_ms"] <= 100 and r["restore_ms"] <= 250 for r in runs), runs
-          bm = json.load(open("/tmp/chronicle-staged-offline/browser-fixture-manifest.json"))
+          bm = json.load(open("/tmp/chronicle-staged-offline/reading-fixture-manifest.json"))
           mounted_max = bm["budgets"]["mounted_max_units"]
           for run in runs:
             assert run["window_progression"]["mounted_max"] <= mounted_max, run

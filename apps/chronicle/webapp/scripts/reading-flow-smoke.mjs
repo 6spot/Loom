@@ -4,7 +4,7 @@
 // Usage:
 //   node apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
 //     --base-url http://127.0.0.1:18080 \
-//     --fixture-manifest /tmp/chronicle-r2-offline/browser-fixture-manifest.json \
+//     --fixture-manifest /tmp/chronicle-staged-offline/reading-fixture-manifest.json \
 //     --suite flow|accessibility|performance|all \
 //     --output /tmp/chronicle-r2-browser
 //
