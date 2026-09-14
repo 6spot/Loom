@@ -29,6 +29,7 @@ import chapter_contract  # noqa: E402
 import chapter_plan  # noqa: E402
 import chapter_production  # noqa: E402
 import chapter_stage  # noqa: E402
+import narrative_contract  # noqa: E402
 import staged_chapter_contract  # noqa: E402
 import staged_pipeline_fixture as fixture  # noqa: E402
 import staged_gate as gate  # noqa: E402
@@ -79,6 +80,26 @@ def _source_view(request: dict) -> dict:
     for fragment in source["source_scope"]["fragments"]:
         fragment["text"] = source["normalized_text"][fragment["start"] : fragment["end"]]
     return source
+
+
+def _narrative_prompt_context() -> dict:
+    return {
+        "schema": "chronicle.narrative-context",
+        "version": "0.1",
+        "catalog_sha": "a" * 64,
+        "sources": [
+            {
+                "source_id": "source_001",
+                "publication_id": "publication_001",
+                "title": "测试来源",
+                "translation": [{"text": "周瑜与孙策相友，原文记录一段有依据的历史内容。"}],
+                "canonical_refs": {"entities": {"person_001": "entity_001"}, "events": {}},
+                "evidence": [{"id": "evidence_001", "quote": "周瑜与孙策相友"}],
+            }
+        ],
+        "entities": {"entity_001": {"kind": "person", "name": "周瑜"}},
+        "events": {},
+    }
 
 
 class StagedFixtureTests(unittest.TestCase):
@@ -167,6 +188,52 @@ class StagedFixtureTests(unittest.TestCase):
             self.assertEqual(["chapter:translation"], provider.calls)
         finally:
             provider.stop()
+
+    def test_narrative_fixture_accepts_generation_and_configured_comparison_stages(self):
+        context = _narrative_prompt_context()
+        facts_prompt = narrative_contract.build_step_prompt(
+            "facts_generate", {"context": context}
+        )
+        facts = json.loads(fixture.narrative_candidate(facts_prompt))
+        self.assertEqual("chronicle.source-corroboration", facts["schema"])
+        narrative_contract.validate_facts(facts, context)
+
+        prose_prompt = narrative_contract.build_step_prompt(
+            "prose_generate", {"context": context, "facts": facts}
+        )
+        prose = json.loads(fixture.narrative_candidate(prose_prompt))
+        self.assertEqual("chronicle.historical-narrative", prose["schema"])
+        self.assertIn("navigation", prose)
+        narrative_contract.validate_prose(prose, context, facts)
+
+        for step, candidates, extra in (
+            ("facts_compare", [facts, facts], {}),
+            ("prose_compare", [prose, prose], {"facts": facts}),
+        ):
+            candidate_records = [
+                {"candidate_sha256": "a" * 64, "model": "fixture-a", "content": candidates[0]},
+                {"candidate_sha256": "b" * 64, "model": "fixture-b", "content": candidates[1]},
+            ]
+            prompt = narrative_contract.build_compare_prompt(
+                step,
+                {
+                    "context": context,
+                    "kind": "facts" if step == "facts_compare" else "prose",
+                    "candidates": candidate_records,
+                    "candidate_set_sha256": narrative_contract.sha256_json(candidate_records),
+                    **extra,
+                },
+            )
+            comparison = json.loads(fixture.narrative_candidate(prompt))
+            self.assertEqual("chronicle.narrative-comparison", comparison["schema"])
+            self.assertEqual(candidate_records[0]["candidate_sha256"], comparison["selected_sha256"])
+            self.assertEqual(2, len(comparison["differences"]))
+            narrative_contract.validate_comparison(
+                comparison,
+                context,
+                "facts" if step == "facts_compare" else "prose",
+                candidate_records,
+            )
 
     def test_stack_env_selects_production_0_4_models(self):
         with tempfile.TemporaryDirectory() as tmp:

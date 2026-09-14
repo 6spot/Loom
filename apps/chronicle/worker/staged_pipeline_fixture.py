@@ -473,28 +473,98 @@ def add_reviewed_person_states(context: dict[str, Any], facts: dict[str, Any], p
             prose["paragraphs"][index]["segments"][0]["conclusion_ids"].append(conclusion_id)
 
 
+_NARRATIVE_STAGE_ALIASES = {
+    "facts": "facts_generate",
+    "facts_generate": "facts_generate",
+    "facts_compare": "facts_compare",
+    "facts_review": "facts_compare",
+    "facts_compare/review": "facts_compare",
+    "prose": "prose_generate",
+    "prose_generate": "prose_generate",
+    "prose_compare": "prose_compare",
+    "prose_review": "prose_compare",
+    "prose_compare/review": "prose_compare",
+}
+
+
+def _prompt_line(prompt: str, key: str) -> str:
+    prefix = key + "="
+    for line in prompt.splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):]
+    raise AssertionError(f"narrative prompt is missing {key}")
+
+
 def _narrative_context(prompt: str) -> dict[str, Any]:
-    marker = "\nINPUT="
-    at = prompt.find(marker)
-    if at < 0:
-        raise AssertionError("narrative prompt is missing INPUT")
-    context = json.loads(prompt[at + len(marker):].split("\n", 1)[0])
+    context = json.loads(_prompt_line(prompt, "INPUT"))
     if not isinstance(context, dict) or not context.get("sources"):
         raise AssertionError("narrative prompt carries no sources")
     return context
 
 
+def _narrative_evidence(context: dict[str, Any]) -> list[str]:
+    evidence = [
+        item.get("id")
+        for source in context.get("sources", [])
+        for item in source.get("evidence", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    ]
+    if not evidence:
+        raise AssertionError("narrative comparison has no evidence handle")
+    return evidence[:1]
+
+
+def _comparison_candidate_set(prompt: str) -> tuple[str, list[dict[str, Any]]]:
+    candidate_set_sha = _prompt_line(prompt, "CANDIDATE_SET_SHA256")
+    candidates = json.loads(_prompt_line(prompt, "CANDIDATES"))
+    if not isinstance(candidates, list) or not candidates:
+        raise AssertionError("narrative comparison must receive a fixed candidate set")
+    if any(
+        not isinstance(item, dict)
+        or not isinstance(item.get("candidate_sha256"), str)
+        or not item["candidate_sha256"]
+        for item in candidates
+    ):
+        raise AssertionError("narrative comparison candidates must carry output hashes")
+    return candidate_set_sha, candidates
+
+
 def narrative_candidate(prompt: str) -> str:
-    marker = "\nSTAGE="
-    if marker not in prompt:
-        raise AssertionError("narrative prompt is missing STAGE")
-    stage = prompt.split(marker, 1)[1].split("\n", 1)[0]
-    if stage not in ("facts", "prose"):
-        raise AssertionError(f"unknown narrative stage {stage!r}")
+    raw_stage = _prompt_line(prompt, "STAGE")
+    stage = _NARRATIVE_STAGE_ALIASES.get(raw_stage)
+    if stage is None:
+        raise AssertionError(f"unknown narrative stage {raw_stage!r}")
     context = _narrative_context(prompt)
+    if stage in ("facts_compare", "prose_compare"):
+        candidate_set_sha, candidates = _comparison_candidate_set(prompt)
+        selected = candidates[0]["candidate_sha256"]
+        evidence = _narrative_evidence(context)
+        return json.dumps(
+            {
+                "schema": "chronicle.narrative-comparison",
+                "version": "0.1",
+                "candidate_set_sha256": candidate_set_sha,
+                "selected_sha256": selected,
+                "selection_rationale": "fixture comparison keeps the first complete candidate; no new content is generated.",
+                "integration_rationale": "fixture comparison preserves every candidate for human review.",
+                "differences": [
+                    {
+                        "candidate_sha256": item["candidate_sha256"],
+                        "assessment": "selected" if index == 0 else "compatible",
+                        "rationale": "fixture comparison keeps this complete candidate available for review.",
+                        "evidence": evidence,
+                    }
+                    for index, item in enumerate(candidates)
+                ],
+            },
+            ensure_ascii=False,
+        )
     facts, prose = narrative_drafts(context)
     add_reviewed_person_states(context, facts, prose)
-    return json.dumps(facts if stage == "facts" else prose, ensure_ascii=False)
+    return json.dumps(
+        facts if stage == "facts_generate" else prose,
+        ensure_ascii=False,
+    )
 
 
 class StagedFixtureProvider:
