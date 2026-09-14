@@ -1,6 +1,9 @@
-# Reader Presentation v0.1
+# C1 Reader Presentation v0.1 — retained projection contract
 
-> 完整章白话文由 [chapter-production.md](chapter-production.md) 的独立章产物合同定义，尚未实现；不扩展本文 Entity/Event + Claim-only 介绍形状来冒充全文。
+> 本文描述仍被实体/事件资料读取和旧回归使用的介绍投影。正式生产已使用
+> [分阶段整章流程](staged-chapter-production.md)，不再配置独立 C1 presentation
+> 模型。完整章白话文已实现；本文的 Entity/Event + Claim-only 形状不代表全文
+> 或完整人物生平。替代后的代码退役见[产品收敛任务](../../../docs/tasks/chronicle/product-convergence/README.md)。
 
 Reader Presentation is Chronicle's application-owned, derived reader layer. It makes canonical Events and Entities understandable in modern Chinese without becoming a historical truth authority.
 
@@ -61,7 +64,7 @@ The current public projection is the greatest published `presentation_version` f
 
 ## Offline pipeline
 
-The durable `present` stage is opt-in through a dedicated presentation-model provider. It does not reuse the extraction model implicitly. The worker freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
+The retained C1 library regression path takes an explicitly supplied presentation-model provider; it is not selectable from the production CLI. It freezes a canonical/Claim/evidence context, performs the model call with no PostgreSQL transaction open, then reacquires the ingestion-job lease and rechecks the input fingerprint before writing anything. Cancellation, lease takeover, or knowledge changes therefore win over stale generated prose.
 
 The live Responses request uses a presentation-specific strict `text.format`
 derived from the canonical candidate schema. Prompt `c1t12-reader-zh-v7` retains
@@ -116,25 +119,12 @@ Ambiguous verbs also cannot introduce a different action or recipient:
 proposing someone for a title does not make that person the addressee of a
 memorial. The evidence must explicitly support that additional relation.
 
-Explicit live-provider preflights check real extraction plus Entity and Event
-presentation when requested by an operator. The presentation check uses the
-retained C0 刘表 and 赤壁 examples in a fresh PostgreSQL test database and calls
-the production context loader, generator, validators and persistence functions,
-including exact-input adoption. It reports only metadata, hashes and counts.
-To run those focused checks with the configured live provider and an isolated
-test PostgreSQL service, set `LOOM_TEST_POSTGRES_URL` and the production provider
-environment (`CHRONICLE_MODEL_ENDPOINT`, `CHRONICLE_MODEL_API_KEY` when needed,
-`CHRONICLE_EXTRACTION_MODEL` and `CHRONICLE_PRESENTATION_MODEL`), then run:
-
-```bash
-python3 apps/chronicle/acceptance/live_model_contract.py
-python3 apps/chronicle/acceptance/live_presentation_contract.py
-```
-
-The temporary T17 `Chronicle Live Model Contract` Actions workflow is retired;
-its historical results remain in the completed task's evidence. These explicit
-preflights remain regression evidence and do not replace full-source ingestion,
-review, readability inspection or browser acceptance for a future acceptance task.
+The old extraction/presentation live preflights and temporary T17 workflow are
+historical C1 evidence, not current production acceptance. Current model setup,
+step recovery and validation follow [worker.md](worker.md) and
+[staged-chapter-production.md](staged-chapter-production.md). The
+[current acceptance migration task](../../../docs/tasks/chronicle/product-convergence/T01.md)
+owns replacement of the remaining round-specific fixture/gate paths.
 
 Targets with no direct evidenced Claims are omitted rather than filled from model knowledge. Exact-input crash/retry adoption reuses the already-published projection without another model call. The resulting presentation and its job output remain explicitly `authoritative: false`.
 

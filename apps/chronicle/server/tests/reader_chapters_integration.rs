@@ -249,13 +249,10 @@ async fn public_chapter_routes_proxy_anonymously_to_v0() {
     let payload = json_payload(&body);
     assert_eq!(payload["anchor_id"], KNOWN_ANCHOR);
 
-    // Legacy sidecar path stays reachable through the same front.
+    // The sidecar protocol is not a second public namespace.
     let (status, _, body) = get(server.port, "/v0/chapters?limit=1").await;
-    assert_eq!(status, 200);
-    assert_eq!(
-        json_payload(&body)["items"][0]["publication_id"],
-        KNOWN_PUBLICATION
-    );
+    assert_eq!(status, 404);
+    assert_eq!(json_payload(&body)["error"]["code"], "not_found");
 
     server.stop().await;
 }

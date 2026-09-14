@@ -8,8 +8,12 @@ import json
 import sys
 from pathlib import Path
 
+_PERSISTENCE = Path(__file__).resolve().parents[2] / "persistence"
+if str(_PERSISTENCE) not in sys.path:
+    sys.path.insert(0, str(_PERSISTENCE))
+
 from chronicle_ingest import dump_json, validate_bundle
-from publication_v0 import PublicationV0Error, publish_catalog
+from catalog_publication import PublicationError, publish_catalog
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,24 +43,24 @@ def _parse_bundle_args(values: list[str]) -> dict[str, Path]:
     result: dict[str, Path] = {}
     for value in values:
         if "=" not in value:
-            raise PublicationV0Error(f"--bundle must use LABEL=PATH, got {value!r}")
+            raise PublicationError(f"--bundle must use LABEL=PATH, got {value!r}")
         label, raw_path = value.split("=", 1)
         label = label.strip()
         raw_path = raw_path.strip()
         if not label or not raw_path:
-            raise PublicationV0Error(f"--bundle must use non-empty LABEL=PATH, got {value!r}")
+            raise PublicationError(f"--bundle must use non-empty LABEL=PATH, got {value!r}")
         if label in result:
-            raise PublicationV0Error(f"duplicate --bundle label {label!r}")
+            raise PublicationError(f"duplicate --bundle label {label!r}")
         result[label] = Path(raw_path)
     if not result:
-        raise PublicationV0Error("publication requires at least one --bundle LABEL=PATH")
+        raise PublicationError("publication requires at least one --bundle LABEL=PATH")
     return result
 
 
 def _load_json(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
-        raise PublicationV0Error(f"{path} must contain one JSON object")
+        raise PublicationError(f"{path} must contain one JSON object")
     return value
 
 
@@ -86,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         if existing is not None:
             existing_schema_errors = validate_bundle(existing, schema)
             if existing_schema_errors:
-                raise PublicationV0Error(
+                raise PublicationError(
                     "existing catalog failed canonical schema validation: "
                     + "; ".join(existing_schema_errors)
                 )
@@ -138,7 +142,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 0
-    except (OSError, json.JSONDecodeError, PublicationV0Error) as exc:
+    except (OSError, json.JSONDecodeError, PublicationError) as exc:
         print(f"chronicle publication error: {exc}", file=sys.stderr)
         return 2
 

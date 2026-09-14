@@ -111,7 +111,6 @@ from gate_runtime import (  # noqa: E402
     verify_pack_manifest_hashes,
     wait_health,
     wait_job,
-    write_compose_override,
     write_json,
 )
 from reading_scale_fixture import (  # noqa: E402
@@ -135,6 +134,7 @@ from second_round_gate import (  # noqa: E402
     create_document,
     public_json,
     _event_ids_from_units,
+    write_worker_override,
 )
 
 R3_CHAPTER_MODEL = "fixture:gate-r3:person-state-chapter"
@@ -1388,9 +1388,7 @@ def run_fixture(
         stack_env = write_stack_env(
             env_file, evidence_dir / "stack.env", endpoint=endpoint, web_port=18080
         )
-        override = write_compose_override(
-            evidence_dir / "compose.gate.yaml", service="chronicle-worker"
-        )
+        override = write_worker_override(evidence_dir / "compose.gate.yaml")
         data_dir = evidence_dir / "stack-data"
         data_dir.mkdir(parents=True, exist_ok=True)
         base_url = "http://127.0.0.1:18080"

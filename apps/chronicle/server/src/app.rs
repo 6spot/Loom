@@ -64,12 +64,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/public/reading-events/{*rest}", any(public_reading))
         .route("/api/v1/public/history", any(public_reading))
         .route("/api/v1/public/history/{*rest}", any(public_reading))
-        .route("/v0/timeline", any(legacy_proxy))
-        .route("/v0/search", any(legacy_proxy))
-        .route("/v0/events/{id}", any(legacy_proxy))
-        .route("/v0/entities/{id}", any(legacy_proxy))
-        .route("/v0/chapters", any(legacy_proxy))
-        .route("/v0/chapters/{*rest}", any(legacy_proxy))
         .nest("/api/v1/studio", studio)
         .fallback(fallback)
         // The 2 MiB default body cap is lifted so Studio uploads can reach
@@ -247,18 +241,6 @@ async fn public_reading(
         uri.query().map(str::to_string),
     )
     .await
-}
-
-/// Legacy C0 `/v0/*` compat: same handler, same upstream path.
-async fn legacy_proxy(
-    State(state): State<Arc<AppState>>,
-    OriginalUri(uri): OriginalUri,
-    request: axum::http::Request<Body>,
-) -> Response {
-    let path = uri.path().to_string();
-    let query = uri.query().map(str::to_string);
-    let method = request.method().clone();
-    proxy_public(&state, method, path, query).await
 }
 
 fn validated_id(id: &str) -> Option<&str> {

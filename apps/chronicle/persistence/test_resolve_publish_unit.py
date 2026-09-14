@@ -794,7 +794,7 @@ class PublicationTests(unittest.TestCase):
                 "signals": [],
             }
         )
-        from publication_v0 import PublicationConflict
+        from catalog_publication import PublicationConflict
 
         with self.assertRaises(PublicationConflict):
             R.publish_with_decisions(
@@ -833,7 +833,7 @@ class PublicationTests(unittest.TestCase):
             initial,
             _decisions({f"{sha}:ec_001": "same_entity", f"{sha}:vc_001": "uncertain"}),
         )
-        from publication_v0 import PublicationConflict
+        from catalog_publication import PublicationConflict
 
         # Both representations already own distinct canonical UUIDs:
         # no silent collapse is allowed.
@@ -913,11 +913,11 @@ class WithinBundleInitialTests(unittest.TestCase):
         )
 
     def test_cross_source_builder_still_forbids_same_bundle(self) -> None:
-        import resolution_v0
+        import identity_candidates
 
         bundle, _ = _chapter_bundle()
-        with self.assertRaises(resolution_v0.ResolutionV0Error):
-            resolution_v0.build_cross_source_candidate_set_v02(
+        with self.assertRaises(identity_candidates.ResolutionCandidateError):
+            identity_candidates.build_cross_source_candidate_set_v02(
                 bundle, "bund", bundle, "bund"
             )
 
@@ -1218,10 +1218,10 @@ class WithinBundleIndexOrderTests(unittest.TestCase):
         return bundle, chapters, index_by_id
 
     def test_left_follows_chapter_index_not_id_string_or_ref(self) -> None:
-        import resolution_v0
+        import identity_candidates
 
         bundle, chapters, index_by_id = self._hash_chapters()
-        candidates = resolution_v0.build_within_bundle_candidate_set(
+        candidates = identity_candidates.build_within_bundle_candidate_set(
             bundle, "bund", chapters, chapter_index_by_id=index_by_id
         )
         self.assertEqual(len(candidates["entity_candidates"]), 1)
@@ -1232,11 +1232,11 @@ class WithinBundleIndexOrderTests(unittest.TestCase):
         self.assertEqual(candidate["right"], {"bundle": "bund", "ref": "ent_a"})
 
     def test_missing_chapter_index_fails_closed(self) -> None:
-        import resolution_v0
+        import identity_candidates
 
         bundle, chapters, _ = self._hash_chapters()
-        with self.assertRaises(resolution_v0.ResolutionV0Error):
-            resolution_v0.build_within_bundle_candidate_set(
+        with self.assertRaises(identity_candidates.ResolutionCandidateError):
+            identity_candidates.build_within_bundle_candidate_set(
                 bundle, "bund", chapters, chapter_index_by_id={"ch_zzz": 0}
             )
 
@@ -1267,7 +1267,7 @@ class IllegalScopeCombinationTests(unittest.TestCase):
         return initial
 
     def test_missing_chapter_index_map_fails_closed(self) -> None:
-        import resolution_v0
+        import identity_candidates
 
         bundle, chapters = _chapter_bundle()
         # Omitted map is a loud TypeError; an explicit None is a
@@ -1287,13 +1287,13 @@ class IllegalScopeCombinationTests(unittest.TestCase):
             R.build_chapter_initial_resolutions(
                 bundle=bundle, bundle_label="bund", chapter_by_ref=chapters
             )  # type: ignore[call-arg]
-        with self.assertRaises(resolution_v0.ResolutionV0Error):
-            resolution_v0.build_within_bundle_candidate_set(
+        with self.assertRaises(identity_candidates.ResolutionCandidateError):
+            identity_candidates.build_within_bundle_candidate_set(
                 bundle, "bund", chapters, None  # type: ignore[arg-type]
             )
 
     def test_within_revision_with_two_bundles_is_rejected(self) -> None:
-        import publication_v0
+        import catalog_publication
 
         initial = self._within()
         other = _bundle("他書", [_entity("ent_900", "曹操")], [])
@@ -1305,8 +1305,8 @@ class IllegalScopeCombinationTests(unittest.TestCase):
             "source_title": "他書",
         }
         split["entity_links"][0]["right"] = {"bundle": "other", "ref": "ent_900"}
-        with self.assertRaises(publication_v0.PublicationV0Error):
-            publication_v0.publish_catalog(
+        with self.assertRaises(catalog_publication.PublicationError):
+            catalog_publication.publish_catalog(
                 bundles, [split], existing_catalog=None
             )
         with self.assertRaises(PersistenceError):
@@ -1315,22 +1315,22 @@ class IllegalScopeCombinationTests(unittest.TestCase):
             )
 
     def test_scoped_01_is_rejected_by_publisher_and_store(self) -> None:
-        import publication_v0
+        import catalog_publication
         import resolution_store
 
         initial = self._within()
         scoped_01 = copy.deepcopy(initial)
         scoped_01["version"] = "0.1"
         bundles = {"bund": _chapter_bundle()[0]}
-        with self.assertRaises(publication_v0.PublicationV0Error):
-            publication_v0.publish_catalog(
+        with self.assertRaises(catalog_publication.PublicationError):
+            catalog_publication.publish_catalog(
                 bundles, [scoped_01], existing_catalog=None
             )
         with self.assertRaises(PersistenceError):
             resolution_store.validate_resolution_envelope(scoped_01)
 
     def test_same_bundle_01_is_rejected(self) -> None:
-        import publication_v0
+        import catalog_publication
 
         bundles = {"bund": _chapter_bundle()[0]}
         legacy_same = {
@@ -1342,21 +1342,21 @@ class IllegalScopeCombinationTests(unittest.TestCase):
             "event_links": [],
             "warnings": [],
         }
-        with self.assertRaises(publication_v0.PublicationV0Error):
-            publication_v0.publish_catalog(
+        with self.assertRaises(catalog_publication.PublicationError):
+            catalog_publication.publish_catalog(
                 bundles, [legacy_same], existing_catalog=None
             )
 
     def test_cross_source_02_with_same_bundle_is_rejected(self) -> None:
-        import publication_v0
+        import catalog_publication
         import resolution_store
 
         initial = self._within()
         cross_same = copy.deepcopy(initial)
         cross_same["scope"] = "cross_source"
         bundles = {"bund": _chapter_bundle()[0]}
-        with self.assertRaises(publication_v0.PublicationV0Error):
-            publication_v0.publish_catalog(
+        with self.assertRaises(catalog_publication.PublicationError):
+            catalog_publication.publish_catalog(
                 bundles, [cross_same], existing_catalog=None
             )
         with self.assertRaises(PersistenceError):

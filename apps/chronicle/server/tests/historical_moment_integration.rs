@@ -91,7 +91,7 @@ async fn live_server(state: AppState) -> (u16, oneshot::Sender<()>, tokio::task:
 }
 
 #[tokio::test]
-async fn public_and_legacy_historical_moment_forward_to_one_read_contract() {
+async fn public_historical_moment_forwards_to_the_internal_read_contract() {
     let (upstream, upstream_task) = mock_upstream().await;
     let (port, stop, server_task) = live_server(AppState {
         admin: None,
@@ -114,7 +114,7 @@ async fn public_and_legacy_historical_moment_forward_to_one_read_contract() {
     let (status, body) = request(
         port,
         "GET",
-        "/v0/historical-moment?from_year=208&to_year=209",
+        "/api/v1/public/historical-moment?from_year=208&to_year=209",
     )
     .await;
     assert_eq!(status, 200);

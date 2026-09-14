@@ -5,11 +5,9 @@ chapter contracts into the real durable import chain:
 
 - T03 ``chapter_plan`` / ``chapter_contract`` — natural-chapter planning
   and program-owned per-chapter requests;
-- T05 ``chapter_extraction`` — one whole-chapter joint call plus at most
-  one whole-chapter correction (never the old independent 2000-char
-  chunk prompt);
-- T06 ``model_provider`` / ``fixture_model`` — the real chapter provider
-  selected through the formal production entry;
+- ``chapter_production`` / ``chapter_models`` — saved translation, extraction,
+  linking, comparison, review and bounded repair for production 0.4;
+- explicit older joint fixtures remain library regression inputs only;
 - T07 ``assembly.assemble_chapters`` — one revision bundle over all
   expected accepted chapters;
 - T08 ``resolve_publish`` chapter initials plus the frozen mixed review
@@ -165,25 +163,27 @@ def chapter_limits_from_env(
 def require_production_entry(
     *,
     source_dir: Any | None,
-    extraction_model: Any | None,
     chapter_model: Any | None,
 ) -> None:
-    """Enforce the production entry's explicit model rule (fail closed).
+    """Refuse to claim production jobs without staged chapter configuration.
 
-    A production worker pointed at a real source directory must have
-    an explicit extraction capability — either the joint chapter
-    model or a chunk extraction model. Without either, the entry
-    refuses to start instead of falling through to legacy/fake
-    branching. This is the production-entry rule; the library runner
-    stays composable for explicit test injection (pinned C1
-    segmentation/extraction tests rely on that).
+    Lifecycle and frozen-contract fixtures use the library runner explicitly;
+    neither missing configuration nor an old provider can select them in the
+    deployment entry.
     """
-    if source_dir is not None and extraction_model is None and chapter_model is None:
+    if source_dir is None:
         raise PersistenceError(
-            "a production worker with --source-dir/CHRONICLE_SOURCE_DIR "
-            "requires an explicit model (CHRONICLE_CHAPTER_MODEL for the "
-            "joint chapter pipeline or CHRONICLE_EXTRACTION_MODEL for "
-            "chunk extraction); refusing to start without one"
+            "production requires --source-dir/CHRONICLE_SOURCE_DIR"
+        )
+    if chapter_model is None:
+        raise PersistenceError(
+            "production requires CHRONICLE_CHAPTER_MODEL or "
+            "CHRONICLE_CHAPTER_PIPELINE_CONFIG"
+        )
+    if getattr(chapter_model, "candidate_version", None) != "0.4":
+        raise PersistenceError(
+            "production requires the staged chapter 0.4 provider; "
+            "frozen joint/chunk fixtures are library tests only"
         )
 
 

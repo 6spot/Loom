@@ -382,9 +382,17 @@ def write_stack_env(
 
 
 def write_worker_override(path: Path) -> Path:
+    # Frozen browser fixtures use an explicit test adapter to the shared
+    # library, never the production entry's staged-only configuration.
+    command = [
+        "python3", "apps/chronicle/acceptance/fixture_worker.py",
+        "--worker-id", "${CHRONICLE_WORKER_ID:-chronicle-fixture-worker}",
+        "--lease-seconds", "${CHRONICLE_WORKER_LEASE_SECONDS:-30}",
+    ]
     path.write_text(
         "services:\n"
         "  chronicle-worker:\n"
+        f"    command: {json.dumps(command)}\n"
         "    extra_hosts:\n"
         '      - "host.docker.internal:host-gateway"\n',
         encoding="utf-8",

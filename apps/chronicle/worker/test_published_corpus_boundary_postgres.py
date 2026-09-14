@@ -123,7 +123,7 @@ class PublishedCorpusBoundaryPostgresTests(unittest.TestCase):
         inflight = _bundle("在途列傳", "曹操")
         staged_store.persist_bundle(conn, "published", published)
         staged_store.persist_bundle(conn, "inflight", inflight)
-        catalog = R.publication_v0.publish_catalog(
+        catalog = R.catalog_publication.publish_catalog(
             {"published": published}, [], existing_catalog=None
         )
         canonical_store.persist_catalog(conn, catalog)

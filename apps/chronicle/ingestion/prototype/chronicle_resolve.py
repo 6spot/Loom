@@ -8,9 +8,14 @@ import json
 import sys
 from pathlib import Path
 
+_PERSISTENCE = Path(__file__).resolve().parents[2] / "persistence"
+if str(_PERSISTENCE) not in sys.path:
+    sys.path.insert(0, str(_PERSISTENCE))
+
 from chronicle_ingest import dump_json, validate_bundle
 from model_v0 import CommandModelProvider, ModelV0Error, ReplayModelProvider
-from resolution_v0 import ResolutionV0Error, build_candidate_set, resolve_with_provider
+from identity_candidates import ResolutionCandidateError, build_candidate_set
+from resolution_model import resolve_with_provider
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,11 +71,11 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if not args.model_command and not args.model_response:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 "resolution requires --model-command or --model-response unless --candidates-only is used"
             )
         if not args.output:
-            raise ResolutionV0Error("resolution requires --output")
+            raise ResolutionCandidateError("resolution requires --output")
 
         provider = (
             CommandModelProvider(args.model_command, args.model_timeout)
@@ -108,7 +113,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 0
-    except (OSError, json.JSONDecodeError, ModelV0Error, ResolutionV0Error) as exc:
+    except (OSError, json.JSONDecodeError, ModelV0Error, ResolutionCandidateError) as exc:
         print(f"chronicle resolution error: {exc}", file=sys.stderr)
         return 2
 

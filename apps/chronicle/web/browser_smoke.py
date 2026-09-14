@@ -67,7 +67,7 @@ def find_item(items: list[dict[str, Any]], *, title: str) -> dict[str, Any]:
 
 
 def search_path(query: str, *, kind: str = "all", limit: int = 20) -> str:
-    return "/v0/search?" + urlencode({"q": query, "kind": kind, "limit": limit})
+    return "/api/v1/public/search?" + urlencode({"q": query, "kind": kind, "limit": limit})
 
 
 def browser_search_url(base_url: str, query: str) -> str:
@@ -81,7 +81,7 @@ def main() -> int:
     base_url = args.base_url.rstrip("/")
     chrome = chrome_binary()
 
-    all_timeline = fetch_json(base_url, "/v0/timeline?limit=200&offset=0")
+    all_timeline = fetch_json(base_url, "/api/v1/public/timeline?limit=200&offset=0")
     items = all_timeline["items"]
     red_cliffs = find_item(items, title="赤壁之战")
     red_cliffs_id = red_cliffs["canonical_event_id"]
@@ -95,7 +95,7 @@ def main() -> int:
     if timeline_dom.count(f'data-event-id="{red_cliffs_id}"') != 1:
         raise AssertionError("Red Cliffs canonical Event must render exactly once on Timeline")
 
-    red_detail = fetch_json(base_url, f"/v0/events/{red_cliffs_id}")
+    red_detail = fetch_json(base_url, f"/api/v1/public/events/{red_cliffs_id}")
     event_dom = dump_dom(chrome, f"{base_url}/events/{red_cliffs_id}")
     require(event_dom, "史料与证据", "Event evidence section")
     require(event_dom, "三国志·魏书·武帝纪", "Wudi Event representation")
@@ -210,7 +210,7 @@ def main() -> int:
     for item in items:
         if "江陵" not in (item.get("display", {}).get("title") or ""):
             continue
-        candidate = fetch_json(base_url, f"/v0/events/{item['canonical_event_id']}")
+        candidate = fetch_json(base_url, f"/api/v1/public/events/{item['canonical_event_id']}")
         if candidate.get("related_events"):
             related_item = item
             related_detail = candidate

@@ -140,7 +140,7 @@ Chronicle CI discovers:
 
 ```bash
 python -m unittest discover -s apps/chronicle/read_api -p 'test_*.py' -v
-node --test apps/chronicle/web/test_*.mjs
+npm --prefix apps/chronicle/webapp test -- tests/api.test.ts tests/historical-time.test.ts
 ```
 
 The real PostgreSQL search tests persist the retained 武帝纪 + 吴主传 world and verify canonical de-duplication, uncertain-place separation, related Event separation, alias/mention discovery, router validation, and match provenance.

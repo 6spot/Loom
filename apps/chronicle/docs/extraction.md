@@ -1,5 +1,9 @@
 # Chronicle context-aware chunk extraction (C1-T6)
 
+> C1 分块路径只保留为工程回归材料，不是当前生产入口。正式生产使用
+> [分阶段章节流程](staged-chapter-production.md)与[worker 指南](worker.md)。
+
+
 > 本页描述已实现的 C1 chunk 路径。本轮待实现的完整章联合翻译/抽取契约见 [chapter-production.md](chapter-production.md)；实施任务以该章节契约为目标，不把本文的小块处理规则扩大到新路径。
 
 Deterministic, versioned extraction of one persisted book chunk into

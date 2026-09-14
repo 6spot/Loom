@@ -240,9 +240,9 @@ class ResolvePublishPostgresTests(unittest.TestCase):
         wuzhu = _corpus_bundle("吳主傳", [_entity("ent_001", "孫權")], [])
         staged_store.persist_bundle(conn, "wudi", wudi)
         staged_store.persist_bundle(conn, "wuzhu", wuzhu)
-        import publication_v0  # noqa: E402
+        import catalog_publication  # noqa: E402
 
-        catalog = publication_v0.publish_catalog(
+        catalog = catalog_publication.publish_catalog(
             {"wudi": wudi, "wuzhu": wuzhu}, catalog_resolutions or [], None
         )
         canonical_store.persist_catalog(conn, catalog)
@@ -594,9 +594,9 @@ class ResolvePublishPostgresTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             wuzhu = _corpus_bundle("吳主傳", [_entity("ent_001", "孫權")], [])
             staged_store.persist_bundle(conn, "wuzhu", wuzhu)
-            import publication_v0  # noqa: E402
+            import catalog_publication  # noqa: E402
 
-            catalog = publication_v0.publish_catalog({"wuzhu": wuzhu}, [], None)
+            catalog = catalog_publication.publish_catalog({"wuzhu": wuzhu}, [], None)
             canonical_store.persist_catalog(conn, catalog)
             conn.commit()
             job_id, revision_id, _artifact = self._seed_job_with_bundle(

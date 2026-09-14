@@ -17,10 +17,8 @@ from psycopg.conninfo import conninfo_to_dict, make_conninfo
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-INGESTION = HERE.parent / "ingestion" / "prototype"
-for candidate in (str(HERE), str(INGESTION)):
-    if candidate not in sys.path:
-        sys.path.insert(0, candidate)
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))
 
 import canonical_store  # noqa: E402
 import control_plane  # noqa: E402
@@ -31,7 +29,7 @@ import staged_store  # noqa: E402
 from common import PersistenceError, sha256_json  # noqa: E402
 from migrations import apply_migrations  # noqa: E402
 
-import publication_v0  # noqa: E402
+import catalog_publication  # noqa: E402
 
 DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
 
@@ -187,7 +185,7 @@ class ReaderPresentationPostgresTests(unittest.TestCase):
             apply_migrations(conn)
             bundle = _bundle()
             staged_store.persist_bundle(conn, "wudi", bundle)
-            catalog = publication_v0.publish_catalog({"wudi": bundle}, [], None)
+            catalog = catalog_publication.publish_catalog({"wudi": bundle}, [], None)
             canonical_store.persist_catalog(conn, catalog)
             conn.commit()
             self.entity_id = next(
@@ -245,7 +243,7 @@ class ReaderPresentationPostgresTests(unittest.TestCase):
         if final_other_job:
             revision_id, job_id = job()
         output(final, "final", revision_id, job_id)
-        catalog = publication_v0.publish_catalog(
+        catalog = catalog_publication.publish_catalog(
             {"wudi": _bundle(), "incoming": incoming}, [final],
             resolve_publish.read_latest_catalog(conn),
         )

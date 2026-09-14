@@ -4,6 +4,14 @@ This ledger tracks executable implementation work for the Chronicle application 
 
 Chronicle is an application-level consumer of Loom. Tasks here must not silently redefine Loom Core, Runtime, Storage, or Capability authority. If an application task requires a new Loom semantic/authority decision, stop and use the repository Architecture Amendment process.
 
+## Current product convergence
+
+The [product-convergence tasks](product-convergence/README.md) record the current
+cleanup and remaining work for staged production, continuous history, person
+biographies and manually saved backgrounds. Start with existing #699, T01 and
+T09 as disjoint tasks. C0/C1 entries below preserve delivery history; current
+task state belongs to the task-management tool.
+
 ## Tasks
 
 | Task | Issue | Status | Scope |
@@ -77,7 +85,7 @@ C0-T1 through C0-T12 now form a complete source-grounded vertical slice from ing
 
 C1 is completed under coordination Root #489. The canonical C1 dependency graph and executable task index are in [`C1-README.md`](C1-README.md). The user accepted the T17 R25 run on 2026-09-08; delivery PR #535 merged as `ec6841b1aee83721d10ca5a940ae611b571fc68d`, and the post-merge ledger records its completion. Concrete data/Reader verification continues separately in [#541](https://github.com/6spot/Loom/issues/541), with the original inspection findings preserved.
 
-C1 is intentionally structured as Root -> executable leaves -> serial final gate for Multica/agent coordination. The Root itself is not executable. Every C1 leaf has its own Task Ledger record and GitHub Issue #490–#506. READY eligibility comes from canonical `depends_on` state on the default branch, not GitHub Issue open/closed state.
+C1 is intentionally structured as Root -> executable leaves -> serial final gate for Multica/agent coordination. The Root itself is not executable. Every C1 leaf has its own Task Ledger record and GitHub Issue #490–#506. That historical round used default-branch ledger readiness. Current work follows the task-management tool and the repository completion guide; no separate ledger reconciliation is required.
 
 C1 focuses on:
 

@@ -4,6 +4,12 @@
 布局/恢复/预算归 [reading-experience.md](reading-experience.md)。本文是第二轮的
 唯一运行说明；第一轮验收仍见 `chapter-acceptance.md` / `final-acceptance.md`。
 
+fixture 模式在隔离 Compose 中显式使用 `acceptance/fixture_worker.py` 调用
+现有 worker 库；仅允许本地 R2/R3 fixture provider，不通过正式生产 CLI。
+它保留冻结阅读回归，不能证明 staged 0.4 的真实模型质量。
+[C3-T01](../../../docs/tasks/chronicle/product-convergence/T01.md) 迁移当前夹具后
+删除这一临时适配；正常部署仍只使用 [worker.md](worker.md) 的生产入口。
+
 ## 入口
 
 - `apps/chronicle/acceptance/second_round_gate.py`：统一薄入口，`--mode fixture|live`。

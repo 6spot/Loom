@@ -1,18 +1,13 @@
-"""Chronicle cross-source resolution/linking prototype.
+"""Pure Chronicle identity candidates and recorded-decision validation.
 
-Resolution v0 is deliberately non-destructive:
-- staged source bundles remain immutable;
-- deterministic code only generates conservative candidate pairs;
-- a model may adjudicate only those candidates;
-- final links never assign canonical UUIDs or rewrite source records.
+Candidate pairs are conservative suggestions, never identity equality.
+Studio human decisions and publication validation own acceptance; this module
+has no model transport, subprocess, or prototype dependency.
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
-
-from model_v0 import ModelProvider, ModelV0Error, parse_model_response
 
 RESOLUTION_VERSION = "0.1"
 
@@ -27,24 +22,24 @@ SCOPE_CROSS_SOURCE = "cross_source"
 VALID_V02_SCOPES = frozenset({SCOPE_WITHIN_REVISION, SCOPE_CROSS_SOURCE})
 
 
-class ResolutionV0Error(ModelV0Error):
+class ResolutionCandidateError(RuntimeError):
     pass
 
 
 def _record_id(record: dict[str, Any]) -> str:
     value = record.get("temp_id") or record.get("id")
     if not isinstance(value, str) or not value:
-        raise ResolutionV0Error("resolution input record is missing identity")
+        raise ResolutionCandidateError("resolution input record is missing identity")
     return value
 
 
 def _bundle_ref(bundle: dict[str, Any], label: str) -> dict[str, str]:
     source = bundle.get("source")
     if not isinstance(source, dict):
-        raise ResolutionV0Error(f"bundle {label!r} is missing source")
+        raise ResolutionCandidateError(f"bundle {label!r} is missing source")
     title = source.get("title")
     if not isinstance(title, str) or not title:
-        raise ResolutionV0Error(f"bundle {label!r} source is missing title")
+        raise ResolutionCandidateError(f"bundle {label!r} source is missing title")
     return {
         "label": label,
         "source_ref": _record_id(source),
@@ -437,28 +432,28 @@ def build_within_bundle_candidate_set(
     initial ``uncertain`` decisions are applied by the persistence layer.
     """
     if not isinstance(bundle, dict):
-        raise ResolutionV0Error("within-bundle candidate input must be a bundle object")
+        raise ResolutionCandidateError("within-bundle candidate input must be a bundle object")
     if not isinstance(bundle_label, str) or not bundle_label:
-        raise ResolutionV0Error("within-bundle bundle label must be a non-empty string")
+        raise ResolutionCandidateError("within-bundle bundle label must be a non-empty string")
     if not isinstance(chapter_by_ref, dict) or not chapter_by_ref:
-        raise ResolutionV0Error("within-bundle chapter_by_ref must be a non-empty mapping")
+        raise ResolutionCandidateError("within-bundle chapter_by_ref must be a non-empty mapping")
     if not isinstance(chapter_index_by_id, dict) or not chapter_index_by_id:
-        raise ResolutionV0Error(
+        raise ResolutionCandidateError(
             "within-bundle chapter_index_by_id is required: pass the assembly "
             "plan chapter order instead of sorting by ref"
         )
     for chapter_id, index in chapter_index_by_id.items():
         if not isinstance(chapter_id, str) or not chapter_id:
-            raise ResolutionV0Error("chapter_index_by_id keys must be chapter ids")
+            raise ResolutionCandidateError("chapter_index_by_id keys must be chapter ids")
         if not isinstance(index, int) or isinstance(index, bool) or index < 0:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"chapter_index_by_id[{chapter_id!r}] must be a non-negative integer"
             )
 
     entities = bundle.get("entities") or []
     events = bundle.get("events") or []
     if not isinstance(entities, list) or not isinstance(events, list):
-        raise ResolutionV0Error("within-bundle bundle entities/events must be arrays")
+        raise ResolutionCandidateError("within-bundle bundle entities/events must be arrays")
 
     def _chapter_of(ref: str) -> str | None:
         chapter = chapter_by_ref.get(ref)
@@ -470,7 +465,7 @@ def build_within_bundle_candidate_set(
         try:
             index = chapter_index_by_id[chapter]
         except KeyError as exc:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"chapter {chapter!r} of ref {ref!r} is missing from chapter_index_by_id"
             ) from exc
         return (index, ref)
@@ -603,7 +598,7 @@ def build_cross_source_candidate_set_v02(
     frozen plan never mixes old-generation artifacts.
     """
     if left_label == right_label:
-        raise ResolutionV0Error("left and right bundle labels must be distinct")
+        raise ResolutionCandidateError("left and right bundle labels must be distinct")
     return {
         "schema": "chronicle.resolution-candidates",
         "version": RESOLUTION_V02_VERSION,
@@ -626,7 +621,7 @@ def build_candidate_set(
     right_label: str,
 ) -> dict[str, Any]:
     if left_label == right_label:
-        raise ResolutionV0Error("left and right bundle labels must be distinct")
+        raise ResolutionCandidateError("left and right bundle labels must be distinct")
     return {
         "schema": "chronicle.resolution-candidates",
         "version": RESOLUTION_VERSION,
@@ -641,40 +636,6 @@ def build_candidate_set(
     }
 
 
-def build_resolution_prompt(candidates: dict[str, Any]) -> str:
-    payload = json.dumps(candidates, ensure_ascii=False, indent=2, sort_keys=True)
-    return f"""You are Chronicle resolution-v0.1, a closed-world cross-source resolver.
-
-TASK
-Adjudicate only the candidate pairs supplied below. The two source bundles were already independently extracted and must remain immutable.
-
-RULES
-1. Use only the supplied candidate records and signals. Do not add outside historical knowledge.
-2. `same_entity` means both Entity records refer to the same historical identity, not merely the same name or role.
-3. `same_occurrence` means both Event records describe the same underlying historical occurrence, even when wording, emphasis, or granularity differs slightly.
-4. `related_occurrence` means the Events are historically connected or part of the same sequence/campaign but are not the same occurrence.
-5. Use `not_same` when the records clearly describe different identities/occurrences.
-6. Use `uncertain` when the supplied evidence is insufficient. Do not guess.
-7. Resolution confidence measures confidence in this link decision only. It is not historical-truth confidence.
-8. Do not invent canonical UUIDs, rewrite temp IDs, merge records, or create new historical facts.
-9. Return every supplied candidate_id exactly once and no unknown candidate_id.
-10. Return exactly one JSON object and no prose.
-
-OUTPUT FORMAT
-{{
-  "entity_decisions": [
-    {{"candidate_id": "ec_001", "decision": "same_entity|not_same|uncertain", "confidence": 0.0, "rationale": "brief source-bounded reason"}}
-  ],
-  "event_decisions": [
-    {{"candidate_id": "vc_001", "decision": "same_occurrence|related_occurrence|not_same|uncertain", "confidence": 0.0, "rationale": "brief source-bounded reason"}}
-  ]
-}}
-
-CANDIDATES
-{payload}
-"""
-
-
 def _decisions_by_id(
     response: dict[str, Any],
     field: str,
@@ -683,28 +644,28 @@ def _decisions_by_id(
 ) -> dict[str, dict[str, Any]]:
     raw = response.get(field)
     if not isinstance(raw, list):
-        raise ResolutionV0Error(f"resolver response {field} must be an array")
+        raise ResolutionCandidateError(f"resolver response {field} must be an array")
     expected = {c["candidate_id"] for c in candidates}
     result: dict[str, dict[str, Any]] = {}
     for item in raw:
         if not isinstance(item, dict):
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver response {field} contains a non-object"
             )
         candidate_id = item.get("candidate_id")
         if candidate_id not in expected:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver returned unknown {field} candidate_id {candidate_id!r}"
             )
         if candidate_id in result:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver returned duplicate candidate_id {candidate_id}"
             )
         decision = item.get("decision")
         confidence = item.get("confidence")
         rationale = item.get("rationale")
         if decision not in allowed:
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver returned invalid decision {decision!r} for {candidate_id}"
             )
         if (
@@ -712,11 +673,11 @@ def _decisions_by_id(
             or isinstance(confidence, bool)
             or not 0 <= confidence <= 1
         ):
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver returned invalid confidence for {candidate_id}"
             )
         if not isinstance(rationale, str) or not rationale.strip():
-            raise ResolutionV0Error(
+            raise ResolutionCandidateError(
                 f"resolver returned empty rationale for {candidate_id}"
             )
         result[candidate_id] = {
@@ -726,7 +687,7 @@ def _decisions_by_id(
         }
     missing = sorted(expected - result.keys())
     if missing:
-        raise ResolutionV0Error(
+        raise ResolutionCandidateError(
             "resolver omitted candidate_ids: " + ", ".join(missing)
         )
     return result
@@ -795,24 +756,8 @@ def apply_resolution_decisions(
     scope = candidates.get("scope")
     if isinstance(scope, str) and scope:
         if scope not in VALID_V02_SCOPES:
-            raise ResolutionV0Error(f"resolution candidate scope {scope!r} is invalid")
+            raise ResolutionCandidateError(f"resolution candidate scope {scope!r} is invalid")
         if result["version"] != RESOLUTION_V02_VERSION:
-            raise ResolutionV0Error("scoped resolution candidates require version 0.2")
+            raise ResolutionCandidateError("scoped resolution candidates require version 0.2")
         result["scope"] = scope
     return result
-
-
-def resolve_with_provider(
-    candidates: dict[str, Any], provider: ModelProvider
-) -> tuple[dict[str, Any], str]:
-    if not (
-        candidates.get("entity_candidates") or candidates.get("event_candidates")
-    ):
-        empty = {
-            "entity_decisions": [],
-            "event_decisions": [],
-        }
-        return apply_resolution_decisions(candidates, empty), ""
-    raw = provider.complete(build_resolution_prompt(candidates))
-    response = parse_model_response(raw)
-    return apply_resolution_decisions(candidates, response), raw

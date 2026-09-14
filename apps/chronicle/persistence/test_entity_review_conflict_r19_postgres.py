@@ -279,7 +279,7 @@ class EntityReviewConflictPostgresTests(unittest.TestCase):
         for artifact in final:
             for link in artifact["entity_links"]:
                 link["decision"] = "same_entity"
-        with self.assertRaisesRegex(R.publication_v0.PublicationConflict, "collapse existing canonical IDs"):
+        with self.assertRaisesRegex(R.catalog_publication.PublicationConflict, "collapse existing canonical IDs"):
             R.publish_with_decisions(
                 bundles=fixture["bundles"], resolutions=final, existing_catalog=fixture["catalog"],
             )

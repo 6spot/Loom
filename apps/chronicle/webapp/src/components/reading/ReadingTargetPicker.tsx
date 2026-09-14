@@ -5,7 +5,6 @@
 //   - 没有 current 目标时如实提示，不自动跳到回溯提及；
 //   - 只消费服务端分页好的 EventTarget，不按名称重新查找。
 //
-// 尚未挂接 App：T15 负责通过 render slot/callback 组合到阅读页面。
 
 import type { EventTarget } from "../../lib/reading-types";
 

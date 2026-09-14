@@ -6,10 +6,10 @@ import unittest
 import uuid
 from pathlib import Path
 
-from chronicle_ingest import validate_bundle
-from publication_v0 import (
+from jsonschema import Draft202012Validator, FormatChecker
+from catalog_publication import (
     PublicationConflict,
-    PublicationV0Error,
+    PublicationError,
     new_uuid7,
     publish_catalog,
 )
@@ -373,12 +373,12 @@ class PublicationV0Tests(unittest.TestCase):
         self.assertEqual(resolution_before, resolution)
 
         schema_path = (
-            Path(__file__).parent.parent
+            Path(__file__).parent.parent / "ingestion"
             / "schemas"
             / "chronicle-canonical-v0.1.schema.json"
         )
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        self.assertEqual([], validate_bundle(catalog, schema))
+        self.assertEqual([], list(Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(catalog)))
 
     def test_existing_related_occurrence_relation_is_preserved(self) -> None:
         existing = {
@@ -425,7 +425,7 @@ class PublicationV0Tests(unittest.TestCase):
             "b": _bundle("B", ["ent_010"], []),
         }
         resolution = _resolution("a", "WRONG", "b", "B")
-        with self.assertRaises(PublicationV0Error):
+        with self.assertRaises(PublicationError):
             publish_catalog(bundles, [resolution], id_factory=_Ids())
 
 

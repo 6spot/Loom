@@ -52,6 +52,7 @@ for path in (
         sys.path.insert(0, path)
 
 import second_round_gate as G  # noqa: E402
+import fixture_worker  # noqa: E402
 from gate_runtime import Evidence, GateError, default_gate_project  # noqa: E402
 from reading_scale_fixture import parse_scale_result  # noqa: E402
 
@@ -66,6 +67,62 @@ from jsonschema import Draft202012Validator  # noqa: E402
 
 GATE = HERE / "second_round_gate.py"
 SOURCE_PACK = REPO / "apps/chronicle/corpus/first-round/source-pack.json"
+
+
+class FrozenWorkerEntryTests(unittest.TestCase):
+    def config(self, **overrides) -> dict[str, str]:
+        return {
+            "CHRONICLE_CHAPTER_MODEL": "fixture:gate-r2:reading-chapter",
+            "CHRONICLE_MODEL_ENDPOINT": "http://host.docker.internal:12345/v1/responses",
+            "CHRONICLE_SOURCE_DIR": "/data/sources",
+            **overrides,
+        }
+
+    def test_gate_override_selects_fixture_adapter_and_preserves_lease_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            text = G.write_worker_override(Path(tmp) / "override.yaml").read_text()
+        command = json.loads(next(
+            line.partition("command: ")[2] for line in text.splitlines()
+            if "command: " in line
+        ))
+        self.assertEqual(command[:2], ["python3", "apps/chronicle/acceptance/fixture_worker.py"])
+        self.assertIn("${CHRONICLE_WORKER_LEASE_SECONDS:-30}", command)
+        self.assertIn("${CHRONICLE_WORKER_ID:-chronicle-fixture-worker}", command)
+
+    def test_only_local_explicit_fixture_configurations_are_allowed(self) -> None:
+        fixture_worker.require_fixture_config(self.config())
+        fixture_worker.require_fixture_config(self.config(
+            CHRONICLE_CHAPTER_MODEL="fixture:gate-r3:person-state-chapter",
+            CHRONICLE_NARRATIVE_MODEL="gate-fixture:narrative",
+        ))
+        for overrides in (
+            {"CHRONICLE_CHAPTER_MODEL": "live-model"},
+            {"CHRONICLE_NARRATIVE_MODEL": "live-model"},
+            {"CHRONICLE_MODEL_ENDPOINT": "https://provider.example/v1/responses"},
+            {"CHRONICLE_CHAPTER_PIPELINE_CONFIG": "/data/live.json"},
+            {"CHRONICLE_MODEL_ENDPOINT": "http://user:secret@localhost/v1/responses"},
+        ):
+            with self.subTest(overrides=overrides), self.assertRaises(GateError):
+                fixture_worker.require_fixture_config(self.config(**overrides))
+
+    def test_fixture_uses_shared_runner_while_production_rejects_same_configuration(self) -> None:
+        import os
+        import ingestion_worker as worker
+        import production_worker
+
+        with mock.patch.dict(os.environ, self.config(), clear=True), mock.patch.object(
+            worker, "run_forever", return_value={}
+        ) as run, mock.patch.object(
+            worker, "build_revision_source", return_value=object()
+        ), mock.patch.object(worker, "install_shutdown_handlers"):
+            args = ["--database-url", "postgresql://localhost/chronicle", "--lease-seconds", "30"]
+            fixture_worker.main(args)
+            self.assertEqual(run.call_args.kwargs["chapter_model"].candidate_version, "0.2")
+            self.assertEqual(run.call_args.kwargs["lease_seconds"], 30)
+            run.reset_mock()
+            with self.assertRaisesRegex(production_worker.PersistenceError, "staged chapter 0.4"):
+                production_worker.main(args)
+            run.assert_not_called()
 
 TINY_TEXT = (
     "# Fixture書\n\n## 上章\n\n甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未申酉戌亥。\n\n"

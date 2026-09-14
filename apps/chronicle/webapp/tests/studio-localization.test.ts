@@ -36,7 +36,6 @@ describe("Studio zh-CN operator surface", () => {
       "StudioSourcesPage.tsx",
       "StudioCoveragePage.tsx",
       "StudioLoginPage.tsx",
-      "placeholders.tsx",
     ];
     const combined = files.map(source).join("\n");
     const forbidden = [

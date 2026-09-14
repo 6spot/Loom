@@ -1,95 +1,74 @@
-# Chronicle Product Definition
+# Chronicle 产品定义
 
-## Vision
+Chronicle 提供一条以时间为主线、可以连续向下阅读的历史叙事。正文综合多份
+史料，人物、地点、政权及其状态随时间变化；读者需要时可以追溯具体结论。
+古文书籍是资料来源。首页和主阅读页不采用图书目录或百科卡片作为主体。
 
-Chronicle is an interactive historical-world application built on Loom.
+## 阅读主线
 
-Its goal is not to present history as a flat list of dated facts, but as a world that can be entered at any moment and explored through time, entities, relationships, events, causes, sources, and eventually counterfactual forks.
+1. 首页以少量重要时期、事件和搜索提供入口。
+2. 入口定位到正序历史正文的一个锚点，不筛选出一个孤立的事件集合。
+3. 从该段继续向下阅读，可以跨越事件和时期，直到当前已发布范围末尾。
+4. 左轴只提供时间刻度和精选重点；中间保持连续正文；右侧随阅读位置显示
+   附近入口、重要人物的职位/爵号/效力，以及地点的行政归属/实际控制。
+5. 点击人物进入独立的人物经历页面，再返回时恢复原正文版本和段内位置。
+6. 依据、原文、来源关系和存疑原因通过主动查看逐层展开。
 
-A user should be able to ask four natural questions:
+具体页面规则由 [historical-narrative-design.md](historical-narrative-design.md)
+维护。阶段用于准确描述当时状态；锚点用于阅读定位。一次任免可以改变状态，
+但不必变成轴上的事件入口。日期不足时保留叙事顺序，不补造年月。
 
-1. **What did the world look like then?**
-2. **What did this person or entity experience?**
-3. **Why did this happen?**
-4. **What if history had diverged here?**
+## 内容与可信度
 
-## Long-term growth model
+首期读者正文使用简体中文。完整自然章分别进行白话翻译与信息提取，正文不
+夹入模型注释。来源自带注疏仍保存并用于理解、校验和追溯。
+[分阶段章节生产](staged-chapter-production.md)负责保存每步结果、配置模型、
+对比复核、有限纠错与恢复；[多史料核对](source-corroboration.md)负责来源关系、
+有据结论和综合叙事。每一步成功不能代替后续步骤的验收。
 
-Chronicle starts with a narrow, high-density historical slice, but all data belongs to one global historical corpus.
+每条结论和状态独立区分 `clear` / `uncertain`，同时保留理由与引用。来源数量、
+多个模型同意或 JSON 合法都不能单独证明真实性。没有记载不能当作反证；
+人物参与一次事件不能推导其官职或阵营。身份同一性和具体史实核对分别处理，
+保留 [Amendment 0007](../../../docs/architecture/amendments/0007-chronicle-resolution-review-subjects.md)
+定义的候选级决定、例外和负约束。
 
-A Three Kingdoms dataset is not a Three Kingdoms application or a separate world model. It is one coverage pack within the same historical knowledge system. Additional packs can extend backward, forward, and geographically until the product naturally becomes Chinese history and then world history.
+后台要让人看懂资料、任务步骤、模型各自结果和需要处理的分歧。重试复用已
+完成步骤；切换模型必须形成明确的新执行记录。正常阅读只读取已发布内容，
+不触发模型调用。最终目标是自动通过有充分依据的内容、让人工集中处理例外；
+当前哪些审核仍为人工，以实际生产合同为准。
 
-Product views such as “Three Kingdoms”, “Chinese History”, “World War I”, and “World History” are scopes over the same corpus, not separate storage or runtime silos.
+## 视觉与背景
 
-## Core product pillars
+首页和公共控件使用中性的纸色、墨色和克制点缀，适配各历史时期。时代风格
+由经人工选择的背景图体现，背景不占正文高度、不遮挡阅读、不改变历史事实。
+AI 可以建议位置；生成由人主动触发，上传后还须预览并保存，成功保存才展示。
+未保存、停用或加载失败时显示纸底。完整规则见
+[background-art.md](background-art.md)。
 
-### Time
+## 当前实现与缺口
 
-Users can navigate to a historical date or period and inspect the world state associated with it.
+下表描述代码能力，不以 Issue 的开闭状态代替功能验收。
 
-### World
+| 能力 | 当前情况 | 需要继续完成 |
+| --- | --- | --- |
+| 资料上传与来源追溯 | 文本 revision、自然章规划、完整原文坐标已经存在 | 统一当前合同与验收样本，退役仍为旧测试服务的实现 |
+| 分阶段章节生产 | 0.4 分阶段模型、结果留存、纠错、人工异常审核、恢复已经存在 | 将同一执行能力用于综合史实与叙事，减少重复编排 |
+| 综合历史阅读 | 首页精选、连续正文、时间轴、阶段状态、深层依据已存在 | 跨独立生产批次延续；当前一次发布最多 256 段 |
+| 人物与地点 | 主历史右侧已有对应阶段的状态 | 人物详情仍混用旧资料卡，完整生平生产与专用阅读页尚未完成 |
+| 综合任务审核 | 事实稿、正文稿两次人工审核，来源依据可核查 | 多模型保存/对比、可解释的自动通过与异常分流、统一流程展示 |
+| 图片背景 | 技能和离线候选图库已存在 | Studio 上传/预览/保存，版本位置绑定，公开资源读取与正文联动 |
 
-Chronicle shows concurrent historical context rather than isolated national timelines. As coverage grows, the same date can reveal what was happening across multiple regions and civilizations.
+执行拆分见 [产品收敛任务](../../../docs/tasks/chronicle/product-convergence/README.md)。
+开发阶段可以替换旧实现和使用全新测试数据；不得以兼容旧生产入口为理由保留
+两套行为。仍被当前流程复用的校验、身份或发布逻辑应迁到唯一正式模块。
 
-### People and entities
+## 扩展边界
 
-Users can inspect persistent identities and their trajectories across time: people, polities, organizations, places, armies, ideas, technologies, and other historical entities.
+三国、民国、现代以及不同地域属于同一个可逐步扩展的历史系统。增加一个
+时期不创建另一套存储、独立图书站或固定皮肤。跨地域与日期不详的历史需要
+显式、可追溯的阅读顺序，不能用任意排序伪装为准确时间。
 
-### Why
-
-Events can expose sourced causal explanations, contributing factors, structural conditions, and competing interpretations. Chronicle must distinguish historical fact from interpretation.
-
-### Sources
-
-Historical claims must preserve source provenance, confidence, uncertainty, disagreement, and dating precision. Missing data must never be presented as proof that nothing happened.
-
-The primary historical prose synthesizes multiple sources into a new, continuous
-narrative. Users enter through periods, people, places and events; source books
-and chapters provide evidence rather than the main navigation structure. Every
-significant conclusion must be traceable to the original material, with attributed
-accounts, interpretations and disagreements preserved. Content is reviewed and
-published before public reading. Reading proceeds chronologically. Period and
-event entries locate a passage without filtering the surrounding narrative;
-reading continues across those boundaries wherever published content exists.
-The contextual sidebar shows each person's or place's state at the current
-passage. A separate person page provides detailed life history. Confirmed
-requirements, person-page responsibilities and gaps beyond the source-based R2
-contract are documented in
-[historical-narrative-design.md](historical-narrative-design.md).
-
-### What If
-
-Counterfactual simulation is a later capability. Historical truth before a fork and simulated outcomes after a fork must always be visually and semantically separated.
-
-## V0 product surfaces
-
-The first product version should focus on the historical browsing experience before advanced simulation.
-
-1. Home
-2. World at a historical moment
-3. Timeline
-4. Entity / person detail
-5. Event detail
-6. Why / causal exploration
-7. Sources
-8. Global search and historical Q&A
-
-Later additions:
-
-- Historical map
-- Relationship graph
-- “What happened at the same time?” comparison
-- Guided learning paths
-- Coverage visualization
-- Counterfactual fork and simulation
-
-## Global interaction model
-
-The most distinctive persistent UI element should be a global historical time control. Changing time should update the currently visible world, relationships, entity state, territorial context, and relevant events where supported by the corpus.
-
-The product should make the following distinction explicit:
-
-- **Historical mode:** sourced historical corpus and historical uncertainty.
-- **Simulation mode:** a counterfactual Loom Timeline created from a historical fork point.
-
-They must never be silently mixed.
+地图、关系图谱、问答和反事实模拟不属于当前交付主线。今后若引入模拟，
+仍须与史料支持的历史严格区分。Chronicle 应用持久化始终遵循
+[Amendment 0006](../../../docs/architecture/amendments/0006-application-owned-product-persistence.md)，
+不读写 Loom 引擎的私有存储。

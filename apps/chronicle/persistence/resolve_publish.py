@@ -12,7 +12,7 @@ Contract summary (GitHub Issue #497):
   Chronicle corpus: source bundles represented by the latest canonical
   catalog. Merely staging a source bundle during another in-flight job does
   not make it canonical publication input. Candidate generation still uses
-  the existing conservative C0 semantics (:mod:`resolution_v0` blocking:
+  the existing conservative C0 semantics (:mod:`identity_candidates` blocking:
   same Entity type + exact stable surface; Event time compatibility +
   participant/place overlap). No new blocking rule, no fuzzy matching, no
   model adjudication: the deterministic layer never invents
@@ -43,7 +43,7 @@ Contract summary (GitHub Issue #497):
   the recorded human decisions. Re-running a completed resolve/publish
   stage is a checkpoint/output no-op, and already-accepted extraction
   work is never re-executed (the worker skips completed stages).
-- Publication reuses :mod:`publication_v0` unchanged: accepted
+- Publication reuses :mod:`catalog_publication` unchanged: accepted
   same-links union representations, ``uncertain`` / ``not_same`` /
   ``related_occurrence`` never merge, negative constraints fail closed
   with ``PublicationConflict``, and an existing catalog reuses stable
@@ -73,9 +73,6 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
-_INGESTION_PROTOTYPE = HERE.parent / "ingestion" / "prototype"
-if str(_INGESTION_PROTOTYPE) not in sys.path:
-    sys.path.insert(0, str(_INGESTION_PROTOTYPE))
 
 import control_plane  # noqa: E402
 from common import (  # noqa: E402
@@ -91,11 +88,11 @@ import assembly as chapter_assembly  # noqa: E402
 import canonical_store  # noqa: E402
 import chapter_plan as _chapter_plan  # noqa: E402
 import chapter_store as chapter_store  # noqa: E402
-import publication_v0  # noqa: E402
+import catalog_publication  # noqa: E402
 import reading_contract as reading_contract  # noqa: E402
 import reading_projection as reading_projection  # noqa: E402
 import reading_store as reading_store  # noqa: E402
-import resolution_v0  # noqa: E402
+import identity_candidates  # noqa: E402
 import resolution_store  # noqa: E402
 import review_subjects  # noqa: E402
 from review_subjects import CanonicalIdentityConflict  # noqa: E402,F401
@@ -109,12 +106,12 @@ import person_state_store as person_state_store  # noqa: E402
 RESOLVE_PUBLISH_VERSION = "c2r1t8-v1"
 
 #: Reused C0 resolution contract (candidates + link decisions).
-RESOLUTION_VERSION = resolution_v0.RESOLUTION_VERSION
+RESOLUTION_VERSION = identity_candidates.RESOLUTION_VERSION
 
 #: Chapter-path resolution-links version/scope (chapter-production §6).
-RESOLUTION_V02_VERSION = resolution_v0.RESOLUTION_V02_VERSION
-SCOPE_WITHIN_REVISION = resolution_v0.SCOPE_WITHIN_REVISION
-SCOPE_CROSS_SOURCE = resolution_v0.SCOPE_CROSS_SOURCE
+RESOLUTION_V02_VERSION = identity_candidates.RESOLUTION_V02_VERSION
+SCOPE_WITHIN_REVISION = identity_candidates.SCOPE_WITHIN_REVISION
+SCOPE_CROSS_SOURCE = identity_candidates.SCOPE_CROSS_SOURCE
 
 #: Frozen chapter review plan version and modes (ReviewItem kind stays
 #: stage_gate, scope stays resolution; no new database kind).
@@ -123,7 +120,7 @@ REVIEW_MODE_CHAPTER_PAIR = review_subjects.REVIEW_MODE_CHAPTER_PAIR
 REVIEW_MODE_PUBLISHED_BATCH = review_subjects.REVIEW_MODE_PUBLISHED_BATCH
 
 #: Reused C0 canonical publication contract.
-PUBLICATION_VERSION = publication_v0.PUBLICATION_VERSION
+PUBLICATION_VERSION = catalog_publication.PUBLICATION_VERSION
 
 #: Control-plane artifact types recorded as ingestion outputs.
 BUNDLE_ARTIFACT_TYPE = "source-bundle"
@@ -393,7 +390,7 @@ def build_initial_resolutions(
     """Build one initial resolution artifact per published corpus bundle.
 
     Each artifact reuses the C0 candidate blocking
-    (:func:`resolution_v0.build_candidate_set`) and records every
+    (:func:`identity_candidates.build_candidate_set`) and records every
     candidate with an ``uncertain`` decision: the deterministic layer
     adjudicates nothing. Pairs without any blocked candidate produce
     no artifact. Corpus pairs are visited in label order and every
@@ -412,7 +409,7 @@ def build_initial_resolutions(
         bundle = corpus[label]
         if not isinstance(bundle, dict):
             raise PersistenceError(f"corpus bundle {label!r} must be a JSON object")
-        candidates = resolution_v0.build_candidate_set(
+        candidates = identity_candidates.build_candidate_set(
             bundle, label, new_bundle, new_label
         )
         entity_candidates = candidates.get("entity_candidates") or []
@@ -534,7 +531,7 @@ def build_within_bundle_initial_resolution(
             "chapter_index_by_id is required: pass the assembly "
             "plan chapter order instead of sorting by ref"
         )
-    candidates = resolution_v0.build_within_bundle_candidate_set(
+    candidates = identity_candidates.build_within_bundle_candidate_set(
         bundle,
         bundle_label,
         chapter_by_ref,
@@ -574,7 +571,7 @@ def build_chapter_cross_initial_resolutions(
         bundle = corpus[label]
         if not isinstance(bundle, dict):
             raise PersistenceError(f"corpus bundle {label!r} must be a JSON object")
-        candidates = resolution_v0.build_cross_source_candidate_set_v02(
+        candidates = identity_candidates.build_cross_source_candidate_set_v02(
             bundle, label, new_bundle, new_label
         )
         entity_candidates = candidates.get("entity_candidates") or []
@@ -986,12 +983,12 @@ def publish_with_decisions(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Publish through C0 canonical semantics and return catalog + audit report."""
     try:
-        catalog = publication_v0.publish_catalog(
+        catalog = catalog_publication.publish_catalog(
             bundles, resolutions, existing_catalog=existing_catalog
         )
-    except publication_v0.PublicationConflict:
+    except catalog_publication.PublicationConflict:
         raise
-    except publication_v0.PublicationV0Error as exc:
+    except catalog_publication.PublicationError as exc:
         raise PersistenceError(f"canonical publication input is invalid: {exc}") from exc
     return catalog, publication_report(catalog, resolutions)
 
@@ -2428,7 +2425,7 @@ def publish_chapters(
                 bundles=bundles, resolutions=resolutions,
                 existing_catalog=latest,
             )
-        except publication_v0.PublicationConflict as exc:
+        except catalog_publication.PublicationConflict as exc:
             raise PersistenceError(
                 f"chapter publication failed closed: {exc}"
             ) from exc

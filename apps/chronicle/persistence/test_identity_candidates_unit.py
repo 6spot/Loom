@@ -4,12 +4,11 @@ import json
 import unittest
 from pathlib import Path
 
-from chronicle_ingest import validate_bundle
-from resolution_v0 import (
-    ResolutionV0Error,
+from jsonschema import Draft202012Validator, FormatChecker
+from identity_candidates import (
+    ResolutionCandidateError,
     apply_resolution_decisions,
     build_candidate_set,
-    build_resolution_prompt,
     build_within_bundle_candidate_set,
 )
 
@@ -361,22 +360,6 @@ class ResolutionV0Tests(unittest.TestCase):
         )
         self.assertEqual([], out["event_candidates"])
 
-    def test_prompt_is_closed_world_and_non_destructive(self) -> None:
-        candidates = {
-            "schema": "chronicle.resolution-candidates",
-            "version": "0.1",
-            "left_bundle": {"label": "a", "source_ref": "src_001", "source_title": "A"},
-            "right_bundle": {"label": "b", "source_ref": "src_001", "source_title": "B"},
-            "entity_candidates": [],
-            "event_candidates": [],
-        }
-        prompt = build_resolution_prompt(candidates)
-        self.assertIn("Use only the supplied candidate records and signals", prompt)
-        self.assertIn("must remain immutable", prompt)
-        self.assertIn("Do not invent canonical UUIDs", prompt)
-        self.assertNotIn("expected.yaml", prompt)
-        self.assertNotIn("human gold", prompt.lower())
-
     def test_apply_decisions_preserves_candidate_refs_and_schema(self) -> None:
         left = _bundle("left", [_entity("ent_001", "person", "刘表")], [])
         right = _bundle("right", [_entity("ent_010", "person", "刘表")], [])
@@ -400,15 +383,15 @@ class ResolutionV0Tests(unittest.TestCase):
         self.assertEqual({"bundle": "right", "ref": "ent_010"}, link["right"])
         self.assertEqual("same_entity", link["decision"])
 
-        schema_path = Path(__file__).parent.parent / "schemas" / "chronicle-resolution-v0.1.schema.json"
+        schema_path = Path(__file__).parent.parent / "ingestion" / "schemas" / "chronicle-resolution-v0.1.schema.json"
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        self.assertEqual([], validate_bundle(output, schema))
+        self.assertEqual([], list(Draft202012Validator(schema, format_checker=FormatChecker()).iter_errors(output)))
 
     def test_missing_candidate_decision_is_rejected(self) -> None:
         left = _bundle("left", [_entity("ent_001", "person", "刘表")], [])
         right = _bundle("right", [_entity("ent_010", "person", "刘表")], [])
         candidates = build_candidate_set(left, "left", right, "right")
-        with self.assertRaises(ResolutionV0Error):
+        with self.assertRaises(ResolutionCandidateError):
             apply_resolution_decisions(
                 candidates,
                 {"entity_decisions": [], "event_decisions": []},

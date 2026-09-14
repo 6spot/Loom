@@ -7,7 +7,6 @@
 // - 轴体反映叙事顺序，倒叙只标记不重排；
 // - 桌面 sticky 轴 / 平板窄轴 / 手机可展开列表由 reading-axis.css 控制。
 //
-// 尚未挂接 App：T15 负责统一接入阅读页面与生产构建。
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReadingLocator, TimeGroup } from "../../lib/reading-types";

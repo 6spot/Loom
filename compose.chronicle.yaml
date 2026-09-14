@@ -174,22 +174,13 @@ services:
       - worker
     environment:
       CHRONICLE_DATABASE_URL: postgresql://${CHRONICLE_POSTGRES_USER:-chronicle}:${CHRONICLE_POSTGRES_PASSWORD:?set CHRONICLE_POSTGRES_PASSWORD}@postgres:5432/${CHRONICLE_POSTGRES_DB:-chronicle}
-      # C1-T5: the worker segments real stored revision bytes (same
-      # Chronicle-owned source volume the upload sidecar writes). Without
-      # this mount every stage runs the deterministic fake executor.
+      # The staged chapter worker reads the immutable uploaded revisions.
+      # Missing source/model configuration prevents startup.
       CHRONICLE_SOURCE_DIR: ${CHRONICLE_SOURCE_DIR:-/var/lib/chronicle/sources}
-      # C1-T13/T17: real extraction / Reader Presentation are independently
-      # enabled only when their model names are set. The endpoint may be
-      # OpenAI Responses or a compatible Luna/local gateway.
+      # Shared transport and timeout for chapter steps and history generation.
       CHRONICLE_MODEL_ENDPOINT: ${CHRONICLE_MODEL_ENDPOINT:-}
       CHRONICLE_MODEL_API_KEY: ${CHRONICLE_MODEL_API_KEY:-}
       CHRONICLE_MODEL_TIMEOUT_SECONDS: ${CHRONICLE_MODEL_TIMEOUT_SECONDS:-600}
-      # One production input-envelope authority. The worker measures the
-      # current prompt template at startup and derives ContextState/chunk
-      # headroom from this same value; extraction applies the final hard gate.
-      CHRONICLE_MODEL_INPUT_BUDGET_CHARS: ${CHRONICLE_MODEL_INPUT_BUDGET_CHARS:-16384}
-      CHRONICLE_EXTRACTION_MODEL: ${CHRONICLE_EXTRACTION_MODEL:-}
-      CHRONICLE_PRESENTATION_MODEL: ${CHRONICLE_PRESENTATION_MODEL:-}
       CHRONICLE_NARRATIVE_MODEL: ${CHRONICLE_NARRATIVE_MODEL:-}
       # Staged natural-chapter model entry consumed by
       # chapter_stage.chapter_model_from_env. Without this passthrough

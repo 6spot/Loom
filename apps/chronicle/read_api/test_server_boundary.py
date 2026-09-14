@@ -10,11 +10,10 @@ from urllib.request import Request, urlopen
 from server import handler_class
 
 
-class ChronicleServerStaticBoundaryTests(unittest.TestCase):
+class ChronicleSidecarBoundaryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        # Port 1 is intentionally unusable. Static/UI requests must still work
-        # because the server must not connect to PostgreSQL for those paths.
+        # Unknown/browser paths must be rejected without a PostgreSQL connection.
         handler = handler_class(
             "host=127.0.0.1 port=1 dbname=invalid user=invalid connect_timeout=1"
         )
@@ -33,20 +32,19 @@ class ChronicleServerStaticBoundaryTests(unittest.TestCase):
     def _get(self, path: str):
         return urlopen(Request(self.base_url + path, method="GET"), timeout=3)
 
-    def test_spa_and_module_requests_succeed_with_unusable_database_url(self) -> None:
-        for path, expected_type, marker in (
-            ("/timeline", "text/html", b"Chronicle"),
-            ("/search", "text/html", b"Chronicle"),
-            ("/events/01a05cd7-439d-7071-bf00-86c664886b06", "text/html", b"Chronicle"),
-            ("/route_safe.mjs", "text/javascript", b"safeRouteFor"),
-            ("/search_ui.mjs", "text/javascript", b"renderSearch"),
-        ):
-            with self.subTest(path=path):
-                with self._get(path) as response:
-                    self.assertEqual(response.status, 200)
-                    self.assertTrue(response.headers["Content-Type"].startswith(expected_type))
+    def test_browser_and_unknown_paths_are_typed_404s_without_database_access(self) -> None:
+        for path in ("/", "/history", "/timeline", "/search", "/events/some-id",
+                     "/route_safe.mjs", "/search_ui.mjs", "/assets/index.js",
+                     "/api/v1/public/no-such-route"):
+            for method in ("GET", "POST"):
+                with self.subTest(path=path, method=method):
+                    with self.assertRaises(HTTPError) as caught:
+                        urlopen(Request(self.base_url + path, method=method), timeout=3)
+                    response = caught.exception
+                    self.assertEqual(response.code, 404)
+                    self.assertTrue(response.headers["Content-Type"].startswith("application/json"))
                     self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
-                    self.assertIn(marker, response.read())
+                    self.assertEqual(json.load(response)["error"]["code"], "not_found")
 
     def test_healthz_remains_database_independent_json(self) -> None:
         with self._get("/healthz") as response:
