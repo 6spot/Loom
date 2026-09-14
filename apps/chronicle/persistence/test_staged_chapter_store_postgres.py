@@ -16,18 +16,18 @@ import chapter_store as Store
 import control_plane as CP
 import staged_chapter_contract as S
 from common import LeaseLost, PersistenceConflict, sha256_json
-import test_chapter_store_postgres as LegacyStore
+import test_chapter_store_postgres as ChapterStoreSetup
 from test_staged_chapter_contract_unit import fixture, receipt
 
 
 class StagedChapterStorePostgresTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.control_url = LegacyStore._control_url()
+        cls.control_url = ChapterStoreSetup._control_url()
 
-    setUp = LegacyStore.ChapterStorePostgresTests.setUp
-    tearDown = LegacyStore.ChapterStorePostgresTests.tearDown
-    _connect_ready = LegacyStore.ChapterStorePostgresTests._connect_ready
+    setUp = ChapterStoreSetup.ChapterStorePostgresTests.setUp
+    tearDown = ChapterStoreSetup.ChapterStorePostgresTests.tearDown
+    _connect_ready = ChapterStoreSetup.ChapterStorePostgresTests._connect_ready
 
     def _job(self, conn, *, output=True, step=True, checkpoint=True):
         request, candidate = fixture(annotation=True)

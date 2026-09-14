@@ -53,20 +53,12 @@ class ChapterEntryTests(unittest.TestCase):
         with self.assertRaisesRegex(P.PersistenceError, "CHRONICLE_MODEL_ENDPOINT"):
             P.chapter_configs({"CHRONICLE_CHAPTER_MODEL": "loom-chapter"})
 
-    def test_chapter_fixture_pack_missing_file_fails_closed(self) -> None:
-        with self.assertRaises(P.PersistenceError):
-            P.chapter_configs(
-                {"CHRONICLE_CHAPTER_FIXTURE_PACK": "/nonexistent/pack.json"}
-            )
-
-    def test_chapter_fixture_pack_conflicts_with_live_model(self) -> None:
-        with self.assertRaises(P.PersistenceError):
-            P.chapter_configs(
-                {
-                    "CHRONICLE_CHAPTER_FIXTURE_PACK": "/tmp/pack.json",
-                    "CHRONICLE_CHAPTER_MODEL": "loom-chapter",
-                }
-            )
+    def test_retired_fixture_pack_does_not_select_a_provider(self) -> None:
+        limits, model = P.chapter_configs(
+            {"CHRONICLE_CHAPTER_FIXTURE_PACK": "/nonexistent/pack.json"}
+        )
+        self.assertIsNone(model)
+        self.assertEqual(32768, limits.max_source_chars)
 
 
 class ProductionEntryTests(unittest.TestCase):
@@ -108,9 +100,6 @@ class ProductionEntryTests(unittest.TestCase):
             P.worker, "build_revision_source", return_value=revision_source
         ) as build_source, mock.patch.object(
             P.worker.narrative_stage, "model_from_env", return_value=narrative
-        ), mock.patch.object(
-            P.worker.model_provider, "models_from_env",
-            side_effect=AssertionError("production must not construct C1 providers"),
         ), mock.patch.object(
             P.worker, "install_shutdown_handlers"
         ), mock.patch.object(P.worker, "run_forever", return_value={}) as run:

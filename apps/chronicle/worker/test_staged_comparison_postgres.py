@@ -21,6 +21,7 @@ import chapter_production_store as store
 from model_provider import ModelProviderError
 import staged_pipeline_fixture as fixture
 import test_staged_chapter_pipeline_postgres as pipeline
+import pipeline_test_support as support
 
 SECOND_TRANSLATION = "建安三年，孙策任命周瑜为建威中郎将。"
 EXPECTED_CALLS = Counter({
@@ -88,7 +89,7 @@ class ComparisonModels(fixture.ScriptedModels):
 class StagedComparisonPostgresTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.control_url = pipeline.legacy._control_url()
+        cls.control_url = support._control_url()
 
     setUp = pipeline.StagedChapterPipelinePostgresTests.setUp
     tearDown = pipeline.StagedChapterPipelinePostgresTests.tearDown

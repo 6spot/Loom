@@ -110,7 +110,7 @@ def _generic_candidate_for_source(source):
     and version marker. No accepted artifact or program-owned hash is made by
     the fixture.
     """
-    import fixture_model
+    import staged_candidate_fixture as candidate_fixture
     from reader_language import simplified
 
     request = _request_from_source(source)
@@ -133,7 +133,7 @@ def _generic_candidate_for_source(source):
         "event": {"type": "appointment", "title": f"fixture事件（{mentions[0]}）"},
         "predicate": "affected",
     }
-    candidate = fixture_model.build_person_state_chapter_candidate(request, spec)
+    candidate = candidate_fixture.build_person_state_chapter_candidate(request, spec)
     candidate["version"] = "0.4"
     candidate["source_scope"] = _program_scope(source)
     # The builder emits one complete translation block for all body blocks.
@@ -215,7 +215,7 @@ def _add_resolved_span(candidate, request):
     from reader_language import simplified
 
     translated_mention = simplified(mention)
-    import fixture_model
+    import staged_candidate_fixture as candidate_fixture
 
     for unit in units:
         block = next(
@@ -224,7 +224,7 @@ def _add_resolved_span(candidate, request):
         )
         if block is None or translated_mention not in block.get("text", ""):
             continue
-        source_selection = fixture_model._chapter_selection_for(
+        source_selection = candidate_fixture._chapter_selection_for(
             quote=mention,
             text=request["normalized_text"],
             blocks=request["blocks"],

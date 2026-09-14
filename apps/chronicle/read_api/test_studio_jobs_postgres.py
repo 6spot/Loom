@@ -4,7 +4,7 @@ Exercises the real sidecar (ThreadingHTTPServer + handler_class) against
 an isolated database: queue, list/detail inspection, retry, resume, and
 cancel, plus safe failures (unknown revision/job, illegal transitions,
 exhausted retries, open-review resume, oversize bodies). This is the
-HTTP-level proof of the C1-T4 Studio contract; the Rust proxy tests cover
+HTTP-level proof of the current Studio contract; the Rust proxy tests cover
 auth gating and byte passthrough separately.
 """
 
@@ -40,7 +40,6 @@ for candidate in (str(HERE), str(PERSISTENCE), str(WORKER)):
 from server import handler_class  # noqa: E402
 
 import control_plane  # noqa: E402
-import ingestion_worker as worker  # noqa: E402
 from studio_jobs import STUDIO_JOBS_PREFIX  # noqa: E402
 
 from migrations import apply_migrations  # noqa: E402
@@ -187,11 +186,14 @@ class StudioJobsHttpTests(unittest.TestCase):
         original_id = body["job"]["job_id"]
         path = f"{STUDIO_JOBS_PREFIX}/{original_id}"
         self.assertEqual(self._json("POST", path + "/rerun")[0], 409)
-        worker.run_once(self.database_url, worker="rerun-test",
-                        executor=worker.StageExecutor(fail_plan={"prepare": 99}))
         with psycopg.connect(self.database_url) as conn:
+            job_uuid = uuid.UUID(original_id)
+            control_plane.claim_job(conn, worker="rerun-test", job_id=job_uuid)
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="running")
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="failed", error="test failure")
+            control_plane.set_job_status(conn, job_id=job_uuid, status="failed", error="test failure")
             result = {"step": "translation", "status": "completed", "parsed": {"blocks": [{"text": "旧结果仍保留。"}]}}
-            control_plane.record_output(conn, job_id=uuid.UUID(original_id), revision_id=self.revision_id,
+            control_plane.record_output(conn, job_id=job_uuid, revision_id=self.revision_id,
                 artifact_type="chapter-production-step", artifact_sha256=sha256_json(result), payload=result)
         _, original = self._json("GET", path)
         status, body = self._json("POST", path + "/rerun", {})
@@ -323,16 +325,13 @@ class StudioJobsHttpTests(unittest.TestCase):
         self.assertEqual(payload["schema"], "chronicle.job-list")
         self.assertEqual(len(payload["jobs"]), 1)
 
-        # The fake worker drains the queued job end to end through Studio state.
-        claimed = worker.run_once(self.database_url, worker="studio-e2e")
-        self.assertEqual(claimed[1], "completed")
+        # The HTTP surface queues work; the current staged worker owns
+        # execution and is covered by the T01 fixture-backed PostgreSQL suite.
         status, payload = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}")
-        self.assertEqual(payload["job"]["status"], "completed")
-        self.assertEqual(len(payload["job"]["outputs"]), 1)
-        self.assertEqual(len(payload["job"]["chunks"]), 2)
-        for chunk in payload["job"]["chunks"]:
-            self.assertEqual(chunk["status"], "completed")
-            self.assertEqual(len(chunk["runs"]), 1)
+        self.assertEqual(status, 200, payload)
+        self.assertEqual(payload["job"]["status"], "queued")
+        self.assertEqual(payload["job"]["outputs"], [])
+        self.assertEqual(payload["job"]["chunks"], [])
 
     def test_queue_rejects_unknown_revision(self) -> None:
         status, payload = self._json(
@@ -347,13 +346,12 @@ class StudioJobsHttpTests(unittest.TestCase):
             {"revision_id": str(self.revision_id), "max_attempts": 3},
         )
         job_id = payload["job"]["job_id"]
-        from ingestion_worker import StageExecutor
-
-        claimed = worker.run_once(
-            self.database_url, worker="studio-retry",
-            executor=StageExecutor(fail_plan={"prepare": 99}),
-        )
-        self.assertEqual(claimed[1], "failed")
+        with psycopg.connect(self.database_url) as conn:
+            job_uuid = uuid.UUID(job_id)
+            control_plane.claim_job(conn, worker="studio-retry", job_id=job_uuid)
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="running")
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="failed", error="test failure")
+            control_plane.set_job_status(conn, job_id=job_uuid, status="failed", error="test failure")
 
         status, payload = self._json("POST", f"{STUDIO_JOBS_PREFIX}/{job_id}/retry")
         self.assertEqual(status, 200, payload)

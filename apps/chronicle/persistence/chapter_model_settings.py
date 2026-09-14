@@ -73,9 +73,9 @@ def config_key(config, env) -> str:
 
 
 def catalog(env) -> dict:
-    fixture = str(env.get("CHRONICLE_CHAPTER_MODEL") or "").startswith("fixture:")
-    if env.get("CHRONICLE_CHAPTER_FIXTURE_PACK") or (fixture and not env.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG")) or not (
-        env.get("CHRONICLE_CHAPTER_MODEL") or env.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG")
+    primary = str(env.get("CHRONICLE_CHAPTER_MODEL") or "").strip()
+    if primary.startswith("fixture:") or not (
+        primary or env.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG")
     ):
         return {"available": False, "models": [], "steps": {}, "config_sha256": None}
     config = load_config(env)

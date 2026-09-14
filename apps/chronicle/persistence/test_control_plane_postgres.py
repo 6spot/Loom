@@ -1,10 +1,10 @@
-"""PostgreSQL 18 integration tests for the Chronicle C1-T1 control plane.
+"""PostgreSQL 18 integration tests for the Chronicle control plane.
 
-Covers the deterministic fake lifecycle (create revision -> queue job ->
-claim -> stage progress -> chunk retry -> needs_review -> resume ->
-completed), immutable revision/supersession semantics, illegal-transition
-enforcement, lease takeover after worker loss, and output provenance tracing
-back to one immutable revision.
+Covers the lifecycle contract (create revision -> queue job -> claim -> stage
+progress -> chunk retry -> needs_review -> resume -> completed), immutable
+revision/supersession semantics, illegal-transition enforcement, lease takeover
+after worker loss, and output provenance tracing back to one immutable
+revision.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ class ControlPlanePostgresTests(unittest.TestCase):
         apply_migrations(conn)
         return conn
 
-    def test_fake_lifecycle_retry_review_resume_completes(self) -> None:
+    def test_lifecycle_retry_review_resume_completes(self) -> None:
         """create revision -> queue -> claim -> stages -> chunk retry ->
         needs_review -> resume -> completed, with provenance to one revision."""
         with self._connect_ready() as conn:

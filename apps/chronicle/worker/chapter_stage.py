@@ -7,7 +7,7 @@ chapter contracts into the real durable import chain:
   and program-owned per-chapter requests;
 - ``chapter_production`` / ``chapter_models`` — saved translation, extraction,
   linking, comparison, review and bounded repair for production 0.4;
-- explicit older joint fixtures remain library regression inputs only;
+- the staged provider is the only model entry for production chapters;
 - T07 ``assembly.assemble_chapters`` — one revision bundle over all
   expected accepted chapters;
 - T08 ``resolve_publish`` chapter initials plus the frozen mixed review
@@ -15,7 +15,7 @@ chapter contracts into the real durable import chain:
 - T04 ``chapter_store`` — lease-fenced accepted-chapter writes and the
   immutable publication rows reused by the atomic publish transaction.
 
-Design rules (chapter-production.md sections 3/5-7):
+Design rules (staged-chapter-production.md and its current chapter contracts):
 
 - Eight stages and the jobs/chunks/runs authority are unchanged: every
   natural chapter is exactly one work chunk; no second chapter queue or
@@ -57,9 +57,7 @@ from common import (  # noqa: E402
 
 import assembly as chapter_assembly  # noqa: E402
 import chapter_contract as chapter_contract  # noqa: E402
-import chapter_extraction as chapter_extraction  # noqa: E402
 import chapter_plan as chapter_plan  # noqa: E402
-import chapter_prompt as chapter_prompt  # noqa: E402
 import chapter_store as chapter_store  # noqa: E402
 import resolution_store as resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
@@ -81,15 +79,8 @@ CHAPTER_STAGE_VERSION = "c2r1t13-v1"
 #: exact frozen plan instead of rebuilding one.
 CHAPTER_PLAN_OUTPUT_TYPE = "chapter-review-plan"
 
-#: Explicit test-injection entry: a chapter fixture pack path. Production
-#: never sets this; without it (and without a live chapter model) the
-#: chapter path fails closed instead of faking success.
-CHAPTER_FIXTURE_PACK_ENV = "CHRONICLE_CHAPTER_FIXTURE_PACK"
-
 #: Formal production entry for staged natural-chapter models.
 CHAPTER_MODEL_ENV = "CHRONICLE_CHAPTER_MODEL"
-CHAPTER_ENDPOINT_ENV = "CHRONICLE_MODEL_ENDPOINT"
-CHAPTER_API_KEY_ENV = "CHRONICLE_MODEL_API_KEY"
 
 
 # ---------------------------------------------------------------------------
@@ -100,34 +91,15 @@ CHAPTER_API_KEY_ENV = "CHRONICLE_MODEL_API_KEY"
 def chapter_model_from_env(
     env: dict[str, str] | os._Environ[str] | None = None,
 ) -> Any | None:
-    """Select staged production models, or a frozen explicit fixture.
-
-    ``CHRONICLE_CHAPTER_FIXTURE_PACK`` is the explicit test-injection
-    entry (a development chapter fixture pack path). Otherwise
-    ``CHRONICLE_CHAPTER_MODEL`` plus ``CHRONICLE_MODEL_ENDPOINT``
-    selects the live provider through the T06 chapter envelope.
-    Anything else fails closed; the old fake executor is never an
-    implicit fallback for new chapters.
-    """
+    """Select the current staged provider or return ``None`` to fail closed."""
     source = os.environ if env is None else env
-    fixture_pack = (source.get(CHAPTER_FIXTURE_PACK_ENV) or "").strip()
     chapter_name = (source.get(CHAPTER_MODEL_ENV) or "").strip()
-    if fixture_pack:
-        if (chapter_name or (source.get(CHAPTER_ENDPOINT_ENV) or "").strip()
-                or (source.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG") or "").strip()):
-            raise PersistenceError(
-                f"{CHAPTER_FIXTURE_PACK_ENV} cannot be combined with live "
-                "chapter model configuration"
-            )
-        import fixture_model as fixture_model  # noqa: E402
-
-        return fixture_model.models_from_chapter_fixture_pack(fixture_pack)
     if not chapter_name and not source.get("CHRONICLE_CHAPTER_PIPELINE_CONFIG"):
         return None
     if chapter_name.startswith("fixture:"):
         raise PersistenceError(
-            "retired joint chapter providers are unsupported; use the explicit "
-            f"{CHAPTER_FIXTURE_PACK_ENV} test entry"
+            "retired joint chapter providers are unsupported; use the staged "
+            "chapter configuration"
         )
     import chapter_models
     return chapter_models.from_env(source, limits=chapter_limits_from_env(source))
@@ -194,7 +166,7 @@ def candidate_version_for_model(model: Any) -> str:
     if name.startswith("fixture:"):
         raise PersistenceError(
             "retired fixture chapter providers are unsupported; use the current "
-            f"{CHAPTER_FIXTURE_PACK_ENV} entry"
+            "staged chapter configuration"
         )
     return chapter_contract.PRODUCTION_CANDIDATE_VERSION
 
@@ -449,168 +421,6 @@ def _heartbeat(database_url: str, *, job_id: uuid.UUID, worker: str,
         )
 
 
-def _producing_run_for(run_id: uuid.UUID, model_name: str) -> dict[str, Any]:
-    """Build the T01 producing-run binding for one persisted chunk run."""
-    if not isinstance(model_name, str) or not model_name:
-        raise PersistenceError("chapter producing run requires the model name")
-    return {
-        "run_id": str(run_id),
-        "model": model_name,
-        "prompt_schema_version": chapter_prompt.PROMPT_VERSION,
-    }
-
-
-def _chapter_error_message(result: dict[str, Any]) -> str:
-    """Derive the persisted/logged message for a failed chapter result.
-
-    The run checkpoint carries no "error" key, so the message must be
-    derived here and shared by the persisted run row and the
-    chapter_failed log event (reading it back from the checkpoint
-    always yields None).
-    """
-    if not isinstance(result, dict):
-        return "chapter extraction failed closed"
-    error = result.get("error")
-    if isinstance(error, dict):
-        message = error.get("message")
-        if isinstance(message, str) and message.strip():
-            return message
-    if isinstance(error, str) and error.strip():
-        return error
-    return "chapter extraction failed closed"
-
-
-def _read_runs(conn, chunk_id: uuid.UUID) -> list[tuple[int, str, dict[str, Any]]]:
-    rows = conn.execute(
-        """
-        SELECT attempt, status, checkpoint
-        FROM chronicle.ingestion_chunk_runs
-        WHERE chunk_id = %s ORDER BY attempt
-        """,
-        (chunk_id,),
-    ).fetchall()
-    return [
-        (int(attempt), str(status), checkpoint if isinstance(checkpoint, dict) else {})
-        for attempt, status, checkpoint in rows
-    ]
-
-
-def _newest_accepted_run(
-    runs: list[tuple[int, str, dict[str, Any]]],
-) -> tuple[int, dict[str, Any], dict[str, Any]] | None:
-    """Return the newest completed run carrying an accepted candidate."""
-    for attempt, status, checkpoint in reversed(runs):
-        if status != "completed" or checkpoint.get("accepted") is not True:
-            continue
-        candidate = checkpoint.get("candidate")
-        request = checkpoint.get("request")
-        if isinstance(candidate, dict) and isinstance(request, dict):
-            return attempt, request, candidate
-    return None
-
-
-def _adopt_accepted_run(
-    database_url: str,
-    *,
-    job_id: uuid.UUID,
-    chunk_id: uuid.UUID,
-    worker: str,
-    request: dict[str, Any],
-    lease_seconds: int,
-    on_event: Callable[[str, dict[str, Any]], None] | None = None,
-) -> bool:
-    """Adopt an already-committed accepted run with zero new model calls.
-
-    Closes the crash window between the accepted run commit and the
-    accepted-layer/status commit: the complete stored request/response
-    is re-verified (fingerprint, chapter, revision, and full T01
-    validation) before the T04 accept entry runs. Anything drifted
-    fails closed instead of being adopted.
-    """
-    with psycopg.connect(database_url) as conn:
-        runs = _read_runs(conn, chunk_id)
-    adopted = _newest_accepted_run(runs)
-    if adopted is None:
-        return False
-    run_attempt, stored_request, candidate = adopted
-    expected_fp = chapter_contract.request_fingerprint(request)
-    stored_fp = stored_request.get("request_fingerprint") or chapter_contract.request_fingerprint(
-        stored_request
-    )
-    if stored_fp != expected_fp:
-        raise PersistenceError(
-            f"chapter chunk {chunk_id} stored run {run_attempt} fingerprint "
-            "does not match the current chapter request; refusing to adopt "
-            "a run for different bytes/config"
-        )
-    if stored_request.get("chapter_id") != request.get("chapter_id") or stored_request.get(
-        "revision_id"
-    ) != request.get("revision_id"):
-        raise PersistenceError(
-            f"chapter chunk {chunk_id} stored run {run_attempt} binds a "
-            "different chapter/revision; refusing adoption"
-        )
-    report = chapter_contract.validate_chapter_candidate(request, candidate)
-    if not report.get("passed"):
-        raise PersistenceError(
-            f"chapter chunk {chunk_id} stored run {run_attempt} candidate "
-            "no longer validates; refusing adoption"
-        )
-    with psycopg.connect(database_url) as conn:
-        control_plane.set_chunk_status_fenced(
-            conn, job_id=job_id, chunk_id=chunk_id,
-            status="running", worker=worker,
-        )
-    with psycopg.connect(database_url) as conn:
-        run_id = conn.execute(
-            """
-            SELECT run_id FROM chronicle.ingestion_chunk_runs
-            WHERE chunk_id = %s AND attempt = %s
-            """,
-            (chunk_id, run_attempt),
-        ).fetchone()
-        if run_id is None:  # pragma: no cover - row was just read
-            raise PersistenceError(f"chapter chunk {chunk_id} run vanished")
-        stored_model = None
-        model_row = conn.execute(
-            """
-            SELECT checkpoint FROM chronicle.ingestion_chunk_runs
-            WHERE chunk_id = %s AND attempt = %s
-            """,
-            (chunk_id, run_attempt),
-        ).fetchone()
-        if model_row is not None and isinstance(model_row[0], dict):
-            stored_model = model_row[0].get("model")
-        chapter_store.record_accepted_chapter_fenced(
-            conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
-            request=request, candidate=candidate,
-            producing_run=_producing_run_for(run_id[0], stored_model),
-        )
-        conn.commit()
-    if on_event is not None:
-        on_event(
-            "chapter_run_adopted",
-            {"chunk_id": str(chunk_id), "run_attempt": run_attempt},
-        )
-    return True
-
-
-def _failed_outcome(database_url: str, chunk_id: uuid.UUID) -> str:
-    with psycopg.connect(database_url) as conn:
-        row = conn.execute(
-            """
-            SELECT attempt, max_attempts
-            FROM chronicle.ingestion_chunks WHERE chunk_id = %s
-            """,
-            (chunk_id,),
-        ).fetchone()
-    if row is None:  # pragma: no cover - defensive
-        raise PersistenceError(f"unknown chunk {chunk_id}")
-    if int(row[0]) >= int(row[1]):
-        return "needs_review"
-    return "failed"
-
-
 def execute_chapter_extract(
     database_url: str,
     *,
@@ -624,143 +434,35 @@ def execute_chapter_extract(
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
     halt: Callable[[uuid.UUID], str | None] | None = None,
 ) -> str:
-    """Execute the staged or (until T03) frozen chapter pipeline.
+    """Run the sole current staged 0.4 chapter production entry.
 
-    Returns 'ok'/'failed'/'needs_review' or a caller halt
-    ('cancelled'/'stopped'). Raises :class:`LeaseLost` when this worker
-    no longer holds the lease. No database transaction is ever held
-    across a model call; the lease is renewed before every call and
-    every durable write is lease-fenced. Completed chapters are never
-    re-run; a committed-but-uncheckpointed accepted run is adopted with
-    zero new model calls after full request/response re-verification.
+    The worker owns one natural-chapter chunk per planned chapter. The
+    durable staged runner owns model calls, retries, reviews and accepted
+    output reuse; there is no joint C1 extractor or alternate model branch.
     """
-    declared_version = getattr(model, "candidate_version", None)
-    if declared_version is not None and declared_version != "0.4":
+    if model is None or getattr(model, "candidate_version", None) != "0.4":
         raise PersistenceError(
-            f"chapter model declares unsupported candidate version {declared_version!r}"
+            "chapter extraction requires the staged 0.4 provider; "
+            "retired joint/chunk providers are unsupported"
         )
-    if declared_version == "0.4":
-        return _execute_staged_extract(database_url, job_id=job_id, worker=worker,
-            plan=plan, requests=requests, model=model, limits=limits,
-            lease_seconds=lease_seconds, on_event=on_event, halt=halt)
-    if model is None or not callable(getattr(model, "complete", None)):
+    if not callable(getattr(model, "model_for", None)) or not callable(
+        getattr(model, "public_config", None)
+    ):
         raise PersistenceError(
-            "chapter extraction requires a joint chapter model with "
-            "complete(prompt)->str; refusing to fake success"
+            "chapter extraction requires the staged provider configuration"
         )
-    model_name = getattr(model, "name", None)
-    if not isinstance(model_name, str) or not model_name:
-        raise PersistenceError("chapter model must carry a non-empty string name")
-    with psycopg.connect(database_url) as conn:
-        rows = conn.execute(
-            """
-            SELECT chunk_id, chunk_index, status
-            FROM chronicle.ingestion_chunks
-            WHERE job_id = %s ORDER BY chunk_index
-            """,
-            (job_id,),
-        ).fetchall()
-    if [int(row[1]) for row in rows] != list(range(plan["chapter_count"])):
-        raise PersistenceError(
-            f"job {job_id} chapter chunks do not match the planned "
-            f"{plan['chapter_count']} chapters; refusing to extract on a "
-            "stale chunk set (run the segment stage first)"
-        )
-    for chunk_id, chunk_index, status in rows:
-        if halt is not None:
-            outcome = halt(job_id)
-            if outcome is not None:
-                return outcome
-        request = requests[int(chunk_index)]
-        if status == "completed":
-            continue  # checkpoint skip: never re-run succeeded work
-        if status not in ("pending", "running", "failed", "needs_review"):
-            raise PersistenceError(
-                f"chunk {chunk_id} has unexpected status {status!r}"
-            )
-        # Crash-window reconciliation first. T03 owns removal of this
-        # frozen C1 path; current 0.4 production never enters it.
-        if _adopt_accepted_run(
-            database_url, job_id=job_id, chunk_id=chunk_id, worker=worker,
-            request=request, lease_seconds=lease_seconds, on_event=on_event,
-        ):
-            continue
-        with psycopg.connect(database_url) as conn:
-            control_plane.set_chunk_status_fenced(
-                conn, job_id=job_id, chunk_id=chunk_id,
-                status="running", worker=worker,
-            )
-        _heartbeat(
-            database_url, job_id=job_id, worker=worker,
-            lease_seconds=lease_seconds,
-        )
-        result = chapter_extraction.extract_chapter(request, model, limits=limits)
-        if halt is not None:
-            outcome = halt(job_id)
-            if outcome is not None:
-                return outcome
-        _heartbeat(
-            database_url, job_id=job_id, worker=worker,
-            lease_seconds=lease_seconds,
-        )
-        run_checkpoint = {
-            "chapter_stage_version": CHAPTER_STAGE_VERSION,
-            "accepted": bool(result.get("accepted")),
-            "request": request,
-            "request_fingerprint": result.get("request_fingerprint"),
-            "fingerprints": result.get("fingerprints"),
-            "attempts": result.get("attempts"),
-            "correction_rounds_used": result.get("correction_rounds_used"),
-            "model": model_name,
-        }
-        candidate = None
-        if result.get("accepted"):
-            artifact = result.get("artifact") or {}
-            candidate = artifact.get("candidate")
-            if not isinstance(candidate, dict):
-                raise PersistenceError(
-                    f"chapter chunk {chunk_id} accepted result carries no candidate"
-                )
-            run_checkpoint["candidate"] = candidate
-        run_error = _chapter_error_message(result)
-        with psycopg.connect(database_url) as conn:
-            _, run_attempt = control_plane.record_chunk_run_fenced(
-                conn, job_id=job_id, chunk_id=chunk_id,
-                status="completed" if result.get("accepted") else "failed",
-                worker=worker, checkpoint=run_checkpoint,
-                error=None if result.get("accepted") else run_error,
-            )
-        if not result.get("accepted"):
-            with psycopg.connect(database_url) as conn:
-                control_plane.set_chunk_status_fenced(
-                    conn, job_id=job_id, chunk_id=chunk_id,
-                    status="failed", worker=worker,
-                )
-            if on_event is not None:
-                on_event(
-                    "chapter_failed",
-                    {"chunk_id": str(chunk_id), "error": run_error},
-                )
-            return _failed_outcome(database_url, chunk_id)
-        with psycopg.connect(database_url) as conn:
-            run_id = conn.execute(
-                """
-                SELECT run_id FROM chronicle.ingestion_chunk_runs
-                WHERE chunk_id = %s AND attempt = %s
-                """,
-                (chunk_id, run_attempt),
-            ).fetchone()
-            if run_id is None:  # pragma: no cover - row was just written
-                raise PersistenceError(f"chapter chunk {chunk_id} run vanished")
-            chapter_store.record_accepted_chapter_fenced(
-                conn, job_id=job_id, chunk_id=chunk_id, worker=worker,
-                request=request, candidate=candidate,
-                producing_run=_producing_run_for(run_id[0], model_name),
-            )
-            conn.commit()
-        if on_event is not None:
-            on_event("chapter_completed", {"chunk_id": str(chunk_id)})
-    return "ok"
+    return _execute_staged_extract(
+        database_url,
+        job_id=job_id,
+        worker=worker,
+        plan=plan,
+        requests=requests,
+        model=model,
+        limits=limits,
+        lease_seconds=lease_seconds,
+        on_event=on_event,
+        halt=halt,
+    )
 
 
 def _execute_staged_extract(database_url, *, job_id, worker, plan, requests,

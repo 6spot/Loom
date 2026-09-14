@@ -268,7 +268,7 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
                 "migrations.py", "common.py", "chronicle_persist.py", "postgres_v0.py",
                 "requirements.txt", "router.py", "server.py", "repository.py", "read_common.py",
                 "chapter_contract.py", "staged_chapter_contract.py", "chapter_models.py",
-                "extraction_model_schema.py", "fixture_model.py",
+                "staged_candidate_fixture.py", "staged_pipeline_fixture.py",
             }:
                 all_chronicle(why)
             elif "person_state" in name or name.startswith("reading_people"):

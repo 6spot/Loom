@@ -78,6 +78,10 @@ def _integer(value, label, minimum, maximum):
 def from_env(env, *, limits) -> ChapterModels:
     """Names/endpoints are configuration; credential values never enter a hash."""
     primary = str(env.get("CHRONICLE_CHAPTER_MODEL") or "").strip()
+    if primary.startswith("fixture:"):
+        raise PersistenceError(
+            "retired chapter fixture providers are unsupported; configure the staged provider"
+        )
     config = settings.load_config(env)
     profiles = config.get("models")
     steps = config.get("steps")

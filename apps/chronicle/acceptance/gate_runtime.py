@@ -587,53 +587,16 @@ def reviews_for_job(
     return [item for item in collected if item.get("job_id") == job_id]
 
 
-# ---------------------------------------------------------------------------
-# Provider configuration guards
-# ---------------------------------------------------------------------------
-
-
-def require_live_config(config: dict[str, str]) -> None:
-    """Validate the shared live provider identity used by both rounds."""
-    if config.get("CHRONICLE_MODEL_FIXTURE_PACK", "").strip():
-        raise GateError(
-            "live gate refuses CHRONICLE_MODEL_FIXTURE_PACK; live provider is required"
-        )
-    required = (
-        "CHRONICLE_POSTGRES_PASSWORD",
-        "CHRONICLE_ADMIN_USER",
-        "CHRONICLE_ADMIN_PASSWORD",
-        "CHRONICLE_MODEL_ENDPOINT",
-        "CHRONICLE_EXTRACTION_MODEL",
-        "CHRONICLE_PRESENTATION_MODEL",
-    )
-    missing = [name for name in required if not config.get(name, "").strip()]
-    if missing:
-        raise GateError(
-            f"missing required live-gate configuration: {', '.join(missing)}"
-        )
-    parsed = urllib.parse.urlparse(config["CHRONICLE_MODEL_ENDPOINT"])
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise GateError("CHRONICLE_MODEL_ENDPOINT must be an absolute http(s) URL")
-
-
 def safe_provider(config: dict[str, str]) -> dict[str, Any]:
+    """Return only the current staged provider identity for evidence."""
     parsed = urllib.parse.urlparse(config["CHRONICLE_MODEL_ENDPOINT"])
     return {
         "endpoint": urllib.parse.urlunparse(
             (parsed.scheme, parsed.netloc, parsed.path, "", "", "")
         ),
         "api_key_present": bool(config.get("CHRONICLE_MODEL_API_KEY", "").strip()),
-        # The staged 0.4 gate records chapter/narrative names separately.
-        # Keep the legacy keys for historical callers without requiring the
-        # retired model names in the current acceptance environment.
-        "extraction_model": config.get(
-            "CHRONICLE_EXTRACTION_MODEL",
-            config.get("CHRONICLE_CHAPTER_MODEL", ""),
-        ),
-        "presentation_model": config.get(
-            "CHRONICLE_PRESENTATION_MODEL",
-            config.get("CHRONICLE_NARRATIVE_MODEL", ""),
-        ),
+        "chapter_model": config.get("CHRONICLE_CHAPTER_MODEL", ""),
+        "narrative_model": config.get("CHRONICLE_NARRATIVE_MODEL", ""),
         "timeout_seconds": config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS", "600"),
         "fixture_mode": False,
     }

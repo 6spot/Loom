@@ -1,12 +1,4 @@
-"""Pure-unit regressions for C2-R1 chapter stage wiring (no PostgreSQL).
-
-Covers two live findings from the T19 first-round run without needing a
-database: the ``chapter_failed`` log event must carry the persisted error
-message (it previously read a checkpoint key that never exists, so every
-failure logged ``error: None``), and the joint chapter provider must
-honor ``CHRONICLE_MODEL_TIMEOUT_SECONDS`` instead of silently keeping
-the code default.
-"""
+"""Pure-unit regressions for the current staged chapter entry."""
 
 from __future__ import annotations
 
@@ -37,23 +29,6 @@ def live_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     if extra:
         env.update(extra)
     return env
-
-
-class ChapterErrorMessageTests(unittest.TestCase):
-    def test_dict_error_message_used(self) -> None:
-        result = {"accepted": False, "error": {"code": "x", "message": "real cause"}}
-        self.assertEqual("real cause", S._chapter_error_message(result))
-
-    def test_string_error_used(self) -> None:
-        self.assertEqual("boom", S._chapter_error_message({"error": "boom"}))
-
-    def test_missing_error_falls_back(self) -> None:
-        for result in ({}, {"error": None}, {"error": {}}, {"error": "  "}, "not-a-dict"):
-            self.assertEqual(
-                "chapter extraction failed closed",
-                S._chapter_error_message(result),  # type: ignore[arg-type]
-                msg=repr(result),
-            )
 
 
 class ChapterModelTimeoutTests(unittest.TestCase):
@@ -115,17 +90,6 @@ class ChapterModelVersionTests(unittest.TestCase):
                 PersistenceError, "retired joint chapter providers"
             ):
                 S.chapter_model_from_env(live_env({"CHRONICLE_CHAPTER_MODEL": name}))
-
-    def test_explicit_retired_factory_versions_fail_closed(self) -> None:
-        for version in ("0.1", "0.2", "0.3"):
-            with self.subTest(version=version):
-                model = M.build_chapter_model(
-                    "fixture:chapter",
-                    "https://gateway.example/v1/responses",
-                    candidate_version=version,
-                )
-                with self.assertRaisesRegex(PersistenceError, "unsupported candidate version"):
-                    S.candidate_version_for_model(model)
 
     def test_current_factory_version_is_accepted(self) -> None:
         model = SimpleNamespace(name="chapter-live", candidate_version="0.4")

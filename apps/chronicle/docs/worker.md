@@ -78,7 +78,7 @@ is unchanged. Thin orchestration lives in
   agreement. No database transaction is held during model calls. Cancellation
   or expired leases stop queued requests and interrupt active HTTP waits;
   expired owners cannot save results. New live work plans 0.4, while explicit
-  library-test fixtures still exercise the frozen 0.1/0.2/0.3 contracts. Those
+  library-test fixtures exercise the current validator shapes. Those
   fixtures cannot be selected by the production entry. Accepting 0.4
   revalidates the candidate, stored step outputs and immutable acceptance
   receipt before committing the chunk run and chapter artifact together.
@@ -169,12 +169,12 @@ is unchanged. Thin orchestration lives in
 
 `production_worker.py` selects the formal chapter entry
 (`chapter_configs`): `ChapterLimits` from the documented
-`CHRONICLE_CHAPTER_*` overrides plus the provider from
+`CHRONICLE_CHAPTER_*` overrides plus the staged provider from
 `CHRONICLE_CHAPTER_MODEL` + `CHRONICLE_MODEL_ENDPOINT`, or a
 `CHRONICLE_CHAPTER_PIPELINE_CONFIG` JSON file
-(`CHRONICLE_MODEL_API_KEY` for credentials). `CHRONICLE_CHAPTER_FIXTURE_PACK`
-and joint provider families are confined to explicit library tests. They are
-not supported production configurations.
+(`CHRONICLE_MODEL_API_KEY` for credentials). The current acceptance gate owns
+its fixture provider; no fixture pack or joint provider is a production
+configuration.
 
 Each live profile receives `max_response_bytes` from `ChapterLimits` and
 `max_output_tokens` at or below that limit. The configured request fingerprint and
@@ -371,20 +371,19 @@ a substitute for that content review.
    survives a crash at any point.
 4. **Lease fencing.** Every worker mutation (`advance_stage_fenced`,
    `set_chunk_status_fenced`, `record_chunk_run_fenced`,
-   `set_job_status_fenced`, checkpoint/output writes, including the C1-T5
-   `write_chunk_checkpoint_fenced`) predicates on the
+   `set_job_status_fenced`, checkpoint/output writes) predicates on the
    job lease inside the same transaction and raises `LeaseLost` for any
    worker that no longer holds it. Heartbeats are strict: losing the
    lease to a takeover (or to cancellation, which clears the lease)
    halts the stale worker with a `lease_lost` outcome instead of writing
    further state or evidence.
-5. **Finish.** After all stages, the worker records one deterministic
-   output and moves the job to `completed` (lease cleared). Faults park
-   the job in `failed` (bounded Studio retry) or `needs_review` (chunk
-   attempts exhausted; a `chunk_failure` review gate owns the job).
-   Chunk attempts always append `ingestion_chunk_runs` rows with
-   monotonically increasing `attempt`; retries never overwrite prior
-   model/debug evidence.
+5. **Finish.** After all stages, staged outputs, acceptance evidence and
+   publication rows are already committed by their owning steps; the worker
+   moves the job to `completed` (lease cleared). Faults park the job in
+   `failed` (bounded Studio retry) or `needs_review` (content or identity
+   review owns the job). Chunk attempts always append
+   `ingestion_chunk_runs` rows with monotonically increasing `attempt`;
+   retries never overwrite prior model/debug evidence.
 6. **Shutdown.** SIGTERM/SIGINT stops new work. Staged model HTTP requests are
    cancelled at the next heartbeat; already-saved results remain reusable.
    The job stays `running` under its lease, so the next live worker
@@ -427,10 +426,9 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
 | Idle poll | 5 s per worker, no thundering herd | `--poll-interval` |
 | Job retries | `max_attempts` claim attempts; new Studio jobs default to 8 to include review resumes, low-level API default remains 3 | `ingestion_jobs` |
 | Chunk retries | `max_attempts` (default 3) per chunk | `ingestion_chunks` |
-| Fake topology | 1 section, 2 chunks per job | `FAKE_CHUNKS_PER_JOB` |
-| Real segmentation | versioned sections/chunks/context (C1-T5) | `segmentation.md` |
-| Real extraction | versioned chunk candidates/history (C1-T6) | `extraction.md` |
-| Chunk repair bound | `1 + max_repair_attempts` model calls per execution | `ExtractionConfig` |
+| Natural chapter topology | one chunk per planned chapter | `chapter_stage.py` |
+| Staged model steps | translation, extraction, comparison, linking, review, repair | `chapter_production.py` |
+| Chunk acceptance | one durable acceptance receipt per chapter | `chapter_production_store.py` |
 | Job bodies | 64 KiB cap on Studio job requests | sidecar |
 
 Scale guidance for the first envelope: run **one worker per 1–2 CPU** up
@@ -476,9 +474,10 @@ python3 -m unittest discover -s apps/chronicle/worker -p 'test_*unit.py' -v
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_production_unit.py' -v
 python3 -m unittest discover -s apps/chronicle/persistence -p 'test_staged_chapter*py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_worker_lifecycle_postgres.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_source_fail_closed_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v
-python3 -m unittest discover -s apps/chronicle/worker -p 'test_chapter_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_worker_budget_unit.py' -v
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_coverage*.py' -v
@@ -488,11 +487,12 @@ python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*.py'
 cd apps/chronicle/server && cargo test --offline
 ```
 
-The C1-T8 resolve/publish path is covered by
-`persistence/test_resolve_publish_unit.py` (deterministic C0-reusing
-core: candidates, decisions, publication boundaries) and
-`worker/test_resolve_publish_postgres.py` (durable review-gated
-resume plus unattended disjoint publication); see
+Identity candidates and catalog publication are covered by
+`persistence/test_identity_candidates_unit.py`,
+`persistence/test_catalog_publication_unit.py` and
+`persistence/test_resolve_publish_unit.py`; current staged PostgreSQL
+publication and review/resume behavior is covered by
+`worker/test_staged_chapter_pipeline_postgres.py`. See
 `review-publication.md` for the contract.
 
 The T06 reading publication path is covered by

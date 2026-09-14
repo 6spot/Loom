@@ -1,4 +1,4 @@
-"""Unit tests for Chronicle C1-T8 resolution/review/publication (no PostgreSQL).
+"""Unit tests for current Chronicle identity/review/publication rules (no PostgreSQL).
 
 Covers the deterministic, C0-reusing core: cross-source candidate
 building against a corpus, conservative all-uncertain initial
@@ -6,8 +6,8 @@ decisions with full provenance, review-payload validation, decision
 application (including stale-decision rejection and dismissed-as-
 uncertain), canonical publication boundaries (merge, UUID reuse,
 negative constraints, fail-closed conflicts), and byte-deterministic
-reruns. The durable worker path is covered by
-``apps/chronicle/worker/test_resolve_publish_postgres.py``.
+reruns. The durable worker path is covered by the current staged chapter
+PostgreSQL fixture.
 """
 
 from __future__ import annotations

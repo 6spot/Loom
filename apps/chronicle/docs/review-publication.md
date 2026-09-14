@@ -1,6 +1,8 @@
-# Chronicle cross-source resolution, review, and publication (C1-T8)
+# Chronicle cross-source resolution, review, and publication
 
-> 本页描述 C1 已实现的审核/发布。第一轮待实现的来源内候选与原子章发布见 [chapter-production.md](chapter-production.md)，队列和来源交互见 [review-workflow.md](review-workflow.md)。
+> 本页描述当前 staged worker 的审核/发布边界。自然章内容生产见
+> [staged-chapter-production.md](staged-chapter-production.md)，队列和来源交互见
+> [review-workflow.md](review-workflow.md)。
 
 Connects a newly assembled source bundle to the existing C0
 staged/resolution/canonical path, routing genuine ambiguity through
@@ -91,10 +93,10 @@ ingestion_outputs: source-bundle + cross-source-resolution(s)
 
 ## Production hook
 
-The deployed worker runs real `resolve`/`publish` whenever the job
-carries a real assembled bundle output (the C1-T7 artifact); other
-jobs keep the deterministic fake executor for those stages.
-`present` stays fake (Reader Presentation is C1-T12 scope).
+The deployed worker runs the current `resolve`/`publish` stages for every
+natural-chapter job after `assemble` has produced the accepted staged bundle.
+Narrative jobs are explicit and use the narrative stage; there is no fake
+executor or retired `present` stage in the production worker.
 
 ## Reviewing
 
