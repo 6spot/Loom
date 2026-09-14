@@ -3,17 +3,7 @@ name: Validator
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/validator.yml"
-      - ".github/CODEOWNERS"
-      - "apps/loom-validator/**"
-      - "tools/test_validator_ready.py"
-      - "tools/validator_ready.py"
-      - "tools/fixtures/validator-ready/**"
-      - "docs/tasks/validator/**"
-      - "docs/tasks/validator-recert/**"
+    branches: [main]
   pull_request: {}
 
 permissions:
@@ -28,71 +18,23 @@ env:
 
 jobs:
   changes:
-    name: Classify Validator changes
+    name: Classify changes
     runs-on: ubuntu-latest
     outputs:
-      implementation: ${{ steps.classify.outputs.implementation }}
-      ledger: ${{ steps.classify.outputs.ledger }}
-
+      plan: ${{ steps.classify.outputs.plan }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Classify Validator-owned changes
+      - name: Classify affected contracts
         id: classify
-        shell: bash
-        run: |
-          set -euo pipefail
+        run: python3 tools/ci_routing.py classify --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
-          implementation=false
-          ledger=false
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            implementation=true
-            ledger=true
-          else
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              base="${{ github.event.pull_request.base.sha }}"
-              head="${{ github.event.pull_request.head.sha }}"
-            else
-              base="${{ github.event.before }}"
-              head="${{ github.sha }}"
-              if [[ "$base" =~ ^0+$ ]]; then
-                base="${head}^"
-              fi
-            fi
-
-            git diff --name-only "$base" "$head" > /tmp/loom-validator-changed-files
-            cat /tmp/loom-validator-changed-files
-
-            while IFS= read -r path; do
-              [[ -n "$path" ]] || continue
-
-              case "$path" in
-                .github/workflows/validator.yml|.github/CODEOWNERS|apps/loom-validator/*)
-                  implementation=true
-                  ;;
-              esac
-
-              case "$path" in
-                .github/workflows/validator.yml|.github/CODEOWNERS|docs/tasks/validator/*|docs/tasks/validator-recert/*|tools/validator_ready.py|tools/test_validator_ready.py|tools/fixtures/validator-ready/*)
-                  ledger=true
-                  ;;
-              esac
-            done < /tmp/loom-validator-changed-files
-          fi
-
-          {
-            echo "implementation=$implementation"
-            echo "ledger=$ledger"
-          } >> "$GITHUB_OUTPUT"
-
-  ledger:
+  validator-ledger:
     name: Validator task ledger
     needs: changes
-    if: needs.changes.outputs.ledger == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['validator-ledger']
     runs-on: ubuntu-latest
 
     steps:
@@ -114,7 +56,7 @@ jobs:
   validator-static:
     name: Validator static checks
     needs: changes
-    if: needs.changes.outputs.implementation == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['validator-static']
     runs-on: ubuntu-latest
 
     steps:
@@ -152,27 +94,16 @@ jobs:
   validator-gate:
     name: Validator Gate
     if: always()
-    needs: [changes, ledger, validator-static]
+    needs: [changes, validator-ledger, validator-static]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Require successful applicable checks
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Require every selected check to succeed
         env:
-          CHANGES: ${{ needs.changes.result }}
-          LEDGER: ${{ needs.ledger.result }}
-          VALIDATOR_STATIC: ${{ needs.validator-static.result }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for result in "$CHANGES" "$LEDGER" "$VALIDATOR_STATIC"; do
-            case "$result" in
-              success|skipped) ;;
-              *)
-                echo "Required Validator check ended with: $result" >&2
-                exit 1
-                ;;
-            esac
-          done
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_routing.py gate --group validator
 
   multica-wakeup:
     name: Notify Multica of CI failure

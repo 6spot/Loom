@@ -1,0 +1,2 @@
+# Test-time YAML parsing only; the classifier and gates use the standard library.
+PyYAML==6.0.2

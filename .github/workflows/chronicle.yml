@@ -1,138 +1,37 @@
 name: Chronicle
 
 on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/chronicle.yml"
-      - "apps/chronicle/acceptance/first_round_gate.py"
-      - "apps/chronicle/acceptance/test_first_round_gate.py"
-      - "apps/chronicle/acceptance/gate_runtime.py"
-      - "apps/chronicle/acceptance/second_round_gate.py"
-      - "apps/chronicle/acceptance/test_second_round_gate.py"
-      - "apps/chronicle/acceptance/reading_scale_fixture.py"
-      - "apps/chronicle/webapp/scripts/reading-flow-smoke.mjs"
-      - "apps/chronicle/webapp/tests/reading-browser/integration/**"
-      - "apps/chronicle/docs/reading-acceptance.md"
-      - "apps/chronicle/docs/chapter-acceptance.md"
-      - "apps/chronicle/docs/final-acceptance.md"
-      - "apps/chronicle/corpus/first-round/**"
-      - "apps/chronicle/corpus/reading-enhancement/**"
-      - "apps/chronicle/corpus/test_corroboration_cases.py"
-      - "apps/chronicle/persistence/chapter_contract.py"
-      - "apps/chronicle/persistence/chapter_plan.py"
-      - "apps/chronicle/persistence/assembly.py"
-      - "apps/chronicle/persistence/review_subjects.py"
-      - "apps/chronicle/worker/fixture_model.py"
-      - "apps/chronicle/persistence/*chapter*"
-      - "apps/chronicle/worker/*chapter*"
-      - "apps/chronicle/worker/*staged*"
-      - "apps/chronicle/worker/model_provider.py"
-      - "apps/chronicle/worker/requirements.txt"
-      - "apps/chronicle/worker/config/**"
-      - "apps/chronicle/ingestion/schemas/*v0.4*"
-      - "apps/chronicle/persistence/*narrative*"
-      - "apps/chronicle/persistence/migrations/0008_*"
-      - "apps/chronicle/worker/*narrative*"
-      - "apps/chronicle/read_api/history.py"
-      - "apps/chronicle/read_api/studio_*.py"
-      - "apps/chronicle/webapp/src/**"
-      - "apps/chronicle/webapp/scripts/*component-smoke.mjs"
-      - "apps/chronicle/acceptance/third_round_gate.py"
-      - "apps/chronicle/acceptance/test_third_round_gate.py"
-      - "apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs"
-      - "apps/chronicle/webapp/tests/reading-browser/integration/person-states/**"
-      - "apps/chronicle/docs/person-state-acceptance.md"
-      - "apps/chronicle/docs/person-state-reading.md"
-      - "apps/chronicle/persistence/person_state_*.py"
-      - "apps/chronicle/read_api/studio_person_states.py"
-      - "apps/chronicle/worker/*person_state*"
-      - "apps/chronicle/webapp/src/components/reading/PersonState*.tsx"
-      - "apps/chronicle/webapp/src/components/studio/PersonStateReviewPanel.tsx"
-      - "apps/chronicle/webapp/src/lib/person-state-*.ts"
-      - "apps/chronicle/webapp/src/pages/public/EntityPage.tsx"
-      - "apps/chronicle/webapp/src/pages/public/HistoryPage.tsx"
-      - "apps/chronicle/webapp/src/pages/studio/StudioReview*.tsx"
-      - "apps/chronicle/corpus/third-round/**"
-  pull_request: {}
 
 permissions:
   contents: read
 
-concurrency:
-  group: chronicle-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   changes:
-    name: Classify Chronicle gate changes
+    name: Resolve Chronicle CI plan
     runs-on: ubuntu-latest
     outputs:
-      relevant: ${{ steps.classify.outputs.relevant }}
-
+      plan: ${{ steps.classify.outputs.plan }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-
-      - name: Classify Chronicle-owned changes
+      - name: Classify affected contracts
         id: classify
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          relevant=false
-
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            relevant=true
-          else
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              base="${{ github.event.pull_request.base.sha }}"
-              head="${{ github.event.pull_request.head.sha }}"
-            else
-              base="${{ github.event.before }}"
-              head="${{ github.sha }}"
-              if [[ "$base" =~ ^0+$ ]]; then
-                base="${head}^"
-              fi
-            fi
-
-            git diff --name-only "$base" "$head" > /tmp/chronicle-gate-changed-files
-            cat /tmp/chronicle-gate-changed-files
-
-            while IFS= read -r path; do
-              [[ -n "$path" ]] || continue
-              case "$path" in
-                apps/chronicle/persistence/*chapter*|apps/chronicle/worker/*chapter*|apps/chronicle/worker/*staged*|apps/chronicle/worker/model_provider.py|apps/chronicle/worker/requirements.txt|apps/chronicle/worker/config/*|apps/chronicle/ingestion/schemas/*v0.4*)
-                  relevant=true
-                  break
-                  ;;
-                apps/chronicle/persistence/*narrative*|apps/chronicle/persistence/migrations/0008_*|apps/chronicle/worker/*narrative*|apps/chronicle/worker/ingestion_worker.py|apps/chronicle/read_api/history.py|apps/chronicle/read_api/studio_*.py|apps/chronicle/corpus/reading-enhancement/*|apps/chronicle/corpus/test_corroboration_cases.py|apps/chronicle/webapp/src/*|apps/chronicle/webapp/scripts/*component-smoke.mjs)
-                  relevant=true
-                  break
-                  ;;
-                .github/workflows/chronicle.yml|apps/chronicle/acceptance/*.py|apps/chronicle/docs/reading-acceptance.md|apps/chronicle/webapp/scripts/reading-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/*|apps/chronicle/webapp/src/styles/reading-*.css|apps/chronicle/webapp/src/components/reading/*|apps/chronicle/webapp/src/pages/public/Reading*.tsx|apps/chronicle/webapp/src/lib/reading-*.ts|apps/chronicle/docs/chapter-acceptance.md|apps/chronicle/docs/final-acceptance.md|apps/chronicle/corpus/first-round/*|apps/chronicle/persistence/chapter_contract.py|apps/chronicle/persistence/chapter_plan.py|apps/chronicle/persistence/assembly.py|apps/chronicle/persistence/review_subjects.py|apps/chronicle/worker/fixture_model.py)
-                  relevant=true
-                  break
-                  ;;
-                apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs|apps/chronicle/webapp/tests/reading-browser/integration/person-states/*|apps/chronicle/docs/person-state-acceptance.md|apps/chronicle/docs/person-state-reading.md|apps/chronicle/persistence/person_state_*|apps/chronicle/read_api/studio_person_states.py|apps/chronicle/worker/*person_state*|apps/chronicle/webapp/src/components/reading/PersonState*|apps/chronicle/webapp/src/components/studio/PersonStateReviewPanel.tsx|apps/chronicle/webapp/src/lib/person-state-*|apps/chronicle/webapp/src/pages/public/EntityPage.tsx|apps/chronicle/webapp/src/pages/public/HistoryPage.tsx|apps/chronicle/webapp/src/pages/studio/StudioReview*|apps/chronicle/corpus/third-round/*)
-                  relevant=true
-                  break
-                  ;;
-              esac
-            done < /tmp/chronicle-gate-changed-files
-          fi
-
-          echo "relevant=$relevant" >> "$GITHUB_OUTPUT"
-          echo "relevant=$relevant"
+        env:
+          CI_PLAN: ${{ inputs.plan || '' }}
+        run: python3 tools/ci_routing.py classify --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
   offline-gate:
-    name: First-round offline gate (fixture)
+    name: Chapter offline gate (fixture)
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['offline-gate']
     runs-on: ubuntu-latest
 
     steps:
@@ -165,10 +64,177 @@ jobs:
             --evidence-dir /tmp/chronicle-first-round-offline
           python3 -c "import json; m=json.load(open('/tmp/chronicle-first-round-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m"
 
-  second-round-gate:
-    name: Second-round reading real-stack + browser gate (fixture)
+  chapter-pipeline:
+    name: Chapter production and Studio task contracts
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['chapter-pipeline']
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install contract dependencies
+        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt -r apps/chronicle/read_api/requirements.txt -r apps/chronicle/worker/requirements.txt
+      - name: Verify owned contracts
+        run: |
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_staged_chapter_store_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_comparison_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs_postgres.py' -v
+
+  reading-contracts:
+    name: Narrative, publication and search contracts
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs['reading-contracts']
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install contract dependencies
+        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt -r apps/chronicle/read_api/requirements.txt -r apps/chronicle/worker/requirements.txt
+      - name: Verify owned contracts
+        run: |
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_corroboration_cases.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative_contract.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative*_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reader_language_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_search*.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_narrative_pipeline_postgres.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v -k publish_faults
+
+  person-contracts:
+    name: Person-state corpus and production contracts
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs['person-contracts']
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18
+        env:
+          POSTGRES_USER: loom
+          POSTGRES_PASSWORD: loom
+          POSTGRES_DB: loom_control
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd "pg_isready -U loom -d loom_control"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install contract dependencies
+        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt -r apps/chronicle/read_api/requirements.txt -r apps/chronicle/worker/requirements.txt
+      - name: Verify owned contracts
+        run: |
+          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_third_round_cases.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_contract_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_person_state_pipeline_postgres.py' -v
+
+  web-components:
+    name: Selected frontend components
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs['web-components']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/chronicle/webapp/package-lock.json
+      - name: Install webapp and Chromium
+        run: |
+          npm --prefix apps/chronicle/webapp ci
+          npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
+      - name: Frontend unit tests
+        run: npm --prefix apps/chronicle/webapp test
+      - name: Verify selected browser components
+        env:
+          CHRONICLE_READING_SUITE: ${{ fromJSON(needs.changes.outputs.plan).suites.reading }}
+          CHRONICLE_HISTORY_SUITE: ${{ fromJSON(needs.changes.outputs.plan).suites.history }}
+          CHRONICLE_NARRATIVE_SUITE: ${{ fromJSON(needs.changes.outputs.plan).suites.narrative }}
+          CHRONICLE_PERSON_SUITE: ${{ fromJSON(needs.changes.outputs.plan).suites.person }}
+          CHRONICLE_STUDIO_SUITE: ${{ fromJSON(needs.changes.outputs.plan).suites.studio }}
+        run: |
+          set -euo pipefail
+          npm --prefix apps/chronicle/webapp run dev -- --host 127.0.0.1 --port 5174 --strictPort > /tmp/chronicle-component-vite.log 2>&1 &
+          chronicle_vite_pid=$!
+          trap 'kill "$chronicle_vite_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5174/ > /dev/null; then break; fi
+            sleep 1
+          done
+          if [[ "$CHRONICLE_READING_SUITE" == "true" ]]; then
+            node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5174 --suite all --output /tmp/chronicle-reading-components
+          fi
+          if [[ "$CHRONICLE_HISTORY_SUITE" == "true" ]]; then
+            node apps/chronicle/webapp/scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5174
+          fi
+          if [[ "$CHRONICLE_NARRATIVE_SUITE" == "true" ]]; then
+            node apps/chronicle/webapp/scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5174
+          fi
+          if [[ "$CHRONICLE_PERSON_SUITE" == "true" ]]; then
+            node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5174 --suite r3-all --output /tmp/chronicle-r3-components
+          fi
+          if [[ "$CHRONICLE_STUDIO_SUITE" == "true" ]]; then
+            node apps/chronicle/webapp/scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5174 --output /tmp/chronicle-studio-components
+          fi
+
+  second-round-gate:
+    name: Source reading real-stack + browser gate (fixture)
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs['second-round-gate']
     runs-on: ubuntu-latest
 
     services:
@@ -216,31 +282,6 @@ jobs:
       - name: Second-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
 
-      - name: Reviewed narrative, navigation and search contracts
-        run: |
-          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_corroboration_cases.py' -v
-          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative_contract.py' -v
-          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_narrative*_unit.py' -v
-          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_reader_language_unit.py' -v
-          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_search*.py' -v
-          python3 -m unittest discover -s apps/chronicle/worker -p 'test_narrative_pipeline_postgres.py' -v
-
-      - name: Public reading and Studio components (synthetic HTTP fixtures)
-        run: |
-          set -euo pipefail
-          npm --prefix apps/chronicle/webapp test
-          npm --prefix apps/chronicle/webapp run dev -- --host 127.0.0.1 --port 5174 --strictPort > /tmp/chronicle-component-vite.log 2>&1 &
-          chronicle_vite_pid=$!
-          trap 'kill "$chronicle_vite_pid" 2>/dev/null || true' EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:5174/ > /dev/null; then break; fi
-            sleep 1
-          done
-          node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5174 --suite all --output /tmp/chronicle-reading-components
-          node apps/chronicle/webapp/scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5174
-          node apps/chronicle/webapp/scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5174
-          node apps/chronicle/webapp/scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5174
-
       - name: Validate reading browser driver and suites
         run: |
           set -euo pipefail
@@ -259,9 +300,6 @@ jobs:
 
       - name: Build Chronicle image
         run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
-
-      - name: Product publish-atomicity fault test
-        run: python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v -k publish_faults
 
       - name: Second-round real-stack browser gate (fixture mode)
         run: |
@@ -306,9 +344,9 @@ jobs:
           PY
 
   third-round-gate:
-    name: Third-round person-state real-stack + browser gate (fixture)
+    name: Published history and person-state browser gate (fixture)
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: fromJSON(needs.changes.outputs.plan).jobs['third-round-gate']
     runs-on: ubuntu-latest
 
     services:
@@ -359,33 +397,6 @@ jobs:
 
       - name: Third-round gate unit tests
         run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_third_round_gate.py' -v
-
-      - name: Staged chapter production and content-review PostgreSQL regressions
-        run: |
-          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_staged_chapter_store_postgres.py' -v
-          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_chapter_pipeline_postgres.py' -v
-          python3 -m unittest discover -s apps/chronicle/worker -p 'test_staged_comparison_postgres.py' -v
-          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
-          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs_postgres.py' -v
-
-      - name: Third-round person-state corpus and contract tests
-        run: |
-          python3 -m unittest discover -s apps/chronicle/corpus -p 'test_third_round_cases.py' -v
-          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_contract_unit.py' -v
-          python3 -m unittest discover -s apps/chronicle/worker -p 'test_person_state_pipeline_postgres.py' -v
-
-      - name: Register third-round component suites (r3-all)
-        run: |
-          set -euo pipefail
-          npm --prefix apps/chronicle/webapp test
-          npm --prefix apps/chronicle/webapp run dev -- --host 127.0.0.1 --port 5175 --strictPort > /tmp/chronicle-r3-vite.log 2>&1 &
-          chronicle_vite_pid=$!
-          trap 'kill "$chronicle_vite_pid" 2>/dev/null || true' EXIT
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:5175/ > /dev/null; then break; fi
-            sleep 1
-          done
-          node apps/chronicle/webapp/scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5175 --suite r3-all --output /tmp/chronicle-r3-components
 
       - name: Validate person-state browser driver and suites
         run: |
@@ -440,3 +451,16 @@ jobs:
           assert perf["person_region_p95_ms"] <= 100, perf
           assert perf["max_long_task_ms"] < 200, perf
           PY
+  chronicle-gate:
+    name: Chronicle Gate
+    if: always()
+    needs: [changes, offline-gate, chapter-pipeline, reading-contracts, person-contracts, web-components, second-round-gate, third-round-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Require every selected check to succeed
+        env:
+          CI_PLAN: ${{ needs.changes.outputs.plan }}
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: python3 tools/ci_routing.py gate --group chronicle

@@ -6,6 +6,9 @@
 # Owner review; this file defines the ownership boundary.
 
 /.github/workflows/ @6spot
+/tools/ci_routing.py @6spot
+/tools/test_ci_routing.py @6spot
+/tools/requirements-ci.txt @6spot
 /tools/check_architecture.py @6spot
 /tools/check_storage_sql_ownership.py @6spot
 /tools/postgres-test.sh @6spot
