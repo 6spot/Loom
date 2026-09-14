@@ -1,6 +1,6 @@
-"""Explicitly synthetic 5,000-unit/1,000-group scale fixture (C2-R2-T16).
+"""Explicitly synthetic 5,000-unit/1,000-group scale fixture.
 
-The second-round acceptance requires a marked synthetic scale corpus to measure
+The staged acceptance requires a marked synthetic scale corpus to measure
 windowing and direct locate at a size the real four-chapter corpus does not
 reach. This module owns that synthetic-only fixture: a standalone in-container
 script that drives the product persistence boundary for one tiny synthetic
@@ -16,7 +16,7 @@ and groups are contract-complete (``narrative_time`` unknown-mode with empty
 labelled synthetic in its manifest (``synthetic-scale`` tag) so it can never be
 cited as real content.
 
-The module is separate from ``second_round_gate.py``'s real-chain path so the
+The module remains separate from the real source-to-public path so the staged
 gate's "no direct product writes" guard still covers the real chain.
 """
 
@@ -27,12 +27,10 @@ from __future__ import annotations
 #: coordinated in the task note
 #: ``docs/tasks/chronicle/second-round/T16-reading-automated-gate.md``
 #: ("File scope coordination") and the delivery PR, and is guarded by
-#: ``test_second_round_gate.py::test_scale_fixture_scope_handoff_recorded``.
+#: the staged acceptance unit tests.
 SCOPE_HANDOFF = (
-    "C2-R2-T16 acceptance-only synthetic scale fixture; scope added by "
-    "coordination recorded in docs/tasks/chronicle/second-round/"
-    "T16-reading-automated-gate.md; consumed by "
-    "apps/chronicle/acceptance/second_round_gate.py"
+    "staged acceptance-only synthetic scale fixture; consumed by "
+    "apps/chronicle/acceptance/staged_gate.py"
 )
 
 SCALE_UNITS_ENV = "GATE_SCALE_UNITS"

@@ -10,7 +10,7 @@
 //
 // The driver operates the real integrated `/read/{stream}` page against the
 // running Rust/Python/PG stack prepared by
-// `apps/chronicle/acceptance/second_round_gate.py`. It never mocks the public
+// `apps/chronicle/acceptance/staged_gate.py`. It never mocks the public
 // API. A missing/incomplete fixture manifest fails before launch, so a
 // fixture/scene/manifest gap can never look like a PASS.
 

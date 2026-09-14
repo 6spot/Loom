@@ -1,62 +1,26 @@
 #!/usr/bin/env python3
-"""Chronicle third-round person-state automated gate (C2-R3-T14).
+"""Chronicle staged 0.4 production acceptance gate (C3-T01).
 
-Unified thin orchestration entry for the third-round acceptance loop::
-
-    python3 apps/chronicle/acceptance/third_round_gate.py \
-        --mode fixture \
-        --env-file /tmp/chronicle-r3-test.env \
-        --source-pack apps/chronicle/corpus/first-round/source-pack.json \
-        --evidence-dir /tmp/chronicle-r3-fixture
-
-``fixture`` mode runs the real deployed stack through the shared
-``gate_runtime`` lifecycle (isolated Compose project, PostgreSQL 18, Rust
-``chronicle-server`` front, Python ``read_api`` sidecar, durable worker) plus
-an in-gate deterministic provider served over the real Responses protocol.
-The provider emits the 0.3 chapter candidate (translation + C0 records +
-reading annotations + ``person_states``) for chapter prompts, and a
-deterministic facts/prose draft for the explicit synthesis (present) stage.
-
-The gate then drives the whole third-round loop over the authenticated Studio
-HTTP boundary and the public Rust read routes, with no raw product SQL:
-
-1. upload the frozen first-round sources, queue the 0.3 job, let identity
-   resolution finish and the job park on the per-chapter
-   ``chapter_state_evidence`` packages;
-2. resolve those packages explicitly, resume, and let publication commit the
-   catalog / chapters / reading index / person-state manifest atomically;
-3. explicitly select the published chapters as synthesis sources, create the
-   existing comprehensive history job, and pass the facts and prose review
-   gates;
-4. read the published HistoryPage and the independent person state through
-   the public HTTP routes, recording ``version / paragraph_id / phase_id``
-   and the exact original anchors;
-5. exercise the fail-closed fault/negative matrix and finally run the real
-   browser ``person-state-flow-smoke.mjs`` suite against the running front.
-
-``live`` mode performs the strict prechecks for a real-provider run and stops
-with a READY handoff; it disables every fixture decision and never calls a
-real provider, so the operator must resolve identity/phase reviews by hand.
+This is the single current acceptance entry for source production. Fixture
+mode drives the real Rust/Python/PostgreSQL stack through the production
+worker and the shared ``gate_runtime`` lifecycle, using only the staged
+pipeline fixture's HTTP Responses provider. Live mode performs a strict,
+credential-free handoff and never falls back to fixture decisions.
 """
 
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
 import os
 import shutil
 import subprocess
 import sys
-import threading
+import time
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-GATE_SCHEMA = "chronicle.third-round-gate-evidence"
-GATE_VERSION = "0.3"
-BROWSER_MANIFEST_SCHEMA = "chronicle.person-state-flow-fixture"
 BROWSER_MANIFEST_VERSION = "0.1"
 FIXTURE_DISCLAIMER = (
     "fixture mode is deterministic offline orchestration only; it is NOT "
@@ -72,7 +36,7 @@ VIEWPORTS = (
 PERF_BUDGETS = {
     # person-state-reading.md §9: after data is retrieved, the person/place
     # region update is p95 <=100ms with no per-person N+1 and no main-thread
-    # task >=200ms at the R2 5,000-unit / 1,000-group scale.
+    # task >=200ms at the synthetic 5,000-unit / 1,000-group scale.
     "person_region_p95_ms": 100,
     "max_long_task_ms": 200,
     "mounted_max_units": 140,
@@ -103,7 +67,6 @@ from gate_runtime import (  # noqa: E402
     load_source_pack,
     queue_job,
     require_interactive_stdin,
-    require_live_config,
     require_status,
     reviews_for_job,
     safe_provider,
@@ -111,6 +74,7 @@ from gate_runtime import (  # noqa: E402
     verify_pack_manifest_hashes,
     wait_health,
     wait_job,
+    write_compose_override,
     write_json,
 )
 from reading_scale_fixture import (  # noqa: E402
@@ -120,25 +84,17 @@ from reading_scale_fixture import (  # noqa: E402
     parse_scale_result,
 )
 
-import chapter_contract  # noqa: E402
-import fixture_model  # noqa: E402
-import narrative_contract  # noqa: E402
+import staged_chapter_contract  # noqa: E402
+import staged_pipeline_fixture as staged_fixture  # noqa: E402
+import reading_contract  # noqa: E402
 
-# Pure, candidate-shape agnostic helpers reused from the second-round gate.
-# They carry no second-round semantics: they build a grounded event span over
-# whatever reading units a candidate owns, poll a public route and assert a
-# locator fails closed. Reusing them keeps one implementation instead of a
-# parallel copy.
-from second_round_gate import (  # noqa: E402
-    add_resolved_span,
-    create_document,
-    public_json,
-    _event_ids_from_units,
-    write_worker_override,
-)
-
-R3_CHAPTER_MODEL = "fixture:gate-r3:person-state-chapter"
-R3_NARRATIVE_MODEL = "gate-fixture:narrative"
+STAGED_CHAPTER_MODEL = "chronicle-staged-fixture-0.4"
+STAGED_NARRATIVE_MODEL = "chronicle-staged-fixture-narrative"
+GATE_SCHEMA = "chronicle.staged-gate-evidence"
+GATE_VERSION = "0.4"
+BROWSER_MANIFEST_SCHEMA = "chronicle.person-state-flow-fixture"
+READING_BROWSER_MANIFEST_SCHEMA = "chronicle.reading-flow-fixture"
+READING_BROWSER_MANIFEST_VERSION = "0.1"
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +132,7 @@ def check_no_direct_product_writes() -> dict[str, Any]:
     hits = sorted({token for token in forbidden if token in text})
     if hits:
         raise GateError(
-            "third_round_gate.py must not write product tables directly; "
+            "staged_gate.py must not write product tables directly; "
             f"forbidden tokens present: {hits}"
         )
     return {"direct_product_writes": False, "checked_tokens": len(forbidden)}
@@ -193,355 +149,55 @@ def require_fixture_env(config: dict[str, str]) -> None:
 
 
 def require_live_env(config: dict[str, str]) -> dict[str, Any]:
-    """Strict live-provider preflight for the third round.
-
-    The live run must produce the current staged chapter candidate and the
-    two-gate synthesis draft from the same real provider; a missing model is
-    refused instead of silently degrading to a fixture or partial chain.
-    """
+    """Strict live-provider preflight for the current staged 0.4 chain."""
     for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):
         if config.get(key, "").strip():
             raise GateError(
                 f"live mode refuses {key}; fixture material must never enter "
                 "a live run"
             )
-    require_live_config(config)
-    for key in ("CHRONICLE_CHAPTER_MODEL", "CHRONICLE_NARRATIVE_MODEL"):
-        if not config.get(key, "").strip():
-            raise GateError(f"missing required live configuration: {key}")
-    if config["CHRONICLE_CHAPTER_MODEL"].strip().startswith("fixture:"):
-        raise GateError("live mode refuses the frozen fixture chapter model entry")
+    required = (
+        "CHRONICLE_POSTGRES_PASSWORD",
+        "CHRONICLE_ADMIN_USER",
+        "CHRONICLE_ADMIN_PASSWORD",
+        "CHRONICLE_MODEL_ENDPOINT",
+        "CHRONICLE_CHAPTER_MODEL",
+        "CHRONICLE_NARRATIVE_MODEL",
+    )
+    missing = [key for key in required if not config.get(key, "").strip()]
+    if missing:
+        raise GateError(
+            "missing required live-gate configuration: " + ", ".join(missing)
+        )
+    forbidden_models = {
+        STAGED_CHAPTER_MODEL,
+        STAGED_NARRATIVE_MODEL,
+    }
+    model_values = [
+        config.get("CHRONICLE_CHAPTER_MODEL", ""),
+        config.get("CHRONICLE_NARRATIVE_MODEL", ""),
+        config.get("CHRONICLE_CHAPTER_REVIEW_MODELS", ""),
+    ]
+    model_names = [
+        name.strip()
+        for value in model_values
+        for name in value.split(",")
+        if name.strip()
+    ]
+    if any(name.startswith("fixture:") for name in model_names):
+        raise GateError("live mode refuses frozen fixture model entries")
+    if any(name in forbidden_models for name in model_names):
+        raise GateError("live mode refuses the staged acceptance fixture model")
     parsed = urllib.parse.urlparse(config["CHRONICLE_MODEL_ENDPOINT"])
-    if parsed.username is not None or parsed.password is not None:
-        raise GateError("CHRONICLE_MODEL_ENDPOINT must not embed credentials")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise GateError("CHRONICLE_MODEL_ENDPOINT must be an absolute http(s) URL")
+    if parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
+        raise GateError("CHRONICLE_MODEL_ENDPOINT must not embed credentials or query secrets")
     provider = safe_provider(config)
     provider["chapter_model"] = config["CHRONICLE_CHAPTER_MODEL"]
     provider["narrative_model"] = config["CHRONICLE_NARRATIVE_MODEL"]
-    provider["candidate_version"] = chapter_contract.PRODUCTION_CANDIDATE_VERSION
+    provider["candidate_version"] = staged_chapter_contract.CANDIDATE_VERSION
     return provider
-
-
-# ---------------------------------------------------------------------------
-# Deterministic 0.3 fixture provider served over the real provider protocol
-# ---------------------------------------------------------------------------
-
-
-def pick_unique_mentions(text: str, count: int) -> list[str]:
-    """Return ``count`` distinct verbatim snippets occurring once in ``text``."""
-    found: list[str] = []
-    blocked: set[str] = set()
-    for length in (4, 6, 8, 10, 12):
-        step = max(1, length // 2)
-        for start in range(0, max(0, len(text) - length), step):
-            if len(found) >= count:
-                return found
-            snippet = text[start : start + length]
-            if not snippet.strip() or "\n" in snippet or "#" in snippet:
-                continue
-            if snippet in blocked:
-                continue
-            if text.count(snippet) != 1:
-                continue
-            blocked.add(snippet)
-            found.append(snippet)
-    if len(found) < count:
-        raise GateError(
-            f"no {count} unique verbatim mentions found in chapter text"
-        )
-    return found
-
-
-def grounded_spec(request: dict[str, Any], source_title: str) -> dict[str, Any]:
-    """Build a 0.3-valid fixture spec over one program-owned chapter request.
-
-    Two grounded person entities are emitted (subject + a second person) so
-    the person-state block carries an attestation fact and its continuity in
-    addition to the phase and unit bindings; a missing second unique mention
-    still yields a valid empty-state chapter rather than a fabricated one.
-    """
-    text = request["normalized_text"]
-    mentions = pick_unique_mentions(text, 2)
-    entities = [
-        {"mention": mention, "type": "person", "name": mention}
-        for mention in mentions
-    ]
-    first = mentions[0]
-    return {
-        "chapter_id": request["chapter_id"],
-        "revision_id": request["revision_id"],
-        "source_title": source_title,
-        "translation_text": f"fixture白話譯文（{first}）非真實譯文",
-        "entities": entities,
-        "event": {"type": "appointment", "title": f"fixture事件（{first}）"},
-        "predicate": "affected",
-    }
-
-
-def chapter_candidate(prompt: str) -> str:
-    """Answer a 0.3 joint chapter prompt with a deterministic person-state candidate."""
-    request = fixture_model._chapter_request_from_t05_prompt(prompt)
-    spec = grounded_spec(request, "gate-fixture")
-    candidate = fixture_model.build_person_state_chapter_candidate(request, spec)
-    add_resolved_span(candidate, request)
-    return json.dumps(candidate, ensure_ascii=False, separators=(",", ":"))
-
-
-def narrative_drafts(
-    context: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Deterministic facts/prose draft over a real synthesis context.
-
-    This is the exact draft generator the product narrative contract tests
-    use; it covers every source with one phase and one conclusion, keeps the
-    reviewer-visible attribution, and serialises the required source
-    relations. The product validator and both review gates still run on the
-    result, so this only removes the real model call, not a correctness gate.
-    """
-    sources = context["sources"]
-    phases: list[dict[str, Any]] = []
-    facts: list[dict[str, Any]] = []
-    paragraphs: list[dict[str, Any]] = []
-    for index, source in enumerate(sources):
-        phase, fact = f"p{index}", f"f{index}"
-        text = "\n".join(block["text"] for block in source["translation"])
-        # The chapter fixture deliberately emits a tiny labelled translation.
-        # Give the performance fixture scrollable prose without pretending to
-        # add historical facts. Short-boundary behaviour has its own browser
-        # regression in history-component-smoke.mjs.
-        if len(text) < 600:
-            text += "\n" + (
-                "合成排版验收文字：用于检查连续滚动、阅读位置和人物阶段的同步更新，"
-                "不包含史实补充，不能作为真实译文或历史内容验收证据。"
-            ) * 12
-        entity = next(iter(source.get("canonical_refs", {}).get("entities", {}).values()), None)
-        event = next(iter(source.get("canonical_refs", {}).get("events", {}).values()), None)
-        evidence = source["evidence"][0]["id"]
-        phases.append(
-            {
-                "id": phase,
-                "label": source["title"],
-                "year": None,
-                "period": None,
-                "basis": [evidence],
-                "relation_to_previous": "uncertain",
-            }
-        )
-        facts.append(
-            {
-                "id": fact,
-                "question": "这一来源如何描述人物？",
-                "subject_id": entity,
-                "event_id": event,
-                "dimension": "event_detail",
-                "phase_ids": [phase],
-                "text": source["evidence"][0]["quote"],
-                "value": None,
-                "certainty": "clear",
-                "reason": "限于这份来源明确记载的范围。",
-                "evidence": [
-                    {
-                        "id": evidence,
-                        "relation": "support",
-                        "attribution": "本传作者",
-                        "note": "原文明载。",
-                    }
-                ],
-            }
-        )
-        paragraphs.append(
-            {
-                "id": f"n{index}",
-                "phase_id": phase,
-                "segments": [
-                    {
-                        "text": text,
-                        "conclusion_ids": [fact],
-                        "event_id": event,
-                        "event_relation": "current" if event else None,
-                        "event_text": None,
-                    }
-                ],
-                "entities": [{"entity_id": entity, "importance": "primary"}] if entity else [],
-            }
-        )
-    relations = [
-        {
-            "left": a["source_id"],
-            "right": b["source_id"],
-            "relation": "unknown",
-            "reason": "此测试不对史料独立性作断言。",
-        }
-        for a, b in itertools.combinations(sources, 2)
-    ]
-    entries = [{
-        "label": "合成历史进程", "kind": "period", "paragraph_id": "n0", "event_id": None,
-        "reason": "概览这一组已核对资料的完整历史发展。",
-    }]
-    return (
-        {
-            "schema": "chronicle.source-corroboration",
-            "version": "0.1",
-            "title": "第三轮 fixture 综合叙事（非真实内容）",
-            "phases": phases,
-            "conclusions": facts,
-            "source_relations": relations,
-        },
-        {
-            "schema": "chronicle.historical-narrative",
-            "version": "0.1",
-            "paragraphs": paragraphs,
-            "navigation": [{
-                "label": "测试时段", "first_paragraph_id": paragraphs[0]["id"],
-                "last_paragraph_id": paragraphs[-1]["id"],
-                "items": [{key: entry[key] for key in ("paragraph_id", "label", "reason")} for entry in entries],
-            }],
-            "entry_points": entries,
-        },
-    )
-
-
-def add_reviewed_person_states(
-    context: dict[str, Any],
-    facts: dict[str, Any],
-    prose: dict[str, Any],
-) -> None:
-    """Fold the reviewed source person states into the fixture facts/prose.
-
-    Every published 0.3 source carries reviewed, version-fixed
-    ``reviewed_person_states``. The fixture synthesis turns each into one
-    reviewed office conclusion bound to that source's own phase (never by
-    year/event-name equivalence) and links it from the matching paragraph, so
-    the published history body actually exercises paragraph person state.
-    """
-    for index, source in enumerate(context["sources"]):
-        for state in source.get("reviewed_person_states") or []:
-            person_id = state.get("person_id")
-            value = state.get("value") or state.get("target")
-            if not person_id or not value:
-                continue
-            conclusion_id = f"s{index}"
-            if any(item["id"] == conclusion_id for item in facts["conclusions"]):
-                continue
-            facts["conclusions"].append(
-                {
-                    "id": conclusion_id,
-                    "question": "该人物在此阶段的身份",
-                    "subject_id": person_id,
-                    "event_id": None,
-                    "dimension": "office",
-                    "phase_ids": [f"p{index}"],
-                    "text": "据已审核来源阶段资料，该人物在此阶段有此身份。",
-                    "value": str(value),
-                    "certainty": state.get("certainty", "uncertain"),
-                    "reason": "据已审核来源阶段资料。",
-                    "evidence": [
-                        {
-                            "id": source["evidence"][0]["id"],
-                            "relation": "support",
-                            "attribution": "本传作者",
-                            "note": "已审核来源阶段资料。",
-                        }
-                    ],
-                }
-            )
-            prose["paragraphs"][index]["segments"][0]["conclusion_ids"].append(
-                conclusion_id
-            )
-
-
-def _narrative_context(prompt: str) -> dict[str, Any]:
-    marker = "\nINPUT="
-    at = prompt.find(marker)
-    if at < 0:
-        raise GateError("narrative prompt is missing the INPUT section")
-    rest = prompt[at + len(marker):]
-    line = rest.split("\n", 1)[0]
-    context = json.loads(line)
-    if not isinstance(context, dict) or not context.get("sources"):
-        raise GateError("narrative prompt INPUT carries no sources")
-    return context
-
-
-def narrative_candidate(prompt: str) -> str:
-    """Answer a facts/prose synthesis prompt with a deterministic draft."""
-    kind = prompt.split("\nSTAGE=")[1].split("\n", 1)[0]
-    if kind not in ("facts", "prose"):
-        raise GateError(f"unknown narrative stage {kind!r}")
-    context = _narrative_context(prompt)
-    facts, prose = narrative_drafts(context)
-    add_reviewed_person_states(context, facts, prose)
-    return json.dumps(facts if kind == "facts" else prose, ensure_ascii=False)
-
-
-class ThirdRoundFixtureProvider:
-    """In-gate HTTP provider implementing the Responses-style protocol."""
-
-    def __init__(self, port: int) -> None:
-        self.port = port
-        self.server: ThreadingHTTPServer | None = None
-        self.thread: threading.Thread | None = None
-        #: When set, any prompt containing this token receives a malformed
-        #: candidate so the gate can inject a deterministic mid-chain failure.
-        self.fail_token: str | None = None
-        self.calls: list[str] = []
-
-    def _handler(self) -> type[BaseHTTPRequestHandler]:
-        provider = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *_args: Any) -> None:
-                return
-
-            def do_POST(self) -> None:  # noqa: N802
-                length = int(self.headers.get("Content-Length", "0"))
-                try:
-                    body = json.loads(self.rfile.read(length).decode("utf-8"))
-                    prompt = str(body.get("input", ""))
-                    if provider.fail_token and provider.fail_token in prompt:
-                        text = '{"broken": true}'
-                    elif "\nSTAGE=" in prompt and "CHAPTER REQUEST\n" not in prompt:
-                        text = narrative_candidate(prompt)
-                        provider.calls.append("narrative")
-                    else:
-                        text = chapter_candidate(prompt)
-                        provider.calls.append("chapter")
-                    payload = {
-                        "status": "completed",
-                        "output": [
-                            {
-                                "type": "message",
-                                "content": [{"type": "output_text", "text": text}],
-                            }
-                        ],
-                    }
-                    self._respond(200, payload)
-                except Exception as exc:  # noqa: BLE001 - fail closed over HTTP
-                    self._respond(
-                        500,
-                        {"status": "failed", "error": {"message": str(exc)[:500]}},
-                    )
-
-            def _respond(self, status: int, payload: dict[str, Any]) -> None:
-                raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-                self.send_response(status)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(raw)))
-                self.end_headers()
-                self.wfile.write(raw)
-
-        return Handler
-
-    def start(self) -> None:
-        self.server = ThreadingHTTPServer(("0.0.0.0", self.port), self._handler())
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> None:
-        if self.server is not None:
-            self.server.shutdown()
-            self.server.server_close()
-        if self.thread is not None:
-            self.thread.join(timeout=5)
 
 
 # ---------------------------------------------------------------------------
@@ -558,17 +214,66 @@ def write_stack_env(
     config["CHRONICLE_PORT"] = str(web_port)
     config["CHRONICLE_BIND_IP"] = "127.0.0.1"
     config["CHRONICLE_MODEL_ENDPOINT"] = endpoint
-    # Use the explicit frozen fixture entry for the 0.3 joint chapter model;
-    # a person-state-chapter suffix alone must not downgrade a live provider.
-    config["CHRONICLE_CHAPTER_MODEL"] = R3_CHAPTER_MODEL
-    config["CHRONICLE_NARRATIVE_MODEL"] = R3_NARRATIVE_MODEL
+    # The fixture has a normal model name, so chapter_stage selects the
+    # production ChapterModels/0.4 path instead of the historical fixture
+    # model families.
+    config["CHRONICLE_CHAPTER_MODEL"] = STAGED_CHAPTER_MODEL
+    config["CHRONICLE_CHAPTER_REVIEW_MODELS"] = STAGED_CHAPTER_MODEL
+    config["CHRONICLE_CHAPTER_PIPELINE_CONFIG"] = ""
+    config["CHRONICLE_NARRATIVE_MODEL"] = STAGED_NARRATIVE_MODEL
     for key in ("CHRONICLE_MODEL_FIXTURE_PACK", "CHRONICLE_CHAPTER_FIXTURE_PACK"):
         config.pop(key, None)
+    config.pop("CHRONICLE_MODEL_API_KEY", None)
     out.write_text(
         "".join(f"{key}={value}\n" for key, value in sorted(config.items())),
         encoding="utf-8",
     )
     return out
+
+
+# ---------------------------------------------------------------------------
+# Product HTTP boundary helpers
+# ---------------------------------------------------------------------------
+
+
+def create_document(base_url: str, auth: str, title: str) -> dict[str, Any]:
+    body = json.dumps({"title": title}, ensure_ascii=False).encode("utf-8")
+    status, payload = json_http(
+        base_url,
+        "/api/v1/studio/documents",
+        method="POST",
+        body=body,
+        content_type="application/json",
+        auth=auth,
+    )
+    require_status(status, 201, payload, "create document")
+    return payload["document"]
+
+
+def public_json(base_url: str, path: str, *, timeout_seconds: int = 60) -> dict[str, Any]:
+    deadline = time.time() + timeout_seconds
+    while True:
+        status, payload = json_http(base_url, path)
+        if status == 200:
+            return payload
+        if status in (502, 503) and time.time() < deadline:
+            time.sleep(1)
+            continue
+        raise GateError(f"{path} returned HTTP {status}: {payload}")
+
+
+def _event_ids_from_units(units: list[dict[str, Any]]) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for unit in units:
+        for segment in unit.get("segments", []):
+            if segment.get("kind") != "event":
+                continue
+            event_id = (segment.get("span") or {}).get("target_event_id")
+            if event_id and event_id not in seen:
+                seen.add(event_id)
+                found.append(event_id)
+    return found
 
 
 # ---------------------------------------------------------------------------
@@ -718,9 +423,9 @@ def drive_job(
 ) -> dict[str, Any]:
     """Drive one job through its review gates until it is terminal.
 
-    Third-round jobs can park more than once: identity resolution first, then
-    the per-chapter person-state package (and, for synthesis, facts then
-    prose). Each round resolves exactly the open packages and resumes; a job
+    Staged jobs can park more than once: identity resolution first, then the
+    per-chapter person-state package (and, for synthesis, facts then prose).
+    Each review round resolves exactly the open packages and resumes; a job
     that exhausts the bounded rounds without reaching a terminal state fails
     closed instead of looping forever.
     """
@@ -754,7 +459,7 @@ def publish_upload(
         base_url, auth, upload["work"] or Path(upload["upload"]).name
     )
     revision = upload_revision(
-        base_url, auth, document["document_id"], Path(upload["path"]), "c2r3-gate"
+        base_url, auth, document["document_id"], Path(upload["path"]), "c3-t01-staged-gate"
     )
     job = queue_job(base_url, auth, revision["revision_id"])
     current = drive_job(base_url, auth, job["job_id"], evidence)
@@ -769,6 +474,74 @@ def publish_upload(
         "upload": upload["upload"],
         "source_title": upload["work"] or Path(upload["upload"]).name,
     }
+
+
+def publish_revision(
+    base_url: str,
+    auth: str,
+    document_id: str,
+    source_path: Path,
+    label: str,
+    evidence: "Evidence",
+) -> dict[str, Any]:
+    """Publish a second revision through the same Studio/worker boundary."""
+    revision = upload_revision(base_url, auth, document_id, source_path, label)
+    queued = queue_job(base_url, auth, revision["revision_id"])
+    current = drive_job(base_url, auth, queued["job_id"], evidence)
+    if current.get("status") != "completed":
+        raise GateError(
+            f"revision job {queued['job_id']} did not publish: {current.get('status')}"
+        )
+    return {
+        "document_id": document_id,
+        "revision_id": revision["revision_id"],
+        "job_id": queued["job_id"],
+        "source_title": label,
+    }
+
+
+def collect_published_work(
+    base_url: str, published: dict[str, Any]
+) -> dict[str, Any]:
+    """Collect the public stream and first/last unit evidence for one revision."""
+    latest = public_json(base_url, "/api/v1/public/reading-streams")
+    source_catalog = latest["snapshot"]["catalog_sha"]
+    stream = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams?catalog={source_catalog}",
+    )
+    match = next(
+        (
+            item
+            for item in stream["page"]["streams"]
+            if item.get("revision_id") == published["revision_id"]
+        ),
+        None,
+    )
+    if match is None:
+        raise GateError(
+            f"published staged 0.4 revision {published['revision_id']} "
+            "is missing from the public directory"
+        )
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{match['stream_id']}/units"
+        f"?catalog={source_catalog}&limit=50",
+    )["page"]["units"]
+    if not units:
+        raise GateError(f"published stream {match['stream_id']} exposes no units")
+    published.update(
+        {
+            "stream_id": match["stream_id"],
+            "catalog_sha": source_catalog,
+            "unit_count": int(match["unit_count"]),
+            "group_count": int(match["group_count"]),
+            "first_unit_id": units[0]["unit_id"],
+            "last_unit_id": units[-1]["unit_id"],
+            "event_ids": _event_ids_from_units(units),
+        }
+    )
+    return published
 
 
 # -- synthesis (explicit comprehensive history job) --------------------------
@@ -869,7 +642,7 @@ def park_source_at_person_state(
     source.write_text(upload["text"] + "\n\n審核草稿段落。\n", encoding="utf-8")
     document = create_document(base_url, auth, "park-source")
     revision = upload_revision(
-        base_url, auth, document["document_id"], source, "c2r3-park"
+        base_url, auth, document["document_id"], source, "c3-t01-park"
     )
     job = queue_job(base_url, auth, revision["revision_id"])
     for _ in range(6):
@@ -1073,7 +846,7 @@ def fault_checks(
     upload: dict[str, Any],
     history: dict[str, Any],
     *,
-    provider: ThirdRoundFixtureProvider,
+    provider: staged_fixture.StagedFixtureProvider,
     evidence_dir: Path,
     evidence: dict[str, Any],
 ) -> dict[str, Any]:
@@ -1090,7 +863,7 @@ def fault_checks(
     try:
         document = create_document(base_url, auth, "fault-source")
         revision = upload_revision(
-            base_url, auth, document["document_id"], fault_source, "c2r3-fault"
+            base_url, auth, document["document_id"], fault_source, "c3-t01-fault"
         )
         job = queue_job(base_url, auth, revision["revision_id"])
         failed = wait_job(
@@ -1160,6 +933,109 @@ def fault_checks(
     return faults
 
 
+def build_scenario_coverage(
+    loaded: dict[str, Any],
+    works: list[dict[str, Any]],
+    history: dict[str, Any],
+    source_person: dict[str, Any],
+    faults: dict[str, Any],
+    review_decisions: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Record retained first/second/third-round scenarios without fake quality claims."""
+    if not works:
+        raise GateError("scenario coverage requires at least one published source")
+    if not all(
+        work.get("first_unit_id") and work.get("last_unit_id") and work.get("unit_count", 0) > 0
+        for work in works
+    ):
+        raise GateError("scenario coverage could not prove first/last unit for every source")
+    if not history.get("anchor_id") or not source_person.get("state_count", 0):
+        raise GateError("scenario coverage lacks original-anchor or person-state evidence")
+    if not any(work.get("event_ids") for work in works):
+        raise GateError("scenario coverage lacks a published event anchor")
+    if not {"resolution", "person_state"} <= {
+        item.get("scope") for item in review_decisions
+    }:
+        raise GateError("scenario coverage did not observe resolution and person-state reviews")
+    if not faults.get("chain_failure_no_partial", {}).get("passed"):
+        raise GateError("scenario coverage lacks atomic failure evidence")
+    if not faults.get("restart_preserves_published", {}).get("passed"):
+        raise GateError("scenario coverage lacks restart/continue evidence")
+
+    source_keys = [
+        str(item.get("key") or item.get("title") or item.get("filename"))
+        for item in loaded["pack"].get("sources", [])
+    ]
+    return {
+        "chapter_first_and_last": {
+            "status": "PASS",
+            "sources": len(works),
+            "units": [
+                {
+                    "stream_id": work["stream_id"],
+                    "first_unit_id": work["first_unit_id"],
+                    "last_unit_id": work["last_unit_id"],
+                }
+                for work in works
+            ],
+        },
+        "aliases_and_identity": {
+            "program_status": "PASS",
+            "manual_status": "REQUIRED",
+            "review_scopes": ["resolution"],
+            "note": "machine checks review shape; a reviewer must judge aliases and identity",
+        },
+        "same_person_across_sources": {
+            "program_status": "SOURCE_SCOPES_RECORDED",
+            "manual_status": "REQUIRED",
+            "source_keys": source_keys,
+            "note": "cross-source identity is not inferred by the fixture",
+        },
+        "same_name_different_people": {
+            "program_status": "NOT_ASSERTED",
+            "manual_status": "REQUIRED",
+            "note": "same-name separation is a content judgment, not a fixture assertion",
+        },
+        "state_phases": {
+            "status": "PASS",
+            "history_phase_id": history["phase_id"],
+            "source_state_count": source_person["state_count"],
+            "review_scopes": ["person_state", "narrative"],
+        },
+        "original_quotes_and_event_anchors": {
+            "status": "PASS",
+            "history_anchor_id": history["anchor_id"],
+            "source_event_count": sum(len(work.get("event_ids", [])) for work in works),
+        },
+        "retry_cancellation_lease_takeover": {
+            "status": "PROGRAM_TESTS",
+            "faults": sorted(faults),
+            "tests": [
+                "apps/chronicle/worker/test_staged_chapter_pipeline_postgres.py",
+                "apps/chronicle/worker/test_reading_pipeline_postgres.py",
+                "apps/chronicle/worker/test_person_state_pipeline_postgres.py",
+            ],
+        },
+        "atomic_publish": {
+            "status": "PASS",
+            "failure_evidence": "chain_failure_no_partial",
+            "published_revision_count": len(works),
+        },
+        "manual_content_judgement": {
+            "status": "REQUIRED_NOT_AUTOMATED",
+            "read_full_chapters_and_outputs": True,
+            "topics": [
+                "translation fidelity",
+                "aliases and identity",
+                "same-name separation",
+                "source disagreement",
+                "state phase interpretation",
+                "quote and event-anchor correctness",
+            ],
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # Synthetic scale fixture + browser manifest
 # ---------------------------------------------------------------------------
@@ -1175,6 +1051,220 @@ def seed_scale_stream(
     return parse_scale_result(result.stdout)
 
 
+def assert_time_contract(narrative_time: dict[str, Any]) -> None:
+    """Check the semantic part of the reading time contract."""
+    mode = narrative_time.get("mode")
+    refs = narrative_time.get("event_refs")
+    if not isinstance(refs, list):
+        raise GateError("narrative_time.event_refs must be an array")
+    if mode in ("events", "mixed") and not refs:
+        raise GateError(f"narrative_time mode {mode!r} requires event_refs")
+    if mode in ("unknown", "inherit") and refs:
+        raise GateError(f"narrative_time mode {mode!r} must not carry event_refs")
+    for field in (
+        "status", "from_block_id", "observations", "year_key", "period_key",
+        "year_label", "period_label", "precision", "continues_previous",
+    ):
+        if field not in narrative_time:
+            raise GateError(f"narrative_time missing {field!r}")
+
+
+def validate_scale_contract(base_url: str, scale: dict[str, Any]) -> dict[str, Any]:
+    """Validate every DTO exposed by the explicitly synthetic scale stream."""
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/units"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["units"]
+    groups = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/groups"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["groups"]
+    if not units or not groups:
+        raise GateError("synthetic scale stream exposed no units or groups")
+    for unit in units:
+        errors = reading_contract.validate_reading_dto("reading_unit", unit)
+        if errors:
+            raise GateError(f"synthetic unit DTO invalid: {errors}")
+        assert_time_contract(unit["narrative_time"])
+        for entity in unit.get("context_entities", []):
+            errors = reading_contract.validate_reading_dto("context_entity_view", entity)
+            if errors:
+                raise GateError(f"synthetic context entity DTO invalid: {errors}")
+    for group in groups:
+        errors = reading_contract.validate_reading_dto("time_group", group)
+        if errors:
+            raise GateError(f"synthetic time group DTO invalid: {errors}")
+    return {
+        "units_checked": len(units),
+        "groups_checked": len(groups),
+        "narrative_modes": sorted({unit["narrative_time"]["mode"] for unit in units}),
+        "context_entities": sum(len(unit.get("context_entities", [])) for unit in units),
+    }
+
+
+def find_negatives(base_url: str, scale: dict[str, Any]) -> list[dict[str, Any]]:
+    """Locate the explicit unknown-time, missing-context and missing-role cases."""
+    units = public_json(
+        base_url,
+        f"/api/v1/public/reading-streams/{scale['stream_id']}/units"
+        f"?catalog={scale['catalog_sha']}&limit=50",
+    )["page"]["units"]
+    negatives: dict[str, dict[str, Any]] = {}
+    for index, unit in enumerate(units):
+        if "unknown_time" not in negatives and unit["narrative_time"]["mode"] == "unknown":
+            negatives["unknown_time"] = {
+                "kind": "unknown_time", "stream_id": scale["stream_id"],
+                "catalog_sha": scale["catalog_sha"], "unit_id": unit["unit_id"],
+            }
+        if (
+            "missing_context" not in negatives
+            and not unit.get("context_entities")
+            and index > 0
+            and units[index - 1].get("context_entities")
+        ):
+            negatives["missing_context"] = {
+                "kind": "missing_context", "stream_id": scale["stream_id"],
+                "catalog_sha": scale["catalog_sha"], "unit_id": unit["unit_id"],
+                "previous_context_unit_id": units[index - 1]["unit_id"],
+            }
+        for entity in unit.get("context_entities", []):
+            if "missing_role" not in negatives and not entity.get("event_roles"):
+                negatives["missing_role"] = {
+                    "kind": "missing_role", "stream_id": scale["stream_id"],
+                    "catalog_sha": scale["catalog_sha"], "unit_id": unit["unit_id"],
+                    "entity_ref": entity["entity_ref"],
+                }
+                break
+    for kind in ("unknown_time", "missing_context", "missing_role"):
+        if kind not in negatives:
+            raise GateError(f"fixture data exposes no {kind!r} negative scenario")
+    return [negatives[kind] for kind in ("unknown_time", "missing_context", "missing_role")]
+
+
+def build_reading_browser_manifest(
+    works: list[dict[str, Any]],
+    *,
+    base_url: str,
+    scale: dict[str, Any],
+    versions: list[dict[str, Any]],
+    negatives: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "schema": READING_BROWSER_MANIFEST_SCHEMA,
+        "version": READING_BROWSER_MANIFEST_VERSION,
+        "generated_by": "C3-T01",
+        "base_url": base_url,
+        "streams": [
+            {
+                "stream_id": work["stream_id"],
+                "catalog_sha": work["catalog_sha"],
+                "source_title": work.get("source_title"),
+                "unit_count": work["unit_count"],
+                "group_count": work["group_count"],
+                "first_unit_id": work["first_unit_id"],
+                "event_ids": work.get("event_ids", []),
+            }
+            for work in works
+        ],
+        "versions": versions,
+        "negatives": negatives,
+        "scale": {
+            "synthetic": True,
+            "status": "measured",
+            "stream_id": scale["stream_id"],
+            "catalog_sha": scale["catalog_sha"],
+            "unit_count": scale["unit_count"],
+            "group_count": scale["group_count"],
+            "first_unit_id": scale["first_unit_id"],
+            "last_unit_id": scale["last_unit_id"],
+            "target_units": PERF_BUDGETS["target_units"],
+            "target_groups": PERF_BUDGETS["target_groups"],
+        },
+        "viewports": list(VIEWPORTS),
+        "budgets": {
+            "active_to_sidebar_p95_ms": PERF_BUDGETS["person_region_p95_ms"],
+            "restore_p95_ms": 250,
+            "max_long_task_ms": PERF_BUDGETS["max_long_task_ms"],
+            "mounted_max_units": PERF_BUDGETS["mounted_max_units"],
+            "target_units": PERF_BUDGETS["target_units"],
+            "target_groups": PERF_BUDGETS["target_groups"],
+        },
+    }
+
+
+def validate_reading_browser_manifest(manifest: Any) -> dict[str, Any]:
+    """Fail closed before the integrated reading browser driver starts."""
+    if not isinstance(manifest, dict) or manifest.get("schema") != READING_BROWSER_MANIFEST_SCHEMA:
+        raise GateError(
+            f"reading browser manifest schema must be {READING_BROWSER_MANIFEST_SCHEMA!r}"
+        )
+    streams = manifest.get("streams")
+    if not isinstance(streams, list) or not streams:
+        raise GateError("reading browser manifest carries no streams")
+    for stream in streams:
+        for field in ("stream_id", "catalog_sha", "first_unit_id", "unit_count", "group_count"):
+            if stream.get(field) in (None, ""):
+                raise GateError(f"reading browser stream missing {field!r}")
+        if len(str(stream["catalog_sha"])) != 64 or int(stream["unit_count"]) < 1:
+            raise GateError("reading browser stream has an invalid catalog or unit count")
+    scale = manifest.get("scale")
+    if not isinstance(scale, dict) or not scale.get("stream_id"):
+        raise GateError("reading browser manifest carries no synthetic scale stream")
+    if int(scale.get("unit_count", 0)) < PERF_BUDGETS["target_units"]:
+        raise GateError("reading browser scale stream is below the 5,000-unit target")
+    if int(scale.get("group_count", 0)) < PERF_BUDGETS["target_groups"]:
+        raise GateError("reading browser scale stream is below the 1,000-group target")
+    if not isinstance(manifest.get("versions"), list) or not manifest["versions"]:
+        raise GateError("reading browser manifest carries no content versions")
+    negatives = manifest.get("negatives")
+    if not isinstance(negatives, list):
+        raise GateError("reading browser manifest carries no negative scenarios")
+    kinds = {item.get("kind") for item in negatives if isinstance(item, dict)}
+    for required in ("unknown_time", "missing_context", "missing_role"):
+        if required not in kinds:
+            raise GateError(f"reading browser manifest missing {required!r} negative")
+        item = next(item for item in negatives if item.get("kind") == required)
+        for field in ("stream_id", "catalog_sha", "unit_id"):
+            if not item.get(field):
+                raise GateError(f"reading negative {required!r} missing {field!r}")
+    return manifest
+
+
+def run_reading_browser_driver(
+    manifest_path: Path, *, base_url: str, suite: str, output_dir: Path
+) -> dict[str, Any]:
+    script = REPO / "apps" / "chronicle" / "webapp" / "scripts" / "reading-flow-smoke.mjs"
+    if not script.is_file():
+        raise GateError(f"reading browser driver is missing: {script}")
+    if not shutil.which("node"):
+        raise GateError("node is required to run the reading browser driver")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            "node", str(script), "--base-url", base_url,
+            "--fixture-manifest", str(manifest_path), "--suite", suite,
+            "--output", str(output_dir),
+        ], cwd=REPO, text=True, capture_output=True,
+    )
+    (output_dir / "driver.log").write_text(
+        result.stdout + "\n" + result.stderr, encoding="utf-8"
+    )
+    payload_path = output_dir / "result.json"
+    payload: Any = None
+    if payload_path.is_file():
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    if result.returncode != 0:
+        raise GateError(
+            f"reading-flow-smoke failed ({result.returncode}); see {output_dir}: "
+            f"{(result.stdout + result.stderr)[-1200:]}"
+        )
+    if not isinstance(payload, dict) or payload.get("ok") is not True:
+        raise GateError(f"reading-flow-smoke did not report ok=true: {payload}")
+    return payload
+
+
 def build_browser_manifest(
     *,
     base_url: str,
@@ -1186,7 +1276,7 @@ def build_browser_manifest(
     return {
         "schema": BROWSER_MANIFEST_SCHEMA,
         "version": BROWSER_MANIFEST_VERSION,
-        "generated_by": "C2-R3-T14",
+        "generated_by": "C3-T01",
         "base_url": base_url,
         "history": {
             "version": history["version"],
@@ -1360,7 +1450,7 @@ def run_fixture(
         },
     )
     stack: ComposeStack | None = None
-    provider = ThirdRoundFixtureProvider(free_port())
+    provider = staged_fixture.StagedFixtureProvider(free_port())
     try:
         evidence.data["no_direct_product_writes"] = check_no_direct_product_writes()
         evidence.data["candidate"] = candidate_commit(REPO)
@@ -1388,14 +1478,16 @@ def run_fixture(
         stack_env = write_stack_env(
             env_file, evidence_dir / "stack.env", endpoint=endpoint, web_port=18080
         )
-        override = write_worker_override(evidence_dir / "compose.gate.yaml")
+        override = write_compose_override(
+            evidence_dir / "compose.gate.yaml", service="chronicle-worker"
+        )
         data_dir = evidence_dir / "stack-data"
         data_dir.mkdir(parents=True, exist_ok=True)
         base_url = "http://127.0.0.1:18080"
         stack = ComposeStack(
             repo=REPO,
             env_file=stack_env,
-            project=default_gate_project("r3"),
+            project=default_gate_project("staged"),
             data_dir=data_dir,
             base_url=base_url,
             worker_lease_seconds=30,
@@ -1415,43 +1507,51 @@ def run_fixture(
         }
         evidence.checkpoint()
 
-        # 1/2. Source 0.3 chain: upload -> generate -> identity/phase review ->
+        # Source chain: upload -> staged 0.4 production -> identity/phase review ->
         # atomic publish of catalog + chapters + reading index + manifest.
         works: list[dict[str, Any]] = []
         for upload in loaded["uploads"]:
-            published = publish_upload(base_url, auth, upload, evidence)
-            latest = public_json(base_url, "/api/v1/public/reading-streams")
-            source_catalog = latest["snapshot"]["catalog_sha"]
-            stream = public_json(
-                base_url,
-                f"/api/v1/public/reading-streams?catalog={source_catalog}",
+            published = collect_published_work(
+                base_url, publish_upload(base_url, auth, upload, evidence)
             )
-            match = next(
-                (
-                    item
-                    for item in stream["page"]["streams"]
-                    if item.get("revision_id") == published["revision_id"]
-                ),
-                None,
-            )
-            if match is None:
-                raise GateError("published 0.3 revision is missing from the public directory")
-            published["stream_id"] = match["stream_id"]
-            published["catalog_sha"] = source_catalog
-            published["unit_count"] = int(match["unit_count"])
-            published["group_count"] = int(match["group_count"])
-            units = public_json(
-                base_url,
-                f"/api/v1/public/reading-streams/{match['stream_id']}/units"
-                f"?catalog={source_catalog}&limit=50",
-            )
-            published["first_unit_id"] = units["page"]["units"][0]["unit_id"]
-            published["event_ids"] = _event_ids_from_units(units["page"]["units"])
             works.append(published)
             evidence.data["works"] = works
             evidence.checkpoint()
 
-        # 3. Explicit comprehensive history job with both review gates.
+        # Keep a real second revision in the same document so the reading driver
+        # proves catalog/version pinning through the current source path.
+        version_source = evidence_dir / "staged-version-2.md"
+        version_source.write_text(
+            loaded["uploads"][0]["text"] + "\n\n版本二新增段落。\n", encoding="utf-8"
+        )
+        version = collect_published_work(
+            base_url,
+            publish_revision(
+                base_url,
+                auth,
+                works[0]["document_id"],
+                version_source,
+                "staged-version-2",
+                evidence,
+            ),
+        )
+        works.append(version)
+        evidence.data["works"] = works
+        evidence.data["versions"] = [
+            {
+                "label": "v1",
+                "catalog_sha": works[0]["catalog_sha"],
+                "stream_id": works[0]["stream_id"],
+            },
+            {
+                "label": "v2",
+                "catalog_sha": version["catalog_sha"],
+                "stream_id": version["stream_id"],
+            },
+        ]
+        evidence.checkpoint()
+
+        # Explicit comprehensive history job with both review gates.
         synthesis = run_synthesis(base_url, auth, evidence)
         evidence.data["synthesis"] = synthesis
         evidence.checkpoint()
@@ -1475,7 +1575,7 @@ def run_fixture(
                         "the per-unit person-state compile did not scope the "
                         "revision-wide evidence to the unit's chapter"
                     ),
-                    "owning_module": "C2-R3-T04/T08",
+                    "owning_module": "staged chapter publication/read API",
                 }
             ]
             evidence.checkpoint()
@@ -1495,44 +1595,85 @@ def run_fixture(
         )
         evidence.checkpoint()
 
-        # 5. Synthetic scale stream + browser manifest. When a browser run is
+        evidence.data["scenario_coverage"] = build_scenario_coverage(
+            loaded,
+            works,
+            history,
+            source_person,
+            evidence.data["faults"],
+            evidence.data.get("review_decisions") or [],
+        )
+        evidence.checkpoint()
+
+        # Synthetic scale stream + browser manifests. When a browser run is
         # requested, park one real source job on person-state and one real
         # synthesis job on facts so the mixed queue has genuinely open forms.
         scale = seed_scale_stream(stack, units=5000, groups=1000)
         evidence.data["scale"] = scale
+        evidence.data["scale_contract"] = validate_scale_contract(base_url, scale)
+        evidence.data["negatives"] = find_negatives(base_url, scale)
+
+        reading_manifest = validate_reading_browser_manifest(
+            build_reading_browser_manifest(
+                works,
+                base_url=base_url,
+                scale=scale,
+                versions=evidence.data["versions"],
+                negatives=evidence.data["negatives"],
+            )
+        )
+        reading_manifest_path = evidence_dir / "reading-fixture-manifest.json"
+        write_json(reading_manifest_path, reading_manifest)
+        person_manifest = validate_browser_manifest(
+            build_browser_manifest(
+                base_url=base_url,
+                history=history,
+                source_person=source_person,
+                scale=scale,
+                review_jobs={
+                    "person_state_job_id": park_source_at_person_state(
+                        base_url, auth, loaded["uploads"][0], evidence_dir
+                    ),
+                },
+            )
+        )
+        person_manifest_path = evidence_dir / "person-state-fixture-manifest.json"
+        write_json(person_manifest_path, person_manifest)
+        evidence.data["browser_manifest"] = {
+            "reading": {
+                "path": str(reading_manifest_path),
+                "schema": reading_manifest["schema"],
+                "streams": len(reading_manifest["streams"]),
+            },
+            "person_state": {
+                "path": str(person_manifest_path),
+                "schema": person_manifest["schema"],
+                "version": person_manifest["history"]["version"],
+            },
+        }
 
         if run_browser:
-            review_jobs = {
-                "person_state_job_id": park_source_at_person_state(
-                    base_url, auth, loaded["uploads"][0], evidence_dir
-                ),
-            }
-            evidence.data["parked_review_jobs"] = review_jobs
-            evidence.checkpoint()
-            manifest = validate_browser_manifest(
-                build_browser_manifest(
-                    base_url=base_url,
-                    history=history,
-                    source_person=source_person,
-                    scale=scale,
-                    review_jobs=review_jobs,
-                )
-            )
-            manifest_path = evidence_dir / "person-state-fixture-manifest.json"
-            write_json(manifest_path, manifest)
-            evidence.data["browser_manifest"] = {
-                "path": str(manifest_path),
-                "schema": manifest["schema"],
-                "version": manifest["history"]["version"],
-            }
-            evidence.data["browser"] = run_browser_driver(
-                manifest_path,
+            reading_result = run_reading_browser_driver(
+                reading_manifest_path,
                 base_url=base_url,
                 suite="all",
-                output_dir=evidence_dir / "browser",
+                output_dir=evidence_dir / "reading-browser",
+            )
+            person_result = run_browser_driver(
+                person_manifest_path,
+                base_url=base_url,
+                suite="all",
+                output_dir=evidence_dir / "person-browser",
                 username=config["CHRONICLE_ADMIN_USER"],
                 password=config["CHRONICLE_ADMIN_PASSWORD"],
             )
+            evidence.data["browser"] = {
+                "ok": bool(reading_result.get("ok") and person_result.get("ok")),
+                "results": (reading_result.get("results") or [])
+                + (person_result.get("results") or []),
+                "reading": reading_result,
+                "person_state": person_result,
+            }
         elif browser_required:
             raise GateError("a browser run was required but --skip-browser was set")
         else:
@@ -1546,10 +1687,13 @@ def run_fixture(
             item.get("passed") for item in evidence.data["faults"].values()
         )
         evidence.data["criteria"] = {
+            "staged_0_4_source_to_acceptance": "PASS",
+            "scenario_coverage": "PASS" if evidence.data.get("scenario_coverage") else "FAIL",
             "source_person_state_publish_chain": "PASS",
             "composite_history_two_review_chain": "PASS",
             "published_history_and_person_page": "PASS",
             "negative_faults": "PASS" if faults_ok else "FAIL",
+            "scale_contract": "PASS" if evidence.data.get("scale_contract") else "FAIL",
             "browser_interaction": "PASS" if measured else "NOT_RUN",
             "performance_budget": "PASS" if measured else "NOT_MEASURED",
             "multi_chapter_source_state_consistency": (
@@ -1597,7 +1741,7 @@ def run_live(
         )
     if execute:
         raise GateError(
-            "this entry issues a READY handoff; the operator live run is T15"
+            "this entry issues a READY handoff; live content execution remains an operator-controlled run"
         )
     require_interactive_stdin()
     evidence = Evidence(
@@ -1633,11 +1777,11 @@ def run_live(
             "pause_required": True,
         }
         evidence.data["live_command"] = (
-            "python3 apps/chronicle/acceptance/third_round_gate.py "
+            "python3 apps/chronicle/acceptance/staged_gate.py "
             f"--mode live --env-file {env_file} "
             f"--source-pack {pack_path} --evidence-dir {evidence_dir}"
         )
-        evidence.data["t15_handoff"] = {
+        evidence.data["live_handoff"] = {
             "steps": [
                 "start an isolated Compose stack on a fresh CHRONICLE_DATA_DIR",
                 "upload the frozen whole chapters through Studio and queue staged jobs",
@@ -1647,9 +1791,9 @@ def run_live(
                 "read the published HistoryPage and independent person pages; record "
                 "version/paragraph_id/phase_id and original anchors",
                 "run person-state-flow-smoke.mjs against the running stack",
-                "record the T15 content acceptance; fixture PASS is not proof",
+                "record the live content acceptance; fixture PASS is not proof",
             ],
-            "provider_calls_by_t14": 0,
+            "provider_calls_during_preflight": 0,
         }
         evidence.data["result"] = "READY"
         write_json(evidence.manifest_path, evidence.data)
@@ -1707,7 +1851,7 @@ def main(argv: list[str] | None = None) -> int:
             browser_required=args.browser_required,
             keep_stack=args.keep_stack,
         )
-        print(f"third-round gate: PASS: {evidence_dir / 'manifest.json'}")
+        print(f"staged 0.4 gate: PASS: {evidence_dir / 'manifest.json'}")
         return 0
     manifest = run_live(
         env_file,
@@ -1718,7 +1862,7 @@ def main(argv: list[str] | None = None) -> int:
         non_interactive=args.non_interactive,
         execute=args.execute,
     )
-    print(f"third-round gate: READY: {evidence_dir / 'manifest.json'}")
+    print(f"staged 0.4 gate: READY: {evidence_dir / 'manifest.json'}")
     return 0
 
 
@@ -1726,5 +1870,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except GateError as exc:
-        print(f"third-round gate: FAIL: {exc}", file=sys.stderr)
+        print(f"staged 0.4 gate: FAIL: {exc}", file=sys.stderr)
         raise SystemExit(1)

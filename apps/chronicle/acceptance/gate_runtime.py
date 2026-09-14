@@ -1,9 +1,8 @@
 """Shared lifecycle and evidence runtime for Chronicle acceptance gates.
 
-The first-round offline gate (``first_round_gate.py``) and the second-round
-continuous-reading gate (``second_round_gate.py``) both need the same
-process/HTTP/evidence helpers and, for stack-backed runs, the same isolated
-Docker Compose lifecycle. This module is the single home for that shared
+The current staged 0.4 gate (``staged_gate.py``) uses the same
+process/HTTP/evidence helpers and isolated Docker Compose lifecycle for the
+chapter, reading, person-state and publication paths. This module is the single home for that shared
 runtime so a second gate never copies a parallel product-write or stack
 lifecycle path.
 
@@ -624,8 +623,17 @@ def safe_provider(config: dict[str, str]) -> dict[str, Any]:
             (parsed.scheme, parsed.netloc, parsed.path, "", "", "")
         ),
         "api_key_present": bool(config.get("CHRONICLE_MODEL_API_KEY", "").strip()),
-        "extraction_model": config["CHRONICLE_EXTRACTION_MODEL"],
-        "presentation_model": config["CHRONICLE_PRESENTATION_MODEL"],
+        # The staged 0.4 gate records chapter/narrative names separately.
+        # Keep the legacy keys for historical callers without requiring the
+        # retired model names in the current acceptance environment.
+        "extraction_model": config.get(
+            "CHRONICLE_EXTRACTION_MODEL",
+            config.get("CHRONICLE_CHAPTER_MODEL", ""),
+        ),
+        "presentation_model": config.get(
+            "CHRONICLE_PRESENTATION_MODEL",
+            config.get("CHRONICLE_NARRATIVE_MODEL", ""),
+        ),
         "timeout_seconds": config.get("CHRONICLE_MODEL_TIMEOUT_SECONDS", "600"),
         "fixture_mode": False,
     }
