@@ -137,7 +137,7 @@ phase/fact/continuity/order 等可审核条目使用彼此不混淆的 ID 类型
 
 T01 把上述约定固化为可被各模块直接消费的机器契约，避免实现中自定状态语义：
 
-- 模块：`apps/chronicle/persistence/person_state_contract.py`、`apps/chronicle/webapp/src/lib/person-state-types.ts`、`chronicle-person-state-v0.1.schema.json`，以及 `chronicle-chapter-candidate-v0.3` / `chronicle-chapter-artifact-v0.3` schema；契约版本为 `person-state-contract / 0.1`。共享 schema/types/runner 只由 T01 修改；后续新增字段回此契约统一处理。
+- 模块：`apps/chronicle/persistence/person_state_contract.py`、`apps/chronicle/webapp/src/lib/person-state-types.ts`、`chronicle-person-state-v0.1.schema.json`，以及当前 `chronicle-chapter-candidate-v0.4` / `chronicle-chapter-artifact-v0.4` schema 的共享 `person_states` 定义；契约版本为 `person-state-contract / 0.1`。共享 schema/types/runner 只由 T01 修改；后续新增字段回此契约统一处理。
 - 同一份 JSON fixture：`apps/chronicle/ingestion/fixtures/c2r3-contract/`（`request.json`、`candidate-valid.json`、`artifact-accepted.json` 及正反例、公开/审核 DTO 例）。#622 输出、#626 生产接线、#627 只读查询共用这一份，不各自另建第二套状态、来源或发布路径。
 - 来源 phase 与综合 phase 是不同空间：只有带原文依据的明确关联才可映射；没有关联时保留未知或交回核对，禁止按年份、同名事件或段落序号猜测对应。
 - 来源的 supported 只评价该条证据，不能绕过既有 facts/prose 审核变成公开的 clear 结论；综合状态最终来自固定 publication version 的已审核结论。

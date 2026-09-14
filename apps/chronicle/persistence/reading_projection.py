@@ -1,13 +1,13 @@
 """Chronicle C2-R2-T04 continuous-reading projection compiler.
 
 Pure, deterministic, DB-free and model-free compiler that turns accepted
-``chronicle.chapter-artifact / 0.2`` products plus the canonical catalog
+``chronicle.chapter-artifact / 0.4`` products plus the canonical catalog
 into the immutable reading rows the stream store and read API consume
 (Architecture Amendment 0006; ``continuous-reading.md`` sections 2-5).
 
 Pipeline::
 
-    accepted 0.2 artifacts (one per chapter)
+    accepted 0.4 artifacts (one per chapter)
         │  assembly.assemble_chapters: the same (chapter_index, local_ref)
         │  → revision_ref map used for every other chapter reference
         ▼
@@ -441,7 +441,7 @@ def compile_reading_projection(
     assembled_reading = assembled.get("reading_units") or []
     if not assembled_reading:
         raise PersistenceError(
-            "reading projection requires accepted 0.2 artifacts; "
+            "reading projection requires accepted 0.4 artifacts; "
             "the supplied chapter products carry no reading annotations"
         )
 

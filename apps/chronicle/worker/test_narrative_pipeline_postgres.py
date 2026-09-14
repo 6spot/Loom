@@ -68,6 +68,11 @@ class RetryCorrectionTestModel(NarrativeTestModel):
 
 
 class NarrativePipelineTests(unittest.TestCase):
+    # Narrative tests own the facts/prose review gates.  The chapter import
+    # setup must explicitly complete the current 0.4 source-state review so
+    # those tests reach the narrative queue instead of stopping at needs_review.
+    AUTO_APPROVE_PERSON_STATE = True
+
     @classmethod
     def setUpClass(cls):
         cls.control_url = base._control_url()
@@ -76,6 +81,7 @@ class NarrativePipelineTests(unittest.TestCase):
     _queue_job = base.ReadingPipelinePostgresTests._queue_job
     _prepare_model = base.ReadingPipelinePostgresTests._prepare_model
     _run_once = base.ReadingPipelinePostgresTests._run_once
+    _approve_person_state = base.ReadingPipelinePostgresTests._approve_person_state
 
     def _start(self, correcting=False, narrative=None, expected_status='needs_review'):
         text = base.TEXT_DISTINCT
@@ -141,9 +147,13 @@ class NarrativePipelineTests(unittest.TestCase):
         for source in context['sources']:
             self.assertIn(source['chapter_text'], base.TEXT_DISTINCT)
             self.assertEqual('person', context['entities'][next(iter(source['canonical_refs']['entities'].values()))]['kind'])
-            # A 0.2 source has no published person-state manifest, so the
-            # composite input stays explicitly empty instead of inventing one.
-            self.assertEqual([], source['reviewed_person_states'])
+            # Current 0.4 chapter publication includes the reviewed
+            # person-state evidence that the narrative context consumes.
+            self.assertTrue(source['reviewed_person_states'])
+            for state in source['reviewed_person_states']:
+                self.assertTrue(state['phase_ids'])
+                self.assertIn(state['certainty'], ('clear', 'uncertain'))
+                self.assertTrue(state['source_facts'])
         with psycopg.connect(self.database_url) as conn:
             apply_migrations(conn)
             self.assertIsNone(store.read_publication(conn))

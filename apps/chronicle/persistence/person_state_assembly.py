@@ -2,7 +2,7 @@
 
 Pure, deterministic, DB-free/model-free assembly (Architecture Amendment
 0006) that lifts the ``person_states`` block of every accepted
-``chronicle.chapter-artifact / 0.3`` into one revision namespace. It is
+``chronicle.chapter-artifact / 0.4`` into one revision namespace. It is
 the T03 owner beside :mod:`assembly`; the durable worker/publish path
 only calls the assembly result and never re-implements the mapping.
 
@@ -57,7 +57,7 @@ _ID_COLLECTIONS = (
 )
 
 #: Every state collection carried by one assembled ``person_states`` block.
-#: Public so the assembly owner can shape an empty 0.1/0.2 result too.
+#: Public so the assembly owner can shape the current result consistently.
 STATE_COLLECTIONS = tuple(name for name, *_ in _ID_COLLECTIONS) + ("unit_phases",)
 _STATE_COLLECTIONS = STATE_COLLECTIONS
 
@@ -159,7 +159,7 @@ def _validate_candidate_metadata(
     candidates = artifact.get("person_state_candidates")
     if not isinstance(candidates, list):
         raise PersistenceError(
-            f"chapter {chapter_id!r} 0.3 artifact is missing its person_state_candidates keys"
+            f"chapter {chapter_id!r} 0.4 artifact is missing its person_state_candidates keys"
         )
     expected: dict[tuple[str, str], dict[str, Any]] = {}
     for kind, (collection, id_field) in _KIND_COLLECTION.items():
@@ -262,7 +262,7 @@ def _require_artifact_person_states(artifact: dict[str, Any]) -> dict[str, Any]:
     person_states = artifact.get("person_states")
     if not isinstance(person_states, dict):
         raise PersistenceError(
-            "person-state assembly input must be an accepted chronicle.chapter-artifact / 0.3"
+            "person-state assembly input must be an accepted chronicle.chapter-artifact / 0.4"
         )
     for name in _REQUIRED_PERSON_STATE_COLLECTIONS:
         if not isinstance(person_states.get(name), list):
@@ -355,7 +355,7 @@ def assemble_person_state_evidence(
     event_ids: set[str] | None = None,
     claim_ids: set[str] | None = None,
 ) -> dict[str, Any]:
-    """Lift every accepted 0.3 artifact's ``person_states`` into one namespace.
+    """Lift every accepted 0.4 artifact's ``person_states`` into one namespace.
 
     ``ref_map`` is the assembly ``(chapter_index, local_ref) -> revision_ref``
     map;     ``block_map`` is the matching translation block map. Returns
@@ -364,7 +364,7 @@ def assemble_person_state_evidence(
     :class:`PersistenceError` instead of returning a partial result.
     """
     if not isinstance(artifacts, list) or not artifacts:
-        raise PersistenceError("person-state assembly requires at least one 0.3 artifact")
+        raise PersistenceError("person-state assembly requires at least one 0.4 artifact")
     if not isinstance(chapter_index_by_id, dict):
         raise PersistenceError("chapter_index_by_id must be a JSON object")
     if not isinstance(ref_map, dict):

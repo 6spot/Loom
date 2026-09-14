@@ -25,6 +25,8 @@ if str(HERE) not in sys.path:
 
 import person_state_contract as P  # noqa: E402
 import reading_contract as R  # noqa: E402
+import staged_chapter_contract as S  # noqa: E402
+import chapter_contract as C  # noqa: E402
 from common import PersistenceError, sha256_json  # noqa: E402
 
 FIXTURES = HERE.parent / "ingestion" / "fixtures" / "c2r3-contract"
@@ -39,11 +41,31 @@ REVISION_ID = "rev_c2r3_demo_001"
 
 
 def load(name: str) -> dict:
-    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    value = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    if name.startswith("candidate-"):
+        request = _current_request()
+        value["version"] = "0.4"
+        value["source_scope"] = copy.deepcopy(request["source_scope"])
+    return value
+
+
+def _current_request() -> dict:
+    request = json.loads((FIXTURES / "request.json").read_text(encoding="utf-8"))
+    request["schema_versions"] = {"candidate": "0.4", "bundle": "0.1"}
+    request["chapter_start"] = 0
+    request["chapter_end"] = len(request["normalized_text"])
+    request["revision_normalized_sha256"] = request["normalized_sha256"]
+    request["source_scope"] = S.build_source_scope(request)
+    request["required_block_ids"] = list(request["source_scope"]["body_block_ids"])
+    return request
 
 
 def base() -> tuple[dict, dict]:
-    return load("request.json"), load("candidate-valid.json")
+    request = _current_request()
+    candidate = json.loads((FIXTURES / "candidate-valid.json").read_text(encoding="utf-8"))
+    candidate["version"] = "0.4"
+    candidate["source_scope"] = copy.deepcopy(request["source_scope"])
+    return request, candidate
 
 
 def assert_rejected(test: unittest.TestCase, report: dict, category: str) -> None:
@@ -52,6 +74,19 @@ def assert_rejected(test: unittest.TestCase, report: dict, category: str) -> Non
         report["errors"].get(category),
         f"expected {category} errors, got {json.dumps(report['errors'], ensure_ascii=False)}",
     )
+
+
+def acceptance_receipt(request: dict, candidate: dict) -> dict:
+    return {
+        "schema": "chronicle.chapter-acceptance",
+        "version": "0.1",
+        "status": "accepted",
+        "request_fingerprint": C.request_fingerprint(request),
+        "candidate_sha256": sha256_json(candidate),
+        "history_sha256": "a" * 64,
+        "step_output_sha256s": ["b" * 64],
+        "decision": {"kind": "automatic"},
+    }
 
 
 def evidence_fact(
@@ -119,10 +154,7 @@ class CandidateValidationTests(unittest.TestCase):
         report = P.validate_person_state_candidate(request, candidate)
         self.assertTrue(report["passed"], json.dumps(report["errors"], ensure_ascii=False))
         self.assertEqual(report["errors"]["reading"], [])
-        subset = copy.deepcopy(candidate)
-        subset.pop("person_states")
-        subset["version"] = "0.2"
-        self.assertTrue(R.validate_reading_annotations(request, subset)["passed"])
+        self.assertTrue(R.validate_reading_annotations(request, candidate)["passed"])
 
     def test_second_round_reading_semantics_still_enforced(self) -> None:
         request, candidate = base()
@@ -199,16 +231,22 @@ class CandidateValidationTests(unittest.TestCase):
 class AcceptanceTests(unittest.TestCase):
     def test_accept_emits_bound_artifact(self) -> None:
         request, candidate = base()
-        producing_run = {"run_id": "r", "model": "m", "prompt_schema_version": "0.3"}
-        artifact = P.accept_person_state_candidate(request, candidate, producing_run=producing_run)
-        again = P.accept_person_state_candidate(request, candidate, producing_run=producing_run)
+        producing_run = {"run_id": "r", "model": "m", "prompt_schema_version": "0.4"}
+        artifact = S.accept_staged_candidate(
+            request, candidate, producing_run=producing_run,
+            production_receipt=acceptance_receipt(request, candidate),
+        )
+        again = S.accept_staged_candidate(
+            request, candidate, producing_run=producing_run,
+            production_receipt=acceptance_receipt(request, candidate),
+        )
         self.assertEqual(artifact["schema"], "chronicle.chapter-artifact")
-        self.assertEqual(artifact["version"], "0.3")
+        self.assertEqual(artifact["version"], "0.4")
         self.assertEqual(artifact["artifact_sha256"], again["artifact_sha256"])
         self.assertEqual(artifact["person_states_sha256"], sha256_json(candidate["person_states"]))
         self.assertEqual(len(artifact["reading_units"]), 3)
         self.assertEqual(
-            P._iter_schema_errors(P.artifact_v03_schema(), artifact, registry=P._registry()), []
+            P._iter_schema_errors(P.artifact_schema(), artifact, registry=P._registry()), []
         )
         keys = [entry["candidate_key"] for entry in artifact["person_state_candidates"]]
         kinds = [entry["kind"] for entry in artifact["person_state_candidates"]]
@@ -225,9 +263,12 @@ class AcceptanceTests(unittest.TestCase):
     def test_accept_rejects_failing_candidate_and_forged_report(self) -> None:
         request, _ = base()
         candidate = load("candidate-phase-cycle.json")
-        run = {"run_id": "r", "model": "m", "prompt_schema_version": "0.3"}
+        run = {"run_id": "r", "model": "m", "prompt_schema_version": "0.4"}
         with self.assertRaises(PersistenceError):
-            P.accept_person_state_candidate(request, candidate, producing_run=run)
+            S.accept_staged_candidate(
+                request, candidate, producing_run=run,
+                production_receipt=acceptance_receipt(request, candidate),
+            )
         with self.assertRaises(PersistenceError):
             P.accept_person_state_candidate(
                 request, candidate, producing_run=run, report={"passed": True, "errors": {}}
@@ -237,9 +278,10 @@ class AcceptanceTests(unittest.TestCase):
 class RemapTests(unittest.TestCase):
     def test_remap_preserves_origin_refs_and_hash(self) -> None:
         request, candidate = base()
-        artifact = P.accept_person_state_candidate(
+        artifact = S.accept_staged_candidate(
             request, candidate,
-            producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "0.3"},
+            producing_run={"run_id": "r", "model": "m", "prompt_schema_version": "0.4"},
+            production_receipt=acceptance_receipt(request, candidate),
         )
         manifests = P.remap_person_state_evidence(
             [artifact], {CHAPTER_ID: {"revision_id": "rev_assembled_007"}}
@@ -255,7 +297,7 @@ class RemapTests(unittest.TestCase):
         self.assertTrue(fact["anchor_ids"])
         self.assertEqual(fact["artifact_sha256"], artifact["artifact_sha256"])
 
-    def test_remap_rejects_non_03_input(self) -> None:
+    def test_remap_rejects_non_current_input(self) -> None:
         with self.assertRaises(PersistenceError):
             P.remap_person_state_evidence([{"schema": "chronicle.chapter-artifact", "version": "0.2"}], {})
 

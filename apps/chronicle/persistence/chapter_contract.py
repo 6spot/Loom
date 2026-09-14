@@ -12,9 +12,9 @@ sections 2/4 as machine-checkable shared contracts for T03-T07/T15:
   mention consistency, translation required-block coverage, anchor
   resolution (block + quote + occurrence), hash/chapter binding, time
   precision, and alias discipline.
-- :func:`accept_chapter_candidate` accepts only passing candidates and
-  emits a ``chronicle.chapter-artifact / 0.1`` with resolved anchors,
-  request fingerprint, and producing-run binding.
+- The current staged owner accepts only passing 0.4 candidates and emits
+  the receipt-bound artifact; this base module only validates the shared
+  chapter fields and computes source anchors.
 - :func:`validate_resolution_v02` structurally validates
   ``chronicle.resolution-links / 0.2`` scope documents without
   auto-deriving same-links (business check belongs to T08).
@@ -38,13 +38,13 @@ from typing import Any
 
 from common import PersistenceError, canonical_json_bytes, sha256_json
 
-#: Model-generatable candidate marker.
+#: Current model-generatable candidate marker.
 CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
-CANDIDATE_VERSION = "0.1"
+CANDIDATE_VERSION = "0.4"
 
-#: Program-accepted artifact marker.
+#: Current program-accepted artifact marker.
 ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
-ARTIFACT_VERSION = "0.1"
+ARTIFACT_VERSION = "0.4"
 
 #: Resolution scope marker.
 RESOLUTION_SCHEMA = "chronicle.resolution-links"
@@ -56,25 +56,16 @@ PLAN_VERSION = "c2r1-chapters-v1"
 # ---------------------------------------------------------------------------
 # Production version registration (C2-R2-T03, extended C2-R3-T02)
 # ---------------------------------------------------------------------------
-# chapter_contract owns only the version *registry* after the first round:
-# which candidate/artifact schema/version pairs exist and which one the
-# production chain must emit. The 0.1 pair stays frozen and is validated by
-# this module's first-round validator; the 0.2 pair adds reading annotations
-# and its pure validator/acceptance live in the T01 ``reading_contract``
-# module; the 0.3 pair adds ``person_states`` and its pure
-# validator/acceptance live in the T01 ``person_state_contract`` module.
-# The 0.4 pair adds staged production scope and a content-acceptance receipt;
-# ``staged_chapter_contract`` validates its unchanged 0.3 sub-document.
-# Consumers dispatch to those validators rather than re-implementing checks.
-# This remains the single candidate/artifact version registry.
+# chapter_contract owns the one current candidate/artifact registry. Reading
+# and person-state definitions are composed into the same current shared
+# bundle; the retired 0.1/0.2/0.3 chapter top-level protocols are not
+# registered and cannot be selected by a request or accepted by a consumer.
 
-#: Candidate versions registered for the production chain (frozen first).
-CANDIDATE_VERSIONS = ("0.1", "0.2", "0.3", "0.4")
-#: Artifact versions registered for the production chain (frozen first).
-ARTIFACT_VERSIONS = ("0.1", "0.2", "0.3", "0.4")
+#: Only the current 0.4 pair is registered for production.
+CANDIDATE_VERSIONS = ("0.4",)
+ARTIFACT_VERSIONS = ("0.4",)
 
-#: Version new staged production emits. Explicit frozen fixtures retain their
-#: own versions; new production never silently downgrades.
+#: Version current staged production emits.
 PRODUCTION_CANDIDATE_VERSION = "0.4"
 PRODUCTION_ARTIFACT_VERSION = "0.4"
 
@@ -115,66 +106,30 @@ def _diagnostic_value(value: Any) -> str:
     return repr(text)
 
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "ingestion" / "schemas"
-CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.1.schema.json"
-ARTIFACT_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.1.schema.json"
+CANDIDATE_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.4.schema.json"
+ARTIFACT_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.4.schema.json"
+SHARED_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-shared-v0.4.schema.json"
 RESOLUTION_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-resolution-v0.2.schema.json"
 
 CANDIDATE_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.1.schema.json"
+    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.4.schema.json"
 )
 ARTIFACT_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.1.schema.json"
+    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.4.schema.json"
+)
+SHARED_SCHEMA_ID = (
+    "https://loom.local/chronicle/schemas/chronicle-chapter-shared-v0.4.schema.json"
 )
 RESOLUTION_V02_SCHEMA_ID = (
     "https://loom.local/chronicle/schemas/chronicle-resolution-v0.2.schema.json"
 )
 
-# 0.2 schema locations are registered here by filename/$id only; their
-# cross-file $ref resolution belongs to the T01 ``reading_contract`` loader.
-CANDIDATE_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.2.schema.json"
-ARTIFACT_V02_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.2.schema.json"
-CANDIDATE_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.2.schema.json"
-)
-ARTIFACT_V02_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.2.schema.json"
-)
-
-# 0.3 schema locations are registered here by filename/$id only; their
-# cross-file $ref resolution belongs to the T01 ``person_state_contract``
-# loader (which resolves the frozen 0.1/0.2 definitions 0.3 reuses).
-CANDIDATE_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.3.schema.json"
-ARTIFACT_V03_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.3.schema.json"
-CANDIDATE_V03_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.3.schema.json"
-)
-ARTIFACT_V03_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.3.schema.json"
-)
-
-# 0.4 uses the frozen base definitions, with program-owned source scope and
-# a content-acceptance receipt. Its owner is ``staged_chapter_contract``.
-CANDIDATE_V04_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-candidate-v0.4.schema.json"
-ARTIFACT_V04_SCHEMA_PATH = SCHEMA_DIR / "chronicle-chapter-artifact-v0.4.schema.json"
-CANDIDATE_V04_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-candidate-v0.4.schema.json"
-)
-ARTIFACT_V04_SCHEMA_ID = (
-    "https://loom.local/chronicle/schemas/chronicle-chapter-artifact-v0.4.schema.json"
-)
-
 #: Registry mapping each production version to its schema file/$id.
 _CANDIDATE_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
-    "0.1": (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
-    "0.2": (CANDIDATE_V02_SCHEMA_PATH, CANDIDATE_V02_SCHEMA_ID),
-    "0.3": (CANDIDATE_V03_SCHEMA_PATH, CANDIDATE_V03_SCHEMA_ID),
-    "0.4": (CANDIDATE_V04_SCHEMA_PATH, CANDIDATE_V04_SCHEMA_ID),
+    CANDIDATE_VERSION: (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
 }
 _ARTIFACT_SCHEMA_REGISTRY: dict[str, tuple[Path, str]] = {
-    "0.1": (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
-    "0.2": (ARTIFACT_V02_SCHEMA_PATH, ARTIFACT_V02_SCHEMA_ID),
-    "0.3": (ARTIFACT_V03_SCHEMA_PATH, ARTIFACT_V03_SCHEMA_ID),
-    "0.4": (ARTIFACT_V04_SCHEMA_PATH, ARTIFACT_V04_SCHEMA_ID),
+    ARTIFACT_VERSION: (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
 }
 
 
@@ -191,6 +146,33 @@ def _load_schema(path_str: str, expected_id: str) -> dict[str, Any]:
             f"expected $id {expected_id!r}"
         )
     return schema
+
+
+@lru_cache(maxsize=1)
+def _schema_bundle() -> dict[str, dict[str, Any]]:
+    """Load the current roots and their one shared definition bundle."""
+    schemas: dict[str, dict[str, Any]] = {}
+    for path, schema_id in (
+        (SHARED_SCHEMA_PATH, SHARED_SCHEMA_ID),
+        (CANDIDATE_SCHEMA_PATH, CANDIDATE_SCHEMA_ID),
+        (ARTIFACT_SCHEMA_PATH, ARTIFACT_SCHEMA_ID),
+    ):
+        schema = _load_schema(str(path), schema_id)
+        schemas[schema_id] = schema
+    return schemas
+
+
+@lru_cache(maxsize=1)
+def _schema_registry() -> Any:
+    from referencing import Registry, Resource
+    from referencing.jsonschema import DRAFT202012
+
+    registry = Registry()
+    for schema in _schema_bundle().values():
+        registry = registry.with_resource(
+            schema["$id"], Resource.from_contents(schema, default_specification=DRAFT202012)
+        )
+    return registry
 
 
 def candidate_schema() -> dict[str, Any]:
@@ -211,9 +193,8 @@ def resolution_v02_schema() -> dict[str, Any]:
 def candidate_schema_for(version: str) -> dict[str, Any]:
     """Return the registered chapter-candidate schema for ``version``.
 
-    Only shape is resolved here (no cross-file 0.2 ``$ref`` binding); the
-    T01 ``reading_contract`` owns the 0.2 $ref registry used to validate a
-    real candidate.
+    The registry intentionally contains only the current 0.4 root. Shared
+    definitions are resolved by the current chapter schema bundle.
     """
     entry = _CANDIDATE_SCHEMA_REGISTRY.get(version)
     if entry is None:
@@ -587,7 +568,9 @@ def _schema_errors(candidate: dict[str, Any]) -> list[str]:
         from jsonschema import Draft202012Validator, FormatChecker
     except ImportError:  # pragma: no cover - dependency is declared
         return ["jsonschema package is unavailable for candidate validation"]
-    validator = Draft202012Validator(candidate_schema(), format_checker=FormatChecker())
+    validator = Draft202012Validator(
+        candidate_schema(), format_checker=FormatChecker(), registry=_schema_registry()
+    )
     found = sorted(validator.iter_errors(candidate), key=lambda e: list(e.absolute_path))
     errors = []
     for error in found:
@@ -663,8 +646,13 @@ def _validate_chapter_components(
             bundle_recall_observations(request, candidate),
         )
 
-    if include_translation and (candidate.get("schema") != CANDIDATE_SCHEMA or candidate.get("version") != CANDIDATE_VERSION):
-        identity.append("candidate schema/version must be chronicle.chapter-candidate/0.1")
+    if include_translation and (
+        candidate.get("schema") != CANDIDATE_SCHEMA
+        or candidate.get("version") != CANDIDATE_VERSION
+    ):
+        identity.append(
+            "candidate schema/version must be chronicle.chapter-candidate/0.4"
+        )
     if candidate.get("chapter_id") != request.get("chapter_id"):
         identity.append(
             f"chapter_id drift: request {request.get('chapter_id')!r} vs "
@@ -1297,55 +1285,16 @@ def accept_chapter_candidate(
     producing_run: dict[str, Any],
     report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Accept a passing candidate and emit its bound artifact.
+    """Reject the retired direct acceptance path.
 
-    Validation is always recomputed for this exact request/candidate
-    pair. A caller-supplied ``report`` is accepted only as a
-    consistency check: it must agree with the recomputed report on both
-    outcome and error set, otherwise acceptance fails closed. A forged
-    ``{"passed": True}`` can therefore never accept a bad candidate.
-    Raises :class:`PersistenceError` when the candidate does not pass.
-    The model-generatable candidate is embedded verbatim; every
-    program-bound value (hashes, offsets, fingerprint, run) is computed
-    here, never read from the candidate.
+    Current artifacts must be produced by ``staged_chapter_contract`` so
+    the production receipt, reading compilation, and person-state evidence
+    are bound together in one acceptance operation.
     """
-    if not isinstance(producing_run, dict):
-        raise PersistenceError("producing_run must be a JSON object")
-    for key in ("run_id", "model", "prompt_schema_version"):
-        if not isinstance(producing_run.get(key), str) or not producing_run[key]:
-            raise PersistenceError(f"producing_run requires non-empty {key!r}")
-    fresh = validate_chapter_candidate(request, candidate)
-    if report is not None:
-        if not isinstance(report, dict):
-            raise PersistenceError("supplied validation report must be a JSON object")
-        if bool(report.get("passed")) != bool(fresh["passed"]) or set(
-            flatten_validation_errors(report)
-        ) != set(flatten_validation_errors(fresh)):
-            raise PersistenceError(
-                "supplied validation report does not match this "
-                "request/candidate pair; refusing to accept (fail closed)"
-            )
-    checked = fresh
-    if not checked.get("passed"):
-        detail = "; ".join(flatten_validation_errors(checked))
-        raise PersistenceError(f"chapter candidate failed validation: {detail}")
-    anchors = collect_anchors(request, candidate)
-    fingerprint = request_fingerprint(request)
-    candidate_copy = copy.deepcopy(candidate)
-    artifact = {
-        "schema": ARTIFACT_SCHEMA,
-        "version": ARTIFACT_VERSION,
-        "chapter_id": request["chapter_id"],
-        "revision_id": request["revision_id"],
-        "source_sha256": request["source_sha256"],
-        "normalized_sha256": request["normalized_sha256"],
-        "candidate": candidate_copy,
-        "candidate_sha256": sha256_json(candidate_copy),
-        "anchors": anchors,
-        "request_fingerprint": fingerprint,
-        "producing_run": copy.deepcopy(producing_run),
-    }
-    return artifact
+    raise PersistenceError(
+        "direct chapter acceptance is retired; current 0.4 candidates must be "
+        "accepted by staged_chapter_contract with a production receipt"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1356,9 +1305,9 @@ def accept_chapter_candidate(
 def validate_resolution_v02(document: dict[str, Any]) -> dict[str, Any]:
     """Structurally validate a resolution-links v0.2 document.
 
-    Keeps the v0.1 candidate vocabulary; only the ``scope`` envelope is
-    new. Same-bundle cross-chapter business rules belong to T08: this
-    function never auto-derives same-links.
+    Keeps the resolution-links 0.2 vocabulary; same-bundle cross-chapter
+    business rules belong to T08 and this function never auto-derives
+    same-links.
     """
     schema_errors: list[str] = []
     structural: list[str] = []

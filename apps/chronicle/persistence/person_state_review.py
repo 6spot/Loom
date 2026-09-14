@@ -5,13 +5,13 @@ Owns the third-round review step fixed by
 ``C2-R3-T06`` task note. After the existing identity Resolution review,
 operators assess one frozen evidence package per natural chapter; the
 assessments feed T04's compiler without ever changing canonical identity,
-the accepted 0.3 artifact or the original C0 Claim.
+the accepted 0.4 artifact or the original C0 Claim.
 
 Public entries
 --------------
 
 - :func:`build_person_state_review_plan` — freeze
-  ``c2r3-person-state-review-plan-v1`` from the accepted 0.3 artifacts and
+  ``c2r3-person-state-review-plan-v1`` from the accepted 0.4 artifacts and
   the T03 assembly. It binds the accepted/assembled hashes, the final
   Resolution hashes, the base catalog and every candidate key; a candidate
   key appears exactly once and display names never establish a group.
@@ -87,7 +87,7 @@ COMPILER_ASSESSMENT_KINDS = ("phase", "phase_order", "fact", "continuity", "disa
 
 _SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 
-#: Candidate kinds carried by an accepted 0.3 artifact.
+#: Candidate kinds carried by the current 0.4 artifact.
 CANDIDATE_KINDS = (
     "phase",
     "phase_order",
@@ -236,7 +236,7 @@ def _artifact_candidates(
     raw = artifact.get("person_state_candidates")
     if not isinstance(raw, list):
         raise PersistenceError(
-            f"chapter {chapter_id!r} 0.3 artifact is missing its candidate keys"
+            f"chapter {chapter_id!r} 0.4 artifact is missing its candidate keys"
         )
     state_index = _state_index(artifact.get("person_states"))
     candidates: list[dict[str, Any]] = []
@@ -328,7 +328,7 @@ def build_person_state_review_plan(
     """Freeze one ``c2r3-person-state-review-plan-v1`` for a resolve job.
 
     ``accepted_artifacts`` are the accepted ``chronicle.chapter-artifact /
-    0.3`` documents and ``assembly`` is the T03
+    0.4`` documents and ``assembly`` is the T03
     :func:`person_state_assembly.assemble_person_state_evidence` result. The
     plan binds the accepted/assembled hashes, the final Resolution hashes, the
     base catalog and the complete candidate set. A chapter with no person-state
@@ -382,8 +382,8 @@ def build_person_state_review_plan(
         artifact = _require_object(artifact, "accepted artifact")
         if artifact.get("schema") != _contract.ARTIFACT_SCHEMA or artifact.get(
             "version"
-        ) not in (_contract.ARTIFACT_VERSION, "0.4"):
-            raise PersistenceError("plan input must be chronicle.chapter-artifact / 0.3 or / 0.4")
+        ) != _contract.ARTIFACT_VERSION:
+            raise PersistenceError("plan input must be the current chronicle.chapter-artifact / 0.4")
         chapter_id = _require_text(artifact.get("chapter_id"), "artifact chapter_id")
         artifact_sha = _require_sha256(artifact.get("artifact_sha256"), "artifact_sha256")
         person_states_sha = _require_sha256(

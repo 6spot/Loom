@@ -137,13 +137,10 @@ class StagedCandidateTests(unittest.TestCase):
         self.assertFalse(report["passed"])
         self.assertTrue(report["person_states"]["errors"]["person_state_types"])
 
-    def test_frozen_candidate_does_not_inherit_new_coverage(self):
+    def test_retired_candidate_generation_is_rejected(self):
         request, candidate = fixture(annotation=True)
-        old = S._legacy_candidate(candidate, "0.3")
-        old_request = copy.deepcopy(request)
-        old_request["schema_versions"]["candidate"] = "0.3"
-        old_request["required_block_ids"].append("b_004")
-        self.assertFalse(P.validate_person_state_candidate(old_request, old)["passed"])
+        candidate["version"] = "0.3"
+        self.assertFalse(S.validate_staged_candidate(request, candidate)["passed"])
 
     def test_full_staged_request_fingerprint_rejects_input_drift(self):
         request, _ = fixture()

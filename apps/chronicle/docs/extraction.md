@@ -283,12 +283,13 @@ and enforces the initial-plus-one-correction sequence and round count. Changing
 a new run's version labels cannot opt it into the legacy rule. The 0.1 path
 is unchanged.
 
-Regression suite: `persistence/test_chapter_correction_unit.py`. It includes
-the saved real v4 collapse, structurally valid but shortened corrections,
-legitimate reference/span repairs, structural prose repairs and history
-tampering. These offline checks do not replace a fresh real-provider run
-and independent source-to-translation review. The Chronicle static CI lane
-runs the correction, extraction and worker/provider unit suites.
+Current production/repair regression suite:
+`persistence/test_chapter_production_unit.py`. It covers complete source
+prompts, source-preserving translation block identity, bounded metadata
+repairs, carried-forward uncertainty, and immutable attempt history. These
+offline checks do not replace a fresh real-provider run and independent
+source-to-translation review. The Chronicle static CI lane runs the current
+production/repair, extraction, and worker/provider unit suites.
 
 ## Whole-chapter joint translation/extraction + person states (C2-R3-T02)
 

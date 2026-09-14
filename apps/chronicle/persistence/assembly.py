@@ -83,34 +83,31 @@ CHAPTER_PLAN_VERSION = "c2r1-chapters-v1"
 CHAPTER_REPORT_SCHEMA = "chronicle.chapter-assembly-report"
 CHAPTER_REPORT_VERSION = "0.1"
 
-#: Accepted chapter artifact marker (T01 output, the sole accepted input).
+#: Accepted chapter artifact marker (the sole accepted input).
 CHAPTER_ARTIFACT_SCHEMA = "chronicle.chapter-artifact"
-CHAPTER_ARTIFACT_VERSION = "0.1"
+CHAPTER_ARTIFACT_VERSION = "0.4"
 
-#: Reading-enriched accepted chapter artifact marker (C2-R2-T01/T03 output).
-#: The 0.2 artifact keeps every 0.1 field and adds the joint ``reading``
-#: annotations plus the program-resolved ``reading_units`` (T04 input).
-CHAPTER_READING_ARTIFACT_VERSION = "0.2"
+#: Internal aliases retained for callers that inspect the assembly report;
+#: every alias names the same current generation, never a legacy protocol.
+CHAPTER_READING_ARTIFACT_VERSION = CHAPTER_ARTIFACT_VERSION
 
 #: Model-generatable chapter candidate marker (embedded in artifacts).
 CHAPTER_CANDIDATE_SCHEMA = "chronicle.chapter-candidate"
-CHAPTER_CANDIDATE_VERSION = "0.1"
+CHAPTER_CANDIDATE_VERSION = "0.4"
 
-#: Reading-enriched model candidate marker (embedded in 0.2 artifacts).
-CHAPTER_READING_CANDIDATE_VERSION = "0.2"
+#: Internal alias for the current candidate generation.
+CHAPTER_READING_CANDIDATE_VERSION = CHAPTER_CANDIDATE_VERSION
 
-#: Person-state-enriched accepted chapter artifact marker (C2-R3-T01 output).
-#: The 0.3 artifact keeps every 0.1/0.2 field and adds the accepted
-#: ``person_states`` block, its hash and the program-computed
-#: ``person_state_candidates`` keys (T03 input).
-CHAPTER_PERSON_STATE_ARTIFACT_VERSION = "0.3"
+#: Internal alias for the current artifact generation.
+CHAPTER_PERSON_STATE_ARTIFACT_VERSION = CHAPTER_ARTIFACT_VERSION
 
-#: Model-generatable person-state candidate marker (embedded in 0.3 artifacts).
-CHAPTER_PERSON_STATE_CANDIDATE_VERSION = "0.3"
+#: Internal alias for the current candidate generation.
+CHAPTER_PERSON_STATE_CANDIDATE_VERSION = CHAPTER_CANDIDATE_VERSION
 
-# Staged production retains reading/state fields and adds its bound receipt.
-CHAPTER_STAGED_ARTIFACT_VERSION = "0.4"
-CHAPTER_STAGED_CANDIDATE_VERSION = "0.4"
+# Staged production is the current chapter product and retains the bound
+# reading/person-state fields and production receipt.
+CHAPTER_STAGED_ARTIFACT_VERSION = CHAPTER_ARTIFACT_VERSION
+CHAPTER_STAGED_CANDIDATE_VERSION = CHAPTER_CANDIDATE_VERSION
 
 _T_BLOCK_ID_RE = re.compile(r"^t_(\d+)$")
 _MENTION_ID_RE = re.compile(r"^m_(\d+)$")
@@ -1319,35 +1316,22 @@ def _validate_accepted_chapter_artifact(
     if not isinstance(artifact, dict):
         raise PersistenceError(f"{owner} must be a JSON object")
     version = artifact.get("version")
-    if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or version not in (
-        CHAPTER_ARTIFACT_VERSION,
-        CHAPTER_READING_ARTIFACT_VERSION,
-        CHAPTER_PERSON_STATE_ARTIFACT_VERSION,
-        CHAPTER_STAGED_ARTIFACT_VERSION,
-    ):
+    if artifact.get("schema") != CHAPTER_ARTIFACT_SCHEMA or version != CHAPTER_ARTIFACT_VERSION:
         raise PersistenceError(
-            f"{owner} must be {CHAPTER_ARTIFACT_SCHEMA}/"
-            f"{CHAPTER_ARTIFACT_VERSION}, {CHAPTER_READING_ARTIFACT_VERSION} or "
-            f"{CHAPTER_PERSON_STATE_ARTIFACT_VERSION} or {CHAPTER_STAGED_ARTIFACT_VERSION}; "
-            "unaccepted or wrong-generation products are rejected"
+            f"{owner} must be the current {CHAPTER_ARTIFACT_SCHEMA}/"
+            f"{CHAPTER_ARTIFACT_VERSION}; retired chapter generations are rejected"
         )
-    candidate_version = {
-        CHAPTER_ARTIFACT_VERSION: CHAPTER_CANDIDATE_VERSION,
-        CHAPTER_READING_ARTIFACT_VERSION: CHAPTER_READING_CANDIDATE_VERSION,
-        CHAPTER_PERSON_STATE_ARTIFACT_VERSION: CHAPTER_PERSON_STATE_CANDIDATE_VERSION,
-        CHAPTER_STAGED_ARTIFACT_VERSION: CHAPTER_STAGED_CANDIDATE_VERSION,
-    }[version]
-    if version == CHAPTER_STAGED_ARTIFACT_VERSION:
-        import staged_chapter_contract as staged
+    candidate_version = CHAPTER_CANDIDATE_VERSION
+    import staged_chapter_contract as staged
 
-        errors = staged._schema_errors(staged.C.artifact_schema_for("0.4"), artifact)
-        errors.extend(staged.validate_production_receipt(
-            artifact.get("production_receipt"),
-            request_fingerprint=artifact.get("request_fingerprint"),
-            candidate_sha256=artifact.get("candidate_sha256"),
-        ))
-        if errors:
-            raise PersistenceError(f"{owner} invalid staged artifact: " + "; ".join(errors))
+    errors = staged._schema_errors(staged.C.artifact_schema_for(CHAPTER_ARTIFACT_VERSION), artifact)
+    errors.extend(staged.validate_production_receipt(
+        artifact.get("production_receipt"),
+        request_fingerprint=artifact.get("request_fingerprint"),
+        candidate_sha256=artifact.get("candidate_sha256"),
+    ))
+    if errors:
+        raise PersistenceError(f"{owner} invalid current artifact: " + "; ".join(errors))
     for key in ("chapter_id", "revision_id", "source_sha256", "normalized_sha256",
                 "candidate_sha256", "request_fingerprint"):
         if not isinstance(artifact.get(key), str) or not artifact.get(key):
@@ -1441,20 +1425,16 @@ def _validate_accepted_chapter_artifact(
                     f"{resolution.get('status')!r}; assembly input must be unresolved/temp-ID-only"
                 )
     # ``artifact_sha256`` is the accepted product's own canonical hash. The
-    # 0.2 contract (reading_contract.accept_reading_candidate) binds it to the
-    # artifact *core* excluding ``reading_units``, and the accepted reading
-    # unit IDs were derived from that value; recomputing a whole-artifact hash
-    # here would silently disagree with the artifact the model accepted. The
-    # 0.1 artifact carries no stored hash, so its whole-artifact hash is used.
+    # current staged contract binds it to the artifact core excluding
+    # ``reading_units``; the accepted reading unit IDs are derived from that
+    # value, so recomputing a whole-artifact hash here would disagree with the
+    # artifact the model accepted.
     artifact_sha256 = sha256_json(artifact)
     reading: dict[str, Any] | None = None
     reading_units: list[dict[str, Any]] = []
     person_states: dict[str, Any] | None = None
     person_state_candidates: list[dict[str, Any]] = []
-    if version in (
-        CHAPTER_READING_ARTIFACT_VERSION, CHAPTER_PERSON_STATE_ARTIFACT_VERSION,
-        CHAPTER_STAGED_ARTIFACT_VERSION,
-    ):
+    if version == CHAPTER_ARTIFACT_VERSION:
         accepted_sha = artifact.get("artifact_sha256")
         if not isinstance(accepted_sha, str) or not accepted_sha:
             raise PersistenceError(
@@ -1498,10 +1478,10 @@ def _validate_accepted_chapter_artifact(
                     f"{owner} reading_units[{unit_index}] must name a translation block_id"
                 )
         reading_units = list(resolved)
-    if version in (CHAPTER_PERSON_STATE_ARTIFACT_VERSION, CHAPTER_STAGED_ARTIFACT_VERSION):
+    if version == CHAPTER_ARTIFACT_VERSION:
         person_states = artifact.get("person_states")
         if not isinstance(person_states, dict):
-            raise PersistenceError(f"{owner} 0.3 artifact is missing its person_states block")
+            raise PersistenceError(f"{owner} current artifact is missing its person_states block")
         for name in (
             "phases",
             "phase_orders",
@@ -1522,7 +1502,7 @@ def _validate_accepted_chapter_artifact(
             )
         person_states_sha = artifact.get("person_states_sha256")
         if not isinstance(person_states_sha, str) or not person_states_sha:
-            raise PersistenceError(f"{owner} 0.3 artifact is missing person_states_sha256")
+            raise PersistenceError(f"{owner} current artifact is missing person_states_sha256")
         if sha256_json(person_states) != person_states_sha:
             raise PersistenceError(
                 f"{owner} person_states bytes do not match person_states_sha256; "
@@ -1531,7 +1511,7 @@ def _validate_accepted_chapter_artifact(
         candidates = artifact.get("person_state_candidates")
         if not isinstance(candidates, list):
             raise PersistenceError(
-                f"{owner} 0.3 artifact is missing its person_state_candidates keys"
+                f"{owner} current artifact is missing its person_state_candidates keys"
             )
         for entry in candidates:
             if not isinstance(entry, dict) or not isinstance(entry.get("item_ref"), str):
@@ -1572,10 +1552,9 @@ def assemble_chapters(
 ) -> dict[str, Any]:
     """Assemble accepted chapter artifacts into one revision-staged bundle.
 
-    Inputs are the T01 accepted artifacts (``chronicle.chapter-artifact /
-    0.1``), the reading-enriched artifacts (``0.2``) or the
-    person-state-enriched T01/T02 artifacts (``0.3``) plus the T03 chapter
-    plan; one assembly call never mixes generations. Every
+    Inputs are current accepted artifacts (``chronicle.chapter-artifact /
+    0.4``) plus the T03 chapter plan; one assembly call never mixes
+    retired generations. Every
     expected chapter must have
     exactly one accepted artifact: missing chapters, extra chapters,
     duplicate chapters, mixed revisions, or unaccepted/tampered products
@@ -1596,9 +1575,9 @@ def assemble_chapters(
 
     Returns ``{"bundle", "translation_blocks", "mentions",
     "record_sources", "anchors", "reading_units", "person_states",
-    "person_state_evidence", "report"}``. For 0.3 inputs the accepted
-    ``person_states`` block is lifted into the same revision namespace from
-    :mod:`person_state_assembly`; 0.1/0.2 inputs keep empty state outputs.
+    "person_state_evidence", "report"}``. The accepted reading and
+    person-state evidence is lifted into the same revision namespace from
+    :mod:`person_state_assembly`.
     Deterministic: unchanged inputs yield byte-identical canonical JSON.
     No model calls, no worker changes, no source-candidate mutation.
     """
@@ -1636,21 +1615,24 @@ def assemble_chapters(
                 f"{item['normalized_sha256']!r} does not match the planned "
                 "chapter content hash; refusing bytes outside the plan"
             )
-        if item["artifact_version"] == CHAPTER_STAGED_ARTIFACT_VERSION:
-            scope = item["candidate"]["source_scope"]
-            planned = plan_chapter_by_id[item["chapter_id"]]
-            if (
-                any(scope[key] != item[key] for key in (
-                    "chapter_id", "revision_id", "source_sha256", "normalized_sha256",
-                ))
-                or scope["chapter_content_sha256"] != item["normalized_sha256"]
-                or scope["chapter_start"] != planned["start"]
-                or scope["chapter_end"] != planned["end"]
-                or scope["revision_normalized_sha256"] != chapter_plan["normalized_sha256"]
-            ):
-                raise PersistenceError(
-                    "staged source scope origin differs from the frozen chapter plan"
-                )
+        scope = item["candidate"].get("source_scope")
+        if not isinstance(scope, dict):
+            raise PersistenceError(
+                f"current artifact chapter {item['chapter_id']!r} is missing source_scope"
+            )
+        planned = plan_chapter_by_id[item["chapter_id"]]
+        if (
+            any(scope[key] != item[key] for key in (
+                "chapter_id", "revision_id", "source_sha256", "normalized_sha256",
+            ))
+            or scope["chapter_content_sha256"] != item["normalized_sha256"]
+            or scope["chapter_start"] != planned["start"]
+            or scope["chapter_end"] != planned["end"]
+            or scope["revision_normalized_sha256"] != chapter_plan["normalized_sha256"]
+        ):
+            raise PersistenceError(
+                "current source scope origin differs from the frozen chapter plan"
+            )
     if len({(item["revision_id"], item["source_sha256"]) for item in normalized}) != 1:
         raise PersistenceError("assembly artifacts span multiple revisions/source hashes (fail closed)")
     artifact_versions = {item["artifact_version"] for item in normalized}
@@ -1659,14 +1641,12 @@ def assemble_chapters(
             f"assembly artifacts mix generation versions {sorted(artifact_versions)}; "
             "refusing to mix chapter product generations"
         )
-    reading_path = artifact_versions in (
-        {CHAPTER_READING_ARTIFACT_VERSION},
-        {CHAPTER_PERSON_STATE_ARTIFACT_VERSION},
-        {CHAPTER_STAGED_ARTIFACT_VERSION},
-    )
-    person_state_path = artifact_versions in (
-        {CHAPTER_PERSON_STATE_ARTIFACT_VERSION}, {CHAPTER_STAGED_ARTIFACT_VERSION},
-    )
+    if artifact_versions != {CHAPTER_ARTIFACT_VERSION}:
+        raise PersistenceError(
+            "assembly accepts only the current 0.4 artifact generation"
+        )
+    reading_path = True
+    person_state_path = True
 
     expected_ids = [c["chapter_id"] for c in plan_chapters]
     seen_ids: set[str] = set()
@@ -2071,7 +2051,7 @@ def assemble_chapters(
     )
 
     # -- person-state evidence into the same revision namespace (C2-R3-T03) ----
-    # The 0.3 ``person_states`` block reuses this exact ``(chapter_index,
+    # The current ``person_states`` block reuses this exact ``(chapter_index,
     # local_ref) -> revision_ref`` map for its entity/event/Claim refs, while
     # its phase/fact/order/continuity/disagreement local IDs receive a
     # chapter-bound namespace so the same local ``pf_001`` in two chapters can
@@ -2098,6 +2078,17 @@ def assemble_chapters(
         assembled_person_states = state_result["person_states"]
         person_state_evidence = state_result["evidence_manifests"]
         person_state_report = state_result["report"]
+        if len(person_state_evidence) != len(ordered) or any(
+            not isinstance(manifest, dict)
+            or manifest.get("schema") != "chronicle.person-state-evidence-manifest"
+            or manifest.get("version") != "0.1"
+            or not isinstance(manifest.get("items"), list)
+            for manifest in person_state_evidence
+        ):
+            raise PersistenceError(
+                "current assembly requires one complete person-state evidence "
+                "manifest per accepted chapter"
+            )
         # One revision-local map: state local IDs join the same report map as
         # the entity/event/Claim refs so downstream review/compile can resolve
         # every origin ref.
@@ -2260,15 +2251,7 @@ def assemble_chapters(
         "contract_version": CONTRACT_VERSION,
         "schema_version": SCHEMA_VERSION,
         "candidate_schema": CHAPTER_CANDIDATE_SCHEMA,
-        "candidate_version": (
-            CHAPTER_STAGED_CANDIDATE_VERSION
-            if artifact_versions == {CHAPTER_STAGED_ARTIFACT_VERSION}
-            else CHAPTER_PERSON_STATE_CANDIDATE_VERSION
-            if person_state_path
-            else CHAPTER_READING_CANDIDATE_VERSION
-            if reading_path
-            else CHAPTER_CANDIDATE_VERSION
-        ),
+        "candidate_version": CHAPTER_CANDIDATE_VERSION,
         "plan_version": CHAPTER_PLAN_VERSION,
         "revision": {
             "revision_id": revision_id,

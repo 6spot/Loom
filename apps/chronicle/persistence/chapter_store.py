@@ -5,16 +5,14 @@ Narrow persistence for complete natural-chapter joint products behind
 ``chapter-production.md`` sections 5/7:
 
 - :func:`record_accepted_chapter_fenced` accepts only a fully validated
-  registered ``chronicle.chapter-artifact`` (the contract artifact is
+  current ``chronicle.chapter-artifact / 0.4`` (the contract artifact is
   the sole accepted input) and commits the artifact row, the chunk
   accepted pointer, and the chunk ``completed`` status in one
-  lease-fenced transaction. A 0.2 candidate is validated and accepted
-  only through the T01 ``reading_contract`` (keeping its
-  program-resolved reading annotations), a 0.1 candidate through the
-  frozen first-round contract. Partial products, wrong revisions,
-  unknown producing runs, lost leases, and hash conflicts are rejected;
-  repeating the identical artifact is idempotent. New 0.4 products also
-  require an acceptance receipt bound to the run and persisted step outputs.
+  lease-fenced transaction. Partial products, retired generations, wrong
+  revisions, unknown producing runs, lost leases, and hash conflicts are
+  rejected; repeating the identical artifact is idempotent. Current
+  products also require an acceptance receipt bound to the run and
+  persisted step outputs.
 - :func:`read_accepted_chapters` / :func:`read_accepted_chapter` return
   already-accepted complete results so a restarted worker resumes from
   the accepted artifact instead of creating a second chapter queue/run.
@@ -59,8 +57,6 @@ if str(HERE) not in sys.path:
 
 import chapter_contract as chapter_contract  # noqa: E402
 import control_plane as control_plane  # noqa: E402
-import person_state_contract as person_state_contract  # noqa: E402
-import reading_contract as reading_contract  # noqa: E402
 import staged_chapter_contract as staged_chapter_contract  # noqa: E402
 from common import (  # noqa: E402
     LeaseLost,
@@ -155,12 +151,8 @@ def record_accepted_chapter_fenced(
 
     # Fail closed before touching the database: partial products, hash
     # drift, and chapter/request mismatches never reach a transaction. The
-    # candidate generation selects its own owner: 0.1 stays with the frozen
-    # first-round validator, 0.2 is consumed only through the T01
-    # ``reading_contract`` validator so the accepted artifact keeps the
-    # program-resolved reading annotations and unit IDs, and 0.3 only
-    # through ``person_state_contract`` so the accepted artifact also keeps
-    # the program-computed state candidate keys.
+    # The current staged contract is the sole candidate/artifact owner. The
+    # retired chapter generations are rejected before any database work.
     accepted_run = {**producing_run, "run_id": str(producing_run_id)}
     candidate_version = candidate.get("version")
     if candidate_version == staged_chapter_contract.CANDIDATE_VERSION:
@@ -168,34 +160,14 @@ def record_accepted_chapter_fenced(
             request, candidate, producing_run=accepted_run,
             production_receipt=production_receipt,
         )
-    elif candidate_version == person_state_contract.CANDIDATE_VERSION:
-        artifact = person_state_contract.accept_person_state_candidate(
-            request, candidate, producing_run=accepted_run
-        )
-    elif candidate_version == reading_contract.CANDIDATE_VERSION:
-        artifact = reading_contract.accept_reading_candidate(
-            request, candidate, producing_run=accepted_run
-        )
-    elif candidate_version == chapter_contract.CANDIDATE_VERSION:
-        artifact = chapter_contract.accept_chapter_candidate(
-            request, candidate, producing_run=accepted_run
-        )
     else:
         raise PersistenceError(
-            "chapter candidate version must be "
-            f"{chapter_contract.CANDIDATE_VERSION!r}, "
-            f"{reading_contract.CANDIDATE_VERSION!r} or "
-            f"{person_state_contract.CANDIDATE_VERSION!r} or "
+            "chapter candidate version must be the current "
             f"{staged_chapter_contract.CANDIDATE_VERSION!r}, got {candidate_version!r}"
         )
-    if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") not in (
-        ARTIFACT_VERSION,
-        reading_contract.ARTIFACT_VERSION,
-        person_state_contract.ARTIFACT_VERSION,
-        staged_chapter_contract.ARTIFACT_VERSION,
-    ):
+    if artifact.get("schema") != ARTIFACT_SCHEMA or artifact.get("version") != ARTIFACT_VERSION:
         raise PersistenceError(
-            "accepted artifact must be chronicle.chapter-artifact/0.1, /0.2, /0.3 or /0.4"
+            "accepted artifact must be the current chronicle.chapter-artifact/0.4"
         )
     chapter_id = artifact["chapter_id"]
     if not isinstance(chapter_id, str) or not chapter_id:
