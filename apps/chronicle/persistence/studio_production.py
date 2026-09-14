@@ -18,6 +18,12 @@ RESULT_TYPES = (
     "chapter-production-step",
     "chapter-production-draft",
     ACCEPTANCE_TYPE,
+    # Historical narrative model nodes use the same safe output paging
+    # surface; prompts, inputs and provider configuration remain excluded by
+    # output_page's positive projection below.
+    "narrative-plan",
+    "narrative-step-attempt",
+    "narrative-step",
 )
 ACCEPTANCE_FIELDS = (
     "schema",

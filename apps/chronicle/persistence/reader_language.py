@@ -48,6 +48,14 @@ def narrative_text(value: dict) -> dict:
         _fields(section, "label")
         for item in _records(section, "items"):
             _fields(item, "label", "reason")
+    # Comparison reports are shown in the same human review surface. Keep
+    # hashes, IDs, assessments and evidence handles exact while normalizing
+    # only their editorial explanations.
+    _fields(result, "selection_rationale", "integration_rationale")
+    for item in _records(result, "differences"):
+        _fields(item, "rationale")
+    for item in _records(result, "disagreements"):
+        _fields(item, "message")
     return result
 
 

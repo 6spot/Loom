@@ -18,6 +18,30 @@
 审核通过后再组织叙事，叙事经过第二次审核才发布。两个审核均属于现有 Studio
 队列，状态不由 Markdown 或 Issue 是否关闭决定。
 
+### 逐步多模型执行
+
+综合任务的执行图固定为 `facts_generate`、`facts_compare`、
+`prose_generate`、`prose_compare`。每个步骤可绑定 1–4 个已配置模型；单候选
+不发送没有意义的 compare 请求，但仍执行本地 schema、来源、阶段和正文约束。
+Studio 可通过 `GET /api/v1/studio/jobs/history/model-options` 查看不含凭据的
+模型槽位，并在创建历史任务时提交 `model_selection`。选择只引用当前配置的
+槽位和摘要；worker 将它与任务一起冻结，配置或提示合同变化必须创建新任务。
+
+第一次执行会在既有 `ingestion_outputs` 中保存不可变的 narrative plan，绑定完整
+章节、catalog、来源关系、已发布状态、模型 profile、步骤 schema、提示合同和
+有限重试预算。每个模型槽位的完整请求、响应、receipt、校验结果和重试关系均
+单独保存；成功结果按完整输入、步骤、round、槽位和模型 profile 的指纹复用，
+不会因为重试而重新调用无关步骤。输入或纠错请求超过预算时报告步骤、实际大小
+和上限，不截断原文或改用摘要。
+
+多个 facts/prose 候选都交给 compare 步骤逐项说明选择、整合、分歧及
+`conclusion_ids`/`evidence` 引用。来源的同书两传、转引、独立或未知关系，以及
+不同阶段的身份状态，必须按冻结 context 解释；模型数量、confidence 或简单多数
+不能决定史实。比较无法给出可解释唯一选择时保留全部候选并标记待人工处理，事实
+审核仍是 prose 的前置闸门。prose 只接收已批准 facts；漏阶段、增加未审核结论或
+不满足来源约束的完整结果留在审计记录中并拒绝进入下一步。现有两次 ReviewItem
+审核、发布锁和 atomic publish 不变，T06 之前没有自动发布旁路。
+
 核对稿 `chronicle.source-corroboration/0.1` 包含：
 
 | 字段 | 含义 |
@@ -149,7 +173,8 @@ URL 为 `/history/<sha256>/<hp_id>`，复用现有系统 ID，不生成标题别
 | 接口 | 范围 |
 | --- | --- |
 | `GET /api/v1/studio/jobs/history/sources?limit&offset` | 当前 catalog 下最新来源 revision 的完整已发布章节 |
-| `POST /api/v1/studio/jobs/history` | `{catalog_sha, publication_ids}` 显式创建综合任务 |
+| `POST /api/v1/studio/jobs/history` | `{catalog_sha, publication_ids[, model_selection]}` 显式创建综合任务 |
+| `GET /api/v1/studio/jobs/history/model-options` | 当前综合任务可用的无凭据模型槽位 |
 | 既有 Studio review decision / resume / retry / cancel | 两次审核、恢复与取消，共用鉴权和 control plane |
 | `GET /api/v1/public/history[?version]` | 已发布版本的分组、精选入口与段数，未发布时 publication 为空 |
 | `GET /api/v1/public/history/paragraphs?version&at\|start&limit` | 固定版本定位／分页正文 |

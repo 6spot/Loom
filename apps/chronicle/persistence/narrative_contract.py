@@ -6,6 +6,7 @@ require a recorded review; source Claims and canonical identity stay untouched.
 from __future__ import annotations
 
 import copy
+import json
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -18,6 +19,11 @@ VERSION = "0.1"
 MAX_CHAPTERS = 16
 MAX_BYTES = 2 * 1024 * 1024
 MAX_PROMPT_CHARS = 180_000
+NARRATIVE_STEPS = ("facts_generate", "facts_compare", "prose_generate", "prose_compare")
+STEP_ALIASES = {
+    "facts_compare/review": "facts_compare",
+    "prose_compare/review": "prose_compare",
+}
 STATE_LABELS = {
     "office": "官职", "title": "爵号", "allegiance": "效力",
     "administration": "行政归属", "control": "实际控制",
@@ -27,6 +33,11 @@ STATE_LABELS = {
 def _obj(**properties):
     return {"type": "object", "properties": properties,
             "required": list(properties), "additionalProperties": False}
+
+
+def _obj_with_optional(properties, required):
+    return {"type": "object", "properties": properties,
+            "required": list(required), "additionalProperties": False}
 
 
 def _text(maximum=1500):
@@ -80,6 +91,53 @@ PROSE_SCHEMA["properties"]["navigation"] = _array(_obj(
     label=_nullable(_text(80)), first_paragraph_id=LOCAL_ID, last_paragraph_id=LOCAL_ID,
     items=_array(_obj(paragraph_id=LOCAL_ID, label=_text(120), reason=_text(500)), 0, 12),
 ), 1, 64)
+
+_SHA256 = {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+COMPARISON_SCHEMA = _obj_with_optional(
+    {
+        "schema": {"const": "chronicle.narrative-comparison"},
+        "version": {"const": VERSION},
+        "candidate_set_sha256": _SHA256,
+        "selected_sha256": _SHA256,
+        # A comparison must explain the selected/combined result in addition
+        # to its per-candidate rationale.
+        "selection_rationale": _text(3000),
+        "integration_rationale": _text(3000),
+        "differences": _array(_obj_with_optional(
+            {
+                "candidate_sha256": _SHA256,
+                "assessment": _enum("selected", "compatible", "rejected", "disputed"),
+                "rationale": _text(2000),
+                "evidence": _array(REF, 1, 64),
+                "conclusion_ids": _array(LOCAL_ID, 0, 256),
+            },
+            ("candidate_sha256", "assessment", "rationale", "evidence"),
+        ), 1, 12),
+        "disagreements": _array(_obj_with_optional(
+            {
+                "id": LOCAL_ID,
+                "conclusion_ids": _array(LOCAL_ID, 1, 256),
+                "message": _text(2000),
+                "evidence": _array(REF, 1, 64),
+            },
+            ("id", "conclusion_ids", "message", "evidence"),
+        ), 0, 256),
+    },
+    ("schema", "version", "candidate_set_sha256", "selected_sha256", "selection_rationale", "differences"),
+)
+
+
+class PromptLimitExceeded(PersistenceError):
+    """The complete frozen narrative request cannot fit its input budget."""
+
+    def __init__(self, step: str, prompt_chars: int, max_chars: int):
+        self.step = step
+        self.prompt_chars = prompt_chars
+        self.max_chars = max_chars
+        super().__init__(
+            f"{step} complete context exceeds input budget "
+            f"({prompt_chars} > {max_chars} characters); choose a smaller production scope, never truncate"
+        )
 
 
 def _fail(message):
@@ -146,6 +204,166 @@ def map_candidate_references(value, mapping):
         if "event_id" in entry:
             entry["event_id"] = mapped(entry["event_id"])
     return result
+
+
+def map_comparison_references(value, mapping):
+    """Map evidence handles in a comparison report without touching prose IDs."""
+    result = copy.deepcopy(value)
+    if not isinstance(result, dict):
+        return result
+    for key in ("differences", "disagreements"):
+        entries = result.get(key)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict) or not isinstance(entry.get("evidence"), list):
+                continue
+            entry["evidence"] = [
+                mapping.get(item, item) if isinstance(item, str) else item
+                for item in entry["evidence"]
+            ]
+    return result
+
+
+def step_schema(step: str) -> dict:
+    """Return the self-contained schema sent for one narrative adapter."""
+    step = STEP_ALIASES.get(step, step)
+    if step in ("facts", "facts_generate"):
+        return copy.deepcopy(FACTS_SCHEMA)
+    if step in ("prose", "prose_generate"):
+        schema = copy.deepcopy(PROSE_SCHEMA)
+        schema["required"].append("navigation")
+        return schema
+    if step in ("facts_compare", "prose_compare", "compare"):
+        return copy.deepcopy(COMPARISON_SCHEMA)
+    _fail(f"unknown narrative step {step!r}")
+
+
+def prompt_template(step: str) -> dict:
+    """Stable prompt identity material used by the frozen model configuration."""
+    step = STEP_ALIASES.get(step, step)
+    if step not in NARRATIVE_STEPS:
+        _fail(f"unknown narrative step {step!r}")
+    return {"step": step, "schema": step_schema(step), "instructions_version": "narrative-v2"}
+
+
+def prompt_template_text(step: str) -> str:
+    """Render a deterministic empty request so wording changes are frozen."""
+    step = STEP_ALIASES.get(step, step)
+    context = {
+        "schema": "chronicle.narrative-context",
+        "version": VERSION,
+        "catalog_sha": "0" * 64,
+        "sources": [],
+        "entities": {},
+        "events": {},
+    }
+    if step in ("facts_generate", "prose_generate"):
+        data = {"context": context}
+        if step == "prose_generate":
+            data["facts"] = {}
+        return build_step_prompt(step, data, max_chars=1_000_000)
+    if step in ("facts_compare", "prose_compare"):
+        candidates = [{
+            "candidate_sha256": "0" * 64,
+            "model": "template",
+            "content": {},
+        }]
+        data = {
+            "context": context,
+            "kind": "facts" if step == "facts_compare" else "prose",
+            "candidates": candidates,
+            "candidate_set_sha256": sha256_json(candidates),
+        }
+        if step == "prose_compare":
+            data["facts"] = {}
+        return build_compare_prompt(step, data, max_chars=1_000_000)
+    _fail(f"unknown narrative step {step!r}")
+
+
+def retry_template() -> dict:
+    return {
+        "instructions_version": "narrative-retry-v1",
+        "rule": "retain the complete previous candidate and diagnostics; return a complete JSON document",
+    }
+
+
+def _comparison_candidates(candidate_set):
+    if not isinstance(candidate_set, list):
+        _fail("comparison candidate set must be an array")
+    result = []
+    for candidate in candidate_set:
+        if not isinstance(candidate, dict):
+            _fail("comparison candidate must be an object")
+        if not isinstance(candidate.get("candidate_sha256"), str):
+            _fail("comparison candidate has no output hash")
+        if "content" not in candidate:
+            _fail("comparison candidate has no complete content")
+        result.append(candidate)
+    if not result or len(result) > 4:
+        _fail("comparison candidate set must contain 1–4 complete candidates")
+    return result
+
+
+def validate_comparison(candidate: Any, context: dict, kind: str, candidate_set) -> dict:
+    """Validate a comparison as an auditable report, never as a truth vote."""
+    if kind not in ("facts", "prose"):
+        _fail(f"unknown comparison kind {kind!r}")
+    _structure(candidate, COMPARISON_SCHEMA)
+    candidates = _comparison_candidates(candidate_set)
+    candidate_by_sha = {item["candidate_sha256"]: item for item in candidates}
+    if len(candidate_by_sha) != len(candidates):
+        _fail("comparison candidate set repeats an output hash")
+    expected_set = sha256_json(candidates)
+    if candidate["candidate_set_sha256"] != expected_set:
+        _fail("comparison changed its fixed candidate set")
+    if candidate["selected_sha256"] not in candidate_by_sha:
+        _fail("comparison selected a candidate outside the fixed candidate set")
+    differences = candidate["differences"]
+    if len(differences) != len(candidates) or {
+        item["candidate_sha256"] for item in differences
+    } != set(candidate_by_sha):
+        _fail("comparison must describe every candidate exactly once")
+    if len({item["candidate_sha256"] for item in differences}) != len(differences):
+        _fail("comparison repeats a candidate difference")
+    selected = [item for item in differences if item["assessment"] == "selected"]
+    if len(selected) != 1 or selected[0]["candidate_sha256"] != candidate["selected_sha256"]:
+        _fail("comparison must mark exactly its selected candidate")
+    evidence = set(evidence_index(context))
+    for item in differences:
+        if set(item["evidence"]) - evidence:
+            _fail("comparison cites evidence outside the frozen context")
+        content = candidate_by_sha[item["candidate_sha256"]]["content"]
+        if item.get("conclusion_ids"):
+            known = {fact["id"] for fact in content.get("conclusions", [])} if kind == "facts" else {
+                fact_id
+                for paragraph in content.get("paragraphs", [])
+                for segment in paragraph.get("segments", [])
+                for fact_id in segment.get("conclusion_ids", [])
+            }
+            if not set(item["conclusion_ids"]) <= known:
+                _fail("comparison cites a conclusion outside the candidate it describes")
+    disagreement_ids = [item["id"] for item in candidate.get("disagreements", [])]
+    if len(disagreement_ids) != len(set(disagreement_ids)):
+        _fail("comparison repeats a disagreement id")
+    known_conclusions = set()
+    for item in candidates:
+        content = item["content"]
+        if kind == "facts":
+            known_conclusions.update(fact["id"] for fact in content.get("conclusions", []))
+        else:
+            known_conclusions.update(
+                conclusion_id
+                for paragraph in content.get("paragraphs", [])
+                for segment in paragraph.get("segments", [])
+                for conclusion_id in segment.get("conclusion_ids", [])
+            )
+    for item in candidate.get("disagreements", []):
+        if set(item["evidence"]) - evidence:
+            _fail("comparison disagreement cites evidence outside the frozen context")
+        if not set(item["conclusion_ids"]) <= known_conclusions:
+            _fail("comparison disagreement cites an unknown conclusion")
+    return copy.deepcopy(candidate)
 
 
 def model_context(context, forward):
@@ -341,7 +559,14 @@ def validate_prose(candidate: Any, context: dict, facts: dict) -> dict:
     return copy.deepcopy(candidate)
 
 
-def build_prompt(kind: str, context: dict, facts: dict | None = None) -> str:
+def build_prompt(
+    kind: str,
+    context: dict,
+    facts: dict | None = None,
+    *,
+    max_chars: int = MAX_PROMPT_CHARS,
+) -> str:
+    kind = {"facts_generate": "facts", "prose_generate": "prose"}.get(kind, kind)
     if kind not in {"facts", "prose"}:
         _fail("unknown generation stage")
     schema = FACTS_SCHEMA if kind == "facts" else PROSE_SCHEMA
@@ -418,9 +643,135 @@ navigation 必须随正文一并返回：按阅读顺序组织时间区间，每
     prompt = instructions + "\nSTAGE=" + kind + "\nSCHEMA=" + canonical_json_bytes(schema).decode() + "\nINPUT=" + canonical_json_bytes(model_context(context, forward)).decode()
     if facts is not None:
         prompt += "\nAPPROVED_CONCLUSIONS=" + canonical_json_bytes(map_candidate_references(facts, forward)).decode()
-    if len(prompt) > MAX_PROMPT_CHARS:
-        _fail(f"complete chapter context exceeds input budget ({len(prompt)} > {MAX_PROMPT_CHARS} characters); choose a smaller production scope, never truncate")
+    if len(prompt) > max_chars:
+        raise PromptLimitExceeded(kind, len(prompt), max_chars)
     return prompt
+
+
+def build_step_prompt(step: str, data: dict, *, max_chars: int = MAX_PROMPT_CHARS) -> str:
+    """Build the complete request for a generation step."""
+    step = STEP_ALIASES.get(step, step)
+    if not isinstance(data, dict) or not isinstance(data.get("context"), dict):
+        _fail(f"{step} requires the frozen narrative context")
+    if step == "facts_generate":
+        try:
+            prompt = build_prompt("facts", data["context"], max_chars=max_chars)
+        except PromptLimitExceeded as exc:
+            raise PromptLimitExceeded(step, exc.prompt_chars, exc.max_chars) from exc
+        prompt = prompt.replace("\nSTAGE=facts\n", "\nSTAGE=facts_generate\n", 1)
+        if len(prompt) > max_chars:
+            raise PromptLimitExceeded(step, len(prompt), max_chars)
+        return prompt
+    if step == "prose_generate":
+        facts = data.get("facts")
+        if not isinstance(facts, dict):
+            _fail("prose_generate requires accepted facts")
+        try:
+            prompt = build_prompt("prose", data["context"], facts, max_chars=max_chars)
+        except PromptLimitExceeded as exc:
+            raise PromptLimitExceeded(step, exc.prompt_chars, exc.max_chars) from exc
+        prompt = prompt.replace("\nSTAGE=prose\n", "\nSTAGE=prose_generate\n", 1)
+        if len(prompt) > max_chars:
+            raise PromptLimitExceeded(step, len(prompt), max_chars)
+        return prompt
+    _fail(f"unknown generation step {step!r}")
+
+
+def build_compare_prompt(step: str, data: dict, *, max_chars: int = MAX_PROMPT_CHARS) -> str:
+    """Build a fixed-candidate comparison request with full source evidence."""
+    step = STEP_ALIASES.get(step, step)
+    if step not in ("facts_compare", "prose_compare"):
+        _fail(f"unknown comparison step {step!r}")
+    context = data.get("context") if isinstance(data, dict) else None
+    if not isinstance(context, dict):
+        _fail(f"{step} requires the frozen narrative context")
+    kind = "facts" if step == "facts_compare" else "prose"
+    candidates = _comparison_candidates(data.get("candidates"))
+    forward, _ = model_reference_maps(context)
+    supplied = []
+    for item in candidates:
+        value = dict(item)
+        value["content"] = map_candidate_references(item["content"], forward)
+        supplied.append(value)
+    expected_candidate_set_sha = sha256_json(candidates)
+    candidate_set_sha = data.get("candidate_set_sha256")
+    if candidate_set_sha is None:
+        candidate_set_sha = expected_candidate_set_sha
+    if not isinstance(candidate_set_sha, str):
+        _fail("comparison candidate set hash must be a string")
+    if candidate_set_sha != expected_candidate_set_sha:
+        _fail("comparison candidate set hash does not match the fixed candidates")
+    instructions = """你是历史内容审核编辑。只比较 CANDIDATES 中固定的完整候选，不重新生成正文或事实。
+比较必须逐项说明每个候选的取舍、差异、相关 conclusion_ids 和 evidence 句柄；selection_rationale 或 integration_rationale 可补充整体判断。
+同书两传、转引和抄录不能因数量增加而成为独立见证；独立来源、未知传承和不同阶段身份须按给出的 source_relations 与阶段分别判断。
+不要按模型数量、confidence 或格式通过投票判定史实。无法用来源具体说明取舍时，将对应差异标为 disputed，并保留双方依据。
+candidate_set_sha256 是程序对存储中的完整候选数组（在请求句柄映射前）计算的绑定值；直接抄写 CANDIDATE_SET_SHA256，不要根据映射后的 CANDIDATES 重新计算。
+selected_sha256 只能抄其中一个 candidate_sha256。
+"""
+    schema = canonical_json_bytes(COMPARISON_SCHEMA).decode()
+    prompt = (
+        instructions
+        + "\nSTAGE=" + step
+        + "\nSCHEMA=" + schema
+        + "\nINPUT=" + canonical_json_bytes(model_context(context, forward)).decode()
+        + "\nCANDIDATE_SET_SHA256=" + candidate_set_sha
+        + "\nCANDIDATES=" + canonical_json_bytes(supplied).decode()
+    )
+    if kind == "prose":
+        facts = data.get("facts")
+        if not isinstance(facts, dict):
+            _fail("prose_compare requires accepted facts")
+        prompt += "\nAPPROVED_CONCLUSIONS=" + canonical_json_bytes(map_candidate_references(facts, forward)).decode()
+    if len(prompt) > max_chars:
+        raise PromptLimitExceeded(step, len(prompt), max_chars)
+    return prompt
+
+
+def parse_step(step: str, raw: str, context: dict) -> tuple[Any, list[str]]:
+    """Decode a model response and restore only typed context handles."""
+    step = STEP_ALIASES.get(step, step)
+    if not isinstance(raw, str):
+        return None, ["model response is not text"]
+    if len(raw.encode("utf-8")) > MAX_BYTES:
+        return None, ["model response exceeds the 2 MiB candidate envelope"]
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        return None, [f"model response is not valid JSON ({type(exc).__name__})"]
+    if not isinstance(value, dict):
+        return None, ["model response must be a JSON object"]
+    _, reverse = model_reference_maps(context)
+    if step in ("facts_generate", "prose_generate"):
+        return narrative_text(map_candidate_references(value, reverse)), []
+    if step in ("facts_compare", "prose_compare"):
+        return narrative_text(map_comparison_references(value, reverse)), []
+    return None, [f"unknown narrative step {step!r}"]
+
+
+def retry_prompt(
+    prompt: str,
+    previous: dict,
+    *,
+    max_chars: int = MAX_PROMPT_CHARS,
+) -> str:
+    """Carry complete diagnostics into a bounded format/content retry."""
+    raw = previous.get("raw_text")
+    if not isinstance(raw, str):
+        raw = previous.get("raw_response") if isinstance(previous.get("raw_response"), str) else ""
+    errors = previous.get("validation_errors")
+    if not isinstance(errors, list):
+        error = previous.get("validation_error")
+        errors = [error] if error else []
+    diagnostic = "；".join(str(item) for item in errors if item)
+    value = (
+        "CORRECTION: previous complete candidate was rejected; preserve all valid content and return the complete JSON.\n"
+        "具体诊断：" + diagnostic + "\n"
+        "PREVIOUS_CANDIDATE=" + raw + "\n"
+        + prompt
+    )
+    if len(value) > max_chars:
+        raise PromptLimitExceeded(str(previous.get("step") or "narrative"), len(value), max_chars)
+    return value
 
 
 def compile_publication(context: dict, facts: dict, prose: dict) -> dict:
