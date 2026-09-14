@@ -479,7 +479,7 @@ python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_source
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_chapter_content_review_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_reading_pipeline_postgres.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*postgres.py' -v
-python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_worker_budget_unit.py' -v
+python3 -m unittest discover -s apps/chronicle/worker -p 'test_production_worker_unit.py' -v
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_coverage*.py' -v
 python3 -m unittest discover -s apps/chronicle/worker -p 'test_*.py' -v
 python3 -m unittest discover -s apps/chronicle/read_api -p 'test_studio_jobs*.py' -v
