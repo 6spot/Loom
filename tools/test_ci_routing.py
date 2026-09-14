@@ -111,7 +111,7 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/worker/model_provider.py",
             "apps/chronicle/worker/staged_chapter.py",
             "apps/chronicle/read_api/studio_jobs.py",
-            "apps/chronicle/persistence/chapter_prompt.py",
+            "apps/chronicle/worker/staged_pipeline_fixture.py",
         ):
             self.assert_route([path], ("staged-gate", "chapter-pipeline"))
 

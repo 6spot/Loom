@@ -23,8 +23,8 @@ def chapter_configs(
 
     Returns ``(limits, chapter_model)``. Limits honor the documented
     ``CHRONICLE_CHAPTER_*`` overrides; the provider follows the formal
-    chapter entry (live ``CHRONICLE_CHAPTER_MODEL`` or explicit
-    ``CHRONICLE_CHAPTER_FIXTURE_PACK`` test injection). A missing
+    chapter entry (``CHRONICLE_CHAPTER_MODEL`` or
+    ``CHRONICLE_CHAPTER_PIPELINE_CONFIG``). A missing
     provider is returned as ``None`` so the worker fails closed instead
     of faking chapters.
     """

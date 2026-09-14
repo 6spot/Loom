@@ -226,6 +226,23 @@ class GuardTests(unittest.TestCase):
             with self.subTest(patch=patch), self.assertRaises(GateError):
                 gate.require_live_env({**base, **patch})
 
+    def test_retired_model_env_names_do_not_enter_current_provider_evidence(self):
+        config = {
+            "CHRONICLE_POSTGRES_PASSWORD": "test",
+            "CHRONICLE_ADMIN_USER": "admin",
+            "CHRONICLE_ADMIN_PASSWORD": "test",
+            "CHRONICLE_MODEL_ENDPOINT": "https://provider.example/v1/responses",
+            "CHRONICLE_CHAPTER_MODEL": "chapter-live",
+            "CHRONICLE_NARRATIVE_MODEL": "narrative-live",
+            "CHRONICLE_EXTRACTION_MODEL": "retired-extraction",
+            "CHRONICLE_PRESENTATION_MODEL": "retired-presentation",
+        }
+        provider = gate.require_live_env(config)
+        self.assertEqual("chapter-live", provider["chapter_model"])
+        self.assertEqual("narrative-live", provider["narrative_model"])
+        self.assertNotIn("extraction_model", provider)
+        self.assertNotIn("presentation_model", provider)
+
     def test_live_mode_reports_missing_credentials_without_fallback(self):
         with self.assertRaisesRegex(GateError, "missing required live-gate configuration"):
             gate.require_live_env({})

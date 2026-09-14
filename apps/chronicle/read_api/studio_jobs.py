@@ -11,8 +11,8 @@ machine mirrors the normative Rust ``apps/chronicle/control_plane``
 contract), so queue/inspect/retry/resume/cancel can never invent a
 transition the contract forbids.
 
-C1-T10 deliberately exposes a *safe Studio projection* of job detail. The
-underlying C1-T6 ChunkRun checkpoint is a replay/audit record and may contain
+Studio deliberately exposes a *safe projection* of job detail. The underlying
+staged worker checkpoints are replay/audit records and may contain
 verbatim prompts, raw model responses, candidates and context. Those bytes
 remain durable in PostgreSQL but are not a browser API. Studio receives
 version/hash/validation/error metadata for progress. Explicit output reads

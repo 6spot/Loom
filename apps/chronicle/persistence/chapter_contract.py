@@ -86,8 +86,8 @@ _MAX_TEMP_ID_NUMBER = 999
 
 #: Max characters of each compared value rendered into a repair diagnostic.
 #: Equality diagnostics must show both sides so the correction re-ask can
-#: copy the verbatim value; the per-diagnostic char budget in
-#: chapter_prompt.compact_validation_errors still bounds the total.
+#: copy the verbatim value; the per-diagnostic character budget in the
+#: staged chapter contract still bounds the total.
 _DIAGNOSTIC_VALUE_CHARS = 60
 
 

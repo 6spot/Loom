@@ -137,11 +137,6 @@ class ChapterModelsTests(unittest.TestCase):
             with self.subTest(config=config), self.assertRaises(PersistenceError):
                 self.configured(config)
 
-    def test_fixture_pack_cannot_hide_live_pipeline_config(self):
-        with self.assertRaisesRegex(PersistenceError, "cannot be combined"):
-            chapter_stage.chapter_model_from_env({"CHRONICLE_CHAPTER_FIXTURE_PACK": "unused.json",
-                                                 "CHRONICLE_CHAPTER_PIPELINE_CONFIG": "live.json"})
-
     def test_studio_choices_exclude_transport_and_survive_credential_rotation(self):
         choices = chapter_model_settings.catalog(self.env())
         self.assertTrue(choices["available"])
@@ -151,8 +146,7 @@ class ChapterModelsTests(unittest.TestCase):
         self.assertNotIn("gateway.example", json.dumps(choices))
         self.assertEqual(choices, chapter_model_settings.catalog({**self.env(),
             "CHRONICLE_MODEL_API_KEY": "rotated", "CHRONICLE_MODEL_TIMEOUT_SECONDS": "2400"}))
-        for env in ({}, {"CHRONICLE_CHAPTER_MODEL": "fixture:chapter"},
-                    {**self.env(), "CHRONICLE_CHAPTER_FIXTURE_PACK": "test.json"}):
+        for env in ({}, {"CHRONICLE_CHAPTER_MODEL": "fixture:chapter"}):
             self.assertFalse(chapter_model_settings.catalog(env)["available"])
 
     def test_per_job_choices_use_other_providers_without_mutating_worker_defaults(self):

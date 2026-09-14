@@ -35,7 +35,8 @@ Initial data may focus on a narrow period, but the product and data model must r
 - [`docs/person-state-reading.md`](docs/person-state-reading.md) — third-round source-grounded offices, affiliations, narrative phases, evidence review and certainty display (implementation target).
 - [`docs/background-art.md`](docs/background-art.md) — era-aware background art, explicit generation/upload and human save-to-display workflow; product upload/display integration remains planned.
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — #548 chapter production and review task context.
-- [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.
+- [`docs/staged-chapter-production.md`](docs/staged-chapter-production.md) — current 0.4 staged full-chapter production contract.
+- [`docs/chapter-production.md`](docs/chapter-production.md) — historical first-round contract and version references.
 - [`docs/review-workflow.md`](docs/review-workflow.md) — first-round review queue, source context and continuous review contract.
 - [`docs/product.md`](docs/product.md) — current product goal, implemented surfaces and remaining gaps.
 - [`docs/ui.md`](docs/ui.md) — broader interaction and UI design direction.

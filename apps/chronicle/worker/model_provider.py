@@ -1,24 +1,9 @@
-"""Deployment model provider boundary for Chronicle ingestion workers.
+"""Vendor-neutral Responses transport for current Chronicle model steps.
 
-C1-T13 needs the already-tested C1 extraction/presentation provider protocols
-to be reachable from the real Docker worker. This module intentionally keeps
-that deployment I/O vendor-neutral: it speaks the small HTTP subset used by a
-Responses-style endpoint and returns only produced text.
-
-Extraction and Reader Presentation each supply their own strict structured-
-output constraint derived from their canonical contract. These constrain
-generation only; the existing schema/grounding/reference/time/uncertainty
-validators remain the acceptance authority.
-
-Development may instead opt in to ``CHRONICLE_MODEL_FIXTURE_PACK``. That mode
-uses the same model boundary and normal Chronicle validators/persistence path;
-it is explicit and mutually exclusive with an external endpoint so production
-can never silently fall back to fixture history.
-
-Historical authority does not move here. Providers only supply raw model text
-to the existing extraction / Reader Presentation validators; those layers
-remain responsible for evidence grounding, schema validation, conservative
-resolution, and fail-closed publication.
+This module validates transport configuration, performs bounded HTTP requests,
+and returns model text plus a sanitized receipt. The staged chapter runner and
+narrative runner own step schemas, source grounding, retries, and publication
+decisions; no legacy extraction or presentation provider is selected here.
 """
 
 from __future__ import annotations
@@ -34,40 +19,8 @@ from urllib import error, parse, request
 
 from common import PersistenceError
 
-try:
-    from extraction_model_schema import (
-        chapter_candidate_text_format,
-        chapter_candidate_text_format_for,
-        extraction_text_format,
-    )
-    from presentation_model_schema import presentation_text_format
-except ImportError:  # pragma: no cover - package import path
-    from .extraction_model_schema import (
-        chapter_candidate_text_format,
-        chapter_candidate_text_format_for,
-        extraction_text_format,
-    )
-    from .presentation_model_schema import presentation_text_format
-
-#: Frozen joint-provider generation retained for the C1 branch until T03.
-#: Current production uses the staged ChapterModels entry instead.
-PRODUCTION_CHAPTER_CANDIDATE_VERSION = "0.3"
-
 DEFAULT_MODEL_TIMEOUT_SECONDS = 600.0
-# Legacy C1 extraction/presentation transport bound. Kept at 2 MiB so the
-# existing providers constructed by ``models_from_env()`` keep their exact
-# historical accepted response size; T06 must not change their behavior.
-DEFAULT_MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-# Chapter-production §3 engineering envelope (T01 ChapterLimits): the chapter
-# provider accepts up to 4 MiB HTTP response bytes. This is a transport
-# bound, not a model capability claim; larger payloads fail closed as
-# oversize responses. Applied only through ``build_chapter_model()``.
-DEFAULT_CHAPTER_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
-# Chapter-production §3 provider output budget (T01 ChapterLimits
-# max_output_tokens). Sent as ``max_output_tokens`` on chapter requests so
-# the model receives an explicit output token limit alongside the strict
-# structured-output schema.
-DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS = 65536
+DEFAULT_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 DEFAULT_MODEL_MAX_ATTEMPTS = 3
 DEFAULT_MODEL_RETRY_BACKOFF_SECONDS = 1.0
 MODEL_HTTP_USER_AGENT = "Loom-Chronicle/0.1"
@@ -225,9 +178,7 @@ class ResponsesHTTPModel:
     retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS
     text_format: dict[str, Any] | None = None
     # Chapter output budget (chapter-production §3 / T01 ChapterLimits).
-    # ``None`` omits the field so legacy chunk/presentation providers keep
-    # their exact historical request shape; chapter providers set it
-    # (default 65536) so the request carries an explicit output token limit.
+    # Current chapter profiles set this explicitly; other transports may omit it.
     max_output_tokens: int | None = None
     # Worker-local contract metadata; never sent as a provider payload field.
     # The chapter factory binds this to the same version as text_format.
@@ -350,11 +301,8 @@ class ResponsesHTTPModel:
         The staged scheduler owns retries and persists each attempt. Use an
         interruptible async transport here so a peer sending keep-alive bytes
         cannot reset the global timeout indefinitely. Network inactivity and
-        the wall-clock deadline both use ``self.timeout_seconds``. Callers
-        cannot supply a second step-specific deadline. The legacy complete hook
-        retains its frozen retry behavior; both paths use the same Responses
-        payload and text/status validation. Raw reasoning/envelopes are never
-        returned to the product audit log.
+        the wall-clock deadline both use ``self.timeout_seconds``. Raw
+        reasoning/envelopes are never returned to the product audit log.
         """
         if not isinstance(prompt, str) or not prompt:
             raise ModelProviderError("model prompt must be a non-empty string")
@@ -489,131 +437,3 @@ class ResponsesHTTPModel:
             raise ModelProviderError(str(exc), receipt=receipt, raw_text=raw_text) from exc
         finally:
             receipt["elapsed_seconds"] = round(time.monotonic() - started, 3)
-
-
-def _fixture_models_from_env() -> tuple[Any, Any] | None:
-    """Build the explicit development fixture provider when requested.
-
-    Fixture mode and external-provider mode are mutually exclusive. This makes
-    fixture use visible in configuration and prevents a missing/invalid live
-    provider from ever degrading into deterministic development output.
-    """
-    fixture_pack = _nonempty_env("CHRONICLE_MODEL_FIXTURE_PACK")
-    if fixture_pack is None:
-        return None
-    conflicting = [
-        name
-        for name in (
-            "CHRONICLE_MODEL_ENDPOINT",
-            "CHRONICLE_MODEL_API_KEY",
-            "CHRONICLE_EXTRACTION_MODEL",
-            "CHRONICLE_PRESENTATION_MODEL",
-        )
-        if _nonempty_env(name) is not None
-    ]
-    if conflicting:
-        raise PersistenceError(
-            "CHRONICLE_MODEL_FIXTURE_PACK cannot be combined with external "
-            f"model configuration ({', '.join(conflicting)})"
-        )
-    # Imported lazily so production HTTP-only deployments do not gain any
-    # fixture behavior unless the explicit environment variable is present.
-    import fixture_model
-
-    return fixture_model.models_from_fixture_pack(fixture_pack)
-
-
-def models_from_env() -> tuple[Any | None, Any | None]:
-    """Build independently configured extraction/presentation providers.
-
-    ``CHRONICLE_MODEL_FIXTURE_PACK`` is an explicit development-only mode and
-    returns both fixture providers. Otherwise, no model names preserves the
-    pre-C1-T13 worker behavior exactly. Once either live model is requested, an
-    explicit endpoint is required so a deployment can choose OpenAI, Luna
-    through a compatible gateway, or a local Responses-compatible service
-    without Chronicle guessing a vendor.
-
-    Each live model receives the strict structured-output constraint for its
-    own contract and is validated independently after generation.
-    """
-    fixture_models = _fixture_models_from_env()
-    if fixture_models is not None:
-        return fixture_models
-
-    extraction_name = _nonempty_env("CHRONICLE_EXTRACTION_MODEL")
-    presentation_name = _nonempty_env("CHRONICLE_PRESENTATION_MODEL")
-    if extraction_name is None and presentation_name is None:
-        return None, None
-
-    endpoint = _nonempty_env("CHRONICLE_MODEL_ENDPOINT")
-    if endpoint is None:
-        raise PersistenceError(
-            "CHRONICLE_MODEL_ENDPOINT is required when a Chronicle model is configured"
-        )
-    endpoint = _validate_endpoint(endpoint)
-    api_key = _nonempty_env("CHRONICLE_MODEL_API_KEY")
-    timeout = timeout_from_env()
-
-    def build(
-        name: str | None,
-        *,
-        text_format: dict[str, Any] | None = None,
-    ) -> ResponsesHTTPModel | None:
-        if name is None:
-            return None
-        return ResponsesHTTPModel(
-            name=name,
-            endpoint=endpoint,
-            api_key=api_key,
-            timeout_seconds=timeout,
-            text_format=text_format,
-        )
-
-    return (
-        build(extraction_name, text_format=extraction_text_format()),
-        build(presentation_name, text_format=presentation_text_format()),
-    )
-
-
-def build_chapter_model(
-    name: str,
-    endpoint: str,
-    *,
-    api_key: str | None = None,
-    timeout_seconds: float | None = None,
-    max_response_bytes: int = DEFAULT_CHAPTER_MAX_RESPONSE_BYTES,
-    max_output_tokens: int = DEFAULT_CHAPTER_MAX_OUTPUT_TOKENS,
-    max_attempts: int = DEFAULT_MODEL_MAX_ATTEMPTS,
-    retry_backoff_seconds: float = DEFAULT_MODEL_RETRY_BACKOFF_SECONDS,
-    candidate_version: str | None = None,
-) -> ResponsesHTTPModel:
-    """Build the chapter-production provider for one joint generation call.
-
-    The request carries the chapter-candidate strict format (only
-    model-generatable fields) plus the chapter-production §3 output token
-    budget and 4 MiB response byte cap. ``candidate_version`` selects the
-    strict contract; this frozen joint factory defaults to 0.3 person states
-    on top of the reading annotations. New staged work uses ChapterModels.
-    Acceptance still runs
-    the matching T01/reading/person-state validator on the returned text;
-    this factory only constrains generation and transport. Legacy
-    extraction/presentation providers keep their own 2 MiB default and are
-    unaffected.
-
-    Worker selection and environment wiring belong to C2-R1-T13/T16; this
-    helper exists so that wiring can construct the provider without
-    duplicating the chapter envelope.
-    """
-    version = candidate_version or PRODUCTION_CHAPTER_CANDIDATE_VERSION
-    return ResponsesHTTPModel(
-        name=name,
-        endpoint=endpoint,
-        api_key=api_key,
-        timeout_seconds=timeout_from_env() if timeout_seconds is None else timeout_seconds,
-        max_response_bytes=max_response_bytes,
-        max_attempts=max_attempts,
-        retry_backoff_seconds=retry_backoff_seconds,
-        text_format=chapter_candidate_text_format_for(version),
-        max_output_tokens=max_output_tokens,
-        candidate_version=version,
-    )

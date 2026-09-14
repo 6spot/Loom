@@ -32,8 +32,8 @@ import ingestion_worker as worker
 import staged_chapter
 import studio_production
 from common import PersistenceConflict, sha256_json
-import test_chapter_pipeline_postgres as legacy
 import test_person_state_pipeline_postgres as state_pipeline
+import pipeline_test_support as support
 from staged_pipeline_fixture import CORRECT_FIRST, TEXT, WRONG_FIRST, ScriptedModels, _StepModel
 
 WORKER = "staged-pipeline-test"
@@ -81,15 +81,7 @@ class SemanticCorrectionModels(ScriptedModels):
         return raw
 
 
-class StagedChapterPipelinePostgresTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.control_url = legacy._control_url()
-
-    setUp = legacy.ChapterPipelinePostgresTests.setUp
-    tearDown = legacy.ChapterPipelinePostgresTests.tearDown
-    _queue_job = legacy.ChapterPipelinePostgresTests._queue_job
-    _job_status = legacy.ChapterPipelinePostgresTests._job_status
+class StagedChapterPipelinePostgresTests(support.CurrentPipelineDatabase, unittest.TestCase):
     _person_state_plan = state_pipeline.PersonStatePipelineTests._person_state_plan
     _open_person_state_reviews = state_pipeline.PersonStatePipelineTests._open_person_state_reviews
     _approve_person_state = state_pipeline.PersonStatePipelineTests._approve_person_state
@@ -228,7 +220,7 @@ class StagedChapterPipelinePostgresTests(unittest.TestCase):
         self.assertEqual(self._counts(ctx), {"runs": 1, "reviews": 0, "published": 0})
 
     def test_all_chapters_in_one_job_share_frozen_model_and_step_policy(self):
-        text = legacy.TEXT_DISTINCT
+        text = support.TEXT_DISTINCT
         job_id, _revision, source_sha = self._queue_job(text)
         with psycopg.connect(self.database_url) as conn:
             control_plane.claim_job(conn, worker=WORKER, lease_seconds=300, job_id=job_id)

@@ -144,7 +144,7 @@ T01 把上述约定固化为可被各模块直接消费的机器契约，避免�
 - 明确性由编译器按审核评估计算（`clear | uncertain`），模型 confidence 不参与显示判定；`recommendation` / `posthumous` 只能 `attest`，不建立当前身份。地点行政归属与实际控制分开，原始 Event 不自动成为锚点、也不能凭到访推导控制。
 - 候选键由程序按 kind、chapter、item_ref 与已解析锚点计算；审核决定 payload 必须携带 `plan_fingerprint`，跨版本/并发冲突为 409 且不丢草稿。
 
-T02 扩展现有 chapter_prompt／chapter_extraction／model_provider；整章一次联合生成加最多一次完整章修正，完整采用已有 request/run/fingerprint/运输重试。结构验证不证明模型读懂原文；语义评估和真实语料验收分别负责这两层证明。接受的仍是一份完整联合 artifact，没有独立人物状态补生成或阅读时生成路径。
+当前 staged pipeline 由 `chapter_models.py`、`chapter_stage.py` 与 `staged_chapter_contract.py` 共同拥有；翻译、独立抽取、人物状态关联和有界修正都绑定同一份完整 request/run/fingerprint/运输重试记录。结构验证不证明模型读懂原文；语义评估和真实语料验收分别负责这两层证明。接受的仍是一份完整 artifact，没有独立人物状态补生成或阅读时生成路径。
 
 ## 5. 阶段依据审核
 

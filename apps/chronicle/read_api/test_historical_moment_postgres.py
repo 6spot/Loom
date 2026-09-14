@@ -13,13 +13,11 @@ from psycopg import sql
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 PERSISTENCE = ROOT / "apps/chronicle/persistence"
-ACCEPTANCE = ROOT / "apps/chronicle/acceptance"
-for path in (PERSISTENCE, HERE, ACCEPTANCE):
+for path in (PERSISTENCE, HERE):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from common import load_json, record_ref
-from c1_t17_gate import moment_summary
 from historical_moment import build_historical_moment
 from migrations import apply_migrations
 from postgres_v0 import persist_dataset
@@ -201,7 +199,10 @@ class HistoricalMomentPostgresTests(unittest.TestCase):
             )
             self.assertEqual(status, 200)
             self.assertEqual(payload["schema"], "chronicle.historical-moment")
-            self.assertEqual(moment_summary(payload)["catalog_sha256"], self.catalog_hash)
+            self.assertEqual(
+                payload["catalog"]["latest_catalog_sha256"], self.catalog_hash
+            )
+            self.assertEqual(payload["catalog"]["status"], "published")
 
             status, payload = dispatch(
                 repo,

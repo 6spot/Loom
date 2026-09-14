@@ -10,8 +10,8 @@ C1-T17 的交付和历史验收保留在[任务记录](../../../docs/tasks/chron
 当前正式生产使用 [worker.md](worker.md) 与
 [staged-chapter-production.md](staged-chapter-production.md) 定义的整章分阶段流程。
 仍被 CI 使用的冻结第一轮回归见 [chapter-acceptance.md](chapter-acceptance.md)。
-[C3-T01](../../../docs/tasks/chronicle/product-convergence/T01.md) 负责把有效场景
-迁入统一的当前验收入口，再删除旧 gate 与专属 helper。
+有效的生命周期和发布场景现已由统一的当前验收入口及 T01 测试覆盖；旧 gate
+与专属 helper 不再属于仓库接口。
 
 程序校验通过不代表历史内容正确。当前任务仍须按自己的验收要求检查完整原文、
 译文、来源归属、人物阶段和真实页面；不为普通开发自动重跑已完成的 C1 历史验收。

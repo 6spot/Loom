@@ -80,7 +80,7 @@ Studio 显式选择来源后创建，章节导入本身不自动重写公开历�
 
 HTTP 运输重试沿用现有最多 3 次，和上述内容修正分开计数；job/租约重试继续受既有有限状态机约束。请求 fingerprint 和 run 历史记录实际模型、prompt/schema/plan/limits 版本。修正不塞回无限大的旧响应：完整章 + schema + 有界错误要求重新生成完整产物。
 
-0.2/0.3 联合产物的纠错按完整验证报告区分元数据修复与正文结构修复。仅修元数据时保留原有段落 ID、顺序及全文，结果仍是完整联合产物；缺段、正文超限等仍可完整修复。具体诊断预算、版本绑定和两稿重放程序见 [extraction.md 的纠错完整性说明](extraction.md#correction-integrity-for-02-and-03)。该限制防止纠错删文，不证明初稿翻译完整或正确。
+0.2/0.3 历史联合产物的纠错约束已由当前 0.4 staged 流程取代；当前诊断预算、版本绑定和完整结果重放见 [staged-chapter-production.md](staged-chapter-production.md)。该限制防止纠错删文，不证明初稿翻译完整或正确。
 
 ## 4. 联合产物：机器契约的固定形状
 
@@ -134,7 +134,7 @@ HTTP 运输重试沿用现有最多 3 次，和上述内容修正分开计数；
 
 `chapter_store.py` 持有新章表的访问；catalog 继续由 canonical_store.py 持有。不改 0005 Reader Presentation 的 entity/event + Claim-only 约束，不复制 staged 实体表。source anchors 包含在 immutable artifact 中，索引是派生查询能力。接受入口先取得 producing-run identity，然后完整 artifact、chunk accepted pointer 与 completed 状态同一 fenced 事务提交；如果 run 已先提交，只能从其完整 request/response 重验收养。
 
-复用现有 lease-fenced 短事务；模型等待期间不持 DB 事务。accepted run/状态提交间退出可收养已有结果，但须先重验原始 request/response、完整联合产物、source/plan/config fingerprint。失去 lease、错版本、hash 漂移、缺章、额外旧章、重复接受冲突都拒绝，不能重新调用模型后覆盖原审计。旧 fake executor 只允许明确的测试注入；生产缺 model/source 不得假成功。
+复用现有 lease-fenced 短事务；模型等待期间不持 DB 事务。accepted run/状态提交间退出可收养已有结果，但须先重验原始 request/response、完整 staged 产物、source/plan/config fingerprint。失去 lease、错版本、hash 漂移、缺章、额外旧章、重复接受冲突都拒绝，不能重新调用模型后覆盖原审计。生产缺 model/source 明确失败，不生成伪造公开内容。
 
 ## 6. 同书跨章与跨来源审核
 
