@@ -64,6 +64,27 @@ evidence 使用来源 block/fragment 句柄，解释写在 message/rationale 中
 任务配置还保存实际提示模板的指纹；只改提示词、未改模型名或 schema 时，
 也不能在同一任务的后续章节静默生效。
 
+### 共用 durable step runner
+
+步骤执行机制由应用内的 `persistence/step_runner.py` 统一拥有。每个调用者只
+提供 `StepDefinition`（步骤名、依赖和是否允许格式重试）与 `StepSpec`（本轮
+输入和 round），以及本业务的 prompt、解析、语义校验和模型 adapter；runner
+不读取或解释原文、译文、事实或审核结论。
+
+runner 使用既有 `IngestionJob` 的租约和 `ingestion_outputs` 写入回调。所有无
+依赖的 spec 共享冻结的 `max_parallel`；依赖组只有在上游每个模型 slot 的结果
+已保存且为 `completed` 后才进入队列。一次写入结果后才会调度下游，失败或取消
+不会把未完成的模型调用伪装成输入。章节 runner 只是这个组件的 adapter，不得
+再复制一份并发、租约中断或 attempt 调度器。
+
+一个 model node 的输入指纹固定绑定 pipeline、step、round、slot、业务输入、
+完整 prompt 和模型 profile。attempt 启动先追加 durable start，启动即消耗预算；
+成功结果按同一指纹复用，失败/无效结果与诊断保留，恢复只重新调度未完成的
+node 及其下游。model 调用不持有数据库事务；heartbeat 发现取消或租约丢失时
+中断活动 transport，迟到结果不能写回。超时仍只从
+`CHRONICLE_MODEL_TIMEOUT_SECONDS` 读取，runner 的等待间隔只是租约 heartbeat
+轮询，不是新的模型超时。
+
 每次尝试立即追加到 `ingestion_outputs`，包括步骤/尝试编号、模型与请求配置、
 上游版本、完整原始文本结果、解析结果、验证报告、完成状态、已知用量和耗时。
 缺失用量为 null，不写成零。checkpoint 只引用已提交的输出。模型调用期间不
