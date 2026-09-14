@@ -63,6 +63,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Validate Validator helper syntax
+        run: |
+          for helper in tools/validator-authority-gate.sh tools/validator-certification-gate.sh tools/validator-pg18-gate.sh tools/test.sh tools/postgres-test.sh; do
+            bash -n "$helper"
+          done
+          python3 -m py_compile tools/validator-certification-gate.py
+
       - name: Install Rust
         run: |
           rustup toolchain install "$RUST_VERSION" --profile minimal --component clippy --component rustfmt

@@ -20,6 +20,13 @@ not add a second path list or shell classifier to a workflow.
   classifier and retains its independent **Validator Gate**. Validator-only
   implementation changes do not compile the core Rust workspace.
 
+The CI and Validator workflow entries still appear on every PR/main push so
+their required gates always report a result. Classification and gate jobs are
+lightweight; an entry in Actions does not mean every build ran. Inspect the
+selected/skipped jobs or the classification summary. Do not add top-level
+`paths` filters to these workflows: an absent required check can leave a PR
+waiting indefinitely.
+
 All three workflows retain manual dispatch. Dispatch selects all checks owned
 by that workflow. Existing offline fixtures, browser requirements, performance
 budgets and acceptance scripts remain in use. Live model preflight and
@@ -37,7 +44,12 @@ The classifier is the exact rule source; this table explains its boundaries.
 
 | Change | Selected work |
 | --- | --- |
-| Ordinary README, AGENTS or product/development documentation | Routing tests and changed-document checks. The public quickstart/operator documents retain their operational command checks. |
+| Core crates/capabilities, server/CLI assembly, core tests or neutral examples | Core Rust checks; no Chronicle or Validator lane. Core Rust is still checked as one workspace, excluding Validator. |
+| Validator source or its named certification/helper scripts | Validator static checks and helper syntax checks; no Chronicle or core workspace lane. Full historical certification remains manual. |
+| Root Cargo manifests/lock/toolchain | Core Rust, dependency policy and Validator static checks. Chronicle has separate Rust workspaces. |
+| Shared `tools/test.sh` or `tools/postgres-test.sh` | Core Rust, deployment configuration and Validator static/helper checks. Chronicle uses separate acceptance harnesses. |
+| Ordinary README, AGENTS, CLAUDE or product/development documentation | Routing tests and changed-document checks. The public quickstart/operator documents retain their operational command checks. |
+| Repository historical-background-art scripts, brief assets or agent configuration | Their offline archive tests; no application build, database, browser or model call. Skill Markdown follows ordinary documentation routing. |
 | Studio presentation and Studio-only UI components | Frontend build consistency, frontend unit tests and Studio/review component suites; no chapter database or public reading stack solely for this change. |
 | Source reader components | Source-reading browser acceptance and matching component suites. |
 | Synthesized history or person UI | Published-history/person browser acceptance and matching component suites. Shared reading context, position/state types and layout cover both readers. |

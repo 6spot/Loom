@@ -86,6 +86,19 @@ jobs:
           CI_PLAN: ${{ needs.changes.outputs.plan }}
         run: python3 tools/ci_routing.py docs
 
+  skill-tools:
+    name: Repository skill tool checks
+    needs: changes
+    if: fromJSON(needs.changes.outputs.plan).jobs['skill-tools']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Historical background archive offline tests
+        run: python3 -m unittest discover -s .agents/skills/historical-background-art/scripts -p 'test_library.py' -v
+
   ledger:
     name: Task ledger governance
     needs: changes
@@ -338,7 +351,7 @@ jobs:
   repository-gate:
     name: Repository Gate
     if: always()
-    needs: [changes, routing-tests, documentation, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round, chronicle-third-round, chronicle]
+    needs: [changes, routing-tests, documentation, skill-tools, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round, chronicle-third-round, chronicle]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -31,7 +31,7 @@ class RoutingTests(unittest.TestCase):
         return plan
 
     def test_plain_docs_do_not_build_or_run_product_gates(self):
-        for path in ("AGENTS.md", "docs/development/README.md",
+        for path in ("AGENTS.md", "CLAUDE.md", "docs/development/README.md",
                      "apps/chronicle/webapp/README.md", "apps/chronicle/docs/ui.md"):
             with self.subTest(path=path):
                 plan = self.assert_route([path], ("documentation", "routing-tests"))
@@ -158,6 +158,56 @@ class RoutingTests(unittest.TestCase):
                           ("validator-static", "chronicle"))
         self.assert_route(["Cargo.lock"], ("rust", "dependency-policy", "validator-static"),
                           ("chronicle",))
+
+    def test_validator_helpers_stay_inside_validator(self):
+        for path in (
+            "tools/validator-authority-gate.sh", "tools/validator-certification-gate.py",
+            "tools/validator-certification-gate.sh", "tools/validator-pg18-gate.sh",
+        ):
+            with self.subTest(path=path):
+                plan = classify([path])
+                self.assertEqual(
+                    {job for job, selected in plan["jobs"].items() if selected},
+                    {"routing-tests", "validator-static"},
+                )
+
+    def test_core_examples_do_not_start_application_checks(self):
+        for path in (
+            "examples/neutral-v0/templates/revision-1.json",
+            "examples/neutral-v0/templates/revision-2.json",
+            "examples/neutral-v0/workflows/agency.sh",
+            "examples/neutral-v0/workflows/walk.sh",
+        ):
+            with self.subTest(path=path):
+                plan = classify([path])
+                self.assertEqual(
+                    {job for job, selected in plan["jobs"].items() if selected},
+                    {"routing-tests", "rust"},
+                )
+
+    def test_shared_core_test_helpers_cover_validator_but_not_chronicle(self):
+        for path in ("tools/test.sh", "tools/postgres-test.sh"):
+            plan = classify([path])
+            self.assertEqual(
+                {job for job, selected in plan["jobs"].items() if selected},
+                {"routing-tests", "rust", "deployment", "validator-static"},
+            )
+
+    def test_background_archive_tools_have_their_own_offline_check(self):
+        prefix = ".agents/skills/historical-background-art/"
+        for relative in ("scripts/library.py", "scripts/test_library.py",
+                         "assets/brief.json", "agents/openai.yaml"):
+            with self.subTest(relative=relative):
+                plan = classify([prefix + relative])
+                self.assertEqual(
+                    {job for job, selected in plan["jobs"].items() if selected},
+                    {"routing-tests", "skill-tools"},
+                )
+        plan = classify([prefix + "SKILL.md"])
+        self.assertEqual(
+            {job for job, selected in plan["jobs"].items() if selected},
+            {"routing-tests", "documentation"},
+        )
 
     def test_task_notes_select_only_the_owning_metadata_check(self):
         plan = self.assert_route(["docs/tasks/chronicle/third-round/T01-test.md"],
@@ -409,6 +459,19 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("services", jobs["web-components"])
         self.assertNotIn("docker build", str(jobs["web-components"]))
         self.assertEqual(str(jobs).count("npm --prefix apps/chronicle/webapp test"), 1)
+
+    def test_repository_skill_tools_are_checked_without_an_application_stack(self):
+        job = self.workflows["ci.yml"]["jobs"]["skill-tools"]
+        self.assertIn("test_library.py", str(job["steps"]))
+        self.assertNotIn("services", job)
+        self.assertNotIn("secrets", job)
+        self.assertNotIn("docker", str(job))
+
+    def test_validator_helpers_keep_static_checks_without_full_certification(self):
+        steps = str(self.workflows["validator.yml"]["jobs"]["validator-static"]["steps"])
+        self.assertIn('bash -n "$helper"', steps)
+        self.assertIn("python3 -m py_compile tools/validator-certification-gate.py", steps)
+        self.assertNotIn("bash tools/validator-certification-gate.sh", steps)
 
     def test_step_and_suite_flags_have_consumers(self):
         text = "\n".join((ROOT / ".github/workflows" / name).read_text() for name in self.workflows)

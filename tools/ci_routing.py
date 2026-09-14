@@ -15,7 +15,7 @@ from urllib.parse import unquote, urlsplit
 
 GROUPS = {
     "repository": (
-        "routing-tests", "documentation", "ledger", "dependency-policy", "rust",
+        "routing-tests", "documentation", "skill-tools", "ledger", "dependency-policy", "rust",
         "deployment", "chronicle-static", "chronicle-first-round",
         "chronicle-third-round", "chronicle",
     ),
@@ -36,6 +36,12 @@ SUITES = ("studio", "narrative", "reading", "history", "person")
 CI_FILES = {
     "tools/ci_routing.py", "tools/test_ci_routing.py",
     "tools/requirements-ci.txt", ".github/CODEOWNERS",
+    ".github/workflows/multica-ci-wakeup.yml",
+    ".github/workflows/multica-pr-metadata.yml",
+}
+VALIDATOR_TOOLS = {
+    "tools/validator-authority-gate.sh", "tools/validator-certification-gate.py",
+    "tools/validator-certification-gate.sh", "tools/validator-pg18-gate.sh",
 }
 WEB = "apps/chronicle/webapp/"
 DIST = "apps/chronicle/web/dist/"
@@ -55,7 +61,7 @@ def ordinary_doc(path: str) -> bool:
     """Runtime inputs and acceptance contracts are classified before this."""
     name = PurePosixPath(path).name
     return (
-        name in {"AGENTS.md", "README.md", "LICENSE", "LICENSE.md"}
+        name in {"AGENTS.md", "CLAUDE.md", "README.md", "LICENSE", "LICENSE.md"}
         or path.startswith(("docs/", ".agents/skills/"))
         and path.endswith((".md", ".rst", ".txt"))
         or path.startswith(CHRONICLE + "docs/") and path.endswith(".md")
@@ -199,10 +205,16 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
                 plan["docs"].append(path)
             if path in {"README.md", "docs/quickstart.md", "docs/operator-guide.md"}:
                 step("active_docs")
-        elif path.startswith("apps/loom-validator/"):
+        elif path.startswith(".agents/skills/historical-background-art/"):
+            enable("skill-tools", why=why)
+        elif path.startswith("apps/loom-validator/") or path in VALIDATOR_TOOLS:
             enable("validator-static", why=why)
             if name == "Cargo.toml":
                 enable("dependency-policy", why=why)
+        elif path in {"tools/test.sh", "tools/postgres-test.sh"}:
+            # Shared by core tests and Validator's manual certification;
+            # Chronicle uses its own database/Compose acceptance harnesses.
+            enable("rust", "deployment", "validator-static", why=why)
         elif path in {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"}:
             enable("rust", "dependency-policy", "validator-static", why=why)
         elif path.startswith((CHRONICLE + "server/", CHRONICLE + "control_plane/")):
@@ -282,7 +294,7 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
             all_chronicle("unclassified Chronicle file: " + path)
         elif path.endswith("/Cargo.toml") or path == "deny.toml":
             enable("rust", "dependency-policy", why=why)
-        elif path.endswith(".rs") or path.startswith(("crates/", "capabilities/", "tests/")) or path in {
+        elif path.endswith(".rs") or path.startswith(("crates/", "capabilities/", "tests/", "examples/neutral-v0/")) or path in {
             "rustfmt.toml", "tools/check_architecture.py", "tools/check_storage_sql_ownership.py",
         }:
             enable("rust", why=why)
