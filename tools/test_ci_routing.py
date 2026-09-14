@@ -50,6 +50,9 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/webapp/src/pages/studio/StudioImportDetailPage.tsx",
             "apps/chronicle/webapp/src/components/studio/ModelSelector.tsx",
             "apps/chronicle/webapp/src/styles/studio.css",
+            "apps/chronicle/webapp/src/styles/narrative-review.css",
+            "apps/chronicle/webapp/src/styles/person-state-review.css",
+            "apps/chronicle/webapp/src/lib/person-state-review-display.ts",
             "apps/chronicle/webapp/src/components/ui/button.tsx",
         ):
             with self.subTest(path=path):

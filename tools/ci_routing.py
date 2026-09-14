@@ -230,6 +230,8 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
                 or relative.startswith(("src/lib/studio-", "src/lib/review-", "src/lib/chapter-content-review"))
                 or name in {
                     "studio.css", "review-evidence.css", "chapter-content-review.css",
+                    "narrative-review.css", "person-state-review.css",
+                    "person-state-review-display.ts",
                     "studio-workspace-component-smoke.mjs", "narrative-review-component-smoke.mjs",
                 }
                 or relative.startswith("tests/studio-")
