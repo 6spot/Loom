@@ -1655,7 +1655,7 @@ class JobRunner:
                 bundles=bundles, resolutions=resolutions,
                 existing_catalog=existing_catalog,
             )
-        except resolve_publish.publication_v0.PublicationConflict as exc:
+        except resolve_publish.catalog_publication.PublicationConflict as exc:
             raise PersistenceError(
                 f"real publication failed closed: {exc}"
             ) from exc
@@ -2573,9 +2573,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--source-dir", default=None,
         help="Chronicle-owned source directory (else CHRONICLE_SOURCE_DIR). "
-        "When set, structure/segment stages run the real versioned "
-        "segmentation over stored revision bytes; when unset, every stage "
-        "uses the deterministic fake executor.",
+        "Required for production; natural chapters are read from stored revision bytes.",
     )
     parser.add_argument(
         "--worker-id", default=None,
@@ -2586,11 +2584,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-jobs", type=int, default=None,
         help="stop after this many jobs (default: run until signalled)",
-    )
-    parser.add_argument(
-        "--fail-stage", action="append", default=[],
-        metavar="STAGE[:COUNT]",
-        help="script COUNT fake failures for STAGE (repeatable; fault-injection demos only)",
     )
     return parser
 
@@ -2613,81 +2606,3 @@ def parse_fail_plan(values: list[str]) -> dict[str, int]:
             raise PersistenceError(f"invalid --fail-stage {raw!r}: count must be >= 1")
         plan[stage] = plan.get(stage, 0) + failures
     return plan
-
-
-def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    if args.lease_seconds < 1:
-        raise PersistenceError("--lease-seconds must be a positive integer")
-    if args.poll_interval <= 0:
-        raise PersistenceError("--poll-interval must be positive")
-    database_url = database_url_from_env(args.database_url)
-    worker = args.worker_id or default_worker_id()
-    fail_plan = parse_fail_plan(args.fail_stage)
-    source_dir = source_dir_from_env(args.source_dir)
-    revision_source = (
-        build_revision_source(database_url, source_dir)
-        if source_dir is not None
-        else None
-    )
-    extraction_model, presentation_model = model_provider.models_from_env()
-    chapter_model = chapter_stage.chapter_model_from_env()
-    chapter_limits = chapter_stage.chapter_limits_from_env()
-    narrative_model = narrative_stage.model_from_env()
-    chapter_stage.require_production_entry(
-        source_dir=source_dir,
-        extraction_model=extraction_model,
-        chapter_model=chapter_model,
-    )
-    stop = threading.Event()
-    install_shutdown_handlers(stop)
-    if chapter_model is not None and source_dir is not None:
-        print(
-            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
-            f"(lease {args.lease_seconds}s) with the C2-R1 joint chapter "
-            f"pipeline from {source_dir} "
-            f"(chapter_model={getattr(chapter_model, 'name', 'off')})",
-            flush=True,
-        )
-    elif source_dir is not None:
-        print(
-            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
-            f"(lease {args.lease_seconds}s) with real C1-T5 segmentation "
-            f"from {source_dir}",
-            flush=True,
-        )
-    else:
-        print(
-            f"chronicle-worker: {worker} claiming from Chronicle PostgreSQL "
-            f"(lease {args.lease_seconds}s) with the deterministic fake "
-            "executor (no --source-dir/CHRONICLE_SOURCE_DIR)",
-            flush=True,
-        )
-    if extraction_model is not None or presentation_model is not None:
-        print(
-            "chronicle-worker: production model providers enabled "
-            f"(extraction={getattr(extraction_model, 'name', 'off')}, "
-            f"presentation={getattr(presentation_model, 'name', 'off')})",
-            flush=True,
-        )
-    tally = run_forever(
-        database_url, worker=worker,
-        executor_factory=lambda: StageExecutor(fail_plan=dict(fail_plan)),
-        lease_seconds=args.lease_seconds, poll_interval=args.poll_interval,
-        max_jobs=args.max_jobs, stop=stop,
-        revision_source=revision_source,
-        chunk_model=extraction_model,
-        presentation_model=presentation_model,
-        chapter_model=chapter_model,
-        chapter_limits=chapter_limits,
-        narrative_model=narrative_model,
-        on_event=lambda event, payload: print(
-            f"chronicle-worker: {event} {payload}", flush=True
-        ),
-    )
-    print(f"chronicle-worker: shutdown {tally}", flush=True)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

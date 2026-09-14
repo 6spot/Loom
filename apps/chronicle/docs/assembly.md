@@ -1,5 +1,9 @@
 # Chronicle source assembly and within-book resolution (C1-T7)
 
+> C1 分块路径只保留为工程回归材料，不是当前生产入口。正式生产使用
+> [分阶段章节流程](staged-chapter-production.md)与[worker 指南](worker.md)。
+
+
 > 本页保留 C1 组装基线；C2-R1-T07 章级组装见下文“Chapter assembly”一节。本轮章级输入、统一ref映射及来源内候选的目标契约见 [chapter-production.md](chapter-production.md)。
 
 Deterministic assembly of many validated chunk outputs from one

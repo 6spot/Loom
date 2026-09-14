@@ -195,9 +195,9 @@ class PresentationStagePostgresTests(unittest.TestCase):
 
             label = resolve_publish.new_bundle_label(revision_id)
             staged_store.persist_bundle(conn, label, bundle)
-            import publication_v0
+            import catalog_publication
 
-            catalog = publication_v0.publish_catalog({label: bundle}, [], None)
+            catalog = catalog_publication.publish_catalog({label: bundle}, [], None)
             canonical_store.persist_catalog(conn, catalog)
             control_plane.record_output(
                 conn,

@@ -32,11 +32,11 @@ VALID_RESOLUTION_V02_SCOPES = frozenset(
 )
 
 
-class PublicationV0Error(RuntimeError):
+class PublicationError(RuntimeError):
     pass
 
 
-class PublicationConflict(PublicationV0Error):
+class PublicationConflict(PublicationError):
     pass
 
 
@@ -56,7 +56,7 @@ class _DisjointSet:
         try:
             parent = self.parent[item]
         except KeyError as exc:
-            raise PublicationV0Error(f"unknown representation {item[0]}:{item[1]}") from exc
+            raise PublicationError(f"unknown representation {item[0]}:{item[1]}") from exc
         if parent != item:
             self.parent[item] = self.find(parent)
         return self.parent[item]
@@ -89,7 +89,7 @@ def new_uuid7() -> str:
 
     unix_ms = time.time_ns() // 1_000_000
     if unix_ms >= 1 << 48:
-        raise PublicationV0Error("current Unix millisecond timestamp does not fit UUIDv7")
+        raise PublicationError("current Unix millisecond timestamp does not fit UUIDv7")
     random_bits = secrets.randbits(74)
     rand_a = random_bits >> 62
     rand_b = random_bits & ((1 << 62) - 1)
@@ -105,30 +105,30 @@ def new_uuid7() -> str:
 
 def _require_uuid7(value: Any, context: str) -> str:
     if not isinstance(value, str):
-        raise PublicationV0Error(f"{context} must be a UUIDv7 string")
+        raise PublicationError(f"{context} must be a UUIDv7 string")
     try:
         parsed = uuid.UUID(value)
     except (ValueError, AttributeError) as exc:
-        raise PublicationV0Error(f"{context} is not a valid UUID: {value!r}") from exc
+        raise PublicationError(f"{context} is not a valid UUID: {value!r}") from exc
     if parsed.version != 7:
-        raise PublicationV0Error(f"{context} must be UUIDv7: {value}")
+        raise PublicationError(f"{context} must be UUIDv7: {value}")
     return value
 
 
 def _record_id(record: dict[str, Any], context: str) -> str:
     value = record.get("temp_id") or record.get("id")
     if not isinstance(value, str) or not value:
-        raise PublicationV0Error(f"{context} is missing identity")
+        raise PublicationError(f"{context} is missing identity")
     return value
 
 
 def _representation(value: Any, context: str) -> Representation:
     if not isinstance(value, dict):
-        raise PublicationV0Error(f"{context} must be an object")
+        raise PublicationError(f"{context} must be an object")
     bundle = value.get("bundle")
     ref = value.get("ref")
     if not isinstance(bundle, str) or not bundle or not isinstance(ref, str) or not ref:
-        raise PublicationV0Error(f"{context} must contain non-empty bundle/ref")
+        raise PublicationError(f"{context} must contain non-empty bundle/ref")
     return bundle, ref
 
 
@@ -139,11 +139,11 @@ def _representation_json(rep: Representation) -> dict[str, str]:
 def _bundle_source_ref(bundle: dict[str, Any], label: str) -> tuple[str, str]:
     source = bundle.get("source")
     if not isinstance(source, dict):
-        raise PublicationV0Error(f"bundle {label!r} is missing source")
+        raise PublicationError(f"bundle {label!r} is missing source")
     source_ref = _record_id(source, f"bundle {label!r} source")
     source_title = source.get("title")
     if not isinstance(source_title, str) or not source_title:
-        raise PublicationV0Error(f"bundle {label!r} source is missing title")
+        raise PublicationError(f"bundle {label!r} source is missing title")
     return source_ref, source_title
 
 
@@ -155,14 +155,14 @@ def _collect_current_representations(
         bundle = bundles[label]
         records = bundle.get(collection) or []
         if not isinstance(records, list):
-            raise PublicationV0Error(f"bundle {label!r} {collection} must be an array")
+            raise PublicationError(f"bundle {label!r} {collection} must be an array")
         seen: set[str] = set()
         for record in records:
             if not isinstance(record, dict):
-                raise PublicationV0Error(f"bundle {label!r} {collection} contains a non-object")
+                raise PublicationError(f"bundle {label!r} {collection} contains a non-object")
             ref = _record_id(record, f"bundle {label!r} {collection} record")
             if ref in seen:
-                raise PublicationV0Error(
+                raise PublicationError(
                     f"bundle {label!r} contains duplicate {collection} ref {ref!r}"
                 )
             seen.add(ref)
@@ -181,16 +181,16 @@ def _existing_membership(
 
     records = existing_catalog.get(collection) or []
     if not isinstance(records, list):
-        raise PublicationV0Error(f"existing catalog {collection} must be an array")
+        raise PublicationError(f"existing catalog {collection} must be an array")
     for index, record in enumerate(records):
         if not isinstance(record, dict):
-            raise PublicationV0Error(f"existing catalog {collection}[{index}] must be an object")
+            raise PublicationError(f"existing catalog {collection}[{index}] must be an object")
         canonical_id = _require_uuid7(
             record.get("canonical_id"), f"existing catalog {collection}[{index}].canonical_id"
         )
         representations = record.get("representations") or []
         if not isinstance(representations, list) or not representations:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"existing catalog {collection}[{index}] requires representations"
             )
         for rep_index, raw_rep in enumerate(representations):
@@ -230,7 +230,7 @@ def _require_resolution_version_scope(resolution: dict[str, Any], resolution_ind
     right_label = _resolution_bundle_label(resolution, "right")
     if version == RESOLUTION_V01_VERSION:
         if resolution.get("scope") is not None:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] version 0.1 must not carry a scope"
             )
         if (
@@ -238,23 +238,23 @@ def _require_resolution_version_scope(resolution: dict[str, Any], resolution_ind
             and right_label is not None
             and left_label == right_label
         ):
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] version 0.1 requires distinct bundles"
             )
         return None
     if version != RESOLUTION_V02_VERSION:
-        raise PublicationV0Error(f"resolution[{resolution_index}] has unsupported version")
+        raise PublicationError(f"resolution[{resolution_index}] has unsupported version")
     scope = resolution.get("scope")
     if scope not in VALID_RESOLUTION_V02_SCOPES:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] has invalid v0.2 scope {scope!r}"
         )
     if scope == RESOLUTION_SCOPE_WITHIN_REVISION and left_label != right_label:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] within_revision requires identical bundle labels"
         )
     if scope == RESOLUTION_SCOPE_CROSS_SOURCE and left_label == right_label:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] cross_source requires distinct bundle labels"
         )
     return str(scope)
@@ -264,7 +264,7 @@ def _require_distinct_link_ends(
     left: Representation, right: Representation, resolution_index: int, label: str
 ) -> None:
     if left == right:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] {label} links a record to itself: "
             f"{left[0]}:{left[1]}"
         )
@@ -278,15 +278,15 @@ def _validate_resolution_bundle_ref(
 ) -> None:
     raw = resolution.get(f"{side}_bundle")
     if not isinstance(raw, dict):
-        raise PublicationV0Error(f"resolution[{resolution_index}] missing {side}_bundle")
+        raise PublicationError(f"resolution[{resolution_index}] missing {side}_bundle")
     label = raw.get("label")
     if not isinstance(label, str) or label not in bundles:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] references unknown {side} bundle {label!r}"
         )
     source_ref, source_title = _bundle_source_ref(bundles[label], label)
     if raw.get("source_ref") != source_ref or raw.get("source_title") != source_title:
-        raise PublicationV0Error(
+        raise PublicationError(
             f"resolution[{resolution_index}] {side}_bundle metadata does not match bundle {label!r}"
         )
 
@@ -298,10 +298,10 @@ def _iter_links(
     for resolution_index, resolution in enumerate(resolutions):
         links = resolution.get(field) or []
         if not isinstance(links, list):
-            raise PublicationV0Error(f"resolution[{resolution_index}] {field} must be an array")
+            raise PublicationError(f"resolution[{resolution_index}] {field} must be an array")
         for link in links:
             if not isinstance(link, dict):
-                raise PublicationV0Error(
+                raise PublicationError(
                     f"resolution[{resolution_index}] {field} contains a non-object"
                 )
             yield resolution_index, link
@@ -410,12 +410,12 @@ def publish_catalog(
     """
 
     if not bundles:
-        raise PublicationV0Error("publication requires at least one staged bundle")
+        raise PublicationError("publication requires at least one staged bundle")
     if existing_catalog is not None:
         if existing_catalog.get("schema") != "chronicle.canonical-catalog":
-            raise PublicationV0Error("existing catalog has unexpected schema")
+            raise PublicationError("existing catalog has unexpected schema")
         if existing_catalog.get("version") != PUBLICATION_VERSION:
-            raise PublicationV0Error("existing catalog has unsupported version")
+            raise PublicationError("existing catalog has unsupported version")
 
     entity_current = _collect_current_representations(bundles, "entities")
     event_current = _collect_current_representations(bundles, "events")
@@ -439,9 +439,9 @@ def publish_catalog(
 
     for resolution_index, resolution in enumerate(resolutions):
         if not isinstance(resolution, dict):
-            raise PublicationV0Error(f"resolution[{resolution_index}] must be an object")
+            raise PublicationError(f"resolution[{resolution_index}] must be an object")
         if resolution.get("schema") != "chronicle.resolution-links":
-            raise PublicationV0Error(f"resolution[{resolution_index}] has unexpected schema")
+            raise PublicationError(f"resolution[{resolution_index}] has unexpected schema")
         _require_resolution_version_scope(resolution, resolution_index)
         _validate_resolution_bundle_ref(resolution, "left", bundles, resolution_index)
         _validate_resolution_bundle_ref(resolution, "right", bundles, resolution_index)
@@ -454,14 +454,14 @@ def publish_catalog(
         right = _representation(link.get("right"), f"resolution[{resolution_index}] entity link right")
         _require_distinct_link_ends(left, right, resolution_index, "entity link")
         if left not in entity_current or right not in entity_current:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] entity link references unknown Entity representation"
             )
         decision = link.get("decision")
         if decision == "same_entity":
             entity_dsu.union(left, right)
         elif decision not in {"not_same", "uncertain"}:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] has unknown entity decision {decision!r}"
             )
 
@@ -470,14 +470,14 @@ def publish_catalog(
         right = _representation(link.get("right"), f"resolution[{resolution_index}] event link right")
         _require_distinct_link_ends(left, right, resolution_index, "event link")
         if left not in event_current or right not in event_current:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] event link references unknown Event representation"
             )
         decision = link.get("decision")
         if decision == "same_occurrence":
             event_dsu.union(left, right)
         elif decision not in {"related_occurrence", "not_same", "uncertain"}:
-            raise PublicationV0Error(
+            raise PublicationError(
                 f"resolution[{resolution_index}] has unknown event decision {decision!r}"
             )
 
@@ -510,11 +510,11 @@ def publish_catalog(
     if existing_catalog is not None:
         existing_relations = existing_catalog.get("event_relations") or []
         if not isinstance(existing_relations, list):
-            raise PublicationV0Error("existing catalog event_relations must be an array")
+            raise PublicationError("existing catalog event_relations must be an array")
         canonical_event_ids = {record["canonical_id"] for record in canonical_events}
         for index, relation in enumerate(existing_relations):
             if not isinstance(relation, dict) or relation.get("type") != "related_occurrence":
-                raise PublicationV0Error(
+                raise PublicationError(
                     f"existing catalog event_relations[{index}] is not related_occurrence"
                 )
             left_id = _require_uuid7(
@@ -530,18 +530,18 @@ def publish_catalog(
                     f"existing related_occurrence relation[{index}] points to one canonical Event"
                 )
             if left_id not in canonical_event_ids or right_id not in canonical_event_ids:
-                raise PublicationV0Error(
+                raise PublicationError(
                     f"existing catalog event_relations[{index}] references unknown canonical Event"
                 )
             provenance = relation.get("resolution_links") or []
             if not isinstance(provenance, list):
-                raise PublicationV0Error(
+                raise PublicationError(
                     f"existing catalog event_relations[{index}].resolution_links must be an array"
                 )
             endpoint_ids = tuple(sorted((left_id, right_id)))
             for item in provenance:
                 if not isinstance(item, dict):
-                    raise PublicationV0Error(
+                    raise PublicationError(
                         f"existing catalog event_relations[{index}] contains invalid resolution provenance"
                     )
                 relation_groups[endpoint_ids].append(dict(item))

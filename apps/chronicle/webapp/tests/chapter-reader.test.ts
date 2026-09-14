@@ -402,9 +402,6 @@ describe("chapter-reader ownership boundary", () => {
     expect(app).toContain("./pages/public/ChapterPage");
     expect(app).toContain('path="/chapters"');
     expect(app).toContain('path="/chapters/:publicationId"');
-    expect(routes).toContain('"chapters"');
-    expect(routes).toContain('"chapter"');
-    expect(routes).toContain("/chapters");
     // The reader still owns no Studio surface and no global style reset.
     for (const source of [app, routes]) {
       expect(source).not.toContain("ChapterSourceReference");

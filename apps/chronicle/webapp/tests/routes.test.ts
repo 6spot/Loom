@@ -7,53 +7,15 @@ import {
   isStudioPath,
   readPath,
   readingPath,
-  safeRouteFor,
 } from "../src/lib/routes";
 
-describe("public routes", () => {
-  it("maps World/Timeline/Event/Entity/Search URLs", () => {
-    expect(safeRouteFor("/")).toEqual({ view: "world", id: null });
-    expect(safeRouteFor("/world/")).toEqual({ view: "world", id: null });
-    expect(safeRouteFor("/timeline/")).toEqual({ view: "timeline", id: null });
-    expect(safeRouteFor("/events/abc")).toEqual({ view: "event", id: "abc" });
-    expect(safeRouteFor("/entities/abc")).toEqual({ view: "entity", id: "abc" });
-    expect(safeRouteFor("/search")).toEqual({ view: "search", id: null });
-    expect(safeRouteFor("/unknown")).toEqual({ view: "not_found", id: null });
-  });
-
-  it("maps the chapter directory and publication detail URLs", () => {
-    expect(safeRouteFor("/chapters")).toEqual({ view: "chapters", id: null });
-    expect(safeRouteFor("/chapters/")).toEqual({ view: "chapters", id: null });
-    expect(safeRouteFor("/chapters/00000000-0000-7000-8000-000000000000")).toEqual({
-      view: "chapter",
-      id: "00000000-0000-7000-8000-000000000000",
-    });
-    expect(safeRouteFor("/chapters/00000000-0000-7000-8000-000000000000/")).toEqual({
-      view: "chapter",
-      id: "00000000-0000-7000-8000-000000000000",
-    });
-    expect(safeRouteFor("/chapters/a/b")).toEqual({ view: "not_found", id: null });
-  });
+describe("public URL builders", () => {
 
   it("builds stable chapter hrefs pinned to the publication id", () => {
     expect(chaptersPath()).toBe("/chapters");
     expect(chapterPath("00000000-0000-7000-8000-000000000000")).toBe(
       "/chapters/00000000-0000-7000-8000-000000000000",
     );
-  });
-
-  it("maps the continuous reading directory and stream detail URLs", () => {
-    expect(safeRouteFor("/read")).toEqual({ view: "read", id: null });
-    expect(safeRouteFor("/read/")).toEqual({ view: "read", id: null });
-    expect(safeRouteFor("/read/00000000-0000-7000-8000-000000000000")).toEqual({
-      view: "reading",
-      id: "00000000-0000-7000-8000-000000000000",
-    });
-    expect(safeRouteFor("/read/00000000-0000-7000-8000-000000000000/")).toEqual({
-      view: "reading",
-      id: "00000000-0000-7000-8000-000000000000",
-    });
-    expect(safeRouteFor("/read/a/b")).toEqual({ view: "not_found", id: null });
   });
 
   it("builds snapshot-pinned continuous reading hrefs", () => {
@@ -65,15 +27,11 @@ describe("public routes", () => {
     );
   });
 
-  it("treats malformed encodings as not found", () => {
-    expect(safeRouteFor("/events/%E0%A4%A")).toEqual({ view: "not_found", id: null });
-  });
-
   it("keeps studio paths out of the public route space", () => {
     expect(isStudioPath("/studio")).toBe(true);
     expect(isStudioPath("/studio/imports")).toBe(true);
     expect(isStudioPath("/world")).toBe(false);
-    expect(safeRouteFor("/studio")).toEqual({ view: "not_found", id: null });
+    expect(isStudioPath("/studioish")).toBe(false);
   });
 });
 

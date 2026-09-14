@@ -12,8 +12,8 @@ The Rust server owns HTTP transport, routing, and authorization. It does
 **not** own historical knowledge:
 
 - Timeline / Event / Entity / Search / Coverage / Historical Moment reads are
-  forwarded to the proven C0 Python read model (`apps/chronicle/read_api/`,
-  same `CHRONICLE_DATABASE_URL` PostgreSQL). The C0 read model remains the
+  forwarded to the Python read model (`apps/chronicle/read_api/`,
+  same `CHRONICLE_DATABASE_URL` PostgreSQL). The Python read model remains the
   single historical read authority; this crate introduces no second one.
 - The server never opens the Chronicle database directly. Governance
   (`tools/check_storage_sql_ownership.py`) forbids SQLx/PostgreSQL driver
@@ -22,8 +22,9 @@ The Rust server owns HTTP transport, routing, and authorization. It does
 - No Loom Runtime/World/Timeline/Work/Binding authority is read, written,
   or exposed (Architecture Amendment 0006). The server only serves
   Chronicle application-owned product data through the C0 read contracts.
-- Proven C0 code (`read_api/server.py`, `web/`) is preserved, not deleted.
-  The C0 server runs as the upstream read sidecar during the migration.
+- `read_api/server.py` is an internal API-only sidecar. Rust serves the
+  single React build in `web/dist/`; the retired zero-build UI is removed.
+  Python browser/asset requests return JSON 404 without opening PostgreSQL.
 
 If a future need requires the Rust server to take over reads or touch Loom
 engine internals, that is an architecture decision first (C1-T2 stop
@@ -47,7 +48,6 @@ GET /api/v1/public/reading-streams*       -> upstream /v0/reading-streams* (C2-R
 GET /api/v1/public/reading-streams/{stream}/units/{unit}/people[/{person}/states]
                                           -> upstream /v0/reading-streams/... (C2-R3-T10)
 GET /api/v1/public/reading-events/*       -> upstream /v0/reading-events/* (C2-R2-T09)
-GET /v0/...                               legacy C0 compat, same upstream mapping
 GET /api/v1/studio/status                 privileged, admin auth required
 GET+POST /api/v1/studio/documents         privileged, admin auth required
 GET+POST /api/v1/studio/documents/*       privileged, admin auth required
@@ -55,16 +55,17 @@ GET+POST /api/v1/studio/jobs              privileged, admin auth required (C1-T4
 GET+POST /api/v1/studio/jobs/*            privileged, admin auth required (C1-T4)
 GET /api/v1/studio/coverage               privileged Coverage read (C1-T14)
 /api/v1/studio/* (other)                  privileged, admin auth required, 404 when authed
-/ , /timeline, /search,                   same-origin React/Vite web UI (C1-T9)
+/ , /history[/{version}/{paragraph}], /timeline, /search,                   same-origin React/Vite web UI (C1-T9)
 /events/{id}, /entities/{id},             (embedded at compile time, one build)
 /studio, /studio/login,                   Studio shell (public shell; Studio APIs
 /studio/imports, /studio/review,          stay server-auth-enforced)
 /studio/sources,
-/assets/* (Vite build output),
-/*.mjs, /*.css (legacy C0 assets, retained for compat)
+/assets/* (Vite build output)
 ```
 
-Only `GET` is served on read routes (C0 parity: other methods get typed
+Only `/api/v1/public/*` is exposed for public reads; external `/v0/*` aliases
+are removed. The internal Python `/v0/*` protocol still serves the Rust proxy.
+Only `GET` is served on read routes (other methods get typed
 `405 method_not_allowed`). Coverage and Historical Moment remain thin
 read-only aliases over the Python read-model sidecar; Rust does not acquire
 historical or PostgreSQL authority. The second-round reading surface
@@ -179,7 +180,7 @@ CHRONICLE_ADMIN_PASSWORD=<at least 8 characters, no control characters>
 | --- | --- | --- |
 | `CHRONICLE_BIND` | `127.0.0.1` | interface to bind |
 | `CHRONICLE_PORT` | `8080` | TCP port to bind |
-| `CHRONICLE_UPSTREAM_URL` | `http://127.0.0.1:8081` | C0 read-model sidecar (`http://` only; embedded userinfo rejected) |
+| `CHRONICLE_UPSTREAM_URL` | `http://127.0.0.1:8081` | internal read-model sidecar (`http://` only; embedded userinfo rejected) |
 | `CHRONICLE_ADMIN_USER` | _(absent)_ | Studio administrator login (ASCII, no `:`/whitespace) |
 | `CHRONICLE_ADMIN_PASSWORD` | _(absent)_ | Studio administrator password (min 8 chars) |
 
@@ -221,7 +222,7 @@ chronicle-web :8080 (chronicle-server: namespaces, auth, web front)
         v  CHRONICLE_UPSTREAM_URL=http://chronicle-read:8081
 Docker private network
         |
-        +--> chronicle-read :8081 (C0 Python read server, internal only)
+        +--> chronicle-read :8081 (Python API sidecar, internal only)
         +--> postgres :5432
         +--> chronicle-init (one-shot, idempotent import)
 ```

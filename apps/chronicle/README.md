@@ -16,7 +16,7 @@ Initial data may focus on a narrow period, but the product and data model must r
 ## Project structure
 
 - `docs/` — Chronicle product, UX, data, read API, and browser UI documents.
-- `ingestion/` — schema-driven historical-data ingestion, resolution, and canonical publication prototypes/contracts.
+- `ingestion/` — source schemas and offline fixture/evaluation tooling; production identity and catalog algorithms live in `persistence/`.
 - `corpus/` — pinned historical source packs and development fixture tooling; [six retained biographies](corpus/c1-t13/sources/README.md).
 - `assets/backgrounds/` — retained background-art candidates, prompts and metadata; [archive entry](assets/backgrounds/README.md), not a public image-serving directory.
 - `persistence/` — Chronicle-owned PostgreSQL persistence for staged, Resolution, and canonical layers.
@@ -37,9 +37,8 @@ Initial data may focus on a narrow period, but the product and data model must r
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — #548 chapter production and review task context.
 - [`docs/chapter-production.md`](docs/chapter-production.md) — first-round full-chapter production, references and publication contract.
 - [`docs/review-workflow.md`](docs/review-workflow.md) — first-round review queue, source context and continuous review contract.
-- [`docs/product.md`](docs/product.md) — product definition and V0 surfaces.
+- [`docs/product.md`](docs/product.md) — current product goal, implemented surfaces and remaining gaps.
 - [`docs/ui.md`](docs/ui.md) — broader interaction and UI design direction.
-- [`docs/browser-ui.md`](docs/browser-ui.md) — implemented C0-T11 Timeline/Event/Entity browser slice.
 - [`docs/read-api.md`](docs/read-api.md) — C0-T10 read-model and HTTP contracts.
 - [`docs/data-contract.md`](docs/data-contract.md) — Chronicle Data Contract v0.1 for Source / Entity / Event / Claim ingestion.
 - [`ingestion/README.md`](ingestion/README.md) — ingestion vertical slice and fixture semantics.
@@ -63,19 +62,21 @@ produced and reviewed; it does not seed a demonstration article. Configure
 the chapter and narrative models and follow [`docs/worker.md`](docs/worker.md)
 to publish a real history through Studio.
 
-Public reads live under `/api/v1/public/*` (legacy `/v0/*` compat is
-preserved); Studio operations live under `/api/v1/studio/*` and require the
+Public reads live under `/api/v1/public/*`; `/v0/*` is internal to the Python
+sidecar, with no public compatibility aliases; Studio operations live under `/api/v1/studio/*` and require the
 environment-configured administrator. The browser UI calls only the read
 contracts. It does not read local ingestion artifacts or PostgreSQL
 directly.
 
-## Initial product pillars
+## Current product priorities
 
-1. **Time** — enter a historical moment and inspect the world at that time.
-2. **World** — see concurrent events, places, polities, relationships, and state.
-3. **People** — follow entity trajectories across the historical timeline.
-4. **Why** — inspect sourced causal explanations and competing interpretations.
-5. **Sources** — preserve provenance, confidence, uncertainty, and disputes.
-6. **What If** — later fork a historical point into clearly separated simulation.
+1. A continuous, chronological narrative synthesized from reviewed sources.
+2. Curated period/event anchors that locate passages without filtering history.
+3. People and places whose supported state follows the active passage.
+4. Separate person life histories, with source evidence available on demand.
+5. Saved, explicitly approved background art that follows reading position.
 
-The historical browsing experience must remain useful even without counterfactual AI simulation.
+The current publication contains one selected source batch. Global continuity
+across batches, complete person biographies and product background-art binding
+still require implementation. See [product.md](docs/product.md) and the
+[convergence tasks](../../docs/tasks/chronicle/product-convergence/README.md).

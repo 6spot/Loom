@@ -289,8 +289,6 @@ async fn public_namespaces_proxy_to_c0_paths() {
         ),
         ("/api/v1/public/events/some-id", "/v0/events/some-id"),
         ("/api/v1/public/entities/some-id", "/v0/entities/some-id"),
-        ("/v0/timeline?limit=1", "/v0/timeline?limit=1"),
-        ("/v0/events/some-id", "/v0/events/some-id"),
     ] {
         let (status, _, body) = get(server.port, public, None).await;
         assert_eq!((public, status), (public, 200));
@@ -393,6 +391,45 @@ async fn upstream_outage_maps_to_typed_503() {
 }
 
 #[tokio::test]
+async fn retired_frontend_and_public_aliases_are_not_served() {
+    // A disconnected upstream proves these requests cannot still be proxied.
+    let server = spawn_server(test_state(
+        UpstreamTarget {
+            host: "127.0.0.1".to_string(),
+            port: 1,
+        },
+        true,
+    ))
+    .await;
+    for path in [
+        "/app.mjs",
+        "/ui.mjs",
+        "/route_safe.mjs",
+        "/search_ui.mjs",
+        "/styles.css",
+        "/search.css",
+        "/v0/timeline",
+        "/v0/search?q=x",
+        "/v0/events/some-id",
+        "/v0/entities/some-id",
+        "/v0/chapters",
+        "/v0/chapters/some-id",
+        "/v0/coverage",
+        "/v0/historical-moment",
+    ] {
+        let (status, _, body) = get(server.port, path, None).await;
+        assert_eq!(status, 404, "{path}");
+        if path.starts_with("/v0/") {
+            let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+            assert_eq!(payload["error"]["code"], "not_found", "{path}");
+        } else {
+            assert_eq!(body, b"not found\n", "{path}");
+        }
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
 async fn web_front_serves_shell_and_assets() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;
@@ -400,7 +437,7 @@ async fn web_front_serves_shell_and_assets() {
     assert_eq!(shell, 200);
     assert!(shell_head.contains("text/html"));
     assert!(String::from_utf8_lossy(&shell_body).contains("Chronicle"));
-    let (asset, asset_head, asset_body) = get(server.port, "/app.mjs", None).await;
+    let (asset, asset_head, asset_body) = get(server.port, "/assets/index.js", None).await;
     assert_eq!(asset, 200);
     assert!(asset_head.contains("text/javascript"));
     assert!(!asset_body.is_empty());

@@ -33,9 +33,9 @@ ingestion_outputs: source-bundle + cross-source-resolution(s)
 ## Key contracts
 
 - **C0 semantics reused, not bypassed.** Candidate blocking is
-  `resolution_v0` unchanged (same Entity type + exact stable
+  `identity_candidates` unchanged (same Entity type + exact stable
   surface; Event time compatibility + participant/place overlap).
-  Publication is `publication_v0` unchanged (only `same_entity` /
+  Publication is `catalog_publication` unchanged (only `same_entity` /
   `same_occurrence` union; `uncertain` / `not_same` /
   `related_occurrence` never merge; negative constraints and
   existing-ID collapse fail closed with `PublicationConflict`).

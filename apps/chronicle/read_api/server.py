@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Chronicle read API plus same-origin zero-build browser UI host."""
+"""Internal Chronicle API sidecar behind the Rust HTTP and web boundary."""
 
 from __future__ import annotations
 
@@ -28,11 +28,10 @@ from router import dispatch
 from studio_documents import STUDIO_PREFIX, dispatch_studio
 from studio_jobs import STUDIO_JOBS_PREFIX, dispatch_jobs
 from studio_reviews import STUDIO_REVIEWS_PREFIX, dispatch_reviews
-from web_static import web_response
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Chronicle read API and browser UI v0")
+    parser = argparse.ArgumentParser(description="Chronicle internal API sidecar")
     parser.add_argument("--database-url", default=os.environ.get("CHRONICLE_DATABASE_URL"))
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
@@ -292,8 +291,11 @@ def handler_class(
                 self._handle_studio_jobs(split.path, split.query)
                 return
 
-            status, content_type, body = web_response(self.command, split.path)
-            self._send_bytes(status, content_type, body)
+            self._send_json(404, {
+                "schema": "chronicle.error",
+                "version": "0.1",
+                "error": {"code": "not_found", "message": "route not found"},
+            })
 
         def do_GET(self) -> None:  # noqa: N802
             self._handle()

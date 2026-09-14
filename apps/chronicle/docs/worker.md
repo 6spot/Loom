@@ -1,8 +1,8 @@
 # Chronicle durable ingestion worker
 
 Standalone, restart-safe execution for long-running book ingestion. The
-worker is a plain Python process
-(`apps/chronicle/worker/ingestion_worker.py`); PostgreSQL 18 is the only
+production entry is `apps/chronicle/worker/production_worker.py`;
+`ingestion_worker.py` owns the durable runner. PostgreSQL 18 is the only
 coordinator. There is deliberately no Redis, Celery, RabbitMQ, Kafka, or
 any other queue service in this envelope (see "Why no queue service").
 
@@ -12,19 +12,20 @@ any other queue service in this envelope (see "Why no queue service").
 python3 -m pip install -r apps/chronicle/persistence/requirements.txt \
   -r apps/chronicle/worker/requirements.txt
 export CHRONICLE_DATABASE_URL=postgresql://chronicle:...@postgres:5432/chronicle
-python3 apps/chronicle/worker/ingestion_worker.py \
+export CHRONICLE_SOURCE_DIR=/data/chronicle-sources
+export CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses
+export CHRONICLE_CHAPTER_MODEL=...
+python3 apps/chronicle/worker/production_worker.py \
   --worker-id worker-01 --lease-seconds 300 --poll-interval 5
 ```
 
 Flags: `--database-url` (else `CHRONICLE_DATABASE_URL`), `--worker-id`
 (default `worker-<host>-<pid>-<rand>`), `--lease-seconds` (default 300),
 `--poll-interval` (default 5s), `--max-jobs` (stop after N jobs; default
-runs until SIGTERM/SIGINT), `--source-dir` (else `CHRONICLE_SOURCE_DIR`;
-when set, `structure`/`segment` run the real C1-T5 segmentation over
-stored revision bytes — see `segmentation.md` — and every source failure
-fails the job instead of falling back to fake checkpoints),
-`--fail-stage STAGE[:COUNT]` (fault-injection demos only; never set in
-production).
+runs until SIGTERM/SIGINT), `--source-dir` (else `CHRONICLE_SOURCE_DIR`).
+Production requires both the source directory and a staged 0.4 chapter provider
+before claiming jobs. Missing configuration never selects fake content or the
+old C1 extraction/presentation path. Fault injection is a library-test utility.
 
 Compose ships an opt-in worker service (profile `worker`, not started by
 the default stack):
@@ -33,51 +34,31 @@ the default stack):
 docker compose -f compose.chronicle.yaml --profile worker up -d chronicle-worker
 ```
 
-### Production extraction / presentation model provider
+### Model transport and timeout
 
-C1-T13 wires the tested `chunk_model` and `presentation_model` hooks into the
-real worker process through a Responses-style HTTP boundary. Configure
-`CHRONICLE_MODEL_ENDPOINT` plus either or both model names:
-
-```bash
-export CHRONICLE_MODEL_ENDPOINT=https://api.openai.com/v1/responses
-export CHRONICLE_MODEL_API_KEY=...
-export CHRONICLE_EXTRACTION_MODEL=...
-export CHRONICLE_PRESENTATION_MODEL=...
-```
-
-The endpoint is vendor-neutral at the Chronicle boundary: OpenAI can be used
-directly, while Luna or a local service can sit behind a compatible gateway.
-Extraction and Reader Presentation remain independent model selections. If
-both names are empty, no network model provider is constructed and the prior
-worker behavior is unchanged. If a model name is configured without a valid
-HTTP(S) endpoint, startup fails closed. Credentials are accepted only through
-`CHRONICLE_MODEL_API_KEY`, never embedded in the endpoint URL. Provider errors
-do not echo response bodies or API keys; the existing extraction/presentation
-validators still own schema, evidence grounding, uncertainty and publication
-authority.
+Configure `CHRONICLE_MODEL_ENDPOINT`, `CHRONICLE_MODEL_API_KEY` and either
+`CHRONICLE_CHAPTER_MODEL` or `CHRONICLE_CHAPTER_PIPELINE_CONFIG`. The staged
+profile selects Responses or Chat Completions transport. Credentials never
+belong in an endpoint URL. Historical narrative uses the same transport
+configuration with its own `CHRONICLE_NARRATIVE_MODEL` selection.
 
 `CHRONICLE_MODEL_TIMEOUT_SECONDS` is the only production model timeout setting.
-It applies to extraction, presentation, historical narrative and every staged
-chapter model, including correction and repair. Omitted or blank uses the
-existing default of 600 seconds; an override must be finite and positive.
-The value is per HTTP attempt, not a shared deadline for an entire job or all
-retries. Configure it once in the worker environment; there are no model- or
-step-specific timeout overrides.
+It applies to historical narrative and every staged chapter call, including
+correction and repair. Omitted or blank uses 600 seconds; an override must be
+finite and positive. It bounds each HTTP attempt, not the entire job. There are
+no model- or step-specific timeout overrides.
 
-Both live providers send strict Responses `text.format` constraints for their
-own contracts: extraction uses the staged-bundle projection and presentation
-uses the [Reader Presentation candidate shape](reader-presentation.md). The
-presentation prompt supplies the exact canonical target; the output validator
-still rejects a missing or mismatched target instead of filling it in.
+Chapter input/output bounds come from `ChapterLimits` and the frozen profile.
+The removed C1 `CHRONICLE_EXTRACTION_MODEL`, `CHRONICLE_PRESENTATION_MODEL` and
+`CHRONICLE_MODEL_INPUT_BUDGET_CHARS` do not select production behavior.
+The validators still own schema, source grounding, references and acceptance;
+a provider response is never historical authority on its own.
 
 ### Staged natural-chapter pipeline (0.4)
 
-When a revision source (`--source-dir` / `CHRONICLE_SOURCE_DIR`) and a
-chapter model configuration are both configured, every content stage runs the
-natural-chapter pipeline instead of the C1 chunk path; `prepare` keeps
-the deterministic fake executor so the frozen 8-stage authority is
-unchanged. Thin orchestration lives in
+Every production source job runs the natural-chapter pipeline. `prepare`
+keeps the deterministic metadata checkpoint; the existing eight-stage lifecycle
+is unchanged. Thin orchestration lives in
 `apps/chronicle/worker/chapter_stage.py` (the sole wiring owner is
 `ingestion_worker.py`):
 
@@ -97,7 +78,8 @@ unchanged. Thin orchestration lives in
   agreement. No database transaction is held during model calls. Cancellation
   or expired leases stop queued requests and interrupt active HTTP waits;
   expired owners cannot save results. New live work plans 0.4, while explicit
-  fixture families keep their frozen 0.1/0.2/0.3 joint contracts. Accepting 0.4
+  library-test fixtures still exercise the frozen 0.1/0.2/0.3 contracts. Those
+  fixtures cannot be selected by the production entry. Accepting 0.4
   revalidates the candidate, stored step outputs and immutable acceptance
   receipt before committing the chunk run and chapter artifact together.
 - `assemble` requires every expected accepted chapter (T07; partial
@@ -190,10 +172,9 @@ unchanged. Thin orchestration lives in
 `CHRONICLE_CHAPTER_*` overrides plus the provider from
 `CHRONICLE_CHAPTER_MODEL` + `CHRONICLE_MODEL_ENDPOINT`, or a
 `CHRONICLE_CHAPTER_PIPELINE_CONFIG` JSON file
-(`CHRONICLE_MODEL_API_KEY` for credentials), or the explicit
-`CHRONICLE_CHAPTER_FIXTURE_PACK` test injection. A real source
-without a chapter model fails closed; the old fake executor is never
-an implicit fallback for new chapters.
+(`CHRONICLE_MODEL_API_KEY` for credentials). `CHRONICLE_CHAPTER_FIXTURE_PACK`
+and joint provider families are confined to explicit library tests. They are
+not supported production configurations.
 
 Each live profile receives `max_response_bytes` from `ChapterLimits` and
 `max_output_tokens` at or below that limit. The configured request fingerprint and
@@ -209,13 +190,9 @@ python3 apps/chronicle/worker/production_worker.py \
   --worker-id worker-01 --source-dir /data/chronicle-sources
 ```
 
-A chapter model configuration without a revision source fails the job before
-any stage runs (no silent fake completion). A production entry
-pointed at a source directory without any model refuses to start at
-all; the composable library runner stays available for explicit test
-injection (the pinned C1 segmentation/extraction tests rely on that),
-while a real source without models keeps the explicit extract failure
-instead of falling back.
+Missing source configuration, missing staged configuration or a non-0.4
+provider fails startup before the worker claims anything. Existing C1 library
+regressions do not define another supported deployment entry.
 
 ### Per-step models, budgets and recovery
 
@@ -379,15 +356,9 @@ a substitute for that content review.
    (`prepare → structure → segment → extract → assemble → resolve →
    publish → present`). Stages/chunks already `completed` (or `skipped`)
    are never re-run: resume skips succeeded checkpoints by construction.
-   The `extract` stage keeps the deterministic fake chunk executor
-   unless a `chunk_model` provider is supplied with the C1-T5 revision
-   source; the real C1-T6 path then runs context-aware contract-first
-   extraction per chunk (bounded repair, fail closed, append-only run
-   history — see `extraction.md`). The real path binds the canonical
-   staged-bundle schema (`None` binds it; any non-canonical dict fails
-   closed) and adopts
-   an already-accepted run with zero new model calls when resume finds
-   one whose status commit never landed.
+   `extract` coordinates the saved translation, extraction, comparison,
+   linking and content review steps described above. Accepted chapter outputs
+   can be adopted after a crash without repeating successful model work.
 3. **Short transactions, never across executor work.** Every database
    step runs in its own connection and commits exactly one transaction
    before the worker proceeds. Executor code runs with no transaction

@@ -1,5 +1,9 @@
 # Chronicle structure, segmentation, and context state (C1-T5)
 
+> C1 分块路径只保留为工程回归材料，不是当前生产入口。正式生产使用
+> [分阶段章节流程](staged-chapter-production.md)与[worker 指南](worker.md)。
+
+
 > 本页是 C1 的 section/chunk 实现基线。本轮自然章/完整范围规则见 [chapter-production.md](chapter-production.md)；已有 section.source_end 不能直接当含小标题的完整章末尾。
 
 Deterministic, versioned preparation of one immutable document revision for

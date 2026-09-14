@@ -44,10 +44,8 @@ pub use upstream::{fetch_upstream, forward_upstream, UpstreamTarget, MAX_PROXY_B
 /// or historical-data authority.
 pub fn build_router(state: Arc<AppState>) -> Router {
     let coverage_public_state = state.clone();
-    let coverage_legacy_state = state.clone();
     let coverage_studio_state = state.clone();
     let moment_public_state = state.clone();
-    let moment_legacy_state = state.clone();
 
     app::build_router(state)
         .route(
@@ -55,17 +53,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
                     let state = coverage_public_state.clone();
-                    async move {
-                        read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
-                    }
-                },
-            ),
-        )
-        .route(
-            "/v0/coverage",
-            any(
-                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = coverage_legacy_state.clone();
                     async move {
                         read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
                     }
@@ -92,23 +79,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             any(
                 move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
                     let state = moment_public_state.clone();
-                    async move {
-                        read_proxy(
-                            &state,
-                            request.method(),
-                            uri.query(),
-                            "/v0/historical-moment",
-                        )
-                        .await
-                    }
-                },
-            ),
-        )
-        .route(
-            "/v0/historical-moment",
-            any(
-                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = moment_legacy_state.clone();
                     async move {
                         read_proxy(
                             &state,

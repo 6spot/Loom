@@ -97,7 +97,7 @@ async fn live_server(state: AppState) -> (u16, oneshot::Sender<()>, tokio::task:
 }
 
 #[tokio::test]
-async fn public_and_legacy_coverage_forward_to_one_upstream_contract() {
+async fn public_coverage_forwards_to_the_internal_read_contract() {
     let (upstream, upstream_task) = mock_upstream().await;
     let (port, stop, server_task) = live_server(AppState {
         admin: None,
@@ -117,10 +117,6 @@ async fn public_and_legacy_coverage_forward_to_one_upstream_contract() {
         body.contains("/v0/coverage?from_year=208&to_year=208"),
         "{body}"
     );
-
-    let (status, _, body) = request(port, "GET", "/v0/coverage", None).await;
-    assert_eq!(status, 200);
-    assert!(body.contains("/v0/coverage"), "{body}");
 
     let (status, _, _) = request(port, "POST", "/api/v1/public/coverage", None).await;
     assert_eq!(status, 405);

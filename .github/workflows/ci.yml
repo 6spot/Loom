@@ -220,16 +220,14 @@ jobs:
             apps/chronicle/ingestion \
             apps/chronicle/acceptance
 
-      - name: Ingestion prototype unit tests
-        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_python
-        run: |
-          python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_v0.py' -v
-          python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_publication_v0.py' -v
-
       - name: Chapter generation, correction and provider regressions
         if: fromJSON(needs.changes.outputs.plan).steps.chronicle_python
         run: |
           python3 -m pip install -r apps/chronicle/persistence/requirements.txt -r apps/chronicle/worker/requirements.txt
+          python3 -m unittest discover -s apps/chronicle/ingestion/prototype -p 'test_resolution_model.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_identity_candidates_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_catalog_publication_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/read_api -p 'test_server_boundary.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_*extraction_unit.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_correction_unit.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_production_unit.py' -v
@@ -255,6 +253,7 @@ jobs:
             cargo check --manifest-path "$manifest" --all-targets
             cargo clippy --manifest-path "$manifest" --all-targets -- -D warnings
           done
+          cargo test --manifest-path apps/chronicle/server/Cargo.toml
 
       - name: Set up Node
         if: fromJSON(needs.changes.outputs.plan).steps.chronicle_web

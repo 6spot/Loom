@@ -148,7 +148,7 @@ HTTP 运输重试沿用现有最多 3 次，和上述内容修正分开计数；
 - 一个版本化 frozen plan 同时覆盖上述两类：每个 (resolution_sha256,candidate_id) 恰好出现一次。恢复重用原计划，不能因新 catalog 擅自重排／重建。
 - plan_version 固定为 c2r1-review-plan-v1。ReviewItem.kind 仍为 stage_gate，payload.scope 仍为 resolution；新增 payload.review_mode=chapter_pair|published_batch，不把新 mode 当数据库 kind。plan_fingerprint 是版本、job/revision、assembled hash、base catalog hash、全部排序的 resolution hashes/candidate keys/member refs/group IDs 的 canonical JSON SHA-256，排除 decision/status/resolved_at。同一新版本可以含两种 mode，不允许混入旧世代计划。
 - resolve 在人审前持久化非公开 staged bundle 和 initial resolutions，满足外键和证据查询；publish 再校验并幂等复用。chapter_pair 的决定只 fan-out 到该候选，published_batch 仍按 default/override 精确展开。
-- publication_v0 的版本门需窄适配接受已验证的 0.2/scope，union/负约束/UUID 规则不变。禁止临时降版为 0.1：关系 provenance 的 resolution hash 必须与持久化的原始 artifact 相同。
+- catalog_publication 的版本门需窄适配接受已验证的 0.2/scope，union/负约束/UUID 规则不变。禁止临时降版为 0.1：关系 provenance 的 resolution hash 必须与持久化的原始 artifact 相同。
 - 现有 C1 within_book_links 不再成为新章路径中“未送给 publisher 的隐藏 same-link”。跨章决定全部显式进入最终 resolution，冲突校验和发布消费同一图。
 - Graph key 必须是 (bundle,ref)。同书链可能把两个 published IDs 间接连起来，提交时继续拒绝该桥接；not_same/related_occurrence 负约束及 Event 最终发布约束不削弱。
 

@@ -4,9 +4,8 @@
 //! output committed under `apps/chronicle/web/dist/` with deterministic asset
 //! names) is served from this binary so the Chronicle deployment path stays
 //! one origin: one build serves public Chronicle routes and `/studio/*`.
-//! The C0 zero-build assets (`/app.mjs`, `/ui.mjs`, ...) remain allowlisted
-//! for compatibility. Request paths are never joined to the filesystem, so
-//! traversal cannot escape the web root.
+//! Request paths are never joined to the filesystem, so traversal cannot
+//! escape the web root.
 
 /// One servable static asset.
 #[derive(Debug, Clone, Copy)]
@@ -29,23 +28,9 @@ macro_rules! asset {
     };
 }
 
-/// Allowlisted UI assets (C0 set from `web_static.py`, plus the C1 Vite build
-/// output with deterministic filenames from `webapp/vite.config.ts`).
+/// Allowlisted Vite build output with deterministic filenames from
+/// `webapp/vite.config.ts`.
 pub static ASSETS: &[Asset] = &[
-    asset!("/styles.css", "text/css; charset=utf-8", "styles.css"),
-    asset!("/search.css", "text/css; charset=utf-8", "search.css"),
-    asset!("/app.mjs", "text/javascript; charset=utf-8", "app.mjs"),
-    asset!("/ui.mjs", "text/javascript; charset=utf-8", "ui.mjs"),
-    asset!(
-        "/search_ui.mjs",
-        "text/javascript; charset=utf-8",
-        "search_ui.mjs"
-    ),
-    asset!(
-        "/route_safe.mjs",
-        "text/javascript; charset=utf-8",
-        "route_safe.mjs"
-    ),
     asset!(
         "/assets/index.js",
         "text/javascript; charset=utf-8",
@@ -269,10 +254,10 @@ mod tests {
 
     #[test]
     fn assets_resolve_with_content_types() {
-        let (content_type, body) = resolve_web_path("/app.mjs").expect("asset");
+        let (content_type, body) = resolve_web_path("/assets/index.js").expect("asset");
         assert_eq!(content_type, "text/javascript; charset=utf-8");
         assert!(!body.is_empty());
-        let (css_type, _) = resolve_web_path("/styles.css").expect("css");
+        let (css_type, _) = resolve_web_path("/assets/index.css").expect("css");
         assert_eq!(css_type, "text/css; charset=utf-8");
     }
 
@@ -417,6 +402,12 @@ mod tests {
             "/read/a/b",
             "/etc/passwd",
             "/../web/index.html",
+            "/app.mjs",
+            "/ui.mjs",
+            "/search_ui.mjs",
+            "/route_safe.mjs",
+            "/styles.css",
+            "/search.css",
             "/app.mjs.map",
         ] {
             assert!(resolve_web_path(path).is_none(), "{path}");
