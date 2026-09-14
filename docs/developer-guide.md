@@ -2,7 +2,9 @@
 
 This guide is a developer-facing navigation and workflow reference. It does not duplicate the architecture specification, repository Agent instructions, deployment runbooks or historical task plans.
 
-## 1. Resolve architecture authority first
+## 1. Resolve architecture authority for contract changes
+
+Use the task categories in [`../AGENTS.md`](../AGENTS.md) to decide whether architecture reading applies. Opening this developer guide does not require reading every architecture document.
 
 Before turning a baseline clause into an implementation requirement, read `docs/architecture/README.md`.
 
@@ -30,7 +32,7 @@ read every currently relevant accepted Amendment
 derive implementation requirements
 ```
 
-If current canonical sources conflict, fix or escalate the documentation conflict before implementation. Do not choose whichever sentence is more convenient for the code change.
+Resolve apparent conflicts using the current authority and supersession rules. If a conflict remains, follow the pause conditions in `AGENTS.md` for the dependent implementation. Do not choose whichever sentence is more convenient for the code change.
 
 ## 2. Architecture Amendment gate
 
@@ -64,10 +66,12 @@ Before implementing task-backed work:
 
 1. read the active Issue/task context;
 2. read the initiative/task note when it contains relevant scope, dependency, ownership or contract links;
-3. confirm the planned scope still matches current architecture authority;
+3. check the planned scope against existing module contracts, and resolve architecture authority when the task matches the architecture-reading category in `AGENTS.md`;
 4. inspect current code and tests before editing.
 
 Task-note metadata is descriptive context. For an assigned task, use the linked notes to understand prerequisites and boundaries rather than treating historical metadata as a separate startup procedure.
+
+These are code/document checks, not additional user-approval steps. Reading reuse, authorization and pause conditions are owned by root `AGENTS.md`.
 
 For repository delivery completion, follow `docs/development/task-completion.md`.
 
