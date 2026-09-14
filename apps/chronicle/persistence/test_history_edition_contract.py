@@ -52,6 +52,50 @@ class HistoryEditionContractTests(unittest.TestCase):
         self.assertEqual(first["edition"]["version"], first["edition"]["manifest_sha256"])
         contract.validate_history_edition(first["edition"], first["fragments"])
 
+    def test_supplied_fragments_must_match_manifest_source_mappings(self) -> None:
+        fixture = contract.contract_fixture(paragraphs_per_fragment=2, fragment_count=1)
+        edition = copy.deepcopy(fixture["edition"])
+        paragraph = edition["paragraphs"][1]
+        fragment_version = paragraph["source"]["fragment_version"]
+        fake_local_id = "nonexistent-local-paragraph"
+        fake_global_id = contract.derive_global_paragraph_id(fragment_version, fake_local_id)
+        paragraph["paragraph_id"] = fake_global_id
+        paragraph["id"] = fake_global_id
+        paragraph["source"] = {
+            "fragment_version": fragment_version,
+            "paragraph_id": fake_local_id,
+        }
+        paragraph["source_paragraph_id"] = fake_local_id
+        paragraph["content_ref"] = copy.deepcopy(paragraph["source"])
+        edition["content_sha256"] = contract.sha256_json({
+            "fragments": [item["content_sha256"] for item in edition["fragments"]],
+            "paragraphs": edition["paragraphs"],
+            "phases": edition["phases"],
+            "conclusions": edition["conclusions"],
+            "navigation": edition["navigation"],
+        })
+        edition["manifest_sha256"] = contract._manifest_hash(edition)
+        edition["version"] = edition["manifest_sha256"]
+
+        with self.assertRaises(contract.HistoryEditionError) as error:
+            contract.validate_history_edition(edition, fixture["fragments"])
+        self.assertEqual("source_mapping_mismatch", error.exception.code)
+
+    def test_unsupported_fragment_schema_and_version_are_rejected(self) -> None:
+        fixture = contract.contract_fixture(fragment_count=1)
+
+        wrong_schema = copy.deepcopy(fixture["fragments"])
+        wrong_schema[0]["schema"] = "chronicle.other-publication"
+        with self.assertRaises(contract.HistoryEditionError) as schema_error:
+            contract.compile_history_edition(wrong_schema)
+        self.assertEqual("unsupported_fragment_schema", schema_error.exception.code)
+
+        wrong_version = copy.deepcopy(fixture["fragments"])
+        wrong_version[0]["version"] = "0.2"
+        with self.assertRaises(contract.HistoryEditionError) as version_error:
+            contract.compile_history_edition(wrong_version)
+        self.assertEqual("unsupported_fragment_version", version_error.exception.code)
+
     def test_unpublished_fragment_is_rejected(self) -> None:
         fixture = contract.contract_fixture(fragment_count=1)
         fragment = copy.deepcopy(fixture["fragments"][0])

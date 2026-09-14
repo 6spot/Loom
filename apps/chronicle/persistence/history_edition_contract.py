@@ -26,6 +26,8 @@ from common import PersistenceError, sha256_json
 HISTORY_EDITION_SCHEMA = "chronicle.history-edition"
 HISTORY_EDITION_VERSION = "0.1"
 CONTRACT_VERSION = f"{HISTORY_EDITION_SCHEMA}/{HISTORY_EDITION_VERSION}"
+PUBLISHED_FRAGMENT_SCHEMA = "chronicle.historical-publication"
+PUBLISHED_FRAGMENT_VERSION = "0.1"
 PUBLISHED_STATUS = "published"
 
 # A fragment retains the existing narrative production limit.  The edition
@@ -53,6 +55,9 @@ HISTORY_EDITION_ERROR_CODES = {
     "boundary_review_required": "an overlap, gap, inversion or incoherent seam is pending",
     "boundary_review_invalid": "a boundary review does not match the supplied seam",
     "manifest_hash_mismatch": "the immutable manifest hash does not match its content",
+    "source_mapping_mismatch": "manifest mappings do not match the supplied fragments",
+    "unsupported_fragment_schema": "a selected fragment has an unsupported schema",
+    "unsupported_fragment_version": "a selected fragment has an unsupported schema version",
     "baseline_changed": "the append/replace baseline is no longer current",
     "replacement_range_invalid": "a replacement does not name an exact fragment range",
     "replacement_version_reused": "a new fragment would silently reuse an old version",
@@ -314,6 +319,16 @@ def _phase_ids(value: Any, field: str) -> list[str]:
 def _normalise_fragment(fragment: Any) -> dict[str, Any]:
     if not isinstance(fragment, dict):
         _fail("invalid_input", "each selected fragment must be an object")
+    if fragment.get("schema") != PUBLISHED_FRAGMENT_SCHEMA:
+        _fail(
+            "unsupported_fragment_schema",
+            f"fragment schema must be {PUBLISHED_FRAGMENT_SCHEMA!r}",
+        )
+    if fragment.get("version") != PUBLISHED_FRAGMENT_VERSION:
+        _fail(
+            "unsupported_fragment_version",
+            f"fragment schema version must be {PUBLISHED_FRAGMENT_VERSION!r}",
+        )
     version = _fragment_version(fragment)
     if not _published(fragment):
         _fail("fragment_not_published", f"fragment {version!r} is not published")
@@ -704,6 +719,37 @@ def _manifest_hash(manifest: Mapping[str, Any]) -> str:
     return sha256_json(_manifest_payload(manifest))
 
 
+def _source_navigation_inputs(navigation: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Convert manifest navigation back to the source-local input shape."""
+
+    result: list[dict[str, Any]] = []
+    for index, entry in enumerate(navigation):
+        if not isinstance(entry, dict):
+            _fail("invalid_input", f"edition.navigation[{index}] must be an object")
+        source = entry.get("source")
+        if not isinstance(source, dict):
+            _fail("mapping_incomplete", f"edition.navigation[{index}] has no source locator")
+        source_version = _require_str(
+            source.get("fragment_version"),
+            f"edition.navigation[{index}].source.fragment_version",
+        )
+        source_paragraph_id = _require_str(
+            source.get("paragraph_id"),
+            f"edition.navigation[{index}].source.paragraph_id",
+        )
+        item = {
+            "fragment_version": source_version,
+            "paragraph_id": source_paragraph_id,
+            "kind": entry.get("kind"),
+            "label": entry.get("label"),
+            "reason": entry.get("reason"),
+        }
+        if entry.get("kind") == "event":
+            item["event_id"] = entry.get("source_event_id")
+        result.append(item)
+    return result
+
+
 def _compile_mappings(infos: Sequence[Mapping[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[tuple[str, str], str], dict[tuple[str, str], str], dict[tuple[str, str], str]]:
     paragraphs: list[dict[str, Any]] = []
     phases: list[dict[str, Any]] = []
@@ -1020,6 +1066,17 @@ def validate_history_edition(
         for info, ref in zip(infos, fragment_refs):
             if info["content_sha256"] != ref.get("content_sha256"):
                 _fail("manifest_hash_mismatch", f"fragment {info['version']!r} content changed under an immutable edition")
+        expected = compile_history_edition(
+            fragments,
+            boundary_reviews=edition["boundaries"],
+            navigation=_source_navigation_inputs(navigation),
+            lineage=edition.get("lineage"),
+        )
+        if expected != edition:
+            _fail(
+                "source_mapping_mismatch",
+                "edition mappings do not match the supplied published fragments",
+            )
     return copy.deepcopy(dict(edition))
 
 
@@ -1176,8 +1233,8 @@ def contract_fixture(*, paragraphs_per_fragment: int = 96, fragment_count: int =
                 "entities": [],
             })
         fragments.append({
-            "schema": "chronicle.historical-publication",
-            "version": "0.1",
+            "schema": PUBLISHED_FRAGMENT_SCHEMA,
+            "version": PUBLISHED_FRAGMENT_VERSION,
             "publication_status": PUBLISHED_STATUS,
             "publication_version": version,
             "publication_id": f"fixture-publication-{fragment_index + 1:03}",
@@ -1235,6 +1292,8 @@ __all__ = [
     "MAX_FRAGMENT_PARAGRAPHS",
     "MAX_PARAGRAPHS_PER_FRAGMENT",
     "MAX_NAVIGATION_ENTRIES",
+    "PUBLISHED_FRAGMENT_SCHEMA",
+    "PUBLISHED_FRAGMENT_VERSION",
     "PUBLISHED_STATUS",
     "append_edition",
     "append_history_edition",

@@ -26,6 +26,8 @@
 
 编排器只接受明确标记为 `published` 的片段。`publication_version` 是片段版本
 作用域，`publication_id` 是发布记录作用域；两者在一次 edition 中都必须唯一。
+片段顶层 `schema`/`version` 必须严格为
+`chronicle.historical-publication`/`0.1`；不支持的片段协议会在编排前拒绝。
 `coverage` 是审核用的非年份排序范围，采用同一 `scope` 下的半开区间
 `[start, end)`，并可带首尾原文锚点。`year`/`period` 只作为历史资料字段，不是
 排序键，也不能从相邻片段补造。
@@ -189,6 +191,10 @@ assert edition["paragraph_count"] == 288
 validate_history_edition(edition, fixture["fragments"])
 ```
 
+传入片段快照时，`validate_history_edition()` 会按快照重新编排并逐项核对
+manifest 的 source locator、派生 ID、边界和导航；即使调用方重新计算了 manifest
+hash，指向不存在本地 ID 的篡改映射也会以 `source_mapping_mismatch` 拒绝。
+
 `navigation` 只接受片段已有的精选入口或显式传入的少量入口，最多 12 项；不会
 因为段落数或片段数增长而把所有事件/细节自动升级为入口。入口必须命中真实段落；
 `kind == "event"` 还必须命中该段中 `current` 的同一事件。
@@ -201,6 +207,8 @@ validate_history_edition(edition, fixture["fragments"])
 | code | 拒绝条件 |
 | --- | --- |
 | `invalid_input` | 顶层、记录或字段形状不正确 |
+| `unsupported_fragment_schema` | 片段 schema 不是 `chronicle.historical-publication` |
+| `unsupported_fragment_version` | 片段 schema version 不是 `0.1` |
 | `fragment_not_published` | 片段不是 `publication_status: published` |
 | `duplicate_fragment` | 重复片段版本或发布记录 |
 | `fragment_capacity_exceeded` | 任一片段超过 256 段 |
@@ -214,6 +222,7 @@ validate_history_edition(edition, fixture["fragments"])
 | `boundary_review_required` | 重叠、缺口、倒置或不连贯仍待处理 |
 | `boundary_review_invalid` | 审核 pair、几何或依据不匹配 |
 | `manifest_hash_mismatch` | 不可变 manifest 或片段内容发生 hash 漂移 |
+| `source_mapping_mismatch` | manifest 映射与传入片段快照不一致 |
 | `baseline_changed` | append/replace 的并发基线 hash 已变化 |
 | `replacement_range_invalid` | 替换没有以明确片段版本给出准确范围 |
 | `replacement_version_reused` | 新片段复用了旧版本，可能静默改写历史 |
