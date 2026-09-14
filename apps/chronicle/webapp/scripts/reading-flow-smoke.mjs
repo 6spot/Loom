@@ -4,13 +4,13 @@
 // Usage:
 //   node apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
 //     --base-url http://127.0.0.1:18080 \
-//     --fixture-manifest /tmp/chronicle-r2-offline/browser-fixture-manifest.json \
+//     --fixture-manifest /tmp/chronicle-staged-offline/reading-fixture-manifest.json \
 //     --suite flow|accessibility|performance|all \
 //     --output /tmp/chronicle-r2-browser
 //
 // The driver operates the real integrated `/read/{stream}` page against the
 // running Rust/Python/PG stack prepared by
-// `apps/chronicle/acceptance/second_round_gate.py`. It never mocks the public
+// `apps/chronicle/acceptance/staged_gate.py`. It never mocks the public
 // API. A missing/incomplete fixture manifest fails before launch, so a
 // fixture/scene/manifest gap can never look like a PASS.
 

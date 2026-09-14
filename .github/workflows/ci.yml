@@ -282,10 +282,10 @@ jobs:
             -f compose.chronicle.yaml \
             config --quiet
 
-  chronicle-first-round:
-    name: Chronicle first-round checks
+  chronicle-corpus:
+    name: Chronicle corpus and contract checks
     needs: changes
-    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-first-round']
+    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-corpus']
     runs-on: ubuntu-latest
 
     steps:
@@ -308,32 +308,32 @@ jobs:
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_migrate_only_unit.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_chapter_contract_unit.py' -v
 
-      - name: First-round note front-matter check
-        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_first_round
+      - name: Historical first-round note front-matter check
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_notes
         env:
           CI_PLAN: ${{ needs.changes.outputs.plan }}
         run: python3 tools/ci_routing.py notes --round first
 
-  chronicle-third-round:
-    name: Chronicle third-round note and deliverable checks
+  chronicle-notes:
+    name: Chronicle historical note and deliverable checks
     needs: changes
-    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-third-round']
+    if: fromJSON(needs.changes.outputs.plan).jobs['chronicle-notes']
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Third-round note front-matter check
-        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_third_round
+      - name: Historical third-round note front-matter check
+        if: fromJSON(needs.changes.outputs.plan).steps.chronicle_notes
         env:
           CI_PLAN: ${{ needs.changes.outputs.plan }}
         run: python3 tools/ci_routing.py notes --round third
-      - name: Third-round acceptance deliverables
+      - name: Current staged acceptance deliverables
         run: |
           for deliverable in \
-            apps/chronicle/acceptance/third_round_gate.py \
-            apps/chronicle/acceptance/test_third_round_gate.py \
+            apps/chronicle/acceptance/staged_gate.py \
+            apps/chronicle/acceptance/test_staged_gate.py \
             apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs \
             apps/chronicle/docs/person-state-acceptance.md; do
             test -f "$deliverable"
@@ -350,7 +350,7 @@ jobs:
   repository-gate:
     name: Repository Gate
     if: always()
-    needs: [changes, routing-tests, documentation, skill-tools, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-first-round, chronicle-third-round, chronicle]
+    needs: [changes, routing-tests, documentation, skill-tools, ledger, dependency-policy, rust, deployment, chronicle-static, chronicle-corpus, chronicle-notes, chronicle]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

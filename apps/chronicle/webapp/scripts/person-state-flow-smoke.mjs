@@ -10,7 +10,7 @@
 //
 // The driver operates the real published HistoryPage, the independent person
 // page and the real Studio mixed queue against the running Rust/Python/PG
-// stack prepared by `apps/chronicle/acceptance/third_round_gate.py`. It never
+// stack prepared by `apps/chronicle/acceptance/staged_gate.py`. It never
 // mocks the public API. A missing/incomplete fixture manifest fails before
 // launch, so a fixture/scene/manifest gap can never look like a PASS.
 //

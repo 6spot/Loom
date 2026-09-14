@@ -57,12 +57,12 @@ class RoutingTests(unittest.TestCase):
         ):
             with self.subTest(path=path):
                 self.assert_route([path], ("chronicle-static", "web-components", "chronicle"),
-                                  ("offline-gate", "chapter-pipeline", "second-round-gate", "third-round-gate"))
+                                  ("staged-gate", "chapter-pipeline"))
 
     def test_source_reader_selects_reading(self):
         self.assert_route(["apps/chronicle/webapp/src/components/reading/ReadingTimeAxis.tsx"],
-                          ("web-components", "second-round-gate"),
-                          ("offline-gate", "chapter-pipeline", "third-round-gate"))
+                          ("web-components", "staged-gate"),
+                          ("chapter-pipeline",))
 
     def test_person_state_and_history_have_real_browser_coverage(self):
         for path in (
@@ -70,8 +70,8 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/webapp/src/pages/public/EntityPage.tsx",
             "apps/chronicle/webapp/src/pages/public/HistoryPage.tsx",
         ):
-            self.assert_route([path], ("web-components", "third-round-gate"),
-                              ("offline-gate", "chapter-pipeline"))
+            self.assert_route([path], ("web-components", "staged-gate"),
+                              ("chapter-pipeline",))
 
     def test_shared_frontend_and_new_files_cover_both_readers(self):
         for path in (
@@ -87,24 +87,24 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/webapp/src/new-widget.tsx",
             "apps/chronicle/webapp/tests/fixtures/reading/main.tsx",
         ):
-            self.assert_route([path], ("web-components", "second-round-gate", "third-round-gate"))
+            self.assert_route([path], ("web-components", "staged-gate"))
 
     def test_rebuilt_assets_follow_the_source_owner(self):
         source = "apps/chronicle/webapp/src/pages/studio/StudioImportsPage.tsx"
         asset = "apps/chronicle/web/dist/assets/index.js"
         plan = self.assert_route([source, asset], ("chronicle-static", "web-components"),
-                                 ("second-round-gate", "third-round-gate"))
+                                 ("staged-gate",))
         self.assertTrue(plan["steps"]["chronicle_web"])
-        self.assert_route([asset], ("web-components", "second-round-gate", "third-round-gate"))
+        self.assert_route([asset], ("web-components", "staged-gate"))
         self.assert_route([asset, "apps/chronicle/webapp/README.md"],
-                          ("second-round-gate", "third-round-gate"))
+                          ("staged-gate",))
 
     def test_generated_assets_cannot_hide_a_second_source_owner(self):
         self.assert_route([
             "apps/chronicle/webapp/src/pages/studio/StudioImportsPage.tsx",
             "apps/chronicle/webapp/src/components/reading/ReadingTimeAxis.tsx",
             "apps/chronicle/web/dist/assets/index.js",
-        ], ("second-round-gate", "web-components"))
+        ], ("staged-gate", "web-components"))
 
     def test_chapter_processing_covers_staged_pg_and_downstream_publishing(self):
         for path in (
@@ -113,17 +113,16 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/read_api/studio_jobs.py",
             "apps/chronicle/persistence/chapter_prompt.py",
         ):
-            self.assert_route([path], ("offline-gate", "chapter-pipeline",
-                                      "second-round-gate", "third-round-gate"))
+            self.assert_route([path], ("staged-gate", "chapter-pipeline"))
 
     def test_reading_backend_covers_person_state_consumers(self):
         self.assert_route(["apps/chronicle/persistence/narrative_contract.py"],
-                          ("reading-contracts", "second-round-gate", "third-round-gate"))
+                          ("reading-contracts", "staged-gate"))
 
     def test_person_backend_avoids_unrelated_chapter_tests(self):
         self.assert_route(["apps/chronicle/persistence/person_state_projection.py"],
-                          ("person-contracts", "third-round-gate"),
-                          ("offline-gate", "chapter-pipeline", "second-round-gate"))
+                          ("person-contracts", "staged-gate"),
+                          ("chapter-pipeline",))
 
     def test_runtime_text_inputs_are_not_documentation(self):
         for path in (
@@ -131,7 +130,7 @@ class RoutingTests(unittest.TestCase):
             "apps/chronicle/worker/config/prompt.md",
             "apps/chronicle/ingestion/fixtures/new-case/README.md",
         ):
-            self.assert_route([path], ("chapter-pipeline", "second-round-gate", "third-round-gate"))
+            self.assert_route([path], ("chapter-pipeline", "staged-gate"))
 
     def test_shared_backend_schema_and_dependency_changes_cover_all_contracts(self):
         for path in (
@@ -144,10 +143,10 @@ class RoutingTests(unittest.TestCase):
         ):
             self.assert_route([path], GROUPS["chronicle"])
 
-    def test_r2_gate_helpers_also_reach_r3(self):
-        for path in ("second_round_gate.py", "reading_scale_fixture.py", "gate_runtime.py"):
+    def test_current_gate_helpers_share_the_staged_route(self):
+        for path in ("staged_gate.py", "reading_scale_fixture.py", "gate_runtime.py"):
             self.assert_route(["apps/chronicle/acceptance/" + path],
-                              ("second-round-gate", "third-round-gate"))
+                              ("staged-gate",))
 
     def test_validator_remains_outside_core_rust(self):
         self.assert_route(["apps/loom-validator/src/lib.rs"],
@@ -211,7 +210,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_task_notes_select_only_the_owning_metadata_check(self):
         plan = self.assert_route(["docs/tasks/chronicle/third-round/T01-test.md"],
-                                 ("documentation", "chronicle-third-round"), ("chronicle", "rust"))
+                                 ("documentation", "chronicle-notes"), ("chronicle", "rust"))
         self.assertEqual(plan["third_round_notes"], ["docs/tasks/chronicle/third-round/T01-test.md"])
         self.assert_route(["docs/tasks/ci-governance/t06-routing.md"], ("ledger",), ("chronicle", "rust"))
         self.assert_route(["docs/tasks/validator-recert/T01.md"], ("validator-ledger",),
@@ -241,7 +240,7 @@ class RoutingTests(unittest.TestCase):
 
     def test_plan_schema_rejects_missing_flags_and_non_booleans(self):
         for mutate in (
-            lambda p: p["jobs"].pop("second-round-gate"),
+            lambda p: p["jobs"].pop("staged-gate"),
             lambda p: p["jobs"].update({"rust": "false"}),
             lambda p: p.update({"version": 2}),
             lambda p: p["jobs"].update({"chronicle": True}),
@@ -346,7 +345,7 @@ class GitInputTests(unittest.TestCase):
         self.assertEqual(set(paths), {old, new, "README.md", unusual})
         plan = classify(paths)
         self.assertTrue(plan["suites"]["studio"])
-        self.assertTrue(plan["jobs"]["second-round-gate"])
+        self.assertTrue(plan["jobs"]["staged-gate"])
 
     def test_initial_push_uses_empty_tree(self):
         self.assertEqual(changed_paths("push", {"before": "0" * 40, "after": self.base}), ["README.md"])
@@ -441,17 +440,12 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_existing_browser_and_database_contracts_remain_executable(self):
         jobs = self.workflows["chronicle.yml"]["jobs"]
-        for job, script in (
-            ("offline-gate", "first_round_gate.py"),
-            ("second-round-gate", "second_round_gate.py"),
-            ("third-round-gate", "third_round_gate.py"),
-        ):
+        for job, script in (("staged-gate", "staged_gate.py"),):
             steps = str(jobs[job]["steps"])
             self.assertIn(script, steps)
             self.assertIn("--mode fixture", steps)
-            if job != "offline-gate":
-                self.assertIn("--browser-required", steps)
-                self.assertIn("performance_budget", steps)
+            self.assertIn("--browser-required", steps)
+            self.assertIn("performance_budget", steps)
         self.assertIn("test_staged_chapter_pipeline_postgres.py", str(jobs["chapter-pipeline"]))
         self.assertIn("test_studio_jobs_postgres.py", str(jobs["chapter-pipeline"]))
         self.assertIn("-k publish_faults", str(jobs["reading-contracts"]))

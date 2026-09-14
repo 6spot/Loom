@@ -16,13 +16,12 @@ from urllib.parse import unquote, urlsplit
 GROUPS = {
     "repository": (
         "routing-tests", "documentation", "skill-tools", "ledger", "dependency-policy", "rust",
-        "deployment", "chronicle-static", "chronicle-first-round",
-        "chronicle-third-round", "chronicle",
+        "deployment", "chronicle-static", "chronicle-corpus",
+        "chronicle-notes", "chronicle",
     ),
     "chronicle": (
-        "offline-gate", "chapter-pipeline", "reading-contracts",
-        "person-contracts", "web-components", "second-round-gate",
-        "third-round-gate",
+        "staged-gate", "chapter-pipeline", "reading-contracts",
+        "person-contracts", "web-components",
     ),
     "validator": ("validator-ledger", "validator-static"),
 }
@@ -30,7 +29,7 @@ JOBS = tuple(job for group in GROUPS.values() for job in group)
 STEPS = (
     "active_docs", "chronicle_python", "chronicle_rust", "chronicle_web",
     "chronicle_deployment", "chronicle_corpus", "chronicle_contract",
-    "chronicle_first_round", "chronicle_third_round",
+    "chronicle_notes",
 )
 SUITES = ("studio", "narrative", "reading", "history", "person")
 CI_FILES = {
@@ -102,13 +101,10 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
         step("chronicle_web")
         components(*suites, why=why)
         if public:
-            if "reading" in suites:
-                enable("second-round-gate", why=why)
-            if "history" in suites or "person" in suites:
-                enable("third-round-gate", why=why)
+            enable("staged-gate", why=why)
 
     def all_chronicle(why: str) -> None:
-        enable("chronicle-static", "chronicle-first-round",
+        enable("chronicle-static", "chronicle-corpus", "chronicle-notes",
                *GROUPS["chronicle"], why=why)
         step("chronicle_python", "chronicle_rust", "chronicle_web",
              "chronicle_deployment", "chronicle_corpus", "chronicle_contract")
@@ -118,13 +114,11 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
         enable("chronicle-static", why=why)
         step("chronicle_python")
         if domain == "chapter":
-            enable("offline-gate", "chapter-pipeline", "second-round-gate",
-                   "third-round-gate", why=why)
+            enable("staged-gate", "chapter-pipeline", why=why)
         elif domain == "reading":
-            enable("reading-contracts", "second-round-gate",
-                   "third-round-gate", why=why)
+            enable("reading-contracts", "staged-gate", why=why)
         elif domain == "person":
-            enable("person-contracts", "third-round-gate", why=why)
+            enable("person-contracts", "staged-gate", why=why)
         else:
             all_chronicle(why)
 
@@ -151,13 +145,13 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
         elif path == ".github/workflows/validator.yml":
             enable(*GROUPS["validator"], why=why)
         elif path.startswith("docs/tasks/chronicle/first-round/") and path.endswith(".md"):
-            enable("documentation", "chronicle-first-round", why=why)
-            step("chronicle_first_round")
+            enable("documentation", "chronicle-corpus", why=why)
+            step("chronicle_notes")
             plan["first_round_notes"].append(path)
             plan["docs"].append(path)
         elif path.startswith("docs/tasks/chronicle/third-round/") and path.endswith(".md"):
-            enable("documentation", "chronicle-third-round", why=why)
-            step("chronicle_third_round")
+            enable("documentation", "chronicle-notes", why=why)
+            step("chronicle_notes")
             plan["third_round_notes"].append(path)
             plan["docs"].append(path)
         elif path.startswith(("docs/tasks/scheduler-discovery/", "docs/tasks/ci-governance/")):
@@ -175,7 +169,7 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
         # Corpus, prompts, schemas and fixture inputs are executable contracts,
         # even when their extension is Markdown or plain text.
         elif path.startswith((CHRONICLE + "corpus/", CHRONICLE + "ingestion/fixtures/")):
-            enable("chronicle-first-round", why=why)
+            enable("chronicle-corpus", why=why)
             step("chronicle_corpus")
             if "/third-round/" in path:
                 backend("person", why)
@@ -265,13 +259,8 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
         elif path.startswith(CHRONICLE + "web/"):
             frontend(*SUITES, why=why, public=True)
         elif path.startswith(CHRONICLE + "acceptance/"):
-            if name in {"first_round_gate.py", "test_first_round_gate.py"}:
-                enable("offline-gate", why=why)
-            elif name in {"third_round_gate.py", "test_third_round_gate.py"}:
-                enable("third-round-gate", why=why)
-            elif name in {"second_round_gate.py", "test_second_round_gate.py", "reading_scale_fixture.py"}:
-                # R3 imports helpers from R2; changes affect both gates.
-                enable("second-round-gate", "third-round-gate", why=why)
+            if name in {"staged_gate.py", "test_staged_gate.py", "reading_scale_fixture.py"}:
+                enable("staged-gate", why=why)
             else:
                 all_chronicle(why)
         elif path.startswith((CHRONICLE + "persistence/", CHRONICLE + "worker/", CHRONICLE + "read_api/")):

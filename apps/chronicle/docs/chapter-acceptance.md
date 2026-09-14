@@ -1,78 +1,72 @@
-# C2 第一轮验收操作指南（篇章生产离线门 + 真实模型验收）
+# Chronicle 当前整章验收指南
 
-> 本文的 fixture gate 仍用于现行 CI 回归，使用冻结的早期章节合同。
-> 它不等于当前 staged 0.4 的生产验收。旧 live 预检查将在
-> [C3-T01](../../../docs/tasks/chronicle/product-convergence/T01.md) 中替换；
-> 当前生产配置与步骤验证见 [worker.md](worker.md) 和
-> [staged-chapter-production.md](staged-chapter-production.md)。
+当前唯一验收入口是 `apps/chronicle/acceptance/staged_gate.py`。它验证
+staged 0.4 的完整链路：原文上传、整章翻译、抽取、linking、审核、修复、接受回执、
+reading/catalog 发布，以及公开读取。旧轮次的任务、语料和结论仍保留在各自的历史目录，
+但不再作为当前 CI 门禁或生产入口。
 
-本指南是第一轮唯一的验收操作入口，由 C2-R1-T18 拥有。C1 历史结论见
-[final-acceptance.md](final-acceptance.md)，本文不改写 C1 记录。
+权威契约见 [chapter-production.md](chapter-production.md)、
+[staged-chapter-production.md](staged-chapter-production.md) 和
+[review-workflow.md](review-workflow.md)。统一入口与运行时使用
+[gate_runtime.py](../acceptance/gate_runtime.py) 的隔离 Compose / PostgreSQL 生命周期。
 
-契约权威：[chapter-production.md](chapter-production.md) §9、
-[review-workflow.md](review-workflow.md) §5。任务台账：
-`docs/tasks/chronicle/first-round/T18-offline-end-to-end-gate.md`（离线门）、
-`T19-live-content-acceptance.md`（真实内容验收）。
+## Fixture 模式
 
-## 1. 离线门（fixture mode，CI 运行）
-
-统一编排入口 `apps/chronicle/acceptance/first_round_gate.py`。fixture
-模式完全离线、确定性：用真实 `plan_chapters` 规划冻结 T02 语料包
-（`apps/chronicle/corpus/first-round/` 两部著作输入），经生产章切片
-hash 绑定生成确定性 fixture 候选，用 T01 规范校验器验收、T07 装配、
-T08 同 revision 跨章 pair 与冻结审核计划指纹，再执行故障注入。
-脚本只编排产品 API 与 Compose，不直写产品 DB（无 DB 驱动导入、无 SQL）。
-
-fixture 结果明确标注非 live，**不能作为真实内容正确证明**。
-
-准备 env 文件（按本指南准备，不提交秘密）：
+Fixture 只提供模型 Responses，不生成 accepted artifact，不写产品数据库，也不绕过
+worker 的 durable run、step history、candidate validation、review 或 acceptance receipt。
+当前唯一 worker fixture 是 `apps/chronicle/worker/staged_pipeline_fixture.py`；它会解析完整
+`SOURCE` 提示并生成 staged 0.4 候选。fixture 结果只证明程序链路和结构检查，不能证明真实
+翻译、人物判断或历史内容。
 
 ```bash
-cat > /tmp/chronicle-first-round-test.env <<'EOF'
-CHRONICLE_POSTGRES_PASSWORD=test-only-local
-CHRONICLE_ADMIN_USER=admin
-CHRONICLE_ADMIN_PASSWORD=test-only-local
-EOF
+mise install
+python3 -m pip install \
+  -r apps/chronicle/persistence/requirements.txt \
+  -r apps/chronicle/read_api/requirements.txt \
+  -r apps/chronicle/worker/requirements.txt
+docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
+
+printf '%s\n' \
+  'CHRONICLE_POSTGRES_PASSWORD=test-only-local' \
+  'CHRONICLE_ADMIN_USER=admin' \
+  'CHRONICLE_ADMIN_PASSWORD=test-only-local' \
+  > /tmp/chronicle-staged-test.env
+
+python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_staged_gate.py' -v
+python3 apps/chronicle/acceptance/staged_gate.py \
+  --mode fixture \
+  --env-file /tmp/chronicle-staged-test.env \
+  --source-pack apps/chronicle/corpus/first-round/source-pack.json \
+  --evidence-dir /tmp/chronicle-staged-offline \
+  --browser-required
 ```
 
-运行离线门与 scoped 测试：
+CI 使用同一个入口的 `staged-gate` job。成功 manifest 必须包含候选版本 0.4、完整
+step history、review decisions、公开 publication/read evidence、失败关闭和重启证据，
+并在 `terminal_jobs` 中为每个已完成的 0.4 source job 保留终态 detail、逐 chunk
+step history、output metadata 和完整 acceptance receipt。gate 会校验每个阶段、
+每个生产步骤、输出 hash 与 receipt 的绑定；任一证据缺失会 fail closed，并在
+`manifest.partial.json` 中保留阶段与失败位置。`--skip-browser` 只用于本地快速迭代。
+
+程序检查与人工内容判断分开：脚本检查 schema、source scope、hash、引用/原文锚点、状态
+流转、原子发布、重试/取消/lease takeover、无半成品和浏览器结构/性能；人工验收必须完整
+阅读每一章原文、完整输出和对应证据，独立判断译文、实体消歧、同名不同人、来源关系、
+人物阶段及历史叙事。fixture 的 PASS 不得替代人工内容结论。
+
+## Live 模式
 
 ```bash
-python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v
-python3 apps/chronicle/acceptance/first_round_gate.py --mode fixture --env-file /tmp/chronicle-first-round-test.env --source-pack apps/chronicle/corpus/first-round/source-pack.json --evidence-dir /tmp/chronicle-first-round-offline
+python3 apps/chronicle/acceptance/staged_gate.py \
+  --mode live \
+  --env-file .env.chronicle \
+  --source-pack apps/chronicle/corpus/first-round/source-pack.json \
+  --evidence-dir /tmp/chronicle-staged-live
 ```
 
-成功后 `/tmp/chronicle-first-round-offline/manifest.json`（schema
-`chronicle.first-round-gate-evidence/0.1`）记录：候选 commit 与
-`git_clean`、实际命令、来源/产物 hash、模式、job/review/publication
-占位、浏览器脚本与日志定位。失败时保留
-`manifest.partial.json`（已完成阶段 + 失败原因），原成功结果不被覆盖。
+Live 严格拒绝 fixture pack、fixture model、`--auto-decide`、非交互会话以及带凭据/查询
+秘密的 endpoint；需要 `CHRONICLE_CHAPTER_MODEL`、`CHRONICLE_NARRATIVE_MODEL` 和真实
+provider 配置。当前入口只做 preflight 并写出 `READY` 交接，真实 provider 调用和逐章人工
+判断尚未在此环境完成，不能把 `READY` 或 fixture PASS 记作 live 通过。
 
-离线覆盖（详见 T18 台账与 manifest `works`/`faults` 段）：
-
-- 章内 ref 共享（local temp ID 同章共用）、同 revision 跨章 pair
-  （`chapter_pair`，初始 `uncertain`，阻塞，不自动合并）、跨书
-  batch/default/override DTO（默认 `uncertain`，逐组例外保留）、
-  `uncertain` 不合并、无 Claim 记录的原文 provenance（record_source）、
-  首尾译文覆盖、多对多引用（多译文块 × 多实体/事件）。
-- 故障注入：run 接受间中断后幂等重验收养、worker 接管/取消（空作业
-  不装配）、缺一章、超限/length、source hash 错误、公开事务回滚
-  （坏 resolution 不验证 → 无部分发布）、同 revision 内容变更拒绝、
-  两 revision 阅读隔离（装配拒绝混 revision，章身份不跨 revision 碰撞）。
-- 浏览器复用：`review-flow-smoke.mjs`（450+ 审核队列与连审）与
-  `chapter-reader-smoke.mjs`（Reader 路线）静态复用检查；fixture
-  不启动浏览器、不复制第二套客户端逻辑。live 才真实执行。
-  `review-flow-smoke.mjs` 另有 `--mode real-backend`：不 mock Studio
-  HTTP，用环境变量 `CHRONICLE_SMOKE_USERNAME` / `CHRONICLE_SMOKE_PASSWORD`
-  （或 `--username` / `--password`）登录真实实例，打开准备好的
-  `--review-id`，提交裁决并读回 `status=resolved`；账号密码不落仓库与日志。
-
-## 2. 历史 live 预检查
-
-T18 的旧 live 模式只做早期配置预检查，不执行模型。它要求的 C1
-extraction/presentation 开关已经从正式生产入口删除，因此 `READY` 不能
-证明当前流程可运行，不再作为新任务的生产操作指令。
-
-早期 T19 的执行与内容结论保留在第一轮任务和 corpus 验收记录中。
-新任务通过当前整章流程完成上传、逐步处理、异常审核、发布和真实阅读核对，
-并分别记录程序结果与内容质量。C3-T01 负责将这些场景接到统一的当前验收入口。
+验收结束后默认 `ComposeStack` 执行 `down -v` 清理隔离栈；只有明确使用
+`--keep-stack` 时才保留服务以供同一会话中的浏览器检查。

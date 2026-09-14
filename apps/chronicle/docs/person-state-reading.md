@@ -264,7 +264,7 @@ D01 至少冻结 16 个逐项可复查案例，真实材料必须可重定位；
 
 浏览器证据使用 1440×900、1024×768、390×844、320×568、200% 缩放、键盘和触屏。延续第二轮的窗口和性能预算；已取回数据后当前人物区更新 p95 ≤100ms，单段初始状态获取不按人物数产生 N+1；错误不清空正文或偷换阶段。不能用源码字符串、仅 HTTP mock 或截图替代应由真实栈证明的行为。
 
-整链 gate 扩展第二轮的同一个 lifecycle 支持，提供 `acceptance/third_round_gate.py --mode fixture|live --env-file PATH --source-pack PATH --evidence-dir PATH`，不复制部署入口或直接写 DB 来伪造发布。fixture 证明机制；live 使用真实 provider、完整自然章、Studio 人审／发布与独立内容核对，记录具体 publication/stream/catalog/原文锚点和逐案结果。
+整链 gate 由 `acceptance/staged_gate.py --mode fixture|live --env-file PATH --source-pack PATH --evidence-dir PATH` 统一提供，使用 staged 0.4 生产 worker 和同一个 `gate_runtime` lifecycle，不复制部署入口或直接写 DB 来伪造发布。fixture 证明机器链路与结构；live 使用真实 provider、完整自然章、Studio 人审／发布与独立内容核对，记录具体 publication/stream/catalog/原文锚点和逐案结果。当前环境仅完成严格 preflight/READY 交接时，必须把 live 内容验收记为未完成。
 
 本轮有三个可评阅节点：D01/D02 的真实样例与界面设计；T08/T10 的生产、审核和读取契约；T13–T15 的页面接线、自动门与真实内容验收。前两轮的真实验收问题仍按各自 Issue 处理，设计／fixture 通过不能替代这些结果。
 

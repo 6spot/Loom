@@ -28,42 +28,6 @@ jobs:
           CI_PLAN: ${{ inputs.plan || '' }}
         run: python3 tools/ci_routing.py classify --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
 
-  offline-gate:
-    name: Chapter offline gate (fixture)
-    needs: changes
-    if: fromJSON(needs.changes.outputs.plan).jobs['offline-gate']
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install gate dependencies
-        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
-
-      - name: First-round gate unit tests
-        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_first_round_gate.py' -v
-
-      - name: First-round offline gate (fixture mode)
-        run: |
-          set -euo pipefail
-          printf '%s\n' \
-            'CHRONICLE_POSTGRES_PASSWORD=ci-offline-gate' \
-            'CHRONICLE_ADMIN_USER=admin' \
-            'CHRONICLE_ADMIN_PASSWORD=ci-offline-gate' \
-            > /tmp/chronicle-first-round-test.env
-          python3 apps/chronicle/acceptance/first_round_gate.py \
-            --mode fixture \
-            --env-file /tmp/chronicle-first-round-test.env \
-            --source-pack apps/chronicle/corpus/first-round/source-pack.json \
-            --evidence-dir /tmp/chronicle-first-round-offline
-          python3 -c "import json; m=json.load(open('/tmp/chronicle-first-round-offline/manifest.json')); assert m['result']=='PASS' and m['mode']=='fixture' and m['fixture_only'], m"
-
   chapter-pipeline:
     name: Chapter production and Studio task contracts
     needs: changes
@@ -231,122 +195,10 @@ jobs:
             node apps/chronicle/webapp/scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5174 --output /tmp/chronicle-studio-components
           fi
 
-  second-round-gate:
-    name: Source reading real-stack + browser gate (fixture)
+  staged-gate:
+    name: Staged 0.4 source-to-public acceptance gate (fixture)
     needs: changes
-    if: fromJSON(needs.changes.outputs.plan).jobs['second-round-gate']
-    runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: pgvector/pgvector:0.8.6-pg18
-        env:
-          POSTGRES_USER: loom
-          POSTGRES_PASSWORD: loom
-          POSTGRES_DB: loom_control
-        ports:
-          - 15432:5432
-        options: >-
-          --health-cmd "pg_isready -U loom -d loom_control"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-
-    env:
-      LOOM_TEST_POSTGRES_URL: postgresql://loom:loom@127.0.0.1:15432/loom_control
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: apps/chronicle/webapp/package-lock.json
-
-      - name: Install gate dependencies
-        run: python3 -m pip install -r apps/chronicle/persistence/requirements.txt
-
-      - name: Install webapp and Playwright
-        run: |
-          npm --prefix apps/chronicle/webapp ci
-          npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
-
-      - name: Second-round gate unit tests
-        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_second_round_gate.py' -v
-
-      - name: Validate reading browser driver and suites
-        run: |
-          set -euo pipefail
-          for file in \
-            apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
-            apps/chronicle/webapp/tests/reading-browser/integration/manifest.mjs \
-            apps/chronicle/webapp/tests/reading-browser/integration/runner.mjs \
-            apps/chronicle/webapp/tests/reading-browser/integration/suites/flow.mjs \
-            apps/chronicle/webapp/tests/reading-browser/integration/suites/accessibility.mjs \
-            apps/chronicle/webapp/tests/reading-browser/integration/suites/performance.mjs; do
-            node --check "$file"
-          done
-
-      - name: Reading locate timing probe regression (Chromium)
-        run: node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
-
-      - name: Build Chronicle image
-        run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
-
-      - name: Second-round real-stack browser gate (fixture mode)
-        run: |
-          set -euo pipefail
-          printf '%s\n' \
-            'CHRONICLE_POSTGRES_PASSWORD=ci-offline-gate' \
-            'CHRONICLE_ADMIN_USER=admin' \
-            'CHRONICLE_ADMIN_PASSWORD=ci-offline-gate' \
-            > /tmp/chronicle-second-round-test.env
-          python3 apps/chronicle/acceptance/second_round_gate.py \
-            --mode fixture \
-            --env-file /tmp/chronicle-second-round-test.env \
-            --source-pack apps/chronicle/corpus/first-round/source-pack.json \
-            --evidence-dir /tmp/chronicle-r2-offline \
-            --browser-required
-          python3 - <<'PY'
-          import json
-          m = json.load(open("/tmp/chronicle-r2-offline/manifest.json"))
-          c = m["criteria"]
-          assert m["result"] == "PASS" and m["mode"] == "fixture" and m["fixture_only"], m
-          assert c["real_stack_offline_chain"] == "PASS", c
-          assert c["negative_faults"] == "PASS", c
-          assert c["browser_interaction"] == "PASS", c
-          assert c["performance_budget"] == "PASS", c
-          assert m["scale"]["unit_count"] >= 5000 and m["scale"]["group_count"] >= 1000, m["scale"]
-          assert m["browser"]["ok"] is True, m["browser"]
-          kinds = {n["kind"] for n in m["negatives"]}
-          assert {"unknown_time", "missing_context", "missing_role"} <= kinds, kinds
-          assert m["scale_contract"]["units_checked"] >= 50, m["scale_contract"]
-          perf = next(r for r in m["browser"]["results"] if r["suite"] == "performance")
-          runs = perf["evidence"]["runs"]
-          assert len(runs) == 5, runs
-          assert all(r["active_p95_ms"] <= 100 and r["restore_ms"] <= 250 for r in runs), runs
-          bm = json.load(open("/tmp/chronicle-r2-offline/browser-fixture-manifest.json"))
-          mounted_max = bm["budgets"]["mounted_max_units"]
-          for run in runs:
-            assert run["window_progression"]["mounted_max"] <= mounted_max, run
-            assert run["window_progression"]["duration_seconds"] >= 30, run
-            assert run["window_progression"]["active_ordinal_max"] > run["window_progression"]["active_ordinal_min"], run
-            assert run["max_long_task_ms"] < bm["budgets"]["max_long_task_ms"], run
-            assert run["request_counts"]["preview"] == 0, run
-          PY
-
-  third-round-gate:
-    name: Published history and person-state browser gate (fixture)
-    needs: changes
-    if: fromJSON(needs.changes.outputs.plan).jobs['third-round-gate']
+    if: fromJSON(needs.changes.outputs.plan).jobs['staged-gate']
     runs-on: ubuntu-latest
 
     services:
@@ -395,14 +247,20 @@ jobs:
           npm --prefix apps/chronicle/webapp ci
           npx --prefix apps/chronicle/webapp playwright install --with-deps chromium
 
-      - name: Third-round gate unit tests
-        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_third_round_gate.py' -v
+      - name: Staged gate unit tests
+        run: python3 -m unittest discover -s apps/chronicle/acceptance -p 'test_staged_gate.py' -v
 
-      - name: Validate person-state browser driver and suites
+      - name: Validate current browser drivers and suites
         run: |
           set -euo pipefail
           for file in \
+            apps/chronicle/webapp/scripts/reading-flow-smoke.mjs \
             apps/chronicle/webapp/scripts/person-state-flow-smoke.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/manifest.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/runner.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/flow.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/accessibility.mjs \
+            apps/chronicle/webapp/tests/reading-browser/integration/suites/performance.mjs \
             apps/chronicle/webapp/tests/reading-browser/integration/person-states/manifest.mjs \
             apps/chronicle/webapp/tests/reading-browser/integration/person-states/runner.mjs \
             apps/chronicle/webapp/tests/reading-browser/integration/person-states/suites/reading.mjs \
@@ -411,50 +269,62 @@ jobs:
             node --check "$file"
           done
 
+      - name: Reading locate timing probe regression (Chromium)
+        run: node apps/chronicle/webapp/tests/reading-browser/integration/locate-timing-smoke.mjs
+
       - name: Build Chronicle image
         run: docker build -f apps/chronicle/Dockerfile -t loom-chronicle:local .
 
-      - name: Third-round real-stack person-state gate (fixture mode)
+      - name: Staged 0.4 real-stack browser gate (fixture mode)
         run: |
           set -euo pipefail
           printf '%s\n' \
-            'CHRONICLE_POSTGRES_PASSWORD=ci-offline-gate' \
+            'CHRONICLE_POSTGRES_PASSWORD=ci-staged-gate' \
             'CHRONICLE_ADMIN_USER=admin' \
-            'CHRONICLE_ADMIN_PASSWORD=ci-offline-gate' \
-            > /tmp/chronicle-third-round-test.env
-          python3 apps/chronicle/acceptance/third_round_gate.py \
+            'CHRONICLE_ADMIN_PASSWORD=ci-staged-gate' \
+            > /tmp/chronicle-staged-test.env
+          python3 apps/chronicle/acceptance/staged_gate.py \
             --mode fixture \
-            --env-file /tmp/chronicle-third-round-test.env \
+            --env-file /tmp/chronicle-staged-test.env \
             --source-pack apps/chronicle/corpus/first-round/source-pack.json \
-            --evidence-dir /tmp/chronicle-r3-offline \
+            --evidence-dir /tmp/chronicle-staged-offline \
             --browser-required
           python3 - <<'PY'
           import json
-          m = json.load(open("/tmp/chronicle-r3-offline/manifest.json"))
+          m = json.load(open("/tmp/chronicle-staged-offline/manifest.json"))
           c = m["criteria"]
           assert m["result"] == "PASS" and m["mode"] == "fixture" and m["fixture_only"], m
-          assert c["source_person_state_publish_chain"] == "PASS", c
-          assert c["composite_history_two_review_chain"] == "PASS", c
-          assert c["published_history_and_person_page"] == "PASS", c
+          assert c["staged_0_4_source_to_acceptance"] == "PASS", c
+          terminal_jobs = m["terminal_jobs"]
+          assert [job["job_id"] for job in terminal_jobs] == [work["job_id"] for work in m["works"]], terminal_jobs
+          assert all((job.get("validation") or {}).get("status") == "PASS" for job in terminal_jobs), terminal_jobs
+          assert c["scenario_coverage"] == "PASS", c
           assert c["negative_faults"] == "PASS", c
-          assert c["multi_chapter_source_state_consistency"] == "PASS", c
+          assert c["scale_contract"] == "PASS", c
           assert c["browser_interaction"] == "PASS", c
           assert c["performance_budget"] == "PASS", c
-          assert m["history"]["version"] and m["history"]["paragraph_id"] and m["history"]["phase_id"], m["history"]
-          assert m["history"]["entity_id"] and m["history"]["state_id"], m["history"]
           assert m["scale"]["unit_count"] >= 5000 and m["scale"]["group_count"] >= 1000, m["scale"]
           assert m["browser"]["ok"] is True, m["browser"]
-          results = {r["suite"]: r for r in m["browser"]["results"]}
-          for suite in ("reading", "review", "performance"):
-            assert results[suite]["ok"] is True, results.get(suite)
-          perf = results["performance"]["evidence"]
-          assert perf["person_region_p95_ms"] <= 100, perf
-          assert perf["max_long_task_ms"] < 200, perf
+          kinds = {n["kind"] for n in m["negatives"]}
+          assert {"unknown_time", "missing_context", "missing_role"} <= kinds, kinds
+          assert m["scale_contract"]["units_checked"] >= 50, m["scale_contract"]
+          perf = next(r for r in m["browser"]["results"] if r["suite"] == "performance")
+          runs = perf["evidence"]["runs"]
+          assert len(runs) == 5, runs
+          assert all(r["active_p95_ms"] <= 100 and r["restore_ms"] <= 250 for r in runs), runs
+          bm = json.load(open("/tmp/chronicle-staged-offline/reading-fixture-manifest.json"))
+          mounted_max = bm["budgets"]["mounted_max_units"]
+          for run in runs:
+            assert run["window_progression"]["mounted_max"] <= mounted_max, run
+            assert run["window_progression"]["duration_seconds"] >= 30, run
+            assert run["window_progression"]["active_ordinal_max"] > run["window_progression"]["active_ordinal_min"], run
+            assert run["max_long_task_ms"] < bm["budgets"]["max_long_task_ms"], run
+            assert run["request_counts"]["preview"] == 0, run
           PY
   chronicle-gate:
     name: Chronicle Gate
     if: always()
-    needs: [changes, offline-gate, chapter-pipeline, reading-contracts, person-contracts, web-components, second-round-gate, third-round-gate]
+    needs: [changes, chapter-pipeline, reading-contracts, person-contracts, web-components, staged-gate]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

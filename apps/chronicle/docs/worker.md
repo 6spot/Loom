@@ -289,11 +289,13 @@ The authenticated jobs namespace also supports:
   are not copied to the new job. The worker checks the saved selection before
   model calls, using a local selection without mutating its default profiles.
 - `GET /api/v1/studio/jobs/{job_id}/outputs/{sha}?offset=0&limit=16000`:
-  hash-verified, exact-job result pages in Unicode code points. Only saved
-  chapter attempts, step responses and drafts are readable. The positive
-  field projection retains model content, candidates and validation/opinions;
-  prompts, request inputs, credentials and transport configuration stay on the
-  server. `next_offset=null` means the complete result has been read.
+  hash-verified, exact-job result pages in Unicode code points. Saved chapter
+  attempts, step responses, drafts and the staged acceptance receipt are
+  readable. The positive field projection retains model content, candidates
+  and validation/opinions for model results; the receipt projection retains
+  only its hashes, decision metadata and chunk binding. Prompts, request
+  inputs, credentials and transport configuration stay on the server.
+  `next_offset=null` means the complete result has been read.
 
 Ordinary `retry` never rewrites the saved model request or resets budgets.
 The selection fingerprint excludes credential values and the global transport

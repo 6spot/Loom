@@ -259,6 +259,49 @@ class StudioJobsHttpTests(unittest.TestCase):
                 (psycopg.types.json.Jsonb({**result, "status": "changed"}), job_id, digest))
         self.assertEqual(self._json("GET", path)[0], 409)
 
+    def test_acceptance_receipt_output_is_readable_without_candidate_or_transport_data(self):
+        _, body = self._json("POST", STUDIO_JOBS_PREFIX, {"revision_id": str(self.revision_id)})
+        job_id = body["job"]["job_id"]
+        receipt = {
+            "schema": "chronicle.chapter-acceptance",
+            "version": "0.1",
+            "status": "accepted",
+            "chapter_id": "ch_" + "1" * 24,
+            "chunk_id": "chunk-1",
+            "request_fingerprint": "a" * 64,
+            "candidate_sha256": "b" * 64,
+            "history_sha256": "c" * 64,
+            "step_output_sha256s": ["d" * 64],
+            "decision": {"kind": "human"},
+            "draft_sha256": "e" * 64,
+            "prompt": "must not be exposed",
+        }
+        digest = sha256_json(receipt)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output(
+                conn,
+                job_id=uuid.UUID(job_id),
+                revision_id=self.revision_id,
+                artifact_type=studio_production.ACCEPTANCE_TYPE,
+                artifact_sha256=digest,
+                payload=receipt,
+            )
+        status, detail = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}")
+        self.assertEqual(status, 200, detail)
+        acceptance = next(
+            item for item in detail["job"]["outputs"]
+            if item["artifact_type"] == studio_production.ACCEPTANCE_TYPE
+        )
+        self.assertTrue(acceptance["readable"])
+        status, page = self._json(
+            "GET", f"{STUDIO_JOBS_PREFIX}/{job_id}/outputs/{digest}"
+        )
+        self.assertEqual(status, 200, page)
+        value = json.loads(page["text"])
+        self.assertEqual("accepted", value["status"])
+        self.assertEqual("chunk-1", value["chunk_id"])
+        self.assertNotIn("prompt", value)
+
     def test_queue_inspect_complete_round_trip(self) -> None:
         status, payload = self._json(
             "POST", STUDIO_JOBS_PREFIX, {"revision_id": str(self.revision_id)}
