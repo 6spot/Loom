@@ -46,6 +46,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/public/timeline", any(public_timeline))
         .route("/api/v1/public/search", any(public_search))
         .route("/api/v1/public/events/{id}", any(public_event))
+        .route(
+            "/api/v1/public/entities/{id}/history",
+            any(public_entity_history),
+        )
+        .route(
+            "/api/v1/public/entities/{id}/history/{*rest}",
+            any(public_entity_history_detail),
+        )
         .route("/api/v1/public/entities/{id}", any(public_entity))
         .route("/api/v1/public/chapters", any(public_chapters))
         .route(
@@ -160,6 +168,52 @@ async fn public_entity(
     }
 }
 
+/// Public person-history metadata. The Python sidecar performs the canonical
+/// person-kind check and immutable publication lookup; Rust only validates the
+/// path component and forwards the read under the anonymous public namespace.
+async fn public_entity_history(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    Path(id): Path<String>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match validated_id(&id) {
+        Some(valid) => {
+            proxy_public(
+                &state,
+                request.method().clone(),
+                format!("/v0/entities/{valid}/history"),
+                uri.query().map(str::to_string),
+            )
+            .await
+        }
+        None => TypedError::not_found("route not found").into_response(),
+    }
+}
+
+/// Public person-history paragraphs/conclusions. Each path segment is checked
+/// for a safe, non-empty value before forwarding; route semantics and exact
+/// version/paragraph/conclusion ownership remain in the Python read model.
+async fn public_entity_history_detail(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    Path((id, rest)): Path<(String, String)>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match (validated_id(&id), validated_history_rest(&rest)) {
+        (Some(valid), Some(rest)) => {
+            proxy_public(
+                &state,
+                request.method().clone(),
+                format!("/v0/entities/{valid}/history/{rest}"),
+                uri.query().map(str::to_string),
+            )
+            .await
+        }
+        _ => TypedError::not_found("route not found").into_response(),
+    }
+}
+
 /// Public chapter directory (C2-R1-T17): anonymous read of published
 /// chapters only. Unpublished or unknown versions are a JSON 404 from the
 /// sidecar, never an HTML shell.
@@ -248,6 +302,20 @@ fn validated_id(id: &str) -> Option<&str> {
         return None;
     }
     Some(id)
+}
+
+fn validated_history_rest(rest: &str) -> Option<&str> {
+    if rest.is_empty()
+        || rest.split('/').any(|segment| {
+            segment.is_empty()
+                || segment == "."
+                || segment == ".."
+                || validated_id(segment).is_none()
+        })
+    {
+        return None;
+    }
+    Some(rest)
 }
 
 /// Forward one public read to the C0 upstream. Only owned values cross the

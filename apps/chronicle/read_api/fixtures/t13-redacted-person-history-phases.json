@@ -1,0 +1,85 @@
+{
+  "schema": "chronicle.t13-redacted-person-history",
+  "version": "0.1",
+  "evidence_class": "staged-postgresql-read",
+  "source": {
+    "person": "周瑜",
+    "provider": "local T12 fixture pipeline",
+    "credentials": "omitted",
+    "ids": "omitted",
+    "sha256_values": "omitted",
+    "source_text": "omitted"
+  },
+  "metadata_response": {
+    "status_code": 200,
+    "schema": "chronicle.person-history-metadata",
+    "version": "0.1",
+    "status": "published",
+    "empty": false,
+    "source_count": 1,
+    "phase_count": 4,
+    "paragraph_count": 4,
+    "conclusion_count": 4
+  },
+  "phase_responses": [
+    {
+      "ordinal": 0,
+      "time_precision": "unknown",
+      "mapping_status": "unmapped",
+      "mapping_target_count": 0,
+      "paragraph": {
+        "segment_count": 1,
+        "state_count": 1,
+        "action_count": 0,
+        "evidence_expanded": false
+      }
+    },
+    {
+      "ordinal": 1,
+      "time_precision": "unknown",
+      "mapping_status": "unmapped",
+      "mapping_target_count": 0,
+      "paragraph": {
+        "segment_count": 1,
+        "state_count": 1,
+        "action_count": 0,
+        "evidence_expanded": false
+      }
+    },
+    {
+      "ordinal": 2,
+      "time_precision": "unknown",
+      "mapping_status": "unmapped",
+      "mapping_target_count": 0,
+      "paragraph": {
+        "segment_count": 1,
+        "state_count": 0,
+        "action_count": 1,
+        "evidence_expanded": false
+      }
+    },
+    {
+      "ordinal": 3,
+      "time_precision": "unknown",
+      "mapping_status": "unmapped",
+      "mapping_target_count": 0,
+      "paragraph": {
+        "segment_count": 1,
+        "state_count": 1,
+        "action_count": 0,
+        "evidence_expanded": false
+      }
+    }
+  ],
+  "paragraph_page_response": {
+    "status_code": 200,
+    "schema": "chronicle.person-history-page",
+    "start": 0,
+    "limit": 50,
+    "total": 4,
+    "returned": 4,
+    "has_more": false,
+    "previous_start": null,
+    "next_start": null
+  }
+}

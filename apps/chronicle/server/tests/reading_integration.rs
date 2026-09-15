@@ -98,6 +98,7 @@ async fn live_server(
 }
 
 const STREAM_ID: &str = "01a08df4-64ee-7c14-9273-1306e41578bd";
+const PERSON_ID: &str = "01a08df4-64ee-7c14-9273-1306e41578be";
 const CATALOG: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 #[tokio::test]
@@ -162,6 +163,26 @@ async fn reading_paths_map_to_the_python_v0_contract() {
             format!("/api/v1/public/entities/01a05cd7-439d-7071-bf00-86c664886b06?catalog={CATALOG}"),
             format!("/v0/entities/01a05cd7-439d-7071-bf00-86c664886b06?catalog={CATALOG}"),
         ),
+        (
+            format!("/api/v1/public/entities/{PERSON_ID}/history?version={CATALOG}"),
+            format!("/v0/entities/{PERSON_ID}/history?version={CATALOG}"),
+        ),
+        (
+            format!(
+                "/api/v1/public/entities/{PERSON_ID}/history/paragraphs?version={CATALOG}&limit=20"
+            ),
+            format!(
+                "/v0/entities/{PERSON_ID}/history/paragraphs?version={CATALOG}&limit=20"
+            ),
+        ),
+        (
+            format!(
+                "/api/v1/public/entities/{PERSON_ID}/history/conclusions/conclusion_001?version={CATALOG}"
+            ),
+            format!(
+                "/v0/entities/{PERSON_ID}/history/conclusions/conclusion_001?version={CATALOG}"
+            ),
+        ),
     ];
 
     for (public_path, upstream_path) in cases {
@@ -196,6 +217,15 @@ async fn reading_routes_reject_non_get_with_typed_405() {
         port,
         "DELETE",
         &format!("/api/v1/public/reading-events/{STREAM_ID}/targets?catalog={CATALOG}"),
+    )
+    .await;
+    assert_eq!(status, 405);
+    assert!(body.contains("method_not_allowed"), "{body}");
+
+    let (status, body) = request(
+        port,
+        "POST",
+        &format!("/api/v1/public/entities/{PERSON_ID}/history"),
     )
     .await;
     assert_eq!(status, 405);
