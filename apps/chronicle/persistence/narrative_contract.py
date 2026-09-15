@@ -1,7 +1,8 @@
 """Application-owned corroboration and historical narrative contracts.
 
-Structural validation never certifies historical truth. Both candidate kinds
-require a recorded review; source Claims and canonical identity stay untouched.
+Structural validation never certifies historical truth. Candidate kinds require
+the shared acceptance boundary; a human review is required only for an
+unresolved exception. Source Claims and canonical identity stay untouched.
 """
 from __future__ import annotations
 

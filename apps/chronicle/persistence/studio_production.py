@@ -108,6 +108,38 @@ def enrich_detail(conn, detail):
     for chunk in result["chunks"]:
         chunk["title"] = labels.get(uuid.UUID(chunk["section_id"])) if chunk.get("section_id") else None
     result["production_request"] = read_request(conn, detail["job_id"])
+    result["narrative_acceptances"] = [
+        {
+            "acceptance_id": str(row[0]),
+            "kind": row[1],
+            "acceptance_type": row[2],
+            "policy_version": row[3],
+            "input_sha256": row[4],
+            "candidate_sha256": row[5],
+            "draft_sha256": row[6],
+            "content_sha256": row[7],
+            "pipeline_fingerprint": row[8],
+            "model_output_sha256s": list(row[9] or []),
+            "model_opinion_sha256s": list(row[10] or []),
+            "decision": row[11],
+            "decision_reason": row[12],
+            "review_id": str(row[13]) if row[13] is not None else None,
+            "created_at": row[14].isoformat() if row[14] is not None else None,
+            "receipt_sha256": row[15].get("receipt_sha256") if isinstance(row[15], dict) else None,
+        }
+        for row in conn.execute(
+            """
+            SELECT acceptance_id, kind, acceptance_type, policy_version,
+                   input_sha256, candidate_sha256, draft_sha256, content_sha256,
+                   pipeline_fingerprint, model_output_sha256s, model_opinion_sha256s,
+                   decision, decision_reason, review_id, created_at, payload
+            FROM chronicle.narrative_acceptances
+            WHERE job_id = %s
+            ORDER BY created_at, acceptance_id
+            """,
+            (detail["job_id"],),
+        ).fetchall()
+    ]
     # Explicit result metadata, with all attempts (not only the latest node
     # checkpoint). Large model bodies are read only when an operator opens one.
     rows = conn.execute(

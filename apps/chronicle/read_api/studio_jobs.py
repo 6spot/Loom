@@ -205,6 +205,7 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
             "source_count",
             "current_stage",
             "production_request",
+            "narrative_acceptances",
         )
     }
     result["stages"] = [

@@ -16,6 +16,10 @@ GET  /api/v1/studio/jobs/reviews/{review_id}
 POST /api/v1/studio/jobs/reviews/{review_id}/decision
      {"decision":"...","rationale":"...","confidence":0.0..1.0}
 
+For a narrative review, ``decision=revise`` with the complete ``content``
+creates a new append-only candidate and a new review item.  It never mutates
+the reviewed draft in place.
+
 The list endpoint is the C2-R1 review-workflow queue API
 (``chronicle.studio-review-page / 0.2``). It pages one ``resolution`` scope
 with a stable ``(created_at, review_id)`` keyset only: there is no offset
@@ -1808,7 +1812,25 @@ def _route(
         if narrative_store.review_detail(conn, review_id) is not None:
             if set(payload) - {"decision", "rationale", "candidate_sha", "content", "reviewed_conclusion_ids"}:
                 raise _BadRequest("unknown narrative decision field")
-            narrative_store.decide(conn, review_id=review_id,
+            if payload.get("decision") == "revise":
+                identity = conn.execute(
+                    "SELECT job_id FROM chronicle.review_items WHERE review_id = %s",
+                    (review_id,),
+                ).fetchone()
+                current = narrative_store.review_detail(conn, review_id)
+                if identity is None or current is None:
+                    raise _NotFound("narrative review is unavailable")
+                revised = narrative_store.revise_candidate(
+                    conn, job_id=identity[0], worker=None,
+                    kind=current["kind"], candidate_sha=payload.get("candidate_sha"),
+                    content=payload.get("content"), rationale=payload.get("rationale"),
+                )
+                return 200, "application/json; charset=utf-8", _json_bytes(
+                    {"schema": "chronicle.review", "version": "0.1",
+                     "review": _detail_with_sources(conn, uuid.UUID(revised["review_id"]))}
+                )
+            narrative_store.decide(
+                conn, review_id=review_id,
                 candidate_sha=payload.get("candidate_sha"), decision=payload.get("decision"),
                 rationale=payload.get("rationale"), content=payload.get("content"),
                 reviewed_conclusion_ids=payload.get("reviewed_conclusion_ids"))
