@@ -20,6 +20,7 @@ from psycopg.types.json import Jsonb
 
 import control_plane
 import history_edition_contract as contract
+from narrative_navigation import public_navigation
 import resolve_publish
 from common import LeaseLost, PersistenceConflict, PersistenceError, sha256_json
 
@@ -636,24 +637,252 @@ def _source_snapshot_is_current(conn, fragment: Mapping[str, Any]) -> None:
         )
 
 
-def _metadata_for_manifest(manifest: Mapping[str, Any], fragments: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _public_metadata_for_manifest(
+    manifest: Mapping[str, Any], fragments: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Project one immutable edition into the existing HistoryPage read shape.
+
+    The edition contract deliberately stores only global mappings and a flat
+    set of curated entry points.  The public reader, however, also needs the
+    reviewed continuous-axis intervals and the paragraph-group metadata that
+    existed on a single narrative publication.  Reconstruct those display
+    fields from the snapshotted fragments at publish time; never query the
+    mutable source publication while serving a public read.
+    """
+
     first = fragments[0] if fragments else {}
-    paragraphs = manifest.get("paragraphs") if isinstance(manifest.get("paragraphs"), list) else []
-    navigation = _copy_json(manifest.get("navigation") or [])
-    entry_points = [
-        _copy_json(item)
-        for item in navigation
-        if isinstance(item, Mapping)
-    ]
+    raw_paragraphs = manifest.get("paragraphs")
+    paragraphs = [item for item in raw_paragraphs if isinstance(item, Mapping)] if isinstance(raw_paragraphs, list) else []
+    by_source: dict[tuple[str, str], Mapping[str, Any]] = {}
+    by_global: dict[str, Mapping[str, Any]] = {}
+    for item in paragraphs:
+        fragment_version = item.get("fragment_version")
+        source_id = item.get("source_paragraph_id")
+        global_id = item.get("paragraph_id")
+        if isinstance(fragment_version, str) and isinstance(source_id, str):
+            by_source[(fragment_version, source_id)] = item
+        if isinstance(global_id, str):
+            by_global[global_id] = item
+
+    # Keep the source group ID on each page paragraph.  It is already scoped
+    # by the source publication and therefore remains stable across this
+    # edition projection; contract fixtures without groups fall back to the
+    # global phase ID below.
+    mapped: list[dict[str, Any]] = []
+    source_groups: dict[str, dict[str, Any]] = {}
+    source_paragraphs: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for fragment in fragments:
+        fragment_version = fragment.get("publication_version") or fragment.get("fragment_version")
+        if not isinstance(fragment_version, str):
+            continue
+        raw_source_paragraphs = fragment.get("paragraphs")
+        if not isinstance(raw_source_paragraphs, list):
+            continue
+        fragment_mapped: list[dict[str, Any]] = []
+        for source in raw_source_paragraphs:
+            if not isinstance(source, Mapping):
+                continue
+            source_id = source.get("id", source.get("paragraph_id"))
+            item = by_source.get((fragment_version, source_id)) if isinstance(source_id, str) else None
+            if item is None:
+                continue
+            group_id = source.get("group_id")
+            if not isinstance(group_id, str):
+                group_id = str(item.get("phase_id"))
+            record = {
+                "id": str(item["paragraph_id"]),
+                "ordinal": int(item["ordinal"]),
+                "group_id": group_id,
+                "source": source,
+                "fragment_version": fragment_version,
+                "source_id": str(source_id),
+            }
+            mapped.append(record)
+            fragment_mapped.append(record)
+            source_paragraphs[(fragment_version, str(source_id))] = source
+
+        raw_groups = fragment.get("groups")
+        if isinstance(raw_groups, list):
+            for raw_group in raw_groups:
+                if not isinstance(raw_group, Mapping):
+                    continue
+                group_id = raw_group.get("id")
+                if not isinstance(group_id, str):
+                    continue
+                members = [item for item in fragment_mapped if item["group_id"] == group_id]
+                if not members:
+                    first_id = raw_group.get("first_paragraph_id")
+                    first_item = next((item for item in fragment_mapped if item["source_id"] == first_id), None)
+                    if first_item is not None:
+                        count = raw_group.get("count")
+                        if type(count) is int and count > 0:
+                            start = fragment_mapped.index(first_item)
+                            members = fragment_mapped[start:start + count]
+                if members:
+                    source_groups[group_id] = {
+                        "id": group_id,
+                        "year": raw_group.get("year"),
+                        "period": raw_group.get("period"),
+                        "label": raw_group.get("label"),
+                        "first_paragraph_id": members[0]["id"],
+                        "count": len(members),
+                    }
+
+    # A contract fixture (and older fragment-shaped input) may not carry the
+    # publication's display groups.  Derive a bounded group per contiguous
+    # phase run without changing the phase or inventing a date.
+    phases = {
+        item.get("phase_id"): item
+        for item in manifest.get("phases", [])
+        if isinstance(item, Mapping) and isinstance(item.get("phase_id"), str)
+    }
+    ordered = sorted(mapped, key=lambda item: item["ordinal"])
+    persisted_group_ids = set(source_groups)
+    groups: list[dict[str, Any]] = []
+    group_by_id: dict[str, dict[str, Any]] = {}
+    for item in ordered:
+        group_id = item["group_id"]
+        if group_id not in source_groups:
+            phase = phases.get(group_id, {})
+            source_groups[group_id] = {
+                "id": group_id,
+                "year": phase.get("year"),
+                "period": phase.get("period"),
+                "label": phase.get("label"),
+                "first_paragraph_id": item["id"],
+                "count": 0,
+            }
+        if group_id not in group_by_id:
+            group_by_id[group_id] = source_groups[group_id]
+            # A source group already has its member count.  A fallback phase
+            # group starts at zero and is counted from the mapped paragraphs.
+            if group_id not in persisted_group_ids:
+                group_by_id[group_id]["count"] = 1
+        elif group_id not in persisted_group_ids:
+            group_by_id[group_id]["count"] += 1
+        if groups and groups[-1]["id"] == group_id:
+            continue
+        groups.append(group_by_id[group_id])
+
+    # The source navigation sections are reviewed display data, while the
+    # edition's flat navigation remains the authority for which entries are
+    # reachable.  Map source IDs to edition IDs and fall back to the group
+    # ranges when a fixture has no source navigation sections.
+    sections: list[dict[str, Any]] = []
+    for fragment in fragments:
+        fragment_version = fragment.get("publication_version") or fragment.get("fragment_version")
+        raw_sections = fragment.get("navigation")
+        if not isinstance(fragment_version, str) or not isinstance(raw_sections, list):
+            continue
+        for section in raw_sections:
+            if not isinstance(section, Mapping):
+                continue
+            first_item = by_source.get((fragment_version, str(section.get("first_paragraph_id"))))
+            last_item = by_source.get((fragment_version, str(section.get("last_paragraph_id"))))
+            if first_item is None or last_item is None:
+                continue
+            items = []
+            for node in section.get("items", []) if isinstance(section.get("items"), list) else []:
+                if not isinstance(node, Mapping):
+                    continue
+                target = by_source.get((fragment_version, str(node.get("paragraph_id"))))
+                if target is not None:
+                    items.append({
+                        "paragraph_id": target["paragraph_id"],
+                        "label": node.get("label"),
+                        "reason": node.get("reason"),
+                    })
+            sections.append({
+                "label": section.get("label"),
+                "first_paragraph_id": first_item["paragraph_id"],
+                "last_paragraph_id": last_item["paragraph_id"],
+                "items": items,
+            })
+
+    positions = {item["id"]: index for index, item in enumerate(ordered)}
+    covers_all = False
+    if sections:
+        cursor = 0
+        covers_all = True
+        for section in sections:
+            start = positions.get(section["first_paragraph_id"])
+            end = positions.get(section["last_paragraph_id"])
+            if start != cursor or end is None or end < start:
+                covers_all = False
+                break
+            cursor = end + 1
+        covers_all = covers_all and cursor == len(ordered)
+    if not covers_all:
+        sections = []
+        for index, item in enumerate(ordered):
+            if index and ordered[index - 1]["group_id"] == item["group_id"]:
+                continue
+            end = index
+            while end + 1 < len(ordered) and ordered[end + 1]["group_id"] == item["group_id"]:
+                end += 1
+            group = group_by_id[item["group_id"]]
+            sections.append({
+                "label": group.get("label"),
+                "first_paragraph_id": item["id"],
+                "last_paragraph_id": ordered[end]["id"],
+                "items": [],
+            })
+
+    raw_navigation = manifest.get("navigation")
+    raw_navigation = raw_navigation if isinstance(raw_navigation, list) else []
+    entry_points = []
+    for item in raw_navigation:
+        if not isinstance(item, Mapping):
+            continue
+        paragraph_id = item.get("paragraph_id")
+        target = by_global.get(paragraph_id) if isinstance(paragraph_id, str) else None
+        if target is None:
+            continue
+        group = group_by_id.get(next((record["group_id"] for record in ordered if record["id"] == paragraph_id), ""), {})
+        source = source_paragraphs.get((str(item.get("fragment_version")), str(item.get("source", {}).get("paragraph_id")))) if isinstance(item.get("source"), Mapping) else None
+        excerpt = ""
+        if isinstance(source, Mapping) and isinstance(source.get("segments"), list):
+            excerpt = "".join(
+                str(segment.get("text", ""))
+                for segment in source["segments"]
+                if isinstance(segment, Mapping)
+            )[:160]
+        entry_points.append({
+            "kind": item.get("kind"),
+            "label": item.get("label"),
+            "paragraph_id": paragraph_id,
+            "event_id": item.get("event_id"),
+            "reason": item.get("reason"),
+            "ordinal": int(target["ordinal"]),
+            "year": group.get("year"),
+            "period": group.get("period"),
+            "excerpt": excerpt,
+        })
+
+    display_publication = {
+        "paragraphs": [
+            {"id": item["id"], "ordinal": item["ordinal"], "group_id": item["group_id"]}
+            for item in ordered
+        ],
+        "groups": groups,
+        "entry_points": entry_points,
+        "navigation": sections,
+    }
+    navigation = public_navigation(display_publication)
     return {
         "title": first.get("title"),
         "catalog_sha": first.get("catalog_sha"),
         "first_paragraph_id": paragraphs[0].get("paragraph_id") if paragraphs else None,
         "last_paragraph_id": paragraphs[-1].get("paragraph_id") if paragraphs else None,
+        "groups": groups,
         "navigation": navigation,
         "entry_points": entry_points,
         "lineage": _copy_json(manifest.get("lineage")) if isinstance(manifest.get("lineage"), dict) else None,
     }
+
+
+def _metadata_for_manifest(manifest: Mapping[str, Any], fragments: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    return _public_metadata_for_manifest(manifest, fragments)
 
 
 def _insert_or_verify_edition(

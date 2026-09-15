@@ -612,7 +612,11 @@ class PersonStatePipelineTests(unittest.TestCase):
             self.assertEqual(len(source_states), len(public_states))
             self.assertEqual(
                 [(entry["paragraph_id"], entry["label"]) for entry in meta["entry_points"]],
-                [(item["paragraph_id"], item["label"]) for item in meta["navigation"]],
+                [
+                    (item["paragraph_id"], item["label"])
+                    for section in meta["navigation"]
+                    for item in section["items"]
+                ],
             )
             state = public_states[0]
             source_state = source_states[0]

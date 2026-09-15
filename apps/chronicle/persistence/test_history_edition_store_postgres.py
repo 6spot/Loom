@@ -106,8 +106,22 @@ class HistoryEditionStorePostgresTests(unittest.TestCase):
 
             latest = store.read_latest_metadata(conn)
             self.assertEqual(second["version"], latest["version"])
+            self.assertEqual(
+                latest["first_paragraph_id"],
+                store.read_paragraph_page(
+                    conn, version=second["version"], start=0, limit=1
+                )["paragraphs"][0]["id"],
+            )
+            self.assertEqual(
+                second["paragraph_count"],
+                sum(group["count"] for group in latest["groups"]),
+            )
+            self.assertEqual(latest["first_paragraph_id"], latest["navigation"][0]["id"])
+            self.assertEqual(second["paragraph_count"] - 1, latest["navigation"][-1]["end"])
+            self.assertTrue(all("ordinal" in entry and "excerpt" in entry for entry in latest["entry_points"]))
             directory = history.dispatch_history(conn, "/v0/history", "")
             self.assertEqual(second["version"], directory["edition"]["version"])
+            self.assertEqual(latest["navigation"], directory["edition"]["navigation"])
             api_page = history.dispatch_history(
                 conn,
                 "/v0/history/paragraphs",
