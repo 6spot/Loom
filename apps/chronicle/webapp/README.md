@@ -76,6 +76,8 @@ GET /api/v1/public/entities/{id}
 GET /api/v1/public/history[?version]
 GET /api/v1/public/history/paragraphs?version&at|start&limit
 GET /api/v1/public/history/conclusions/{id}?version
+GET /api/v1/public/backgrounds?version&paragraph_id    (reader: active saved binding or null)
+GET /api/v1/public/background-assets/{asset_id}?version&paragraph_id  (reader: saved image bytes)
 GET /api/v1/studio/status   (Studio only, HTTP Basic, server-enforced)
 GET/POST /api/v1/studio/background-assets        (Studio only, candidate assets)
 GET/POST /api/v1/studio/background-bindings      (Studio only, explicit display bindings)
@@ -140,6 +142,7 @@ Select component suites by the surface they exercise:
 | Synthesized history and curated navigation | `scripts/history-component-smoke.mjs`. |
 | Narrative review | `scripts/narrative-review-component-smoke.mjs`. |
 | Studio upload, task progress, model comparison or retry | `scripts/studio-workspace-component-smoke.mjs`. |
+| Background candidate upload, explicit save and reader display | `scripts/studio-background-component-smoke.mjs` (fixture) and `scripts/history-background-real-stack-smoke.mjs` (real T15 backend). |
 
 The runnable examples below show the Vite base URL and output arguments. Choose
 the matching examples instead of running all of them. Component suites use
@@ -186,6 +189,9 @@ node scripts/reading-component-smoke.mjs --base-url http://127.0.0.1:5173 --suit
 node scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5173
 node scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5173
 node scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5173 --output /tmp/chronicle-studio-workspace
+node scripts/studio-background-component-smoke.mjs --base-url http://127.0.0.1:5173 --output /tmp/chronicle-studio-backgrounds
+CHRONICLE_ADMIN_USER=<admin> CHRONICLE_ADMIN_PASSWORD=<password> \
+  node scripts/history-background-real-stack-smoke.mjs --base-url http://127.0.0.1:8080 --output /tmp/chronicle-background-real-stack
 ```
 
 This component suite does not substitute for the real-stack content gate.

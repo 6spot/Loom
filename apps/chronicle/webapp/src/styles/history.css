@@ -1,4 +1,15 @@
-.history-reading { overflow-wrap: anywhere; }
+.history-reading { overflow-wrap: anywhere; position: relative; isolation: isolate; }
+/* Saved background layer: a fixed, hit-test-transparent image painted behind
+ * the prose inside its own stacking context. It never adds height or a scroll
+ * range; missing images simply leave the paper background. */
+.history-background { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.history-background-image { position: absolute; inset: -2%; width: 104%; height: 104%; object-fit: cover; transform-origin: center; transition: opacity 200ms ease; }
+.history-background-mask { position: absolute; z-index: 0; pointer-events: none; background: rgb(250 248 243 / 68%); }
+.history-background-mask-gradient { background: linear-gradient(90deg, rgb(250 248 243 / 88%), rgb(250 248 243 / 38%), rgb(250 248 243 / 88%)); }
+.history-background-mask-rect { background: rgb(250 248 243 / 76%); }
+@media (prefers-reduced-motion: reduce) {
+  .history-background-image { transition: none; }
+}
 /* Keep the last loaded paragraph alignable with the reading reference line,
  * including while the next page is in flight and at the true end of history. */
 .history-body { min-width: 0; overflow-anchor: none; padding-bottom: 70dvh; }

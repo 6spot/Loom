@@ -5,6 +5,7 @@ import PublicDialog from "../../components/PublicDialog";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
 import HistoryAxis from "../../components/reading/HistoryAxis";
+import HistoryBackground from "../../components/reading/HistoryBackground";
 import ReadingWindow from "../../components/reading/ReadingWindow";
 import { useReadingPosition } from "../../hooks/useReadingPosition";
 import { useHistoryPersonStateContext } from "../../hooks/usePersonStateContext";
@@ -385,6 +386,7 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     onNavigate={(id) => { setAxisOpen(false); jump(id); }} />;
   const factIds = toolsParagraph ? [...new Set([...toolsParagraph.segments.flatMap((s) => s.conclusion_ids), ...toolsParagraph.entities.flatMap((e) => e.states.map((s) => s.id))])] : [];
   return <section className="rpage history-reading" data-view="history-reading" data-version={pub.version} style={{ "--rpage-chrome-top": `${headerHeight}px` } as React.CSSProperties}>
+    <HistoryBackground version={pub.version} paragraphId={activeParagraph?.id ?? null} />
     <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button>
       <div className="rpage-tools">{narrow ? side : null}<button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button></div></div>
     {controller.issue ? <div className="history-load-error" role="alert"><p>无法定位这段正文。{controller.issue.detail}</p><button className="public-text-button" onClick={() => controller.restoreFromUrl()}>重试定位</button><Link to="/">返回首页</Link></div> : null}
