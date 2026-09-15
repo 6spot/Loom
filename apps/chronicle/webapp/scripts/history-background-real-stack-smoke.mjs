@@ -118,6 +118,7 @@ const drawCandidate = (page) => page.evaluate(() => {
 
 let stage = "discover the published edition";
 try {
+  await page.goto(new URL("/", base).href);
   const directory = await apiRequest("/api/v1/public/history");
   assert.equal(directory.status, 200, "public history directory must answer");
   const publication = directory.body?.publication ?? directory.body?.edition;
