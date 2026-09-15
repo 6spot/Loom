@@ -3,6 +3,7 @@ import {
   jobIsLive,
   mediaTypeForUpload,
   mutateJob,
+  newRunJob,
   queueJob,
   StudioApiError,
 } from "../src/lib/studio-api";
@@ -63,5 +64,18 @@ describe("Studio imports API client", () => {
       status: 409,
       message: "open reviews remain",
     });
+  });
+
+  it("creates a fresh run through the frozen-scope new-run route", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("/api/v1/studio/jobs/job/new-run");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({ model_selection: { config_sha256: "cfg", steps: {} } });
+      return new Response(JSON.stringify({ job: { job_id: "new-job", status: "queued" } }), { status: 201 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const created = await newRunJob("Basic abc", "job", { config_sha256: "cfg", steps: {} });
+    expect(created.job_id).toBe("new-job");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

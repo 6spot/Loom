@@ -24,6 +24,8 @@ export class StudioApiError extends Error {
 
 export type JobStatus = "queued" | "running" | "needs_review" | "failed" | "cancelled" | "completed";
 export type StageStatus = "pending" | "running" | "needs_review" | "failed" | "skipped" | "completed";
+export type JobKind = "chapter" | "narrative";
+export type JobActionKey = "retry" | "resume" | "cancel" | "new_run";
 export type ReviewStatus = "open" | "resolved" | "dismissed";
 export type ReviewLinkKind = "entity" | "event";
 export type EntityReviewDecision = "same_entity" | "not_same" | "uncertain";
@@ -70,11 +72,124 @@ export type ProductionStepName = "translation" | "extraction" | "comparison" | "
 export interface ModelSelection { config_sha256: string; steps: Record<ProductionStepName, string[]> }
 export interface ModelOptions { available: boolean; config_sha256: string | null; models: Array<{ id: string; name: string }>; steps: Record<ProductionStepName, string[]> }
 export interface JobDocument { document_id: string; title: string; revision_no: number; filename: string }
+export interface JobTask {
+  type: JobKind;
+  machine_key: string;
+  label: string;
+  title: string;
+  source_count: number;
+}
+export interface JobSource {
+  revision_id?: string | null;
+  document_id?: string | null;
+  revision_no?: number | null;
+  source_count?: number | null;
+  relationship?: string | null;
+}
+export interface JobCurrentStep {
+  key: string;
+  machine_key?: string;
+  label: string;
+  status: string;
+  failure_reason?: string | null;
+}
+export interface JobStepProjection {
+  key: string;
+  machine_key?: string;
+  stage?: string;
+  label: string;
+  status: string;
+  attempt?: number | null;
+  dependencies?: string[];
+  failure_reason?: string | null;
+  blocked_reason?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+export interface JobStepGraph {
+  current_step?: string | null;
+  dependencies?: Record<string, string[]>;
+  steps?: JobStepProjection[];
+}
+export interface JobAction {
+  key: JobActionKey | string;
+  label: string;
+  available: boolean;
+  enabled: boolean;
+  reason?: string | null;
+  method?: "POST" | string;
+  href?: string;
+}
+export interface JobActionState {
+  actions?: JobAction[];
+  available_actions?: string[];
+  action_reasons?: Record<string, string>;
+}
+export interface JobUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  reasoning_tokens?: number;
+}
+export interface JobAttempt {
+  attempt_id?: string;
+  attempt_sha256?: string | null;
+  result_sha256?: string | null;
+  output_sha256?: string | null;
+  artifact_type?: string | null;
+  step?: string | null;
+  step_label?: string | null;
+  slot?: string | null;
+  model?: string | null;
+  round?: number | null;
+  attempt?: number | null;
+  attempt_count?: number | null;
+  status?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  elapsed_seconds?: number | null;
+  output_complete?: boolean | null;
+  validation?: { status?: string | null; errors?: unknown } | unknown;
+  validation_status?: string | null;
+  comparison_status?: string | null;
+  usage?: JobUsage | null;
+  usage_status?: string | null;
+  result_href?: string | null;
+}
+export interface AcceptedResult {
+  acceptance_id?: string | null;
+  kind?: string | null;
+  acceptance_type?: string | null;
+  candidate_sha256?: string | null;
+  draft_sha256?: string | null;
+  model_output_sha256s?: string[];
+  model_opinion_sha256s?: string[];
+  decision?: string | null;
+  review_id?: string | null;
+  [key: string]: unknown;
+}
 export interface JobPresentation {
   document?: JobDocument;
-  job_kind?: "chapter" | "narrative";
+  job_kind?: JobKind;
+  job_kind_label?: string | null;
+  title?: string | null;
+  task?: JobTask;
   source_count?: number;
+  source?: JobSource | null;
   current_stage?: string | null;
+  current_step?: JobCurrentStep | null;
+  current_step_key?: string | null;
+  current_step_label?: string | null;
+  steps?: JobStepProjection[];
+  step_graph?: JobStepGraph | null;
+  actions?: JobAction[];
+  action_state?: JobActionState | null;
+  available_actions?: string[];
+  action_reasons?: Record<string, string>;
+  attempts?: JobAttempt[];
+  results?: JobOutputSummary[];
+  raw_results?: JobOutputSummary[];
+  accepted_results?: AcceptedResult[];
   production_request?: { model_selection: ModelSelection | null; parent_job_id: string | null } | null;
 }
 export interface JobSummary extends JobPresentation {
@@ -90,7 +205,7 @@ export interface JobSummary extends JobPresentation {
   updated_at: string | null;
   completed_stages: number;
   open_reviews?: number;
-  chunk_count: number;
+  chunk_count?: number;
 }
 
 export interface RunAttemptMeta {
@@ -184,7 +299,10 @@ export interface JobOutputSummary {
   chunk_id?: string | null;
   attempt?: number | null;
   round?: number | null;
+  slot?: string | null;
   readable?: boolean;
+  href?: string;
+  acceptance_links?: unknown;
   output_id: string;
   artifact_type: string;
   artifact_sha256: string;
@@ -908,6 +1026,19 @@ export function getModelOptions(auth: string | null): Promise<ModelOptions> {
 
 export async function rerunJob(auth: string | null, jobId: string, selection?: ModelSelection): Promise<JobDetail> {
   return (await studioRequest<JobResponse>(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}/rerun`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(selection ? { model_selection: selection } : {}),
+  })).job;
+}
+
+/**
+ * Create a new run from the same frozen source/history selection. The
+ * control-plane action is deliberately separate from the legacy chapter-only
+ * `/rerun` compatibility route; callers must only expose this when the
+ * projected `new_run` action says it is available.
+ */
+export async function newRunJob(auth: string | null, jobId: string, selection?: ModelSelection): Promise<JobDetail> {
+  return (await studioRequest<JobResponse>(auth, `/api/v1/studio/jobs/${encodeURIComponent(jobId)}/new-run`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(selection ? { model_selection: selection } : {}),
   })).job;
