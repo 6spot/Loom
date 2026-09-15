@@ -390,6 +390,7 @@ export default function EntityPage() {
       <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
         <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>人物</span></div>
         <PersonHistoryReader
+          key={`${data.canonical_entity_id}:${requestedPersonVersion ?? "latest"}`}
           entityId={data.canonical_entity_id}
           name={data.display?.name ?? "未命名人物"}
           search={location.search}

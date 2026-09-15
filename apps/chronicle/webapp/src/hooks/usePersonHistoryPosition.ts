@@ -58,6 +58,7 @@ export function usePersonHistoryPosition({ paragraphs, preferredPhaseId }: Perso
   }, [firstParagraphForPhase, preferredPhaseId]);
 
   useEffect(() => {
+    const preferredAnchorId = firstParagraphForPhase(preferredPhaseId)?.id ?? null;
     const observed = paragraphIds.map((id) => nodes.current.get(id)).filter((node): node is HTMLElement => Boolean(node));
     if (!observed.length) return undefined;
     if (typeof IntersectionObserver !== "undefined") {
@@ -66,7 +67,12 @@ export function usePersonHistoryPosition({ paragraphs, preferredPhaseId }: Perso
         // first paragraph merely visible at page load into a claimed
         // "current" identity; the first user scroll establishes the reading
         // line unless T13 mapping supplied an explicit preferred phase.
-        if (!preferredPhaseId && window.scrollY === 0) return;
+        if (window.scrollY === 0 && (!preferredPhaseId || preferredAnchorId)) {
+          // Keep the explicitly mapped phase selected until the first real
+          // scroll.  Without a mapping, the direct page likewise avoids
+          // claiming the first visible paragraph as the current identity.
+          return;
+        }
         const visible = entries
           .filter((entry) => entry.isIntersecting)
           .sort((left, right) => Math.abs(left.boundingClientRect.top) - Math.abs(right.boundingClientRect.top));
@@ -77,7 +83,7 @@ export function usePersonHistoryPosition({ paragraphs, preferredPhaseId }: Perso
         }
       }, { root: null, rootMargin: "-12% 0px -58% 0px", threshold: [0, 0.2, 0.6] });
       observed.forEach((node) => observer.observe(node));
-      if (preferredPhaseId || window.scrollY > 0) chooseNearest();
+      if (!preferredAnchorId && window.scrollY > 0) chooseNearest();
       const onScroll = () => {
         if (window.scrollY > 0) chooseNearest();
       };
@@ -87,7 +93,7 @@ export function usePersonHistoryPosition({ paragraphs, preferredPhaseId }: Perso
         window.removeEventListener("scroll", onScroll);
       };
     }
-    if (preferredPhaseId || window.scrollY > 0) chooseNearest();
+    if (!preferredAnchorId && window.scrollY > 0) chooseNearest();
     window.addEventListener("scroll", chooseNearest, { passive: true });
     window.addEventListener("resize", chooseNearest);
     return () => {
