@@ -6,6 +6,7 @@ describe("Reader Presentation public surface", () => {
   const component = readFileSync(`${root}src/components/ReaderPresentation.tsx`, "utf-8");
   const eventPage = readFileSync(`${root}src/pages/public/EventPage.tsx`, "utf-8");
   const entityPage = readFileSync(`${root}src/pages/public/EntityPage.tsx`, "utf-8");
+  const personReader = readFileSync(`${root}src/components/reading/PersonHistoryReader.tsx`, "utf-8");
 
   it("keeps Reader Presentation behind the entity evidence disclosure", () => {
     const reader = "<ReaderPresentation presentation={readerPresentation} />";
@@ -26,9 +27,10 @@ describe("Reader Presentation public surface", () => {
 
   it("does not request or synthesize a fallback narrative in the browser", () => {
     expect(eventPage).toContain("暂未生成经过 grounding 校验的现代中文 Reader Presentation");
-    expect(entityPage).toContain("目前没有单独的人物简介");
-    expect(entityPage).toContain("不把历史片段拼成完整传记");
-    for (const source of [component, eventPage, entityPage]) {
+    expect(entityPage).toContain("目前没有单独的资料摘要");
+    expect(personReader).toContain("这里不把主历史片段拼成简介");
+    expect(personReader).toContain("不把它们拼成未经发布的传记");
+    for (const source of [component, eventPage, entityPage, personReader]) {
       expect(source).not.toContain("fetchJSON(");
       expect(source).not.toContain("OpenAI");
       expect(source).not.toContain("generatePresentation");

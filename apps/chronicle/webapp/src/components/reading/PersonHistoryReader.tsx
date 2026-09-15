@@ -301,7 +301,7 @@ function ExperienceParagraph({
 }) {
   return (
     <li
-      className="pstate-history-paragraph entity-experience-entry"
+      className="pstate-history-paragraph"
       data-test="person-history-paragraph"
       data-paragraph-id={paragraph.id}
       data-phase-id={paragraph.phase_id}
@@ -452,7 +452,7 @@ export default function PersonHistoryReader({
           ) : null}
           {!history.pages.isPending && !history.pages.isError && history.publication ? (
             history.paragraphs.length ? (
-              <ol className="pstate-timeline entity-experience-timeline" data-test="entity-timeline">
+              <ol className="pstate-timeline" data-test="entity-timeline">
                 {history.paragraphs.map((paragraph, index) => (
                   <ExperienceParagraph
                     key={paragraph.id}

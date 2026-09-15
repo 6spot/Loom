@@ -29,76 +29,6 @@
   padding-left: .9rem;
 }
 
-.entity-experience-panel > .pstate-details {
-  margin-top: 1.1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
-.entity-experience-scope {
-  margin-bottom: 0;
-  color: var(--muted);
-  font-size: .82rem;
-  line-height: 1.6;
-}
-
-.entity-experience-timeline {
-  display: grid;
-  gap: 0;
-  margin: 1.15rem 0 0;
-  padding: 0 0 0 .85rem;
-  list-style: none;
-  border-left: 2px solid var(--line);
-}
-
-.entity-experience-entry {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
-  gap: .7rem 1rem;
-  padding: 0 0 1rem 1rem;
-}
-
-.entity-experience-entry::before {
-  position: absolute;
-  top: .3rem;
-  left: -.36rem;
-  width: .58rem;
-  height: .58rem;
-  border: 2px solid var(--accent);
-  border-radius: 50%;
-  background: var(--paper-strong);
-  content: "";
-}
-
-.entity-experience-time {
-  color: var(--muted);
-  font-size: .8rem;
-  line-height: 1.5;
-}
-
-.entity-experience-content {
-  min-width: 0;
-}
-
-.entity-experience-event {
-  display: inline-block;
-  color: var(--ink);
-  font-weight: 750;
-  line-height: 1.55;
-  text-decoration: none;
-}
-
-.entity-experience-event:hover,
-.entity-experience-event:focus-visible {
-  color: var(--accent);
-  text-decoration: underline;
-}
-
-.entity-experience-entry .trajectory-meta {
-  margin-top: .3rem;
-}
-
 .entity-phase-panel .panel-heading {
   align-items: flex-start;
 }
@@ -279,7 +209,6 @@
   .entity-reader-intro, .entity-intro-empty { font-size: .98rem; }
   .entity-evidence > summary { padding: .95rem 1rem; }
   .entity-evidence-body { padding: .9rem 1rem 1rem; }
-  .entity-experience-entry { grid-template-columns: 1fr; gap: .15rem; }
 }
 
 @media (max-width: 320px) {
@@ -288,9 +217,9 @@
 }
 
 /* C3-T14: the published person history owns a dedicated three-column reading
- * surface.  The old entity selectors above remain for non-person records and
- * for the source/history return contracts; person pages use the pstate-
- * namespace so a second event/claim card layout cannot leak back in. */
+ * surface in the pstate- namespace. The entity selectors above stay for
+ * non-person records and the source/history return contracts, so the replaced
+ * person layout cannot leak back in. */
 .pstate-entity {
   max-width: 1320px;
   margin: 0 auto;
