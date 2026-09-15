@@ -453,6 +453,46 @@ def _source_count(scope: Any) -> int:
     return len(publication_ids) if isinstance(publication_ids, list) else 0
 
 
+def _narrative_scope_validation(conn, scope: Any) -> tuple[bool | None, str | None]:
+    """Run the same frozen-source validation used by narrative execution."""
+    if not isinstance(scope, dict):
+        return None, None
+    try:
+        import narrative_store
+
+        narrative_store.validate_source_scope(
+            conn,
+            catalog_sha=scope.get("catalog_sha"),
+            publication_ids=scope.get("publication_ids"),
+        )
+    except (PersistenceConflict, PersistenceError) as exc:
+        return False, safe_error(str(exc)) or "冻结来源不可用"
+    return True, None
+
+
+def _action_state(
+    conn,
+    *,
+    job_id: uuid.UUID | str,
+    status: str,
+    attempt: int,
+    max_attempts: int,
+    open_reviews: int,
+    narrative_scope: Any,
+) -> dict[str, Any]:
+    scope_valid, scope_reason = _narrative_scope_validation(conn, narrative_scope)
+    return control_plane.action_state_from_values(
+        job_id=job_id,
+        status=status,
+        attempt=attempt,
+        max_attempts=max_attempts,
+        open_reviews=open_reviews,
+        narrative_scope=narrative_scope if isinstance(narrative_scope, dict) else None,
+        narrative_scope_valid=scope_valid,
+        narrative_scope_reason=scope_reason,
+    )
+
+
 def _stage_projection(stage_rows: list[tuple[Any, ...]]) -> list[dict[str, Any]]:
     """Project the durable stage graph without copying stage checkpoints."""
     statuses = {
@@ -579,9 +619,13 @@ def enrich_jobs(conn, jobs):
         if metadata is None:
             enriched.append(dict(job))
             continue
-        state = control_plane.action_state_from_values(
-            job_id=job["job_id"], status=job["status"], attempt=int(job["attempt"]),
-            max_attempts=int(job["max_attempts"]), open_reviews=metadata["open_reviews"],
+        state = _action_state(
+            conn,
+            job_id=job["job_id"],
+            status=job["status"],
+            attempt=int(job["attempt"]),
+            max_attempts=int(job["max_attempts"]),
+            open_reviews=metadata["open_reviews"],
             narrative_scope=scope_by_job.get(job["job_id"]),
         )
         current = metadata["current_stage"]
@@ -616,9 +660,23 @@ def enrich_jobs(conn, jobs):
 
 def enrich_detail(conn, detail):
     result = enrich_jobs(conn, [detail])[0]
-    result["action_state"] = control_plane.job_action_state(
+    control_state = control_plane.job_action_state(
         conn, job_id=uuid.UUID(str(detail["job_id"]))
     )
+    scope = detail.get("checkpoint", {}).get("narrative_scope") \
+        if isinstance(detail.get("checkpoint"), dict) else None
+    result["action_state"] = _action_state(
+        conn,
+        job_id=detail["job_id"],
+        status=control_state["status"],
+        attempt=control_state["attempt"],
+        max_attempts=control_state["max_attempts"],
+        open_reviews=control_state["open_reviews"],
+        narrative_scope=scope,
+    )
+    result["actions"] = _action_projection(detail["job_id"], result["action_state"])
+    result["available_actions"] = result["action_state"]["available_actions"]
+    result["action_reasons"] = result["action_state"]["action_reasons"]
     labels = dict(conn.execute(
         "SELECT section_id, label FROM chronicle.ingestion_sections WHERE job_id=%s", (detail["job_id"],),
     ).fetchall())

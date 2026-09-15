@@ -87,15 +87,32 @@ def _reviewed_person_states(conn, *, publication_id) -> list[dict]:
     ]
 
 
-def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
-    """Select complete published chapters; never read unaccepted candidates."""
-    latest = canonical_store.read_latest_catalog_sha256(conn)
-    if catalog_sha is not None and catalog_sha != latest:
-        raise PersistenceConflict("source catalog changed; refresh the source selection")
-    catalog_sha = latest
+def _validated_source_selection(conn, *, catalog_sha=None, publication_ids=None) -> dict:
+    """Validate one immutable catalog snapshot and its selected publications.
+
+    A catalog hash in a persisted narrative scope is a snapshot reference, not
+    a claim that the snapshot is still the latest catalog. The catalog row and
+    its publication sequence define the historical visibility boundary. This
+    helper is shared by the read-side action projection and the mutating
+    narrative queue, so an old-but-retained frozen scope cannot be advertised
+    as runnable and then rejected merely because a newer catalog was appended.
+    """
     if catalog_sha is None:
+        catalog_sha = canonical_store.read_latest_catalog_sha256(conn)
+    if not isinstance(catalog_sha, str) or not catalog_sha:
         raise PersistenceError("historical narrative requires a published source catalog")
-    catalog = conn.execute("SELECT payload FROM chronicle.canonical_catalogs WHERE artifact_sha256 = %s", (catalog_sha,)).fetchone()[0]
+    catalog_row = conn.execute(
+        "SELECT payload, publication_sequence FROM chronicle.canonical_catalogs "
+        "WHERE artifact_sha256 = %s",
+        (catalog_sha,),
+    ).fetchone()
+    if catalog_row is None:
+        raise PersistenceConflict("frozen source catalog is no longer available")
+    catalog, publication_sequence = catalog_row
+    if publication_sequence is None:
+        raise PersistenceConflict("frozen source catalog has no publication sequence")
+    if not isinstance(catalog, dict):
+        raise PersistenceConflict("frozen source catalog is invalid")
     rows = conn.execute("""WITH latest AS (
         SELECT DISTINCT ON (p.document_id) p.document_id, p.revision_id
         FROM chronicle.chapter_publications p
@@ -105,16 +122,44 @@ def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
         ORDER BY p.document_id, r.revision_no DESC
     ) SELECT p.publication_id FROM latest s
       JOIN chronicle.chapter_publications p ON p.revision_id = s.revision_id
-      ORDER BY p.document_id, p.chapter_id""", (catalog_sha,)).fetchall()
+        ORDER BY p.document_id, p.chapter_id""", (catalog_sha,)).fetchall()
     available = [str(row[0]) for row in rows]
     if publication_ids is None:
         publication_ids = available
     elif (not isinstance(publication_ids, list) or any(not isinstance(item, str) for item in publication_ids)
           or len(set(publication_ids)) != len(publication_ids) or not set(publication_ids) <= set(available)):
-        raise PersistenceError("choose distinct complete chapters from the current published sources")
-    publication_ids = sorted(publication_ids)
-    if not publication_ids or len(publication_ids) > contract.MAX_CHAPTERS:
+        raise PersistenceError("choose distinct complete chapters from the frozen published sources")
+    selected_publication_ids = sorted(publication_ids)
+    if not selected_publication_ids or len(selected_publication_ids) > contract.MAX_CHAPTERS:
         raise PersistenceError("historical narrative scope must contain 1–16 complete published chapters; reduce scope, never truncate")
+    return {
+        "catalog_sha": catalog_sha,
+        "catalog": catalog,
+        "publication_ids": selected_publication_ids,
+    }
+
+
+def validate_source_scope(conn, *, catalog_sha, publication_ids) -> dict:
+    """Validate a persisted narrative source scope without loading model data.
+
+    This is intentionally read-only and uses the same catalog/publication
+    validator as :func:`source_descriptors` and :func:`queue_narrative`.
+    Callers may use the returned normalized IDs for metadata only; execution
+    must still load the full descriptors before creating a job.
+    """
+    return _validated_source_selection(
+        conn, catalog_sha=catalog_sha, publication_ids=publication_ids
+    )
+
+
+def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
+    """Select complete published chapters; never read unaccepted candidates."""
+    selection = _validated_source_selection(
+        conn, catalog_sha=catalog_sha, publication_ids=publication_ids
+    )
+    catalog_sha = selection["catalog_sha"]
+    catalog = selection["catalog"]
+    publication_ids = selection["publication_ids"]
     sources, selected_bundles = [], set()
     for publication_id in publication_ids:
         full = chapter_store.read_published_chapter(conn, publication_id=publication_id)

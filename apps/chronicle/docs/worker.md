@@ -485,8 +485,10 @@ POST /api/v1/studio/jobs/{job_id}/new-run  terminal failure -> fresh queued job
 - `new-run` is the explicit fresh-job operation. It is available only for
   failed/cancelled jobs, carries the exact chapter revision or frozen
   narrative source selection, and records the parent job without copying its
-  outputs. The compatibility `/rerun` route keeps its existing chapter-only
-  behavior.
+  outputs. A frozen narrative catalog hash is a historical snapshot reference;
+  appending a newer catalog does not invalidate the retained catalog or its
+  publication selection. The compatibility `/rerun` route keeps its existing
+  chapter-only behavior.
 - Both `retry` and `resume` clear the stale lease so the next live worker
   can claim the job (a `running` job without a lease is claimable).
 - Successful `resume` clears the old review error on the job and the resumed

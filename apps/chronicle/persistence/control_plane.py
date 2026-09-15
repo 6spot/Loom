@@ -896,6 +896,8 @@ def action_state_from_values(
     max_attempts: int,
     open_reviews: int = 0,
     narrative_scope: dict[str, Any] | None = None,
+    narrative_scope_valid: bool | None = None,
+    narrative_scope_reason: str | None = None,
 ) -> dict[str, Any]:
     """Project control-plane action availability without changing state.
 
@@ -945,13 +947,16 @@ def action_state_from_values(
         and isinstance(narrative_scope.get("publication_ids"), list)
         and bool(narrative_scope.get("publication_ids"))
     )
-    new_run_available = status in ("failed", "cancelled") and (
-        narrative_scope is None or has_saved_sources
+    source_scope_ok = narrative_scope is None or (
+        has_saved_sources and narrative_scope_valid is not False
     )
+    new_run_available = status in ("failed", "cancelled") and source_scope_ok
     if new_run_available:
         new_run_reason = None
     elif status not in ("failed", "cancelled"):
         new_run_reason = "仅失败或已取消任务可以新建运行"
+    elif narrative_scope_valid is False and narrative_scope_reason:
+        new_run_reason = narrative_scope_reason
     else:
         new_run_reason = "缺少冻结的来源选择，必须重新选择来源"
 
