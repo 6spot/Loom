@@ -313,10 +313,10 @@ export interface ReviewSummary {
   job_status: JobStatus;
   revision_id: string;
   document: ReviewDocumentContext;
-  // §5.1 mixed queue: the union keeps resolution, narrative (facts/prose) and
-  // the new person_state package distinguishable; adding the third scope must
-  // never narrow away the existing two.
-  scope: "resolution" | "narrative" | "person_state" | "chapter_content";
+  // §5.1 mixed queue: each product family remains distinguishable in the
+  // shared review transport; adding person history never narrows the older
+  // resolution, narrative, person-state or chapter-content packages.
+  scope: "resolution" | "narrative" | "person_state" | "chapter_content" | "person_history";
   narrative_kind?: "facts" | "prose";
   candidate_sha?: string;
   candidate_sha256?: string | null;

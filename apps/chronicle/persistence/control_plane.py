@@ -883,7 +883,7 @@ def cancel_job(conn, *, job_id: uuid.UUID) -> None:
                SET status = 'dismissed', resolved_at = %s,
                    payload = payload || '{"dismissal":"job_cancelled"}'::jsonb
                WHERE job_id = %s AND status = 'open'
-                 AND payload->>'scope' IN ('narrative', 'chapter_content')""",
+                 AND payload->>'scope' IN ('narrative', 'person_history', 'chapter_content')""",
             (_utcnow(), job_id),
         )
 
@@ -1008,7 +1008,7 @@ def job_action_state(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
         (job_id,),
     ).fetchone()[0]
     checkpoint = row[3] if isinstance(row[3], dict) else {}
-    scope = checkpoint.get("narrative_scope")
+    scope = checkpoint.get("person_history_scope") or checkpoint.get("narrative_scope")
     return action_state_from_values(
         job_id=job_id,
         status=row[0],

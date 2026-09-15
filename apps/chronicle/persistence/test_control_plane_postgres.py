@@ -28,7 +28,7 @@ if str(HERE) not in sys.path:
 
 import control_plane
 from common import PersistenceConflict, PersistenceError
-from migrations import apply_migrations
+from migrations import apply_migrations, migration_files
 
 
 DEFAULT_CONTROL_URL = "postgresql://loom:loom@127.0.0.1:15432/loom_control"
@@ -557,15 +557,7 @@ class ControlPlanePostgresTests(unittest.TestCase):
             ).fetchall()
             self.assertEqual(
                 [row[0] for row in versions],
-                [
-                    "0001_chronicle_v0.sql",
-                    "0002_chronicle_c1_control_plane.sql",
-                    "0003_chronicle_c1_documents.sql",
-                    "0004_chronicle_c1_segmentation.sql",
-                    "0005_chronicle_c1_reader_presentations.sql",
-                    "0006_chronicle_chapters.sql",
-                    "0007_chronicle_reading_streams.sql",
-                ],
+                [path.name for path in migration_files()],
             )
 
 

@@ -44,13 +44,14 @@ const KIND_FILTERS: Array<{ value: ReviewScope["linkKind"]; label: string }> = [
 ];
 
 // §5.1 queue family. The page default is `all` (resolution + narrative +
-// person_state); switching family clears link_kind because it only belongs to
+// person_state, person_history); switching family clears link_kind because it only belongs to
 // the resolution queue.
 const SCOPE_FILTERS: Array<{ value: ReviewQueueScope; label: string }> = [
   { value: "all", label: "全部范围" },
   { value: "resolution", label: "身份／综合内容" },
   { value: "person_state", label: "阶段依据" },
   { value: "chapter_content", label: "章节内容" },
+  { value: "person_history", label: "人物生平" },
 ];
 
 const PAGE_LIMIT = 50;
@@ -218,7 +219,7 @@ export default function StudioReviewPage() {
                   <div className="studio-stack studio-stack-tight">
                     <div className="studio-row-title">
                       <Badge>{reviewStatusLabel(review.status)}</Badge>
-                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "人物状态" : review.scope === "chapter_content" ? "章节内容" : reviewLinkKindLabel(review.link_kind)}</Badge>
+                      <Badge>{review.scope === "narrative" ? (review.narrative_kind === "facts" ? "事实核对" : "综合正文") : review.scope === "person_state" ? "人物状态" : review.scope === "chapter_content" ? "章节内容" : review.scope === "person_history" ? "人物生平" : reviewLinkKindLabel(review.link_kind)}</Badge>
                       <strong>{review.document.title}</strong>
                       <span className="studio-muted">第 {review.document.revision_no} 版</span>
                       {review.review_id === currentId ? <Badge>上次位置</Badge> : null}
@@ -228,7 +229,7 @@ export default function StudioReviewPage() {
                       {review.scope === "resolution" ? <><span className="studio-muted"> ↔ </span><strong>{review.right_label ?? "本次来源记录"}</strong></> : null}
                     </div>
                     <div className="studio-muted">
-                      {review.scope === "chapter_content" ? `${review.issue_count ?? 0} 条核对意见 · ${review.history_count ?? 0} 份完整处理记录` : review.scope === "narrative" ? "完整章节语境 · 结论与依据可对照" : review.scope === "person_state" ? `${review.candidate_count ?? 0} 条人物状态依据` : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
+                      {review.scope === "chapter_content" ? `${review.issue_count ?? 0} 条核对意见 · ${review.history_count ?? 0} 份完整处理记录` : review.scope === "narrative" ? "完整章节语境 · 结论与依据可对照" : review.scope === "person_state" ? `${review.candidate_count ?? 0} 条人物状态依据` : review.scope === "person_history" ? `${review.narrative_kind === "facts" ? "概况" : "正文"} · 固定人物与来源依据` : groups > 1 ? `该审核批次包含 ${groups} 个来源候选组 / ${members} 个底层候选` : members > 1 ? `1 个来源候选组 / ${members} 个底层候选` : "1 个来源候选组 / 1 个底层候选"}
                       {review.suggestion.decision ? ` · 系统建议：${decisionLabel(review.suggestion.decision)}` : ""}
                       {review.suggestion.confidence == null ? "" : ` · 建议置信度 ${confidence(review.suggestion.confidence)}`}
                       {review.decision ? ` · 已选择：${decisionLabel(review.decision.decision)}` : ""}
