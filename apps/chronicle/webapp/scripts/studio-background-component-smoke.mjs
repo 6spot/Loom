@@ -112,7 +112,7 @@ await context.route("**/api/**", async (route) => {
       return json(route, { schema: "chronicle.background-binding", version: "0.1", binding: { ...binding, active: false, status: "disabled", revision: 2, etag: '"binding-2"', disabled_at: now } });
     }
     if (path === `/api/v1/public/backgrounds` && method === "GET") {
-      if (!saved || disabled) return errorJson(route, "not_found", "background is not active", 404);
+      if (!saved || disabled) return json(route, { schema: "chronicle.background-read", version: "0.1", edition_version: edition, paragraph_id: paragraphIds[0], background: null });
       return json(route, { schema: "chronicle.background-read", version: "0.1", edition_version: edition, paragraph_id: paragraphIds[0], background: binding });
     }
     if (path === `/api/v1/public/background-assets/${assetId}` && method === "GET") {
@@ -149,9 +149,10 @@ try {
   assert.equal(createCalls, 0, "upload must not create a public binding");
   const before = await page.evaluate(async ({ version, paragraphId }) => {
     const response = await fetch(`/api/v1/public/backgrounds?version=${version}&paragraph_id=${paragraphId}`);
-    return response.status;
+    return { status: response.status, body: response.status === 200 ? await response.json() : null };
   }, { version: edition, paragraphId: paragraphIds[0] });
-  assert.equal(before, 404, "candidate must stay invisible to readers");
+  assert.equal(before.status, 200, "public metadata should remain a successful empty read");
+  assert.equal(before.body.background, null, "candidate must stay invisible to readers");
   await page.getByLabel("背景范围终点").selectOption(paragraphIds[1]);
   await page.locator("#background-opacity").fill("0.55");
   await page.locator("#background-position-x").fill("0.63");
@@ -178,8 +179,12 @@ try {
   await page.getByRole("button", { name: "停用", exact: true }).click();
   await expect(page.getByText("已停用", { exact: true }).last()).toBeVisible();
   assert.equal(disableCalls, 1, "row action must disable the clicked binding");
-  const disabledRead = await page.evaluate(async ({ version, paragraphId }) => (await fetch(`/api/v1/public/backgrounds?version=${version}&paragraph_id=${paragraphId}`)).status, { version: edition, paragraphId: paragraphIds[0] });
-  assert.equal(disabledRead, 404, "disabled binding must leave the public reader without a background");
+  const disabledRead = await page.evaluate(async ({ version, paragraphId }) => {
+    const response = await fetch(`/api/v1/public/backgrounds?version=${version}&paragraph_id=${paragraphId}`);
+    return { status: response.status, body: response.status === 200 ? await response.json() : null };
+  }, { version: edition, paragraphId: paragraphIds[0] });
+  assert.equal(disabledRead.status, 200);
+  assert.equal(disabledRead.body.background, null, "disabled binding must leave the public reader without a background");
   assert.deepEqual(errors, []);
   console.log(`studio-background-component-smoke: PASS; screenshots: ${output}`);
 } catch (error) {
