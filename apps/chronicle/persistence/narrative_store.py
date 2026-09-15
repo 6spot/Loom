@@ -12,6 +12,7 @@ import chapter_store
 import control_plane
 import narrative_acceptance as acceptance
 import narrative_contract as contract
+import history_edition_store
 import reading_projection
 from common import PersistenceConflict, PersistenceError, sha256_bytes, sha256_json
 from step_runner import StepInput
@@ -1330,7 +1331,19 @@ def publish(conn, *, job_id, worker):
              uuid.UUID(facts_row["acceptance_id"]) if facts_row["acceptance_id"] else None,
              uuid.UUID(prose_row["acceptance_id"]) if prose_row["acceptance_id"] else None,
              sha256_json(facts), sha256_json(prose), Jsonb(publication)))
+        # The approved narrative is itself a complete reviewed fragment.  Make
+        # it the public history edition through the edition store before the
+        # final lease fence; public history never falls back to this source
+        # table.
+        edition = history_edition_store.publish_narrative_fragment(
+            conn,
+            fragment_version=publication["publication_version"],
+            job_id=job_id,
+            worker=worker,
+        )
         resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        publication["edition_version"] = edition["edition_version"]
+        publication["history_edition_version"] = edition["edition_version"]
         return publication
 
 

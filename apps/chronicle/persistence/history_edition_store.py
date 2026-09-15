@@ -639,12 +639,19 @@ def _source_snapshot_is_current(conn, fragment: Mapping[str, Any]) -> None:
 def _metadata_for_manifest(manifest: Mapping[str, Any], fragments: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     first = fragments[0] if fragments else {}
     paragraphs = manifest.get("paragraphs") if isinstance(manifest.get("paragraphs"), list) else []
+    navigation = _copy_json(manifest.get("navigation") or [])
+    entry_points = [
+        _copy_json(item)
+        for item in navigation
+        if isinstance(item, Mapping)
+    ]
     return {
         "title": first.get("title"),
         "catalog_sha": first.get("catalog_sha"),
         "first_paragraph_id": paragraphs[0].get("paragraph_id") if paragraphs else None,
         "last_paragraph_id": paragraphs[-1].get("paragraph_id") if paragraphs else None,
-        "navigation": _copy_json(manifest.get("navigation") or []),
+        "navigation": navigation,
+        "entry_points": entry_points,
         "lineage": _copy_json(manifest.get("lineage")) if isinstance(manifest.get("lineage"), dict) else None,
     }
 
@@ -892,6 +899,30 @@ def publish_draft(
             # transaction instead of exposing a publication by a stale worker.
             resolve_publish.require_unexpired_lease(conn, job_id=effective_job, worker=worker)
         return _metadata_from_row(_edition_row(conn, manifest["version"]))
+
+
+def publish_narrative_fragment(
+    conn,
+    *,
+    fragment_version: str,
+    job_id: uuid.UUID | str,
+    worker: str,
+) -> dict[str, Any]:
+    """Publish one approved narrative fragment as the current edition.
+
+    The normal narrative acceptance path produces a complete, reviewed
+    fragment.  It therefore has no cross-fragment seam to review, but it must
+    still pass through the same draft snapshot, baseline, source-integrity,
+    publication-lock, and lease fences as an explicitly composed edition.
+    """
+
+    draft = create_draft(
+        conn,
+        fragment_versions=[fragment_version],
+        job_id=job_id,
+        worker=worker,
+    )
+    return publish_draft(conn, draft["draft_id"], job_id=job_id, worker=worker)
 
 
 def _source_paragraph(fragment: Mapping[str, Any], local_id: str) -> dict[str, Any] | None:

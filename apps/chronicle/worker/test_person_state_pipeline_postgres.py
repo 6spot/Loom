@@ -515,11 +515,11 @@ class PersonStatePipelineTests(unittest.TestCase):
         self.assertEqual(
             "completed", self._run_once(job_id, text, source_sha, chapter_model)[1]
         )
-        # Source publication alone must not expose a composite history.
+        # No narrative has been approved yet, so the edition frontier is empty.
         with psycopg.connect(self.database_url) as conn:
             self.assertIsNone(narrative_store.read_publication(conn))
             self.assertIsNone(
-                history.dispatch_history(conn, "/v0/history", "")["publication"]
+                history.dispatch_history(conn, "/v0/history", "")["edition"]
             )
             sources = narrative_store.list_source_choices(conn)
             status, _, body = studio_jobs.dispatch_jobs(
@@ -550,7 +550,7 @@ class PersonStatePipelineTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             self.assertIsNone(narrative_store.read_publication(conn))
             self.assertIsNone(
-                history.dispatch_history(conn, "/v0/history", "")["publication"]
+                history.dispatch_history(conn, "/v0/history", "")["edition"]
             )
         self._approve_narrative(narrative_job, "facts")
 
@@ -577,48 +577,60 @@ class PersonStatePipelineTests(unittest.TestCase):
             any(source.get("reviewed_person_states") for source in narrative.context["sources"])
         )
         with psycopg.connect(self.database_url) as conn:
-            publication = narrative_store.read_publication(conn)
-            self.assertIsNotNone(publication)
-            version = publication["publication_version"]
-            states = [
+            source_publication = narrative_store.read_publication(conn)
+            self.assertIsNotNone(source_publication)
+            source_version = source_publication["publication_version"]
+            source_states = [
                 state
-                for paragraph in publication["paragraphs"]
+                for paragraph in source_publication["paragraphs"]
                 for entity in paragraph["entities"]
                 for state in entity["states"]
             ]
-            self.assertTrue(states, "published history must carry reviewed states")
+            self.assertTrue(source_states, "published history must carry reviewed states")
             self.assertTrue(all(isinstance(state.get("value"), str) and state["value"]
-                                for state in states))
-            state = states[0]
+                                for state in source_states))
+            directory = history.dispatch_history(conn, "/v0/history", "")
+            edition = directory["edition"]
+            self.assertIsNotNone(edition)
+            version = edition["edition_version"]
+            self.assertNotEqual(source_version, version)
             meta = history.dispatch_history(
                 conn, "/v0/history", "version=" + version
-            )["publication"]
+            )["edition"]
             self.assertEqual(version, meta["version"])
             self.assertEqual(1, len(meta["navigation"]))
-            self.assertEqual((0, len(publication["paragraphs"]) - 1),
-                             (meta["navigation"][0]["start"], meta["navigation"][0]["end"]))
+            page = history.dispatch_history(
+                conn, "/v0/history/paragraphs", "version=" + version + "&limit=50"
+            )
+            public_states = [
+                state
+                for paragraph in page["paragraphs"]
+                for entity in paragraph.get("entities", [])
+                for state in entity.get("states", [])
+            ]
+            self.assertTrue(public_states, "published edition must carry reviewed states")
+            self.assertEqual(len(source_states), len(public_states))
             self.assertEqual(
                 [(entry["paragraph_id"], entry["label"]) for entry in meta["entry_points"]],
-                [(item["paragraph_id"], item["label"]) for item in meta["navigation"][0]["items"]],
+                [(item["paragraph_id"], item["label"]) for item in meta["navigation"]],
             )
+            state = public_states[0]
+            source_state = source_states[0]
             conclusion = history.dispatch_history(
                 conn,
                 "/v0/history/conclusions/" + state["id"],
                 "version=" + version,
             )["conclusion"]
-            self.assertEqual(state["value"], conclusion["value"])
-            self.assertEqual(state["certainty"], conclusion["certainty"])
-            stored = next(
-                item for item in publication["conclusions"] if item["id"] == state["id"]
-            )
-            self.assertEqual(stored["value"], conclusion["value"])
-            self.assertEqual(stored["certainty"], conclusion["certainty"])
+            self.assertEqual(source_state["value"], conclusion["value"])
+            self.assertEqual(source_state["certainty"], conclusion["certainty"])
+            self.assertEqual(source_version, conclusion["fragment_version"])
+            self.assertEqual(source_state["id"], conclusion["source_conclusion_id"])
             self.assertTrue(conclusion["evidence"][0]["publication_id"])
             published = chapter_store.list_published_chapters(
                 conn, job_id=job_id, limit=100
             )
             self.assertIn(
-                conclusion["evidence"][0]["publication_id"],
+                conclusion["evidence"][0]["source_publication_id"],
                 {item["publication_id"] for item in published},
             )
             self.assertEqual(1, conn.execute("SELECT count(*) FROM chronicle.historical_narratives").fetchone()[0])

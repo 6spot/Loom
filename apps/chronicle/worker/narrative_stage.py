@@ -120,7 +120,7 @@ def _execute_legacy(database_url, *, job_id, worker, revision_source, model, lea
             import resolve_publish
             publication = store.publish(conn, job_id=job_id, worker=worker)
             control_plane.write_stage_checkpoint_fenced(conn, job_id=job_id, stage="present", worker=worker,
-                checkpoint={"historical_narrative_version": publication["publication_version"],
+                checkpoint={"history_edition_version": publication["history_edition_version"],
                             "catalog_sha": context["catalog_sha"], "reviewed": True})
             control_plane.advance_stage_fenced(conn, job_id=job_id, stage="present", status="completed", worker=worker)
             resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
@@ -185,7 +185,7 @@ def _publish(database_url, *, job_id, worker, lease_seconds, context):
                 stage="present",
                 worker=worker,
                 checkpoint={
-                    "historical_narrative_version": publication["publication_version"],
+                    "history_edition_version": publication["history_edition_version"],
                     "catalog_sha": context["catalog_sha"],
                     "reviewed": True,
                 },
