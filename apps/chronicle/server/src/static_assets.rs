@@ -238,7 +238,10 @@ fn is_spa_path(path: &str) -> bool {
         let id = rest.strip_suffix('/').unwrap_or(rest);
         if !id.is_empty()
             && !id.contains('/')
-            && matches!(id, "login" | "imports" | "review" | "sources" | "coverage" | "backgrounds")
+            && matches!(
+                id,
+                "login" | "imports" | "review" | "sources" | "coverage" | "backgrounds"
+            )
         {
             return true;
         }
