@@ -315,7 +315,7 @@ def _scope_filter(
 
     covered = [
         scope
-        for scope in ("resolution", "person_state", "narrative", "chapter_content")
+        for scope in ("resolution", "person_state", "narrative", "person_history", "chapter_content")
         if review_scope_covers(spec["review_scope"], scope)
     ]
     placeholders = ", ".join(["%s"] * len(covered))
@@ -374,6 +374,8 @@ def _scope_open_count(conn, *, spec: dict[str, Any]) -> int:
 def _candidate_key_of(payload: dict[str, Any], index: int) -> str:
     if payload.get("scope") == "narrative":
         return f"narrative:{payload['narrative_kind']}:{payload['candidate_sha']}"
+    if payload.get("scope") == "person_history":
+        return f"person_history:{payload['person_history_kind']}:{payload['candidate_sha']}"
     key = payload.get("candidate_key")
     if isinstance(key, str) and key:
         return key
@@ -393,6 +395,14 @@ def _immutable_candidate_entry(payload: dict[str, Any], index: int) -> dict[str,
     if payload.get("scope") == "narrative":
         return {"candidate_key": _candidate_key_of(payload, index), "scope": "narrative",
                 "narrative_kind": payload["narrative_kind"], "candidate_sha": payload["candidate_sha"]}
+    if payload.get("scope") == "person_history":
+        return {
+            "candidate_key": _candidate_key_of(payload, index),
+            "scope": "person_history",
+            "person_history_kind": payload.get("person_history_kind"),
+            "candidate_sha": payload.get("candidate_sha"),
+            "upstream_candidate_sha": payload.get("upstream_candidate_sha"),
+        }
     if payload.get("scope") == "person_state":
         candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
         candidate_keys = sorted(
@@ -832,8 +842,11 @@ def _job_context_projection(conn, row: tuple, payload: dict[str, Any]) -> dict[s
             (job_id,),
         ).fetchone()[0]
         checkpoint = state_row[3] if isinstance(state_row[3], dict) else {}
-        scope = checkpoint.get("narrative_scope")
-        kind = "narrative" if isinstance(scope, dict) else "chapter"
+        scope = checkpoint.get("person_history_scope") or checkpoint.get("narrative_scope")
+        kind = (
+            "person_history" if isinstance(checkpoint.get("person_history_scope"), dict)
+            else "narrative" if isinstance(scope, dict) else "chapter"
+        )
         stage_rows = conn.execute(
             """SELECT stage, status, error, started_at, finished_at
                FROM chronicle.ingestion_job_stages
@@ -1054,6 +1067,7 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         "narrative": "综合史料审核",
         "chapter_content": "章节内容审核",
         "person_state": "阶段依据审核",
+        "person_history": "人物生平审核",
     }.get(item["scope"], "审核")
     item.update(_job_context_projection(conn, row, payload))
     if plan_fingerprint is not None:
@@ -1075,6 +1089,23 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         item["left_label"] = "多史料事实核对" if payload["narrative_kind"] == "facts" else "综合正文审核"
         item["right_label"] = None
         item["decision"] = {key: decision[key] for key in ("decision", "rationale", "content_sha") if key in decision} if decision else None
+    if payload.get("scope") == "person_history":
+        item["person_history_kind"] = payload.get("person_history_kind")
+        item["person_history_kind_label"] = (
+            "人物生平概况" if payload.get("person_history_kind") == "summary" else "人物生平正文"
+        )
+        item["candidate_sha"] = payload.get("candidate_sha")
+        item["upstream_candidate_sha"] = payload.get("upstream_candidate_sha")
+        item["left_label"] = item["person_history_kind_label"]
+        item["right_label"] = None
+        item["decision"] = (
+            {
+                key: decision[key]
+                for key in ("decision", "rationale", "content_sha", "reviewed_conclusion_ids")
+                if key in decision
+            }
+            if decision else None
+        )
     if payload.get("scope") == "person_state":
         candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
         overrides = decision.get("overrides") if isinstance(decision, dict) else None
@@ -1111,7 +1142,7 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
-        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_state', 'chapter_content')
+        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_history', 'person_state', 'chapter_content')
         """,
         (review_id,),
     ).fetchall()
@@ -1145,6 +1176,29 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
             )
             if isinstance(item["narrative"].get("acceptance"), dict)
             and key in item["narrative"]["acceptance"]
+        }
+        return item
+    if item["scope"] == "person_history":
+        import person_history_store
+        item["person_history"] = person_history_store.review_detail(conn, review_id)
+        if item["person_history"] is None:
+            raise _NotFound("person-history candidate unavailable")
+        if item["person_history"]["kind"] == "prose":
+            item["person_history"]["summary"] = person_history_store.approved_content(
+                person_history_store.read_candidate(conn, item["job_id"], "summary")
+            )
+        item["model_results"] = _narrative_model_results(
+            conn, item["job_id"], item["person_history"]
+        )
+        item["accepted_draft"] = {
+            key: item["person_history"].get("acceptance", {}).get(key)
+            for key in (
+                "acceptance_type", "input_sha256", "candidate_sha256", "draft_sha256",
+                "content_sha256", "model_output_sha256s", "model_opinion_sha256s",
+                "reviewed_conclusion_ids",
+            )
+            if isinstance(item["person_history"].get("acceptance"), dict)
+            and key in item["person_history"]["acceptance"]
         }
         return item
     link_kind = str(item.get("link_kind") or "")
@@ -1911,7 +1965,7 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     (bundle_sha, ref) and the revision read via the lookup helpers).
     """
     item = _detail(conn, review_id)
-    if item["scope"] in ("narrative", "person_state", "chapter_content"):
+    if item["scope"] in ("narrative", "person_history", "person_state", "chapter_content"):
         return item
     try:
         identity = _review_identity(conn, review_id)
@@ -1946,6 +2000,44 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
         "source_sha256": identity.get("source_sha256"),
     }
     return item
+
+
+def _person_history_contexts(conn, review_id: uuid.UUID) -> tuple[int, str, bytes]:
+    """Expose bounded source/evidence metadata for a person-history review."""
+    import person_history_store
+
+    candidate = person_history_store.review_detail(conn, review_id)
+    if candidate is None:
+        raise _NotFound("person-history candidate unavailable")
+    context = candidate.get("context") if isinstance(candidate.get("context"), dict) else {}
+    items = []
+    for source in context.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        source_id = source.get("source_id")
+        source_conclusions = [
+            item for item in context.get("approved_conclusions", [])
+            if isinstance(item, dict) and item.get("source_id") == source_id
+        ]
+        items.append({
+            "source_id": source_id,
+            "publication_id": source.get("publication_id"),
+            "title": source.get("title"),
+            "document_title": source.get("document_title"),
+            "revision_id": source.get("revision_id"),
+            "source_sha": source.get("source_sha"),
+            "evidence": list(source.get("evidence") or []),
+            "approved_conclusions": source_conclusions,
+        })
+    return 200, "application/json; charset=utf-8", _json_bytes({
+        "schema": "chronicle.person-history-review-contexts",
+        "version": "0.1",
+        "review_id": str(review_id),
+        "items": items,
+        "total": len(items),
+        "has_more": False,
+        "next_cursor": None,
+    })
 
 
 def _scope_of(conn, review_id: uuid.UUID) -> str | None:
@@ -2037,6 +2129,10 @@ def _route(
                 conn, review_id, method=method, route="detail",
                 raw_query=raw_query, source_dir=source_dir,
             )
+        if _scope_of(conn, review_id) == "person_history":
+            return 200, "application/json; charset=utf-8", _json_bytes(
+                {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
+            )
         return 200, "application/json; charset=utf-8", _json_bytes(
             {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
         )
@@ -2049,6 +2145,8 @@ def _route(
                 conn, review_id, method=method, route="contexts",
                 raw_query=raw_query, source_dir=source_dir,
             )
+        if _scope_of(conn, review_id) == "person_history":
+            return _person_history_contexts(conn, review_id)
         return _handle_contexts(conn, review_id, raw_query=raw_query)
     if len(parts) == 3 and parts[0] and parts[1] == "sources" and parts[2]:
         review_id = _require_uuid(parts[0], "review")
@@ -2059,6 +2157,8 @@ def _route(
                 conn, review_id, method=method, route="sources",
                 raw_query=raw_query, source_dir=source_dir, anchor_id=parts[2],
             )
+        if _scope_of(conn, review_id) == "person_history":
+            raise _NotFound("person-history reviews expose source metadata through contexts")
         return _handle_source(
             conn, review_id, parts[2], raw_query=raw_query, source_dir=source_dir
         )
@@ -2077,6 +2177,45 @@ def _route(
             raise _BadRequest(f"request body must be a JSON object: {exc}") from exc
         if not isinstance(payload, dict):
             raise _BadRequest("request body must be a JSON object")
+        if _scope_of(conn, review_id) == "person_history":
+            import person_history_store
+            current = person_history_store.review_detail(conn, review_id)
+            if current is None:
+                raise _NotFound("person-history review is unavailable")
+            if set(payload) - {"decision", "rationale", "candidate_sha", "content", "reviewed_conclusion_ids"}:
+                raise _BadRequest("unknown person-history decision field")
+            identity = conn.execute(
+                "SELECT job_id FROM chronicle.review_items WHERE review_id = %s",
+                (review_id,),
+            ).fetchone()
+            if identity is None:
+                raise _NotFound("person-history review is unavailable")
+            if payload.get("decision") == "revise":
+                revised = person_history_store.revise_candidate(
+                    conn,
+                    job_id=identity[0],
+                    worker=None,
+                    kind=current["kind"],
+                    candidate_sha=payload.get("candidate_sha"),
+                    content=payload.get("content"),
+                    rationale=payload.get("rationale"),
+                )
+                return 200, "application/json; charset=utf-8", _json_bytes(
+                    {"schema": "chronicle.review", "version": "0.1",
+                     "review": _detail_with_sources(conn, uuid.UUID(revised["review_id"]))}
+                )
+            person_history_store.decide(
+                conn,
+                review_id=review_id,
+                candidate_sha=payload.get("candidate_sha"),
+                decision=payload.get("decision"),
+                rationale=payload.get("rationale"),
+                content=payload.get("content"),
+                reviewed_conclusion_ids=payload.get("reviewed_conclusion_ids"),
+            )
+            return 200, "application/json; charset=utf-8", _json_bytes(
+                {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
+            )
         import narrative_store
         if narrative_store.review_detail(conn, review_id) is not None:
             if set(payload) - {"decision", "rationale", "candidate_sha", "content", "reviewed_conclusion_ids"}:

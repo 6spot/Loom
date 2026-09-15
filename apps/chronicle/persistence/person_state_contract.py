@@ -93,7 +93,7 @@ UNLIMITED_QUALIFICATIONS = ("recommendation", "posthumous")
 #: Review scope contract (person-state-reading.md §5.1). The omitted
 #: parameter keeps the legacy ``resolution`` default so the existing
 #: review entry does not lose facts/prose when person_state is added.
-REVIEW_SCOPES = ("resolution", "person_state", "chapter_content", "all")
+REVIEW_SCOPES = ("resolution", "person_state", "chapter_content", "person_history", "all")
 DEFAULT_REVIEW_SCOPE = "resolution"
 
 #: Fixed HTTP statuses for the person-state read API.
@@ -1492,7 +1492,8 @@ def normalize_review_scope(value: Any) -> str:
 
     The current review entry keeps resolution (facts/prose) when no scope
     is given; ``all`` explicitly covers resolution + person_state +
-    narrative + chapter_content. Unknown scopes fail closed as a 400-style error.
+    narrative + chapter_content + person_history. Unknown scopes fail closed as
+    a 400-style error.
     """
     if value in (None, ""):
         return DEFAULT_REVIEW_SCOPE
@@ -1514,12 +1515,13 @@ def review_scope_covers(scope: str, target: str) -> bool:
       current comprehensive review entry;
     - ``person_state`` covers only ``person_state``;
     - ``chapter_content`` covers only ``chapter_content``;
-    - ``all`` covers all four review surfaces.
+    - ``person_history`` covers only ``person_history``;
+    - ``all`` covers all five review surfaces.
     """
     scope = normalize_review_scope(scope)
     if scope == "all":
         return True
-    if scope in ("person_state", "chapter_content"):
+    if scope in ("person_state", "chapter_content", "person_history"):
         return target == scope
     return target in ("resolution", "narrative")
 

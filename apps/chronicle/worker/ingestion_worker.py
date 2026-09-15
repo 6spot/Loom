@@ -31,6 +31,7 @@ import control_plane  # noqa: E402
 import chapter_stage  # noqa: E402
 import documents  # noqa: E402
 import narrative_stage  # noqa: E402
+import person_history_stage  # noqa: E402
 import studio_production  # noqa: E402
 from common import LeaseLost, PersistenceConflict, PersistenceError  # noqa: E402
 
@@ -214,7 +215,7 @@ class JobRunner:
         return None
 
     def _read_job_kind(self, job_id: uuid.UUID) -> tuple[str, dict[str, Any] | None]:
-        """Decode the only two supported job shapes from the durable marker."""
+        """Decode the chapter, narrative, and person-history job markers."""
         with psycopg.connect(self.database_url) as conn:
             row = conn.execute(
                 "SELECT checkpoint FROM chronicle.ingestion_jobs WHERE job_id = %s",
@@ -227,11 +228,19 @@ class JobRunner:
             return "chapter", None
         if not isinstance(checkpoint, dict):
             raise PersistenceError("unsupported ingestion job type")
-        if set(checkpoint) != {"narrative_scope"}:
+        if set(checkpoint) == {"person_history_scope"}:
+            kind = "person_history"
+            scope = checkpoint.get("person_history_scope")
+            person_id = scope.get("person_id") if isinstance(scope, dict) else None
+            if not isinstance(person_id, str) or not person_id:
+                raise PersistenceError("person-history job has an invalid canonical person")
+        elif set(checkpoint) == {"narrative_scope"}:
+            kind = "narrative"
+            scope = checkpoint.get("narrative_scope")
+        else:
             raise PersistenceError("unsupported ingestion job type")
-        scope = checkpoint.get("narrative_scope")
         if not isinstance(scope, dict):
-            raise PersistenceError("narrative job has an invalid source scope")
+            raise PersistenceError(f"{kind} job has an invalid source scope")
         catalog_sha = scope.get("catalog_sha")
         publication_ids = scope.get("publication_ids")
         if (
@@ -242,8 +251,8 @@ class JobRunner:
             or any(not isinstance(value, str) or not value for value in publication_ids)
             or len(set(publication_ids)) != len(publication_ids)
         ):
-            raise PersistenceError("narrative job has an invalid source scope")
-        return "narrative", scope
+            raise PersistenceError(f"{kind} job has an invalid source scope")
+        return kind, scope
 
     def _chapter_config_error(self) -> str | None:
         if self.revision_source is None:
@@ -287,11 +296,11 @@ class JobRunner:
             )
         if set(rows) != set(control_plane.STAGE_NAMES):
             return "job has an incomplete stage topology"
-        if kind == "narrative":
+        if kind in ("narrative", "person_history"):
             if rows.get("present") == "skipped":
-                return "narrative job must own the present stage"
+                return f"{kind} job must own the present stage"
             if any(rows[stage] != "skipped" for stage in control_plane.STAGE_NAMES if stage != "present"):
-                return "narrative job owns only present"
+                return f"{kind} job owns only present"
         elif any(status == "skipped" for status in rows.values()):
             return "chapter job carries an unsupported skipped stage"
         return None
@@ -471,7 +480,7 @@ class JobRunner:
         shape_error = self._validate_job_shape(job_id, kind)
         if shape_error:
             return self._fail(job_id, None, PersistenceError(shape_error), context="job validation failed")
-        config_error = self._narrative_config_error() if kind == "narrative" else self._chapter_config_error()
+        config_error = self._narrative_config_error() if kind in ("narrative", "person_history") else self._chapter_config_error()
         if config_error is not None:
             return self._fail(job_id, None, PersistenceError(config_error), context="job configuration failed")
 
@@ -490,22 +499,30 @@ class JobRunner:
                     )
             self._heartbeat(job_id)
             try:
-                if kind == "narrative":
+                if kind in ("narrative", "person_history"):
                     if stage != "present":
-                        raise PersistenceError("narrative job owns only present")
+                        raise PersistenceError(f"{kind} job owns only present")
                     selected_model = self.narrative_model
                     with psycopg.connect(self.database_url) as conn:
                         production_request = studio_production.read_request(conn, job_id)
                     selection = production_request.get("model_selection") if production_request else None
                     if selection is not None:
                         if not callable(getattr(selected_model, "for_selection", None)):
-                            raise PersistenceError("narrative task model selection requires the narrative provider")
+                            raise PersistenceError(f"{kind} task model selection requires the narrative provider")
                         selected_model = selected_model.for_selection(selection)
-                    outcome = narrative_stage.execute(
-                        self.database_url, job_id=job_id, worker=self.worker,
-                        revision_source=self.revision_source, model=selected_model,
-                        lease_seconds=self.lease_seconds, scope=scope,
-                    )
+                    if kind == "person_history":
+                        outcome = person_history_stage.execute(
+                            self.database_url, job_id=job_id, worker=self.worker,
+                            revision_source=self.revision_source, model=selected_model,
+                            lease_seconds=self.lease_seconds, scope=scope,
+                            on_event=self._emit,
+                        )
+                    else:
+                        outcome = narrative_stage.execute(
+                            self.database_url, job_id=job_id, worker=self.worker,
+                            revision_source=self.revision_source, model=selected_model,
+                            lease_seconds=self.lease_seconds, scope=scope,
+                        )
                 elif stage == "prepare":
                     outcome = self._execute_prepare(job_id)
                 else:
@@ -513,7 +530,7 @@ class JobRunner:
             except LeaseLost:
                 raise
             except Exception as exc:
-                return self._fail(job_id, stage, exc, context=f"chapter {stage} failed")
+                return self._fail(job_id, stage, exc, context=f"{kind} {stage} failed")
 
             if outcome == "ok":
                 self._complete_stage_if_needed(job_id, stage)
@@ -523,7 +540,7 @@ class JobRunner:
             if outcome == "failed":
                 return self._fail(
                     job_id, stage, PersistenceError("stage failed closed"),
-                    context=f"chapter {stage} failed",
+                    context=f"{kind} {stage} failed",
                 )
             return outcome
 

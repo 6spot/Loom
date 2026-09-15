@@ -32,6 +32,9 @@ RESULT_TYPES = (
     # through the identical redacted result reader.
     "narrative-facts-attempt",
     "narrative-prose-attempt",
+    "person-history-plan",
+    "person-history-step-attempt",
+    "person-history-step",
 )
 ACCEPTANCE_FIELDS = (
     "schema",
@@ -55,6 +58,7 @@ _SAFE_DECISION_FIELDS = (
 TASK_LABELS = {
     "chapter": "章节生产任务",
     "narrative": "多史料综合任务",
+    "person_history": "人物生平任务",
 }
 
 STAGE_LABELS = {
@@ -87,8 +91,9 @@ ATTEMPT_ARTIFACT_TYPES = frozenset({
     "narrative-step-attempt",
     "narrative-facts-attempt",
     "narrative-prose-attempt",
+    "person-history-step-attempt",
 })
-RESULT_ARTIFACT_TYPES = frozenset({"chapter-production-step", "narrative-step"})
+RESULT_ARTIFACT_TYPES = frozenset({"chapter-production-step", "narrative-step", "person-history-step"})
 
 _SAFE_USAGE_FIELDS = ("input_tokens", "output_tokens", "total_tokens", "reasoning_tokens")
 _SAFE_RECEIPT_FIELDS = (
@@ -389,8 +394,8 @@ def queue(conn, *, revision_id, max_attempts=8, selection=None, parent_job_id=No
                 raise PersistenceError("unknown parent job")
             if parent[0] != revision_id or parent[1] not in ("failed", "cancelled"):
                 raise PersistenceConflict("only a failed or cancelled task can start a linked rerun")
-            if "narrative_scope" in (parent[2] or {}):
-                raise PersistenceConflict("select published sources to create a new narrative task")
+            if {"narrative_scope", "person_history_scope"} & set(parent[2] or {}):
+                raise PersistenceConflict("select published sources to create a new source-grounded task")
         job_id = control_plane.queue_job(conn, revision_id=revision_id, max_attempts=max_attempts)
         if selection is not None or parent_job_id is not None:
             value = {"version": "0.1", "model_selection": selection,
@@ -411,8 +416,24 @@ def new_run(conn, *, parent_job_id: uuid.UUID, selection=None):
     parent = control_plane.get_job_detail(conn, job_id=parent_job_id)
     if parent.get("status") not in ("failed", "cancelled"):
         raise PersistenceConflict("only a failed or cancelled task can start a linked rerun")
-    scope = parent.get("checkpoint", {}).get("narrative_scope") if isinstance(parent.get("checkpoint"), dict) else None
-    if isinstance(scope, dict):
+    checkpoint = parent.get("checkpoint") if isinstance(parent.get("checkpoint"), dict) else {}
+    person_scope = checkpoint.get("person_history_scope")
+    narrative_scope = checkpoint.get("narrative_scope")
+    if isinstance(person_scope, dict):
+        import person_history_store
+        request = read_request(conn, parent_job_id)
+        chosen = selection
+        if chosen is None and isinstance(request, dict):
+            chosen = request.get("model_selection")
+        return person_history_store.queue_person_history(
+            conn,
+            person_id=person_scope.get("person_id"),
+            catalog_sha=person_scope.get("catalog_sha"),
+            publication_ids=person_scope.get("publication_ids"),
+            model_selection=chosen,
+            parent_job_id=parent_job_id,
+        )
+    if isinstance(narrative_scope, dict):
         import narrative_store
         request = read_request(conn, parent_job_id)
         chosen = selection
@@ -420,8 +441,8 @@ def new_run(conn, *, parent_job_id: uuid.UUID, selection=None):
             chosen = request.get("model_selection")
         return narrative_store.queue_narrative(
             conn,
-            catalog_sha=scope.get("catalog_sha"),
-            publication_ids=scope.get("publication_ids"),
+            catalog_sha=narrative_scope.get("catalog_sha"),
+            publication_ids=narrative_scope.get("publication_ids"),
             model_selection=chosen,
             parent_job_id=parent_job_id,
         )
@@ -458,13 +479,21 @@ def _narrative_scope_validation(conn, scope: Any) -> tuple[bool | None, str | No
     if not isinstance(scope, dict):
         return None, None
     try:
-        import narrative_store
-
-        narrative_store.validate_source_scope(
-            conn,
-            catalog_sha=scope.get("catalog_sha"),
-            publication_ids=scope.get("publication_ids"),
-        )
+        if scope.get("person_id") is not None:
+            import person_history_store
+            person_history_store.validate_source_scope(
+                conn,
+                person_id=scope.get("person_id"),
+                catalog_sha=scope.get("catalog_sha"),
+                publication_ids=scope.get("publication_ids"),
+            )
+        else:
+            import narrative_store
+            narrative_store.validate_source_scope(
+                conn,
+                catalog_sha=scope.get("catalog_sha"),
+                publication_ids=scope.get("publication_ids"),
+            )
     except (PersistenceConflict, PersistenceError) as exc:
         return False, safe_error(str(exc)) or "冻结来源不可用"
     return True, None
@@ -574,7 +603,10 @@ def enrich_jobs(conn, jobs):
     job_ids = [uuid.UUID(job["job_id"]) for job in jobs]
     rows = conn.execute(
         """SELECT j.job_id, d.document_id, d.title, r.revision_no, r.filename,
-                  j.checkpoint->'narrative_scope',
+                  CASE WHEN j.checkpoint ? 'person_history_scope' THEN 'person_history'
+                       WHEN j.checkpoint ? 'narrative_scope' THEN 'narrative'
+                       ELSE 'chapter' END,
+                  COALESCE(j.checkpoint->'person_history_scope', j.checkpoint->'narrative_scope'),
                   (SELECT count(*) FROM chronicle.review_items ri WHERE ri.job_id=j.job_id AND ri.status='open')
            FROM chronicle.ingestion_jobs j
            JOIN chronicle.document_revisions r ON r.revision_id=j.revision_id
@@ -593,9 +625,10 @@ def enrich_jobs(conn, jobs):
         )
     source_metadata = {}
     scope_by_job: dict[str, dict[str, Any] | None] = {}
-    for job, document, title, revision, filename, scope, reviews in rows:
+    for job, document, title, revision, filename, kind, scope, reviews in rows:
         job_key = str(job)
-        kind = "narrative" if isinstance(scope, dict) else "chapter"
+        if kind not in TASK_LABELS:
+            kind = "chapter"
         stage_rows_for_job = stages_by_job.get(job_key, [])
         source_count = _source_count(scope)
         current = _current_stage([(row[0], row[1]) for row in stage_rows_for_job])
@@ -663,8 +696,8 @@ def enrich_detail(conn, detail):
     control_state = control_plane.job_action_state(
         conn, job_id=uuid.UUID(str(detail["job_id"]))
     )
-    scope = detail.get("checkpoint", {}).get("narrative_scope") \
-        if isinstance(detail.get("checkpoint"), dict) else None
+    checkpoint = detail.get("checkpoint") if isinstance(detail.get("checkpoint"), dict) else {}
+    scope = checkpoint.get("person_history_scope") or checkpoint.get("narrative_scope")
     result["action_state"] = _action_state(
         conn,
         job_id=detail["job_id"],
@@ -712,6 +745,8 @@ def enrich_detail(conn, detail):
             "review_id": str(row[13]) if row[13] is not None else None,
             "created_at": row[14].isoformat() if row[14] is not None else None,
             "receipt_sha256": row[15].get("receipt_sha256") if isinstance(row[15], dict) else None,
+            "reviewed_conclusion_ids": list(row[15].get("reviewed_conclusion_ids") or [])
+                if isinstance(row[15], dict) else [],
         }
         for row in conn.execute(
             """
@@ -721,9 +756,16 @@ def enrich_detail(conn, detail):
                    decision, decision_reason, review_id, created_at, payload
             FROM chronicle.narrative_acceptances
             WHERE job_id = %s
+            UNION ALL
+            SELECT acceptance_id, kind, acceptance_type, policy_version,
+                   input_sha256, candidate_sha256, draft_sha256, content_sha256,
+                   pipeline_fingerprint, model_output_sha256s, model_opinion_sha256s,
+                   decision, decision_reason, review_id, created_at, payload
+            FROM chronicle.person_history_acceptances
+            WHERE job_id = %s
             ORDER BY created_at, acceptance_id
             """,
-            (detail["job_id"],),
+            (detail["job_id"], detail["job_id"]),
         ).fetchall()
     ]
     # Explicit result metadata, with all attempts (not only the latest node

@@ -30,6 +30,9 @@ POST   /api/v1/studio/jobs/{job_id}/resume
 POST   /api/v1/studio/jobs/{job_id}/cancel
 GET    /api/v1/studio/jobs/model-options
 GET    /api/v1/studio/jobs/history/model-options
+GET    /api/v1/studio/jobs/person-history/people[?catalog_sha=&publication_ids=&limit=&offset=]
+GET    /api/v1/studio/jobs/person-history/model-options
+POST   /api/v1/studio/jobs/person-history
 POST   /api/v1/studio/jobs/{job_id}/rerun
 POST   /api/v1/studio/jobs/{job_id}/new-run
 GET    /api/v1/studio/jobs/{job_id}/outputs/{sha}[?offset=&limit=]
@@ -60,6 +63,7 @@ _REVIEW_SCOPE_LABELS = {
     "narrative": "综合史料审核",
     "chapter_content": "章节内容审核",
     "person_state": "阶段依据审核",
+    "person_history": "人物生平审核",
 }
 
 
@@ -285,7 +289,11 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
         # without the persistence package on sys.path. Keep the pure shape
         # test importable while production requests use the real modules.
         class _ProjectionDefinitions:
-            TASK_LABELS = {"chapter": "章节生产任务", "narrative": "多史料综合任务"}
+            TASK_LABELS = {
+                "chapter": "章节生产任务",
+                "narrative": "多史料综合任务",
+                "person_history": "人物生平任务",
+            }
             STAGE_LABELS = {
                 "prepare": "准备", "structure": "结构识别", "segment": "分段",
                 "extract": "内容抽取", "assemble": "组装草稿", "resolve": "来源核对",
@@ -478,7 +486,11 @@ def _studio_job_projection(detail: dict[str, Any]) -> dict[str, Any]:
                 attempt=int(detail.get("attempt") or 0),
                 max_attempts=int(detail.get("max_attempts") or 1),
                 open_reviews=int(detail.get("open_reviews") or 0),
-                narrative_scope=detail.get("narrative_scope") if kind == "narrative" else None,
+                narrative_scope=(
+                    detail.get("person_history_scope")
+                    if kind == "person_history" else detail.get("narrative_scope")
+                    if kind == "narrative" else None
+                ),
             )
         except Exception:
             state = {"actions": [], "available_actions": [], "action_reasons": {}}
@@ -689,6 +701,59 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
         if method != "GET" or query:
             raise _BadRequest("history model options accepts GET without query parameters")
         return 200, "application/json; charset=utf-8", _json_bytes(narrative_model_settings.catalog(os.environ))
+    if path == STUDIO_JOBS_PREFIX + "/person-history/people":
+        import person_history_store
+        allowed = {"catalog_sha", "publication_ids", "limit", "offset"}
+        if method != "GET" or set(query) - allowed:
+            raise _BadRequest("person-history people accepts GET with source selection and page bounds")
+        try:
+            limit = int(_single(query, "limit") or "50")
+            offset = int(_single(query, "offset") or "0")
+        except ValueError as exc:
+            raise _BadRequest("invalid person selection page") from exc
+        catalog_sha = _single(query, "catalog_sha")
+        publication_ids = query.get("publication_ids")
+        return 200, "application/json; charset=utf-8", _json_bytes(
+            person_history_store.list_person_choices(
+                conn,
+                catalog_sha=catalog_sha,
+                publication_ids=publication_ids,
+                limit=limit,
+                offset=offset,
+            )
+        )
+    if path == STUDIO_JOBS_PREFIX + "/person-history/model-options":
+        import narrative_model_settings
+        if method != "GET" or query:
+            raise _BadRequest("person-history model options accepts GET without query parameters")
+        return 200, "application/json; charset=utf-8", _json_bytes(narrative_model_settings.catalog(os.environ))
+    if path == STUDIO_JOBS_PREFIX + "/person-history":
+        import person_history_store
+        if method != "POST" or query:
+            raise _BadRequest("person-history generation accepts POST without query parameters")
+        try:
+            payload = json.loads(body)
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise _BadRequest("person-history generation requires a JSON object") from exc
+        required = {"person_id", "catalog_sha", "publication_ids"}
+        if not isinstance(payload, dict) or set(payload) - required - {"model_selection"}:
+            raise _BadRequest("person-history generation requires person_id, catalog_sha and publication_ids")
+        if not required <= set(payload):
+            raise _BadRequest("person-history generation requires person_id, catalog_sha and publication_ids")
+        selection = None
+        if "model_selection" in payload:
+            import narrative_model_settings
+            selection = narrative_model_settings.validate_selection(
+                payload["model_selection"], narrative_model_settings.catalog(os.environ)
+            )
+        job_id = person_history_store.queue_person_history(
+            conn,
+            person_id=payload["person_id"],
+            catalog_sha=payload["catalog_sha"],
+            publication_ids=payload["publication_ids"],
+            model_selection=selection,
+        )
+        return _job_response(conn, control_plane, job_id=job_id, status=201)
     if path == STUDIO_JOBS_PREFIX + "/history":
         import narrative_store
         if method != "POST" or query:
@@ -751,7 +816,10 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
             raise _BadRequest("new-run accepts model_selection only")
         selection = None
         if "model_selection" in options:
-            if isinstance(parent.get("checkpoint"), dict) and parent["checkpoint"].get("narrative_scope"):
+            if isinstance(parent.get("checkpoint"), dict) and (
+                parent["checkpoint"].get("narrative_scope")
+                or parent["checkpoint"].get("person_history_scope")
+            ):
                 import narrative_model_settings
                 selection = narrative_model_settings.validate_selection(
                     options["model_selection"], narrative_model_settings.catalog(os.environ)

@@ -150,7 +150,9 @@ jobs:
       - name: Verify owned contracts
         run: |
           python3 -m unittest discover -s apps/chronicle/corpus -p 'test_third_round_cases.py' -v
+          python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_history_contract_unit.py' -v
           python3 -m unittest discover -s apps/chronicle/persistence -p 'test_person_state_contract_unit.py' -v
+          python3 -m unittest discover -s apps/chronicle/worker -p 'test_person_history_pipeline_postgres.py' -v
           python3 -m unittest discover -s apps/chronicle/worker -p 'test_person_state_pipeline_postgres.py' -v
 
   web-components:
