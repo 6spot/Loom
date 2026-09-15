@@ -84,6 +84,30 @@ fingerprint 和结论覆盖，不能仅凭一个“通过”字段发布。
 公开结果。普通读取请求不生成内容。失败／取消任务可通过 Studio 的 `new-run` 沿用同一
 人物和来源选择，但新运行仍重新验证 catalog、完整章节和父任务 revision。
 
+## 公开读取
+
+人物页通过以下匿名 GET 路由读取已经发布的独立版本；读取只访问
+T12 的 `person_histories` 和 `person_history_mappings` 作为生平正文与映射权威；只为
+精确身份、关联对象名称和按需原文锚点读取既有公共索引，不会读取候选／审核 frontier，
+也不会在请求中生成或写入内容：
+
+- `GET /api/v1/public/entities/{person_id}/history`：人物姓名、已审核概况、时间精度、
+  资料覆盖、阶段映射和首段。没有发布版本时仍返回 `status: "empty"` 的真实空态。
+- `GET /api/v1/public/entities/{person_id}/history/paragraphs?version&at|start&limit`：
+  `version` 固定人物生平发布版本，`limit` 为 `1..50`；响应带 `start`、`total`、
+  `previous_start` 和 `next_start`，段落只返回证据 ID，不展开全部依据。
+- `GET /api/v1/public/entities/{person_id}/history/conclusions/{id}?version`：固定人物
+  生平版本读取一个结论，并按需返回其真实 `source publication/anchor` 引用。
+
+元数据路由可附带 `version={main_history_version}&paragraph_id={main_history_paragraph_id}`
+从主历史入口定位人物阶段；若要同时固定人物版本，使用 `person_version`。主历史版本和
+段落只通过已发布 mapping/index 精确匹配，`mapped`、`unmapped`、`ambiguous` 以及全部
+候选目标均明确返回，绝不按姓名、年份或阶段 ID 猜测。
+
+T13 的 PostgreSQL fixture 读取还保留了四个阶段的脱敏结构响应，供后续人物页接线使用：
+`read_api/fixtures/t13-redacted-person-history-phases.json`。其中只保留响应 schema、阶段
+数量、映射状态、分页边界和状态／行动计数，不把 fixture 当作真实史料验收。
+
 ## Studio 接口
 
 人物选择与生产入口位于现有 Studio jobs router：

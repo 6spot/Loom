@@ -28,6 +28,7 @@ from reading_events import (
 )
 from search import search_catalog
 from history import dispatch_history
+from person_history import dispatch_person_history
 
 
 def _single(query: dict[str, list[str]], name: str) -> str | None:
@@ -208,6 +209,14 @@ def dispatch(
 
         if path == "/v0/history" or path.startswith("/v0/history/"):
             return 200, dispatch_history(repo.conn, path, raw_query)
+
+        # C3-T13: independently published person-history metadata, prose and
+        # on-demand conclusion evidence.  This must run before the generic
+        # ``/v0/entities/{id}`` detail matcher, which intentionally rejects
+        # deeper entity paths.
+        person_history = dispatch_person_history(repo, method, path, raw_query)
+        if person_history is not None:
+            return person_history
 
         if path == "/v0/timeline":
             query = parse_qs(raw_query, keep_blank_values=True)
