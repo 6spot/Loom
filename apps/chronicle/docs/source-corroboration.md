@@ -171,7 +171,7 @@ facts/prose acceptance 均存在、对应当前候选和最终内容 hash；huma
 单段至多 8192 个 Unicode code point，正文产物至多 2 MiB。超限返回明确错误，
 需要调整生产范围。公开分页每页 1–50 段，不在前端累积无界 DOM。
 
-当前首页仍选择一个固定的已发布综合版本。全局版本可以按
+当前首页仍选择一个固定的已发布全局 edition。全局版本可以按
 [全局历史版本合同](history-editions.md)引用多个生产片段，但旧版本保持可读、
 片段接缝必须经过审核；无限规模窗口和跨地域排序推断仍不在首版。
 
@@ -183,7 +183,7 @@ facts/prose acceptance 均存在、对应当前候选和最终内容 hash；huma
 | `POST /api/v1/studio/jobs/history` | `{catalog_sha, publication_ids[, model_selection]}` 显式创建综合任务 |
 | `GET /api/v1/studio/jobs/history/model-options` | 当前综合任务可用的无凭据模型槽位 |
 | 既有 Studio review decision / resume / retry / cancel | 异常人工审核、恢复与取消，共用鉴权和 control plane；自动结果不伪造 ReviewItem |
-| `GET /api/v1/public/history[?version]` | 已发布版本的分组、精选入口与段数，未发布时 publication 为空 |
+| `GET /api/v1/public/history[?version]` | 已发布 edition 的元数据、精选入口与段数，未发布时 edition 为空 |
 | `GET /api/v1/public/history/paragraphs?version&at\|start&limit` | 固定版本定位／分页正文 |
 | `GET /api/v1/public/history/conclusions/{id}?version` | 结论、明确性及固定原文引用 |
 

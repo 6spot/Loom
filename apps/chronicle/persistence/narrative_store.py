@@ -152,7 +152,7 @@ def validate_source_scope(conn, *, catalog_sha, publication_ids) -> dict:
     )
 
 
-def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
+def source_descriptors(conn, *, catalog_sha=None, publication_ids=None, coverage=None) -> dict:
     """Select complete published chapters; never read unaccepted candidates."""
     selection = _validated_source_selection(
         conn, catalog_sha=catalog_sha, publication_ids=publication_ids
@@ -213,7 +213,12 @@ def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
                     **({"kind": value.get("type") or "other"} if kind == "entities" else {}),
                 })
         identities[kind] = known
-    return {"catalog_sha": catalog_sha, "sources": sources, **identities}
+    result = {"catalog_sha": catalog_sha, "sources": sources, **identities}
+    if coverage is not None:
+        if not isinstance(coverage, dict):
+            raise PersistenceError("narrative coverage must be an object")
+        result["coverage"] = copy.deepcopy(coverage)
+    return result
 
 
 def list_source_choices(conn, *, limit=50, offset=0):
@@ -241,7 +246,8 @@ def list_source_choices(conn, *, limit=50, offset=0):
 
 
 def queue_narrative(
-    conn, *, catalog_sha, publication_ids, model_selection=None, parent_job_id=None
+    conn, *, catalog_sha, publication_ids, model_selection=None, parent_job_id=None,
+    coverage=None,
 ):
     """An ordinary IngestionJob reusing present over already published sources."""
     import resolve_publish
@@ -260,9 +266,19 @@ def queue_narrative(
             if parent[1] not in ("failed", "cancelled"):
                 raise PersistenceConflict("only a failed or cancelled task can start a linked rerun")
             parent_scope = parent[2].get("narrative_scope") if isinstance(parent[2], dict) else None
-            if not isinstance(parent_scope, dict) or parent_scope.get("catalog_sha") != catalog_sha or parent_scope.get("publication_ids") != publication_ids:
+            if (
+                not isinstance(parent_scope, dict)
+                or parent_scope.get("catalog_sha") != catalog_sha
+                or parent_scope.get("publication_ids") != publication_ids
+                or parent_scope.get("coverage") != coverage
+            ):
                 raise PersistenceConflict("narrative source selection changed; choose sources again")
-        descriptors = source_descriptors(conn, catalog_sha=catalog_sha, publication_ids=publication_ids)
+        descriptors = source_descriptors(
+            conn,
+            catalog_sha=catalog_sha,
+            publication_ids=publication_ids,
+            coverage=coverage,
+        )
         if parent_job_id is not None and parent[0] != uuid.UUID(descriptors["sources"][0]["revision_id"]):
             raise PersistenceConflict("narrative parent and source revision do not match")
         # Two expected review resumptions plus the ordinary three execution
@@ -271,7 +287,11 @@ def queue_narrative(
         for stage in control_plane.STAGE_NAMES:
             if stage != "present":
                 control_plane.advance_stage(conn, job_id=job_id, stage=stage, status="skipped")
+        if coverage is not None and not isinstance(coverage, dict):
+            raise PersistenceError("narrative coverage must be an object")
         scope = {"catalog_sha": catalog_sha, "publication_ids": publication_ids}
+        if coverage is not None:
+            scope["coverage"] = copy.deepcopy(coverage)
         conn.execute("UPDATE chronicle.ingestion_jobs SET checkpoint = %s WHERE job_id = %s",
                      (Jsonb({"narrative_scope": scope}), job_id))
         if model_selection is not None or parent_job_id is not None:
@@ -343,9 +363,12 @@ def build_context(descriptors: dict, revision_source) -> dict:
                         # phase with a composite phase by year or event name.
                         "reviewed_person_states": list(full.get("reviewed_person_states") or []),
                         "canonical_refs": full["canonical_refs"], "evidence": evidence})
-    return {"schema": "chronicle.narrative-context", "version": contract.VERSION,
-            "catalog_sha": descriptors["catalog_sha"], "sources": sources,
-            "entities": descriptors["entities"], "events": descriptors["events"]}
+    result = {"schema": "chronicle.narrative-context", "version": contract.VERSION,
+              "catalog_sha": descriptors["catalog_sha"], "sources": sources,
+              "entities": descriptors["entities"], "events": descriptors["events"]}
+    if isinstance(descriptors.get("coverage"), dict):
+        result["coverage"] = copy.deepcopy(descriptors["coverage"])
+    return result
 
 
 def _narrative_job_revision(conn, job_id):

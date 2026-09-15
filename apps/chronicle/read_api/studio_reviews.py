@@ -315,7 +315,7 @@ def _scope_filter(
 
     covered = [
         scope
-        for scope in ("resolution", "person_state", "narrative", "person_history", "chapter_content")
+        for scope in ("resolution", "person_state", "narrative", "person_history", "history_edition", "chapter_content")
         if review_scope_covers(spec["review_scope"], scope)
     ]
     placeholders = ", ".join(["%s"] * len(covered))
@@ -1068,6 +1068,7 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         "chapter_content": "章节内容审核",
         "person_state": "阶段依据审核",
         "person_history": "人物生平审核",
+        "history_edition": "历史接缝审核",
     }.get(item["scope"], "审核")
     item.update(_job_context_projection(conn, row, payload))
     if plan_fingerprint is not None:
@@ -1106,6 +1107,20 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
             }
             if decision else None
         )
+    if payload.get("scope") == "history_edition":
+        boundary = payload.get("boundary") if isinstance(payload.get("boundary"), dict) else payload
+        item["review_mode"] = "history_edition"
+        item["draft_id"] = payload.get("draft_id")
+        item["left_fragment_version"] = boundary.get("left_fragment_version")
+        item["right_fragment_version"] = boundary.get("right_fragment_version")
+        item["geometry"] = boundary.get("geometry")
+        item["review_basis"] = list(boundary.get("review_basis") or [])
+        item["left_label"] = boundary.get("left_fragment_version")
+        item["right_label"] = boundary.get("right_fragment_version")
+        item["decision"] = (
+            {key: decision[key] for key in ("decision", "rationale", "review_basis") if key in decision}
+            if decision else None
+        )
     if payload.get("scope") == "person_state":
         candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
         overrides = decision.get("overrides") if isinstance(decision, dict) else None
@@ -1142,7 +1157,7 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         JOIN chronicle.ingestion_jobs j ON j.job_id = ri.job_id
         JOIN chronicle.document_revisions r ON r.revision_id = j.revision_id
         JOIN chronicle.documents d ON d.document_id = r.document_id
-        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_history', 'person_state', 'chapter_content')
+        WHERE ri.review_id = %s AND ri.payload->>'scope' IN ('resolution', 'narrative', 'person_history', 'history_edition', 'person_state', 'chapter_content')
         """,
         (review_id,),
     ).fetchall()
@@ -1200,6 +1215,10 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
             if isinstance(item["person_history"].get("acceptance"), dict)
             and key in item["person_history"]["acceptance"]
         }
+        return item
+    if item["scope"] == "history_edition":
+        # The boundary itself is the immutable review subject.  Its complete
+        # fragment bodies remain behind the edition draft/source endpoints.
         return item
     link_kind = str(item.get("link_kind") or "")
     item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)
@@ -1965,7 +1984,9 @@ def _detail_with_sources(conn, review_id: uuid.UUID) -> dict[str, Any]:
     (bundle_sha, ref) and the revision read via the lookup helpers).
     """
     item = _detail(conn, review_id)
-    if item["scope"] in ("narrative", "person_history", "person_state", "chapter_content"):
+    if item["scope"] in (
+        "narrative", "person_history", "person_state", "chapter_content", "history_edition"
+    ):
         return item
     try:
         identity = _review_identity(conn, review_id)
@@ -2212,6 +2233,22 @@ def _route(
                 rationale=payload.get("rationale"),
                 content=payload.get("content"),
                 reviewed_conclusion_ids=payload.get("reviewed_conclusion_ids"),
+            )
+            return 200, "application/json; charset=utf-8", _json_bytes(
+                {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
+            )
+        if _scope_of(conn, review_id) == "history_edition":
+            import history_edition_store
+            if set(payload) - {"decision", "rationale", "review_basis"}:
+                raise _BadRequest("unknown history-edition decision field")
+            if not isinstance(payload.get("decision"), str):
+                raise _BadRequest("history-edition decision must be a string")
+            history_edition_store.decide_boundary_review(
+                conn,
+                review_id,
+                decision=payload["decision"],
+                rationale=payload.get("rationale", ""),
+                review_basis=payload.get("review_basis"),
             )
             return 200, "application/json; charset=utf-8", _json_bytes(
                 {"schema": "chronicle.review", "version": "0.1", "review": _detail_with_sources(conn, review_id)}
