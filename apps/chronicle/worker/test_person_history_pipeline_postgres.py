@@ -5,9 +5,11 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import threading
 import unittest
 import uuid
 from pathlib import Path
+from unittest import mock
 
 import psycopg
 
@@ -196,6 +198,26 @@ class PersonHistoryTestModel:
         raise AssertionError(f"unexpected person-history model stage: {stage}")
 
 
+class PersonHistoryTransientFailureModel(PersonHistoryTestModel):
+    """Inject one malformed step response, then recover through T04 retries."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._failure_lock = threading.Lock()
+        self.failure_injected = False
+
+    def complete(self, prompt: str) -> str:
+        stage = prompt.split("\nSTAGE=", 1)[1].split("\n", 1)[0]
+        if stage == "summary_generate":
+            with self._failure_lock:
+                if not self.failure_injected:
+                    self.failure_injected = True
+                    self.prompts.append(prompt)
+                    self.calls.append(stage)
+                    return '{"schema":"injected-incomplete"'
+        return super().complete(prompt)
+
+
 class PersonHistoryPipelinePostgresTests(unittest.TestCase):
     """Exercise source publication -> person gates -> independent publish."""
 
@@ -211,6 +233,33 @@ class PersonHistoryPipelinePostgresTests(unittest.TestCase):
     _prepare_model = base.ReadingPipelinePostgresTests._prepare_model
     _run_once = base.ReadingPipelinePostgresTests._run_once
     _approve_person_state = base.ReadingPipelinePostgresTests._approve_person_state
+
+    def _queue_person_history_job(self):
+        with psycopg.connect(self.database_url) as conn:
+            choices = person_history_store.list_person_choices(conn)
+            person = next((item for item in choices["items"] if "周瑜" in item["name"]), None)
+            self.assertIsNotNone(person, choices)
+            source_ids = [
+                item["publication_id"]
+                for item in person_history_store.narrative_store.list_source_choices(conn)["items"]
+            ]
+            status, _content_type, body = studio_jobs.dispatch_jobs(
+                conn,
+                control_plane,
+                method="POST",
+                path="/api/v1/studio/jobs/person-history",
+                body=json.dumps({
+                    "person_id": person["person_id"],
+                    "catalog_sha": choices["catalog_sha"],
+                    "publication_ids": source_ids,
+                }).encode(),
+            )
+            self.assertEqual(201, status, body)
+            return (
+                uuid.UUID(json.loads(body)["job"]["job_id"]),
+                person,
+                source_ids,
+            )
 
     def test_person_history_has_two_review_gates_and_immutable_publication(self) -> None:
         text = base.TEXT_DISTINCT
@@ -339,3 +388,151 @@ class PersonHistoryPipelinePostgresTests(unittest.TestCase):
                         " WHERE version_sha = %s",
                         (publication["publication_version"],),
                     )
+
+    def test_person_history_recovers_step_failure_and_worker_restart_before_publication(self) -> None:
+        text = base.TEXT_DISTINCT
+        source_job, revision_id, source_sha = self._queue_job(text)
+        source_model, _plan = self._prepare_model(text, revision_id, source_sha)
+        self.assertEqual("completed", self._run_once(source_job, text, source_sha, source_model)[1])
+        person_job, person, source_ids = self._queue_person_history_job()
+
+        first_model = PersonHistoryTransientFailureModel()
+        result = self._run_once(
+            person_job, text, source_sha, source_model,
+            narrative_model=first_model,
+        )
+        self.assertEqual("needs_review", result[1])
+        self.assertTrue(first_model.failure_injected)
+        self.assertIn(
+            "PREVIOUS_CANDIDATE={\"schema\":\"injected-incomplete\"",
+            "\n".join(first_model.prompts),
+        )
+
+        with psycopg.connect(self.database_url) as conn:
+            outputs = person_history_store.read_outputs(conn, job_id=person_job)
+            summary_steps = [
+                item for item in outputs
+                if item["artifact_type"] == person_history_store.STEP_TYPE
+                and item.get("step") == "summary_generate"
+            ]
+            self.assertEqual(3, len(summary_steps))
+            by_node = {}
+            for item in summary_steps:
+                by_node.setdefault(item["node_key"], []).append(item)
+            self.assertEqual(2, len(by_node))
+            invalid = [item for item in summary_steps if item["status"] == "invalid"]
+            self.assertEqual(1, len(invalid))
+            invalid = invalid[0]
+            self.assertEqual('{"schema":"injected-incomplete"', invalid["raw_text"])
+            attempts = [
+                item for item in outputs
+                if item["artifact_type"] == person_history_store.STEP_ATTEMPT_TYPE
+                and item.get("node_key") == invalid["node_key"]
+            ]
+            self.assertEqual([1, 2], sorted(item["attempt"] for item in attempts))
+            retry = next(item for item in attempts if item["attempt"] == 2)
+            self.assertEqual(invalid["output_sha256"], retry["retry_of"])
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.person_histories"
+            ).fetchone()[0])
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.person_history_mappings"
+            ).fetchone()[0])
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.person_history_acceptances"
+            ).fetchone()[0])
+
+            summary = person_history_store.read_candidate(conn, person_job, "summary")
+            self.assertEqual("open", summary["status"])
+            person_history_store.decide(
+                conn,
+                review_id=summary["review_id"],
+                candidate_sha=summary["candidate_sha"],
+                decision="approve",
+                rationale="核对模型重试后的概况候选及其原章证据。",
+                reviewed_conclusion_ids=[item["id"] for item in summary["candidate"]["conclusions"]],
+            )
+            control_plane.resume_job(conn, job_id=person_job)
+
+        recovered_model = PersonHistoryTestModel()
+        result = self._run_once(
+            person_job, text, source_sha, source_model,
+            narrative_model=recovered_model,
+        )
+        self.assertEqual("needs_review", result[1])
+        self.assertEqual(0, recovered_model.calls.count("summary_generate"))
+        self.assertEqual(2, recovered_model.calls.count("prose_generate"))
+        self.assertEqual(1, recovered_model.calls.count("prose_compare"))
+
+        with psycopg.connect(self.database_url) as conn:
+            prose = person_history_store.read_candidate(conn, person_job, "prose")
+            self.assertEqual("open", prose["status"])
+            reviewed = sorted({
+                conclusion_id
+                for paragraph in prose["candidate"]["paragraphs"]
+                for segment in paragraph["segments"]
+                for conclusion_id in segment["conclusion_ids"]
+            })
+            person_history_store.decide(
+                conn,
+                review_id=prose["review_id"],
+                candidate_sha=prose["candidate_sha"],
+                decision="approve",
+                rationale="核对重启 worker 生成的正文、阶段边界及引用。",
+                reviewed_conclusion_ids=reviewed,
+            )
+            control_plane.resume_job(conn, job_id=person_job)
+
+        with mock.patch.object(
+            person_history_store, "publish", side_effect=RuntimeError("injected person-history publish failure")
+        ):
+            result = self._run_once(
+                person_job, text, source_sha, source_model,
+                narrative_model=recovered_model,
+            )
+        self.assertEqual("failed", result[1])
+
+        with psycopg.connect(self.database_url) as conn:
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.person_histories"
+            ).fetchone()[0])
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.person_history_mappings"
+            ).fetchone()[0])
+            control_plane.retry_job(conn, job_id=person_job)
+
+        restarted_model = PersonHistoryTestModel()
+        result = self._run_once(
+            person_job, text, source_sha, source_model,
+            narrative_model=restarted_model,
+        )
+        self.assertEqual("completed", result[1])
+        self.assertEqual([], restarted_model.calls)
+
+        with psycopg.connect(self.database_url) as conn:
+            outputs = person_history_store.read_outputs(conn, job_id=person_job)
+            self.assertEqual(3, len([
+                item for item in outputs
+                if item["artifact_type"] == person_history_store.STEP_TYPE
+                and item.get("step") == "summary_generate"
+            ]))
+            self.assertEqual(2, len([
+                item for item in outputs
+                if item["artifact_type"] == person_history_store.STEP_TYPE
+                and item.get("step") == "prose_generate"
+            ]))
+            publication = person_history_store.read_publication(
+                conn, person_id=person["person_id"]
+            )
+            self.assertIsNotNone(publication)
+            self.assertEqual(1, conn.execute(
+                "SELECT count(*) FROM chronicle.person_histories"
+            ).fetchone()[0])
+            self.assertEqual(2, conn.execute(
+                "SELECT count(*) FROM chronicle.person_history_acceptances"
+            ).fetchone()[0])
+            self.assertEqual(len(source_ids), len(publication["source_publication_ids"]))
+            mappings = person_history_store.list_mappings(
+                conn, version=publication["publication_version"]
+            )
+            self.assertTrue(mappings)
