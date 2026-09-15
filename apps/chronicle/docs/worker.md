@@ -300,6 +300,58 @@ The authenticated jobs namespace also supports:
   inputs, credentials and transport configuration stay on the server.
   `next_offset=null` means the complete result has been read.
 
+#### C3-T07 unified Studio projection
+
+Chapter production and multi-source history return the same `chronicle.job /
+0.3` envelope. `job.task.type`/`machine_key` are stable machine keys
+(`chapter` or `narrative`); `job.task.label`, `job.task.title`, every
+`step.label`, and action `label` are display values (all Simplified Chinese).
+The envelope carries `source` (immutable revision/document binding),
+`current_step`, and `step_graph.steps`. Each graph step contains its machine
+`key`, display `label`, status, dependency keys, start/end timestamps and a
+`failure_reason`/`blocked_reason`; no raw worker checkpoint is copied into the
+response. The `steps` alias is retained for clients that do not consume the
+`step_graph` wrapper.
+
+Every durable model invocation is represented in `job.attempts`, including
+retries and legacy narrative attempts. An attempt records model, slot, round,
+attempt count, `started_at`, `ended_at`, elapsed time, status,
+`output_complete`, validation status/errors, comparison status and usage. A
+missing receipt is `usage_status: "unreported"`; it is never changed to zero.
+`comparison_status` can be `agreed` only for a completed, complete comparison
+with no disagreement. Failed or missing output is always `unavailable`, so it
+cannot appear to agree. `attempt_sha256` and `result_sha256` preserve the
+start/result relationship, while `result_href` points to the separately
+paged body.
+
+`job.accepted_results` relates each merged draft/accepted candidate to every
+model output and comparison opinion by hash. It distinguishes the immutable
+source revision from the generated draft and retains version/acceptance
+metadata without embedding the full candidate in list/detail responses.
+
+The `actions` array is computed from the control-plane job status, retry
+budget, open reviews and frozen history source scope. It exposes
+`retry`/`resume`/`cancel`/`new_run` with `available`, `reason`, HTTP method and
+href. The corresponding POST routes invoke the real control-plane operation;
+the projection is advisory and cannot create a transition. `new-run` keeps a
+chapter's exact revision or a narrative task's frozen catalog/publication
+selection and records `parent_job_id`; the old job and all of its outputs are
+unchanged. `/rerun` remains the compatibility chapter-only route.
+
+Only result metadata is included in list/detail responses. Opening a result
+uses the hash-verified, exact `(job_id, revision_id, artifact_sha256)` paged
+route. Attempt starts, chapter/narrative step results and legacy narrative
+attempts are readable there; prompts, full inputs, model configuration,
+credentials, endpoints and server paths are omitted by positive projection,
+including nested secret-shaped keys. Studio remains behind the authenticated
+Rust admin proxy, and unauthorized responses contain no upstream result or
+configuration bytes. These boundaries are read-only: inspecting a job or a
+result never claims a lease, invokes a model, spends budget, or changes a
+review. Two representative redacted responses are retained for T08 in
+`read_api/fixtures/t08-redacted-chapter-job.json` and
+`read_api/fixtures/t08-redacted-history-job.json`; they are contract samples,
+not a substitute for the real HTTP flow.
+
 Ordinary `retry` never rewrites the saved model request or resets budgets.
 The selection fingerprint excludes credential values and the global transport
 timeout; the worker still freezes the complete effective execution policy when
@@ -421,6 +473,7 @@ GET  /api/v1/studio/jobs/{job_id}
 POST /api/v1/studio/jobs/{job_id}/retry    failed -> running (bounded)
 POST /api/v1/studio/jobs/{job_id}/resume   needs_review -> running (gated)
 POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancelled
+POST /api/v1/studio/jobs/{job_id}/new-run  terminal failure -> fresh queued job
 ```
 
 - `retry` refuses jobs that consumed `max_attempts` claim attempts, and
@@ -429,6 +482,11 @@ POST /api/v1/studio/jobs/{job_id}/cancel   queued/running/needs_review -> cancel
   `needs_review` stages/chunks.
 - `cancel` stops new work immediately; completed checkpoints stay intact.
   Cancelling an already-cancelled job is idempotent.
+- `new-run` is the explicit fresh-job operation. It is available only for
+  failed/cancelled jobs, carries the exact chapter revision or frozen
+  narrative source selection, and records the parent job without copying its
+  outputs. The compatibility `/rerun` route keeps its existing chapter-only
+  behavior.
 - Both `retry` and `resume` clear the stale lease so the next live worker
   can claim the job (a `running` job without a lease is claimable).
 - Successful `resume` clears the old review error on the job and the resumed

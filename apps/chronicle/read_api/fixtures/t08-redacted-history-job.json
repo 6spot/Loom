@@ -1,0 +1,90 @@
+{
+  "schema": "chronicle.job",
+  "version": "0.3",
+  "job": {
+    "job_id": "00000000-0000-4000-8000-000000000081",
+    "revision_id": "00000000-0000-4000-8000-000000000082",
+    "status": "completed",
+    "task": {
+      "type": "narrative",
+      "machine_key": "narrative",
+      "label": "多史料综合任务",
+      "title": "史料综合",
+      "source_count": 2
+    },
+    "current_step": {
+      "key": "present",
+      "machine_key": "present",
+      "label": "综合呈现",
+      "status": "completed",
+      "failure_reason": null
+    },
+    "step_graph": {
+      "current_step": "present",
+      "dependencies": {
+        "prepare": [],
+        "structure": ["prepare"],
+        "segment": ["structure"],
+        "extract": ["segment"],
+        "assemble": ["extract"],
+        "resolve": ["assemble"],
+        "publish": ["resolve"],
+        "present": ["publish"]
+      },
+      "steps": [
+        {"key": "prepare", "machine_key": "prepare", "label": "准备", "status": "skipped", "dependencies": [], "failure_reason": null, "blocked_reason": null},
+        {"key": "structure", "machine_key": "structure", "label": "结构识别", "status": "skipped", "dependencies": ["prepare"], "failure_reason": null, "blocked_reason": null},
+        {"key": "segment", "machine_key": "segment", "label": "分段", "status": "skipped", "dependencies": ["structure"], "failure_reason": null, "blocked_reason": null},
+        {"key": "extract", "machine_key": "extract", "label": "内容抽取", "status": "skipped", "dependencies": ["segment"], "failure_reason": null, "blocked_reason": null},
+        {"key": "assemble", "machine_key": "assemble", "label": "组装草稿", "status": "skipped", "dependencies": ["extract"], "failure_reason": null, "blocked_reason": null},
+        {"key": "resolve", "machine_key": "resolve", "label": "来源核对", "status": "skipped", "dependencies": ["assemble"], "failure_reason": null, "blocked_reason": null},
+        {"key": "publish", "machine_key": "publish", "label": "发布", "status": "skipped", "dependencies": ["resolve"], "failure_reason": null, "blocked_reason": null},
+        {"key": "present", "machine_key": "present", "label": "综合呈现", "status": "completed", "dependencies": ["publish"], "failure_reason": null, "blocked_reason": null}
+      ]
+    },
+    "attempts": [
+      {
+        "attempt_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "attempt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "result_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "step": "facts_compare",
+        "step_label": "模型步骤",
+        "slot": "reviewer-1",
+        "model": "model-b",
+        "attempt": 1,
+        "attempt_count": 1,
+        "status": "completed",
+        "output_complete": true,
+        "validation_status": "passed",
+        "comparison_status": "agreed",
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 30,
+          "total_tokens": 150
+        },
+        "usage_status": "reported",
+        "result_href": "/api/v1/studio/jobs/00000000-0000-4000-8000-000000000081/outputs/dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      }
+    ],
+    "accepted_results": [
+      {
+        "acceptance_id": "00000000-0000-4000-8000-000000000083",
+        "kind": "facts",
+        "acceptance_type": "policy_model_review",
+        "candidate_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "draft_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "model_output_sha256s": ["dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        "model_opinion_sha256s": ["dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"],
+        "decision": "accept",
+        "review_id": null
+      }
+    ],
+    "source": {
+      "revision_id": "00000000-0000-4000-8000-000000000082",
+      "document_id": "00000000-0000-4000-8000-000000000084",
+      "revision_no": 4,
+      "source_count": 2,
+      "relationship": "immutable_revision"
+    }
+  }
+}

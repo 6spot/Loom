@@ -35,6 +35,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -77,6 +78,52 @@ _CURSOR_VERSION = 1
 _FINGERPRINT_ALGORITHM = "studio-review-page-fingerprint-v1"
 _LEGACY_PLAN_VERSION = "c1-frozen-review-plan-v1"
 
+_PRIVATE_KEY_PARTS = (
+    "api_key", "apikey", "authorization", "password", "secret", "credential",
+    "access_token", "refresh_token", "private_key", "model_config", "transport",
+    "endpoint", "url", "server_path", "storage_path", "storage_key", "filesystem_path", "path",
+    "headers", "prompt",
+)
+
+
+def _private_key(key: Any) -> bool:
+    normalized = str(key).lower().replace("-", "_")
+    return normalized in {"token", "input"} or any(part in normalized for part in _PRIVATE_KEY_PARTS)
+
+
+def _safe_browser_value(value: Any) -> Any:
+    """Drop secret-shaped nested fields from review metadata and errors."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, list):
+        return [_safe_browser_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _safe_browser_value(item)
+            for key, item in value.items()
+            if not _private_key(key)
+        }
+    return str(value)
+
+
+def _safe_error(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    value = re.sub(
+        r"(?i)(api[_-]?key|authorization|bearer|password|secret|token)\s*[:=]\s*[^\s,;]+",
+        "[已脱敏]",
+        value,
+    )
+    value = re.sub(
+        r"(?i)(endpoint|url|server[_-]?path|storage[_-]?path)\s*[:=]\s*[^\s,;]+",
+        "[已脱敏]",
+        value,
+    )
+    value = re.sub(r"https?://[^\s,;]+", "[已脱敏]", value)
+    return re.sub(r"(?<![\w])/(?:home|srv|var|etc|tmp|opt)/[^\s,;]+", "[已脱敏]", value)
+
 
 class _BadRequest(Exception):
     pass
@@ -105,9 +152,9 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
 def _error(
     status: int, code: str, message: str, *, details: dict[str, Any] | None = None,
 ) -> tuple[int, str, bytes]:
-    error: dict[str, Any] = {"code": code, "message": message}
+    error: dict[str, Any] = {"code": code, "message": _safe_error(message)}
     if details is not None:
-        error["details"] = details
+        error["details"] = _safe_browser_value(details)
     return status, "application/json; charset=utf-8", _json_bytes(
         {
             "schema": "chronicle.error",
@@ -761,6 +808,204 @@ def _side_name(conn, side: Any, *, link_kind: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _job_context_projection(conn, row: tuple, payload: dict[str, Any]) -> dict[str, Any]:
+    """Add the same task/action shell used by the Studio jobs endpoint.
+
+    Review rows are a separate queue view, but they must not invent a second
+    lifecycle vocabulary. This read-only lookup delegates action availability
+    to the control-plane helper and exposes only labels, IDs, and stage state.
+    """
+    try:
+        import control_plane
+        import studio_production
+
+        job_id = row[1]
+        state_row = conn.execute(
+            """SELECT status, attempt, max_attempts, checkpoint
+               FROM chronicle.ingestion_jobs WHERE job_id = %s""",
+            (job_id,),
+        ).fetchone()
+        if state_row is None:
+            return {}
+        open_reviews = conn.execute(
+            "SELECT count(*) FROM chronicle.review_items WHERE job_id = %s AND status = 'open'",
+            (job_id,),
+        ).fetchone()[0]
+        checkpoint = state_row[3] if isinstance(state_row[3], dict) else {}
+        scope = checkpoint.get("narrative_scope")
+        kind = "narrative" if isinstance(scope, dict) else "chapter"
+        stage_rows = conn.execute(
+            """SELECT stage, status, error, started_at, finished_at
+               FROM chronicle.ingestion_job_stages
+               WHERE job_id = %s ORDER BY stage""",
+            (job_id,),
+        ).fetchall()
+        current = studio_production._current_stage(
+            [(stage, status) for stage, status, _error, _started, _finished in stage_rows]
+        )
+        statuses = {stage: status for stage, status, _error, _started, _finished in stage_rows}
+        steps = []
+        for stage, status, error, started_at, finished_at in stage_rows:
+            dependencies = list(studio_production.STAGE_DEPENDENCIES.get(stage, ()))
+            dependency_statuses = [statuses.get(dependency) for dependency in dependencies]
+            blocked_reason = None
+            if status == "pending" and any(
+                dependency in ("failed", "needs_review") for dependency in dependency_statuses
+            ):
+                blocked_reason = "前置步骤未完成"
+            elif status == "pending" and any(
+                dependency not in ("completed", "skipped") for dependency in dependency_statuses
+            ):
+                blocked_reason = "等待前置步骤"
+            steps.append({
+                "key": stage,
+                "machine_key": stage,
+                "stage": stage,
+                "label": studio_production.STAGE_LABELS.get(stage, "步骤"),
+                "status": status,
+                "dependencies": dependencies,
+                "failure_reason": _safe_error(error),
+                "blocked_reason": blocked_reason,
+                "started_at": _iso(started_at),
+                "finished_at": _iso(finished_at),
+            })
+        order = {name: index for index, name in enumerate(control_plane.STAGE_NAMES)}
+        steps.sort(key=lambda step: order.get(step["key"], len(order)))
+        action_state = control_plane.action_state_from_values(
+            job_id=job_id,
+            status=state_row[0],
+            attempt=int(state_row[1]),
+            max_attempts=int(state_row[2]),
+            open_reviews=int(open_reviews),
+            narrative_scope=scope if isinstance(scope, dict) else None,
+        )
+        actions = []
+        for action in action_state["actions"]:
+            key = action["key"]
+            path = "new-run" if key == "new_run" else key
+            actions.append({
+                **action,
+                "label": {
+                    "retry": "重试", "resume": "继续生产", "cancel": "取消任务",
+                    "new_run": "新建运行",
+                }[key],
+                "method": "POST",
+                "href": f"/api/v1/studio/jobs/{job_id}/{path}",
+            })
+        source_count = studio_production._source_count(scope)
+        title = row[11] or "未命名任务"
+        current_step = next((step for step in steps if step["key"] == current), None)
+        return {
+            "task": {
+                "type": kind,
+                "machine_key": kind,
+                "label": studio_production.TASK_LABELS[kind],
+                "title": title,
+                "source_count": source_count,
+            },
+            "task_type": kind,
+            "task_type_label": studio_production.TASK_LABELS[kind],
+            "current_step": (
+                {
+                    "key": current_step["key"],
+                    "machine_key": current_step["machine_key"],
+                    "label": current_step["label"],
+                    "status": current_step["status"],
+                    "failure_reason": current_step["failure_reason"],
+                }
+                if current_step is not None else None
+            ),
+            "current_step_key": current,
+            "current_step_label": (
+                studio_production.STAGE_LABELS.get(current) if current else None
+            ),
+            "stages": steps,
+            "steps": steps,
+            "step_graph": {
+                "current_step": current,
+                "steps": steps,
+                "dependencies": {
+                    step["key"]: list(step["dependencies"]) for step in steps
+                },
+            },
+            "actions": actions,
+            "available_actions": action_state["available_actions"],
+            "action_reasons": action_state["action_reasons"],
+            "source": {
+                "revision_id": str(row[9]),
+                "document_id": str(row[10]),
+                "revision_no": int(row[12]),
+                "source_count": source_count,
+                "relationship": "immutable_revision",
+            },
+        }
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        # Legacy fixtures can omit the control-plane tables. The review
+        # projection remains readable, but never guesses action availability.
+        return {}
+
+
+def _narrative_model_results(conn, job_id: str, narrative: dict[str, Any]) -> list[dict[str, Any]]:
+    """Project candidate/opinion references without embedding their bodies."""
+    payload = narrative.get("review_payload") if isinstance(narrative, dict) else {}
+    if not isinstance(payload, dict):
+        return []
+    records: list[dict[str, Any]] = []
+    for role, field, comparison in (
+        ("model_output", "candidates", False), ("model_opinion", "comparisons", True)
+    ):
+        values = payload.get(field) if isinstance(payload.get(field), list) else []
+        for item in values:
+            if not isinstance(item, dict):
+                continue
+            status = item.get("status") if isinstance(item.get("status"), str) else "unreported"
+            raw = item.get("raw_text")
+            complete = status == "completed" and isinstance(raw, str) and bool(raw)
+            errors = item.get("validation_errors")
+            if not isinstance(errors, list):
+                errors = [errors] if errors else []
+            if errors or status in ("invalid", "failed"):
+                validation_status = "failed"
+            elif status == "completed":
+                validation_status = "passed"
+            else:
+                validation_status = "unreported"
+            if comparison:
+                comparison_payload = item.get("comparison") if isinstance(item.get("comparison"), dict) else {}
+                if status != "completed" or not complete:
+                    comparison_status = "unavailable"
+                elif comparison_payload.get("disagreements") or any(
+                    isinstance(diff, dict) and diff.get("assessment") == "disputed"
+                    for diff in (comparison_payload.get("differences") or [])
+                ):
+                    comparison_status = "disputed"
+                elif isinstance(comparison_payload.get("selected_sha256"), str):
+                    comparison_status = "agreed"
+                else:
+                    comparison_status = "unreported"
+            else:
+                comparison_status = "not_applicable"
+            output_sha = item.get("output_sha256")
+            if not isinstance(output_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", output_sha):
+                output_sha = None
+            record = {
+                "role": role,
+                "output_sha256": output_sha,
+                "step": item.get("step"),
+                "slot": item.get("slot"),
+                "model": item.get("model"),
+                "status": status,
+                "output_complete": complete,
+                "validation_status": validation_status,
+                "comparison_status": comparison_status,
+                "validation_errors": [_safe_error(error) for error in errors],
+            }
+            if output_sha:
+                record["result_href"] = f"/api/v1/studio/jobs/{job_id}/outputs/{output_sha}"
+            records.append(record)
+    return records
+
+
 def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[str, Any]:
     payload = row[5] if isinstance(row[5], dict) else {}
     suggestion = _suggestion(conn, payload)
@@ -804,6 +1049,13 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         "suggestion": suggestion,
         "decision": decision,
     }
+    item["review_type_label"] = {
+        "resolution": "来源关系审核",
+        "narrative": "综合史料审核",
+        "chapter_content": "章节内容审核",
+        "person_state": "阶段依据审核",
+    }.get(item["scope"], "审核")
+    item.update(_job_context_projection(conn, row, payload))
     if plan_fingerprint is not None:
         item["plan_fingerprint"] = plan_fingerprint
     if payload.get("scope") == "chapter_content":
@@ -818,6 +1070,7 @@ def _summary(row: tuple, conn, *, plan_fingerprint: str | None = None) -> dict[s
         })
     if payload.get("scope") == "narrative":
         item["narrative_kind"] = payload["narrative_kind"]
+        item["narrative_kind_label"] = "事实核对" if payload["narrative_kind"] == "facts" else "综合正文"
         item["candidate_sha"] = payload["candidate_sha"]
         item["left_label"] = "多史料事实核对" if payload["narrative_kind"] == "facts" else "综合正文审核"
         item["right_label"] = None
@@ -866,9 +1119,13 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         raise _NotFound(f"unknown review {review_id}")
     item = _summary(rows[0], conn)
     if item["scope"] == "chapter_content":
-        return _chapter_content().detail(conn, review_id)
+        specific = _chapter_content().detail(conn, review_id)
+        specific.update({key: value for key, value in item.items() if key not in specific})
+        return specific
     if item["scope"] == "person_state":
-        return _person_states().detail(conn, review_id)
+        specific = _person_states().detail(conn, review_id)
+        specific.update({key: value for key, value in item.items() if key not in specific})
+        return specific
     if item["scope"] == "narrative":
         import narrative_store
         item["narrative"] = narrative_store.review_detail(conn, review_id)
@@ -877,6 +1134,18 @@ def _detail(conn, review_id: uuid.UUID) -> dict[str, Any]:
         if item["narrative"]["kind"] == "prose":
             item["narrative"]["facts"] = narrative_store.approved_content(
                 narrative_store.read_candidate(conn, item["job_id"], "facts"))
+        item["model_results"] = _narrative_model_results(
+            conn, item["job_id"], item["narrative"]
+        )
+        item["accepted_draft"] = {
+            key: item["narrative"].get("acceptance", {}).get(key)
+            for key in (
+                "acceptance_type", "input_sha256", "candidate_sha256", "draft_sha256",
+                "content_sha256", "model_output_sha256s", "model_opinion_sha256s",
+            )
+            if isinstance(item["narrative"].get("acceptance"), dict)
+            and key in item["narrative"]["acceptance"]
+        }
         return item
     link_kind = str(item.get("link_kind") or "")
     item["left_context"] = _side_context(conn, item.get("left"), link_kind=link_kind)

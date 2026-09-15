@@ -742,6 +742,7 @@ async fn studio_saved_production_routes_share_auth_and_proxy() {
     for path in [
         "/api/v1/studio/jobs/model-options",
         "/api/v1/studio/jobs/saved-job/outputs/saved-hash?offset=100&limit=500",
+        "/api/v1/studio/jobs/saved-job/new-run",
     ] {
         assert_eq!(get(server.port, path, None).await.0, 401);
         let (status, _, bytes) = get(server.port, path, Some(ADMIN_AUTH)).await;
@@ -749,24 +750,28 @@ async fn studio_saved_production_routes_share_auth_and_proxy() {
         let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(payload["proxied_path"], path);
     }
-    let path = "/api/v1/studio/jobs/saved-job/rerun";
     let body = br#"{"model_selection":{"config_sha256":"fixed","steps":{"translation":["configured-profile"]}}}"#;
-    for (auth, expected_status) in [(None, 401), (Some(ADMIN_AUTH), 201)] {
-        let (status, _, bytes) = raw_request_with_body(
-            server.port,
-            "POST",
-            path,
-            auth,
-            Some("application/json"),
-            body,
-        )
-        .await
-        .unwrap();
-        assert_eq!(status, expected_status);
-        if auth.is_some() {
-            let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-            assert_eq!(payload["proxied_path"], path);
-            assert_eq!(payload["body_len"], body.len());
+    for path in [
+        "/api/v1/studio/jobs/saved-job/rerun",
+        "/api/v1/studio/jobs/saved-job/new-run",
+    ] {
+        for (auth, expected_status) in [(None, 401), (Some(ADMIN_AUTH), 201)] {
+            let (status, _, bytes) = raw_request_with_body(
+                server.port,
+                "POST",
+                path,
+                auth,
+                Some("application/json"),
+                body,
+            )
+            .await
+            .unwrap();
+            assert_eq!(status, expected_status);
+            if auth.is_some() {
+                let payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                assert_eq!(payload["proxied_path"], path);
+                assert_eq!(payload["body_len"], body.len());
+            }
         }
     }
     server.stop().await;

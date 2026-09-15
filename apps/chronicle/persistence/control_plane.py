@@ -70,6 +70,12 @@ JOB_TRANSITIONS: dict[str, frozenset[str]] = {
     "completed": frozenset(),
 }
 
+# The Studio surface consumes these values as a stable machine vocabulary.
+# Display labels live in the read layer, but availability and its reason must
+# be calculated from this store's state machine rather than from a browser's
+# guess about which button should be enabled.
+JOB_ACTION_KEYS = ("retry", "resume", "cancel", "new_run")
+
 # Legal stage transitions. Mirrors Rust `StageStatus::can_transition_to`.
 STAGE_TRANSITIONS: dict[str, frozenset[str]] = {
     "pending": frozenset({"running", "skipped"}),
@@ -880,6 +886,132 @@ def cancel_job(conn, *, job_id: uuid.UUID) -> None:
                  AND payload->>'scope' IN ('narrative', 'chapter_content')""",
             (_utcnow(), job_id),
         )
+
+
+def action_state_from_values(
+    *,
+    job_id: uuid.UUID | str,
+    status: str,
+    attempt: int,
+    max_attempts: int,
+    open_reviews: int = 0,
+    narrative_scope: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Project control-plane action availability without changing state.
+
+    This is deliberately a pure helper shared by list/detail reads. The
+    mutating endpoints still call :func:`retry_job`, :func:`resume_job`, and
+    :func:`cancel_job`, so this projection can never grant a transition that
+    the authoritative operation will accept differently.
+    """
+    if status not in JOB_STATUSES:
+        raise PersistenceError(f"job status must be one of {list(JOB_STATUSES)}, got {status!r}")
+    if not isinstance(attempt, int) or isinstance(attempt, bool):
+        raise PersistenceError("job attempt must be an integer")
+    if attempt < 0:
+        raise PersistenceError("job attempt must be non-negative")
+    if not isinstance(max_attempts, int) or isinstance(max_attempts, bool):
+        raise PersistenceError("job max_attempts must be an integer")
+    if max_attempts < 1:
+        raise PersistenceError("job max_attempts must be positive")
+    if not isinstance(open_reviews, int) or isinstance(open_reviews, bool) or open_reviews < 0:
+        raise PersistenceError("open review count must be a non-negative integer")
+
+    retry_available = status == "failed" and attempt < max_attempts
+    if retry_available:
+        retry_reason = None
+    elif status != "failed":
+        retry_reason = "仅失败任务可以重试"
+    else:
+        retry_reason = "已达到重试次数上限"
+
+    resume_available = status == "needs_review" and open_reviews == 0
+    if resume_available:
+        resume_reason = None
+    elif status != "needs_review":
+        resume_reason = "仅待审核任务可以继续"
+    else:
+        resume_reason = f"仍有 {open_reviews} 项审核未完成"
+
+    cancel_available = status in ("queued", "running", "needs_review")
+    cancel_reason = None if cancel_available else "终态任务不能取消"
+
+    # A chapter can always be re-queued from a terminal failure. A narrative
+    # task may do the same only while its immutable source selection is still
+    # present; otherwise the operator must choose sources from /history.
+    has_saved_sources = (
+        isinstance(narrative_scope, dict)
+        and isinstance(narrative_scope.get("catalog_sha"), str)
+        and isinstance(narrative_scope.get("publication_ids"), list)
+        and bool(narrative_scope.get("publication_ids"))
+    )
+    new_run_available = status in ("failed", "cancelled") and (
+        narrative_scope is None or has_saved_sources
+    )
+    if new_run_available:
+        new_run_reason = None
+    elif status not in ("failed", "cancelled"):
+        new_run_reason = "仅失败或已取消任务可以新建运行"
+    else:
+        new_run_reason = "缺少冻结的来源选择，必须重新选择来源"
+
+    def action(key: str, available: bool, reason: str | None) -> dict[str, Any]:
+        return {
+            "key": key,
+            "available": available,
+            # ``enabled`` is retained as a client-friendly alias. Both names
+            # are derived here so clients never need to infer the rule.
+            "enabled": available,
+            "reason": reason,
+        }
+
+    actions = [
+        action("retry", retry_available, retry_reason),
+        action("resume", resume_available, resume_reason),
+        action("cancel", cancel_available, cancel_reason),
+        action("new_run", new_run_available, new_run_reason),
+    ]
+    return {
+        "actions": actions,
+        "available_actions": [item["key"] for item in actions if item["available"]],
+        "action_reasons": {
+            item["key"]: item["reason"] for item in actions if item["reason"] is not None
+        },
+        "status": status,
+        "attempt": attempt,
+        "max_attempts": max_attempts,
+        "open_reviews": open_reviews,
+        "job_id": str(job_id),
+    }
+
+
+def job_action_state(conn, *, job_id: uuid.UUID) -> dict[str, Any]:
+    """Read action availability from the locked job/review records.
+
+    No row is written and no lease is acquired. The subsequent action route
+    invokes the real operation again, which closes the read/act race safely.
+    """
+    row = conn.execute(
+        """SELECT status, attempt, max_attempts, checkpoint
+           FROM chronicle.ingestion_jobs WHERE job_id = %s""",
+        (job_id,),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(f"unknown job {job_id}")
+    open_reviews = conn.execute(
+        "SELECT count(*) FROM chronicle.review_items WHERE job_id = %s AND status = 'open'",
+        (job_id,),
+    ).fetchone()[0]
+    checkpoint = row[3] if isinstance(row[3], dict) else {}
+    scope = checkpoint.get("narrative_scope")
+    return action_state_from_values(
+        job_id=job_id,
+        status=row[0],
+        attempt=int(row[1]),
+        max_attempts=int(row[2]),
+        open_reviews=int(open_reviews),
+        narrative_scope=scope if isinstance(scope, dict) else None,
+    )
 
 
 def retry_job(conn, *, job_id: uuid.UUID) -> None:

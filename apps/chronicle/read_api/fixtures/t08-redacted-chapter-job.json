@@ -1,0 +1,97 @@
+{
+  "schema": "chronicle.job",
+  "version": "0.3",
+  "job": {
+    "job_id": "00000000-0000-4000-8000-000000000071",
+    "revision_id": "00000000-0000-4000-8000-000000000072",
+    "status": "needs_review",
+    "task": {
+      "type": "chapter",
+      "machine_key": "chapter",
+      "label": "章节生产任务",
+      "title": "武帝紀",
+      "source_count": 1
+    },
+    "current_step": {
+      "key": "resolve",
+      "machine_key": "resolve",
+      "label": "来源核对",
+      "status": "needs_review",
+      "failure_reason": null
+    },
+    "step_graph": {
+      "current_step": "resolve",
+      "dependencies": {
+        "prepare": [],
+        "structure": ["prepare"],
+        "segment": ["structure"],
+        "extract": ["segment"],
+        "assemble": ["extract"],
+        "resolve": ["assemble"],
+        "publish": ["resolve"],
+        "present": ["publish"]
+      },
+      "steps": [
+        {"key": "prepare", "machine_key": "prepare", "label": "准备", "status": "completed", "dependencies": [], "failure_reason": null, "blocked_reason": null},
+        {"key": "structure", "machine_key": "structure", "label": "结构识别", "status": "completed", "dependencies": ["prepare"], "failure_reason": null, "blocked_reason": null},
+        {"key": "segment", "machine_key": "segment", "label": "分段", "status": "completed", "dependencies": ["structure"], "failure_reason": null, "blocked_reason": null},
+        {"key": "extract", "machine_key": "extract", "label": "内容抽取", "status": "completed", "dependencies": ["segment"], "failure_reason": null, "blocked_reason": null},
+        {"key": "assemble", "machine_key": "assemble", "label": "组装草稿", "status": "completed", "dependencies": ["extract"], "failure_reason": null, "blocked_reason": null},
+        {"key": "resolve", "machine_key": "resolve", "label": "来源核对", "status": "needs_review", "dependencies": ["assemble"], "failure_reason": null, "blocked_reason": null},
+        {"key": "publish", "machine_key": "publish", "label": "发布", "status": "pending", "dependencies": ["resolve"], "failure_reason": null, "blocked_reason": "前置步骤未完成"},
+        {"key": "present", "machine_key": "present", "label": "综合呈现", "status": "pending", "dependencies": ["publish"], "failure_reason": null, "blocked_reason": "等待前置步骤"}
+      ]
+    },
+    "actions": [
+      {
+        "key": "resume",
+        "label": "继续生产",
+        "available": false,
+        "enabled": false,
+        "reason": "仍有 1 项审核未完成",
+        "method": "POST",
+        "href": "/api/v1/studio/jobs/00000000-0000-4000-8000-000000000071/resume"
+      },
+      {
+        "key": "cancel",
+        "label": "取消任务",
+        "available": true,
+        "enabled": true,
+        "reason": null,
+        "method": "POST",
+        "href": "/api/v1/studio/jobs/00000000-0000-4000-8000-000000000071/cancel"
+      }
+    ],
+    "attempts": [
+      {
+        "attempt_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "attempt_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "result_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "step": "extraction",
+        "step_label": "模型步骤",
+        "slot": "primary",
+        "model": "model-a",
+        "attempt": 1,
+        "attempt_count": 1,
+        "status": "completed",
+        "started_at": "2026-09-15T01:00:00+00:00",
+        "ended_at": "2026-09-15T01:00:04+00:00",
+        "elapsed_seconds": 4.0,
+        "output_complete": true,
+        "validation_status": "passed",
+        "comparison_status": "not_applicable",
+        "usage": null,
+        "usage_status": "unreported",
+        "result_href": "/api/v1/studio/jobs/00000000-0000-4000-8000-000000000071/outputs/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "accepted_results": [],
+    "source": {
+      "revision_id": "00000000-0000-4000-8000-000000000072",
+      "document_id": "00000000-0000-4000-8000-000000000073",
+      "revision_no": 3,
+      "source_count": 1,
+      "relationship": "immutable_revision"
+    }
+  }
+}

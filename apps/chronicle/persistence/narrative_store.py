@@ -195,14 +195,31 @@ def list_source_choices(conn, *, limit=50, offset=0):
             "has_more": bool(rows and offset + len(rows) < rows[0][5]), "offset": offset}
 
 
-def queue_narrative(conn, *, catalog_sha, publication_ids, model_selection=None):
+def queue_narrative(
+    conn, *, catalog_sha, publication_ids, model_selection=None, parent_job_id=None
+):
     """An ordinary IngestionJob reusing present over already published sources."""
     import resolve_publish
     with conn.transaction():
         resolve_publish.acquire_publish_lock(conn)
         if not isinstance(catalog_sha, str) or not isinstance(publication_ids, list):
             raise PersistenceError("a fixed source catalog is required")
+        if parent_job_id is not None:
+            parent = conn.execute(
+                """SELECT revision_id, status, checkpoint
+                   FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE""",
+                (parent_job_id,),
+            ).fetchone()
+            if parent is None:
+                raise PersistenceError("unknown parent job")
+            if parent[1] not in ("failed", "cancelled"):
+                raise PersistenceConflict("only a failed or cancelled task can start a linked rerun")
+            parent_scope = parent[2].get("narrative_scope") if isinstance(parent[2], dict) else None
+            if not isinstance(parent_scope, dict) or parent_scope.get("catalog_sha") != catalog_sha or parent_scope.get("publication_ids") != publication_ids:
+                raise PersistenceConflict("narrative source selection changed; choose sources again")
         descriptors = source_descriptors(conn, catalog_sha=catalog_sha, publication_ids=publication_ids)
+        if parent_job_id is not None and parent[0] != uuid.UUID(descriptors["sources"][0]["revision_id"]):
+            raise PersistenceConflict("narrative parent and source revision do not match")
         # Two expected review resumptions plus the ordinary three execution
         # attempts. Human gates must not consume every publication retry.
         job_id = control_plane.queue_job(conn, revision_id=uuid.UUID(descriptors["sources"][0]["revision_id"]), max_attempts=5)
@@ -212,11 +229,16 @@ def queue_narrative(conn, *, catalog_sha, publication_ids, model_selection=None)
         scope = {"catalog_sha": catalog_sha, "publication_ids": publication_ids}
         conn.execute("UPDATE chronicle.ingestion_jobs SET checkpoint = %s WHERE job_id = %s",
                      (Jsonb({"narrative_scope": scope}), job_id))
-        if model_selection is not None:
+        if model_selection is not None or parent_job_id is not None:
             if not isinstance(model_selection, dict):
-                raise PersistenceError("narrative model selection must be an object")
+                if model_selection is not None:
+                    raise PersistenceError("narrative model selection must be an object")
             import studio_production
-            request = {"version": "0.1", "model_selection": copy.deepcopy(model_selection)}
+            request = {
+                "version": "0.1",
+                "model_selection": copy.deepcopy(model_selection),
+                "parent_job_id": str(parent_job_id) if parent_job_id is not None else None,
+            }
             control_plane.record_output(
                 conn,
                 job_id=job_id,
