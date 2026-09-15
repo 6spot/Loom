@@ -29,6 +29,7 @@ POST   /api/v1/studio/jobs/{job_id}/retry
 POST   /api/v1/studio/jobs/{job_id}/resume
 POST   /api/v1/studio/jobs/{job_id}/cancel
 GET    /api/v1/studio/jobs/model-options
+GET    /api/v1/studio/jobs/history/model-options
 POST   /api/v1/studio/jobs/{job_id}/rerun
 GET    /api/v1/studio/jobs/{job_id}/outputs/{sha}[?offset=&limit=]
 ```
@@ -341,6 +342,11 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
         except ValueError as exc:
             raise _BadRequest("invalid source page") from exc
         return 200, "application/json; charset=utf-8", _json_bytes(narrative_store.list_source_choices(conn, limit=limit, offset=offset))
+    if path == STUDIO_JOBS_PREFIX + "/history/model-options":
+        import narrative_model_settings
+        if method != "GET" or query:
+            raise _BadRequest("history model options accepts GET without query parameters")
+        return 200, "application/json; charset=utf-8", _json_bytes(narrative_model_settings.catalog(os.environ))
     if path == STUDIO_JOBS_PREFIX + "/history":
         import narrative_store
         if method != "POST" or query:
@@ -349,9 +355,22 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
             payload = json.loads(body)
         except (ValueError, UnicodeDecodeError) as exc:
             raise _BadRequest("history generation requires a JSON object") from exc
-        if not isinstance(payload, dict) or set(payload) != {"catalog_sha", "publication_ids"}:
+        if not isinstance(payload, dict) or set(payload) - {"catalog_sha", "publication_ids", "model_selection"}:
+            raise _BadRequest("history generation requires catalog_sha and publication_ids; model_selection is optional")
+        if set(payload) < {"catalog_sha", "publication_ids"}:
             raise _BadRequest("history generation requires catalog_sha and publication_ids")
-        job_id = narrative_store.queue_narrative(conn, **payload)
+        selection = None
+        if "model_selection" in payload:
+            import narrative_model_settings
+            selection = narrative_model_settings.validate_selection(
+                payload["model_selection"], narrative_model_settings.catalog(os.environ)
+            )
+        job_id = narrative_store.queue_narrative(
+            conn,
+            catalog_sha=payload["catalog_sha"],
+            publication_ids=payload["publication_ids"],
+            model_selection=selection,
+        )
         return _job_response(conn, control_plane, job_id=job_id, status=201)
 
     if path == STUDIO_JOBS_PREFIX:

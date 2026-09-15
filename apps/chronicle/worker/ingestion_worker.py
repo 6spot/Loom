@@ -267,9 +267,12 @@ class JobRunner:
     def _narrative_config_error(self) -> str | None:
         if self.revision_source is None:
             return "narrative production requires the revision source"
-        if not callable(getattr(self.narrative_model, "complete", None)) or not getattr(
-            self.narrative_model, "name", None
-        ):
+        graph_provider = isinstance(getattr(self.narrative_model, "steps", None), dict) and callable(
+            getattr(self.narrative_model, "model_for", None)
+        )
+        if graph_provider:
+            return None
+        if not callable(getattr(self.narrative_model, "complete", None)) or not getattr(self.narrative_model, "name", None):
             return "narrative production requires a configured provider"
         return None
 
@@ -490,9 +493,17 @@ class JobRunner:
                 if kind == "narrative":
                     if stage != "present":
                         raise PersistenceError("narrative job owns only present")
+                    selected_model = self.narrative_model
+                    with psycopg.connect(self.database_url) as conn:
+                        production_request = studio_production.read_request(conn, job_id)
+                    selection = production_request.get("model_selection") if production_request else None
+                    if selection is not None:
+                        if not callable(getattr(selected_model, "for_selection", None)):
+                            raise PersistenceError("narrative task model selection requires the narrative provider")
+                        selected_model = selected_model.for_selection(selection)
                     outcome = narrative_stage.execute(
                         self.database_url, job_id=job_id, worker=self.worker,
-                        revision_source=self.revision_source, model=self.narrative_model,
+                        revision_source=self.revision_source, model=selected_model,
                         lease_seconds=self.lease_seconds, scope=scope,
                     )
                 elif stage == "prepare":

@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import narrative_contract as contract
-from common import PersistenceError
+from common import PersistenceError, sha256_json
 
 
 def expanded_states(source):
@@ -273,6 +273,46 @@ class NarrativeContractTests(unittest.TestCase):
         self.facts['phases'].append(phase)
         with self.assertRaisesRegex(PersistenceError, 'phases have no applicable conclusion.*orphan'):
             contract.validate_facts(self.facts, self.context)
+
+    def test_comparison_binds_every_complete_candidate_without_a_vote(self):
+        candidates = [
+            {'candidate_sha256': 'a' * 64, 'model': 'facts-a', 'content': copy.deepcopy(self.facts)},
+            {'candidate_sha256': 'b' * 64, 'model': 'facts-b', 'content': copy.deepcopy(self.facts)},
+        ]
+        report = {
+            'schema': 'chronicle.narrative-comparison', 'version': contract.VERSION,
+            'candidate_set_sha256': sha256_json(candidates),
+            'selected_sha256': candidates[0]['candidate_sha256'],
+            'selection_rationale': '依据每条来源说明选择完整候选。',
+            'differences': [
+                {'candidate_sha256': item['candidate_sha256'],
+                 'assessment': 'selected' if index == 0 else 'compatible',
+                 'rationale': '逐项比对来源依据。', 'evidence': ['e0'],
+                 'conclusion_ids': ['f0']}
+                for index, item in enumerate(candidates)
+            ],
+        }
+        self.assertEqual(
+            report,
+            contract.validate_comparison(report, self.context, 'facts', candidates),
+        )
+        prompt = contract.build_compare_prompt(
+            'facts_compare', {
+                'context': self.context, 'kind': 'facts', 'candidates': candidates,
+                'candidate_set_sha256': sha256_json(candidates),
+            }
+        )
+        self.assertIn('不要按模型数量、confidence 或格式通过投票判定史实。', prompt)
+        self.assertIn('CANDIDATE_SET_SHA256=' + sha256_json(candidates), prompt)
+        self.assertIn('\nSTAGE=facts_compare\n', prompt)
+        broken = copy.deepcopy(report)
+        broken['differences'][1]['evidence'] = ['not-in-context']
+        with self.assertRaisesRegex(PersistenceError, 'outside the frozen context'):
+            contract.validate_comparison(broken, self.context, 'facts', candidates)
+        broken = copy.deepcopy(report)
+        broken['differences'][0]['assessment'] = 'compatible'
+        with self.assertRaisesRegex(PersistenceError, 'selected candidate'):
+            contract.validate_comparison(broken, self.context, 'facts', candidates)
 
 
 if __name__ == '__main__':

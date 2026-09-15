@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from datetime import datetime, timezone
 
 from psycopg.types.json import Jsonb
 
@@ -12,6 +13,16 @@ import control_plane
 import narrative_contract as contract
 import reading_projection
 from common import PersistenceConflict, PersistenceError, sha256_bytes, sha256_json
+from step_runner import StepInput
+
+
+PLAN_TYPE = "narrative-plan"
+STEP_ATTEMPT_TYPE = "narrative-step-attempt"
+STEP_TYPE = "narrative-step"
+
+
+class StepBudgetExhausted(PersistenceError):
+    """A narrative model node used its frozen finite attempt budget."""
 
 
 def _reviewed_person_states(conn, *, publication_id) -> list[dict]:
@@ -183,7 +194,7 @@ def list_source_choices(conn, *, limit=50, offset=0):
             "has_more": bool(rows and offset + len(rows) < rows[0][5]), "offset": offset}
 
 
-def queue_narrative(conn, *, catalog_sha, publication_ids):
+def queue_narrative(conn, *, catalog_sha, publication_ids, model_selection=None):
     """An ordinary IngestionJob reusing present over already published sources."""
     import resolve_publish
     with conn.transaction():
@@ -200,6 +211,19 @@ def queue_narrative(conn, *, catalog_sha, publication_ids):
         scope = {"catalog_sha": catalog_sha, "publication_ids": publication_ids}
         conn.execute("UPDATE chronicle.ingestion_jobs SET checkpoint = %s WHERE job_id = %s",
                      (Jsonb({"narrative_scope": scope}), job_id))
+        if model_selection is not None:
+            if not isinstance(model_selection, dict):
+                raise PersistenceError("narrative model selection must be an object")
+            import studio_production
+            request = {"version": "0.1", "model_selection": copy.deepcopy(model_selection)}
+            control_plane.record_output(
+                conn,
+                job_id=job_id,
+                revision_id=uuid.UUID(descriptors["sources"][0]["revision_id"]),
+                artifact_type=studio_production.REQUEST_TYPE,
+                artifact_sha256=sha256_json(request),
+                payload=request,
+            )
         return job_id
 
 
@@ -256,18 +280,276 @@ def build_context(descriptors: dict, revision_source) -> dict:
             "entities": descriptors["entities"], "events": descriptors["events"]}
 
 
+def _narrative_job_revision(conn, job_id):
+    row = conn.execute(
+        "SELECT revision_id FROM chronicle.ingestion_jobs WHERE job_id = %s",
+        (job_id,),
+    ).fetchone()
+    if row is None:
+        raise PersistenceError(f"unknown narrative job {job_id}")
+    return row[0]
+
+
+def read_outputs(conn, *, job_id) -> list[dict]:
+    """Read and hash-check every durable narrative plan/step output."""
+    rows = conn.execute(
+        """SELECT artifact_type, artifact_sha256, payload
+           FROM chronicle.ingestion_outputs
+           WHERE job_id = %s AND artifact_type LIKE 'narrative-%%'
+           ORDER BY created_at, output_id""",
+        (job_id,),
+    ).fetchall()
+    result = []
+    for artifact_type, digest, payload in rows:
+        if not isinstance(payload, dict) or sha256_json(payload) != digest:
+            raise PersistenceConflict("narrative output hash drift")
+        result.append({"artifact_type": artifact_type, "output_sha256": digest, **payload})
+    return result
+
+
+def freeze_pipeline(conn, *, job_id, worker, context, config) -> dict:
+    """Freeze source context, prompt schemas and model choices for this job."""
+    import resolve_publish
+
+    if not isinstance(context, dict) or not isinstance(config, dict):
+        raise PersistenceError("narrative pipeline requires a JSON context and model configuration")
+    value = {
+        "schema": "chronicle.narrative-plan",
+        "version": contract.VERSION,
+        "context": copy.deepcopy(context),
+        "context_sha256": sha256_json(context),
+        "config": copy.deepcopy(config),
+        "pipeline_fingerprint": sha256_json({"context": context, "config": config}),
+        "status": "frozen",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    with conn.transaction():
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        plans = [row for row in read_outputs(conn, job_id=job_id) if row["artifact_type"] == PLAN_TYPE]
+        if plans:
+            if len(plans) != 1 or any(
+                plans[0].get(key) != value.get(key)
+                for key in ("context", "context_sha256", "config", "pipeline_fingerprint")
+            ):
+                raise PersistenceConflict(
+                    "narrative_pipeline_drift: source, prompt or model configuration is frozen for this job"
+                )
+            return plans[0]
+        revision_id = _narrative_job_revision(conn, job_id)
+        digest = sha256_json(value)
+        control_plane.record_output_fenced(
+            conn,
+            job_id=job_id,
+            revision_id=revision_id,
+            worker=worker,
+            artifact_type=PLAN_TYPE,
+            artifact_sha256=digest,
+            payload=value,
+        )
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+    return {"artifact_type": PLAN_TYPE, "output_sha256": digest, **value}
+
+
+def node_key(plan: dict, *, step: str, round: int, slot: str,
+             data: dict, prompt: str, model_config: dict) -> str:
+    return StepInput(
+        pipeline_fingerprint=plan["pipeline_fingerprint"],
+        step=step,
+        round=round,
+        slot=slot,
+        data=data,
+        prompt=prompt,
+        model_config=model_config,
+    ).fingerprint()
+
+
+def begin_step_attempt(
+    conn,
+    *,
+    job_id,
+    worker,
+    plan,
+    step,
+    round,
+    slot,
+    data,
+    prompt,
+    model_config,
+    max_attempts,
+    retryable=True,
+    retry_prompt=None,
+) -> tuple[dict, bool]:
+    """Reuse a complete model node or reserve its next durable attempt."""
+    import resolve_publish
+
+    if not isinstance(max_attempts, int) or max_attempts < 1:
+        raise PersistenceError("narrative step max_attempts must be positive")
+    with conn.transaction():
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        key = node_key(
+            plan, step=step, round=round, slot=slot, data=data,
+            prompt=prompt, model_config=model_config,
+        )
+        records = read_outputs(conn, job_id=job_id)
+        results = [
+            record for record in records
+            if record["artifact_type"] == STEP_TYPE and record.get("node_key") == key
+        ]
+        completed = [record for record in results if record.get("status") == "completed"]
+        if completed:
+            if len(completed) != 1:
+                raise PersistenceConflict("one narrative model node has multiple completed results")
+            return completed[0], True
+        invalid = [record for record in results if record.get("status") == "invalid"]
+        previous = max(invalid, key=lambda record: record.get("attempt", 0)) if invalid else None
+        starts = [
+            record for record in records
+            if record["artifact_type"] == STEP_ATTEMPT_TYPE and record.get("node_key") == key
+        ]
+        if previous is not None and not retryable:
+            return previous, True
+        if len(starts) >= max_attempts:
+            raise StepBudgetExhausted(
+                f"{step}/{slot}: {max_attempts} saved attempts exhausted"
+            )
+        actual_prompt = prompt
+        if previous is not None:
+            if retry_prompt is None:
+                raise PersistenceError(f"{step}/{slot}: retry prompt adapter is required")
+            actual_prompt = retry_prompt(prompt, previous)
+        attempt = len(starts) + 1
+        value = {
+            "schema": "chronicle.narrative-step-attempt",
+            "version": contract.VERSION,
+            "pipeline_fingerprint": plan["pipeline_fingerprint"],
+            "context_sha256": plan["context_sha256"],
+            "node_key": key,
+            "step": step,
+            "round": round,
+            "slot": slot,
+            "attempt": attempt,
+            "input_sha256": sha256_json(data),
+            "model": model_config.get("model"),
+            "model_config": copy.deepcopy(model_config),
+            "prompt": actual_prompt,
+            "base_prompt_sha256": sha256_json(prompt),
+            "input": copy.deepcopy(data),
+            "retry_of": previous["output_sha256"] if previous is not None else None,
+            "status": "started",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        revision_id = _narrative_job_revision(conn, job_id)
+        digest = sha256_json(value)
+        control_plane.record_output_fenced(
+            conn,
+            job_id=job_id,
+            revision_id=revision_id,
+            worker=worker,
+            artifact_type=STEP_ATTEMPT_TYPE,
+            artifact_sha256=digest,
+            payload=value,
+        )
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        return {"artifact_type": STEP_ATTEMPT_TYPE, "output_sha256": digest, **value}, False
+
+
+def finish_step_attempt(
+    conn,
+    *,
+    job_id,
+    worker,
+    attempt,
+    raw_text,
+    parsed,
+    validation_errors,
+    receipt,
+    status,
+    error=None,
+) -> dict:
+    """Persist the full response/diagnostic after a durable attempt start."""
+    import resolve_publish
+
+    if status not in {"completed", "invalid", "failed"}:
+        raise PersistenceError("narrative step result has an invalid status")
+    errors = list(validation_errors or [])
+    value = {
+        "schema": "chronicle.narrative-step",
+        "version": contract.VERSION,
+        **{
+            key: attempt[key]
+            for key in (
+                "pipeline_fingerprint", "context_sha256", "node_key", "step",
+                "round", "slot", "attempt", "input_sha256", "model",
+            )
+        },
+        "attempt_sha256": attempt["output_sha256"],
+        "raw_text": raw_text if isinstance(raw_text, str) else "",
+        # Keep the historical names on the new record too; old review tooling
+        # can inspect a narrative response without a compatibility write path.
+        "raw_response": raw_text if isinstance(raw_text, str) else "",
+        "parsed": copy.deepcopy(parsed),
+        "validation_errors": errors,
+        "validation_error": "; ".join(str(item) for item in errors) if errors else error,
+        "receipt": copy.deepcopy(receipt) if isinstance(receipt, dict) else {},
+        "status": status,
+        "error": error,
+    }
+    with conn.transaction():
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+        records = read_outputs(conn, job_id=job_id)
+        if any(
+            record["artifact_type"] == STEP_TYPE
+            and record.get("attempt_sha256") == attempt["output_sha256"]
+            for record in records
+        ):
+            raise PersistenceConflict("narrative attempt already has a saved result")
+        if not any(
+            record["artifact_type"] == STEP_ATTEMPT_TYPE
+            and record["output_sha256"] == attempt["output_sha256"]
+            for record in records
+        ):
+            raise PersistenceConflict("narrative attempt has no durable start")
+        revision_id = _narrative_job_revision(conn, job_id)
+        digest = sha256_json(value)
+        control_plane.record_output_fenced(
+            conn,
+            job_id=job_id,
+            revision_id=revision_id,
+            worker=worker,
+            artifact_type=STEP_TYPE,
+            artifact_sha256=digest,
+            payload=value,
+        )
+        resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
+    return {"artifact_type": STEP_TYPE, "output_sha256": digest, **value}
+
+
 def read_candidate(conn, job_id, kind):
     row = conn.execute("""SELECT c.candidate_sha, c.context_payload, c.candidate_payload,
-        c.review_id, r.status, r.payload->'decision', c.model_version
+        c.review_id, r.status, r.payload->'decision', c.model_version, r.payload
         FROM chronicle.narrative_candidates c JOIN chronicle.review_items r USING (review_id)
         WHERE c.job_id = %s AND c.kind = %s""", (job_id, kind)).fetchone()
     if not row:
         return None
     return {"candidate_sha": row[0], "context": row[1], "candidate": row[2],
-            "review_id": str(row[3]), "status": row[4], "decision": row[5], "model": row[6], "kind": kind}
+            "review_id": str(row[3]), "status": row[4], "decision": row[5], "model": row[6],
+            "kind": kind, "review_payload": row[7] if isinstance(row[7], dict) else {}}
 
 
-def save_candidate(conn, *, job_id, worker, kind, context, candidate, model):
+def save_candidate(
+    conn,
+    *,
+    job_id,
+    worker,
+    kind,
+    context,
+    candidate,
+    model,
+    plan=None,
+    candidate_records=None,
+    comparison_records=None,
+    issues=None,
+):
     import resolve_publish
     with conn.transaction():
         resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
@@ -286,11 +568,51 @@ def save_candidate(conn, *, job_id, worker, kind, context, candidate, model):
             raise PersistenceError("unknown narrative candidate kind")
         resolve_publish.require_unexpired_lease(conn, job_id=job_id, worker=worker)
         digest = sha256_json({"job_id": str(job_id), "kind": kind, "context": context, "candidate": candidate})
-        review_id = control_plane.open_review_item(conn, job_id=job_id, kind="stage_gate", payload={
+        candidate_records = list(candidate_records or [])
+        comparison_records = list(comparison_records or [])
+        history = candidate_records + comparison_records
+        review_payload = {
             "scope": "narrative", "stage": "present", "narrative_kind": kind,
             "candidate_sha": digest, "plan_version": "narrative-review-v1",
             "blocking": True, "allowed_decisions": ["approve", "reject"],
-        })
+            "issues": copy.deepcopy(list(issues or [])),
+            "candidate_count": len(candidate_records),
+            "candidates": [
+                {
+                    "output_sha256": item.get("output_sha256"),
+                    "step": item.get("step"),
+                    "slot": item.get("slot"),
+                    "model": item.get("model"),
+                    "status": item.get("status"),
+                    "candidate": copy.deepcopy(item.get("parsed")),
+                    "raw_text": item.get("raw_text"),
+                    "validation_errors": list(item.get("validation_errors") or []),
+                }
+                for item in candidate_records
+            ],
+            "comparisons": [
+                {
+                    "output_sha256": item.get("output_sha256"),
+                    "step": item.get("step"),
+                    "slot": item.get("slot"),
+                    "model": item.get("model"),
+                    "status": item.get("status"),
+                    "comparison": copy.deepcopy(item.get("parsed")),
+                    "raw_text": item.get("raw_text"),
+                    "validation_errors": list(item.get("validation_errors") or []),
+                }
+                for item in comparison_records
+            ],
+            "step_output_sha256s": [
+                item.get("output_sha256") for item in history if item.get("output_sha256")
+            ],
+        }
+        if plan is not None:
+            review_payload["pipeline_fingerprint"] = plan.get("pipeline_fingerprint")
+            review_payload["context_sha256"] = plan.get("context_sha256")
+        review_id = control_plane.open_review_item(
+            conn, job_id=job_id, kind="stage_gate", payload=review_payload
+        )
         conn.execute("""INSERT INTO chronicle.narrative_candidates
             (candidate_sha, job_id, kind, review_id, context_sha, context_payload, candidate_payload, model_version)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",

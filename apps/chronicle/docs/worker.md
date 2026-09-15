@@ -291,8 +291,8 @@ The authenticated jobs namespace also supports:
 - `GET /api/v1/studio/jobs/{job_id}/outputs/{sha}?offset=0&limit=16000`:
   hash-verified, exact-job result pages in Unicode code points. Saved chapter
   attempts, step responses, drafts and the staged acceptance receipt are
-  readable. The positive field projection retains model content, candidates
-  and validation/opinions for model results; the receipt projection retains
+  readable. The positive field projection retains model content, candidates,
+  narrative step results and validation/opinions for model results; the receipt projection retains
   only its hashes, decision metadata and chunk binding. Prompts, request
   inputs, credentials and transport configuration stay on the server.
   `next_offset=null` means the complete result has been read.
@@ -305,25 +305,39 @@ processing starts. There is no new queue, workflow database or publication path.
 ### Reviewed multi-source historical narrative
 
 Set `CHRONICLE_NARRATIVE_MODEL` alongside the chapter model, using the same
-`CHRONICLE_MODEL_ENDPOINT`, API key and timeout. This enables an explicit
-Studio operation; importing another chapter does not automatically regenerate
-the public history. Source files must remain available through
-`CHRONICLE_SOURCE_DIR` for complete, hash-verified chapter context.
+`CHRONICLE_MODEL_ENDPOINT`, API key and timeout. By default it supplies one
+model to all four narrative steps. `CHRONICLE_NARRATIVE_FACTS_MODELS`,
+`CHRONICLE_NARRATIVE_PROSE_MODELS` and `CHRONICLE_NARRATIVE_COMPARE_MODELS`
+(or the compatibility name `CHRONICLE_NARRATIVE_REVIEW_MODELS`) accept
+comma-separated model names for per-step candidates/comparisons. For endpoint,
+credential or per-step budget differences, use the JSON file named by
+`CHRONICLE_NARRATIVE_PIPELINE_CONFIG`; profile credentials remain environment
+variable names, never values. This enables an explicit Studio operation;
+importing another chapter does not automatically regenerate the public history.
+Source files must remain available through `CHRONICLE_SOURCE_DIR` for complete,
+hash-verified chapter context.
 
 In Studio → imports, select complete published chapters and create a historical
-narrative job. It is an ordinary IngestionJob whose other stages are skipped.
-Its `present` stage first creates a facts ReviewItem. Review the questions,
-source relationships, phase boundaries and every conclusion, then approve and
-continue. The worker creates prose using the accepted facts. Read and edit the
-prose and selected navigation entries in the second review before continuing
-to publication. The UI keeps save/next actions reachable on long pages and
-allows conclusion splitting and phase/evidence editing.
+narrative job. The history model-options endpoint lists the credential-free
+profiles; a job may submit the returned `model_selection` to choose its slots.
+It is an ordinary IngestionJob whose other stages are skipped. Its `present`
+stage runs `facts_generate` for each selected model, runs `facts_compare` only
+when there are multiple candidates, then creates a facts ReviewItem containing
+every complete candidate and comparison. Review the questions, source
+relationships, phase boundaries and every conclusion, then approve and
+continue. The worker creates prose using the accepted facts and applies the
+same candidate/comparison contract before the second review. Read and edit the
+prose and selected navigation entries in that review before continuing to
+publication. The UI keeps save/next actions reachable on long pages and allows
+conclusion splitting and phase/evidence editing.
 
 The worker keeps model calls outside transactions and renews its lease on a
-separate short connection. Each candidate permits up to three complete
-generation/correction attempts; responses and diagnostics use the existing
-ingestion output log. Accepted candidates are reused on resume. Publication
-and completion commit together under the existing publication lock and an
+separate short connection. Each selected model node permits up to three
+complete generation/correction attempts; responses, comparisons and
+diagnostics use the existing ingestion output log. A frozen plan binds the
+source, model profiles, prompt/schema contract and finite budget; accepted
+nodes are reused on resume and unrelated steps are not rerun. Publication and
+completion commit together under the existing publication lock and an
 expiry-aware lease check. A rejected draft cancels its job; cancellation
 dismisses open narrative reviews without deleting their audit records.
 
