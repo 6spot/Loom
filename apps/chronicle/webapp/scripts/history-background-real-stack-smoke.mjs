@@ -149,7 +149,7 @@ try {
   await page.getByPlaceholder("保留实际制作信息，便于复用和核对").fill("渐变江面与远山，仅用于 LM-77 真后端验收。");
   await page.getByRole("button", { name: "上传为候选", exact: true }).click();
   await expect(page.getByText("图片已上传为候选素材。它还没有公开展示", { exact: false })).toBeVisible();
-  await expect(page.getByText("候选 · 尚未展示", { exact: true })).toBeVisible();
+  await expect(page.locator(".studio-background-asset-card", { hasText: filename }).getByText("候选 · 尚未展示", { exact: true })).toBeVisible();
 
   stage = "reader page stays on paper while the candidate is unsaved";
   const beforeSave = await publicBackground(version, first);
@@ -160,7 +160,7 @@ try {
   await expect(readerBackground()).toHaveCount(0);
   await page.screenshot({ path: `${output}/reader-before-save.png`, fullPage: true });
 
-  stage = "save the explicit range and display";
+  stage = "save the explicit range and display with keyboard-only actions";
   await page.goto(new URL("/studio/backgrounds", base).href);
   await page.getByRole("button", { name: new RegExp(filename) }).first().click();
   await page.getByLabel("背景范围起点").selectOption(first);
@@ -170,9 +170,23 @@ try {
   await page.locator("#background-position-y").fill("0.35");
   await page.locator("#background-scale").fill("1.1");
   await page.getByLabel("正文遮罩").selectOption("gradient");
-  await page.getByRole("button", { name: "保存并显示", exact: true }).click();
+  await page.getByLabel("显示背景").focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator(".studio-background-preview")).toHaveAttribute("data-background-visible", "false");
+  await page.keyboard.press("Space");
+  await expect(page.locator(".studio-background-preview")).toHaveAttribute("data-background-visible", "true");
+  await page.locator("#background-scale").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#background-scale")).toHaveValue("1.2");
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect(page.getByRole("button", { name: "保存并显示", exact: true })).toBeInViewport();
+  await page.getByRole("button", { name: "保存并显示", exact: true }).focus();
+  await page.keyboard.press("Enter");
   await expect(page.getByText("已保存并显示：", { exact: false })).toBeVisible();
-  await expect(page.getByText("已展示 · 1 处", { exact: true })).toBeVisible();
+  await expect(page.locator(".studio-background-asset-card", { hasText: filename }).getByText("已展示 · 1 处", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: /打开读者历史/ }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp("/history$"));
 
   stage = "reader page shows the saved background inside the exact range only";
   const saved = await publicBackground(version, first);
