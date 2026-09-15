@@ -374,6 +374,7 @@ export default function StudioReviewDetailPage() {
   const submittingRef = useRef<{
     id: string;
     fingerprint: string | null;
+    decision: ReviewDecision;
     advance: boolean;
     anchor: ReviewSortAnchor;
   } | null>(null);
@@ -621,14 +622,23 @@ export default function StudioReviewDetailPage() {
           confidence: Number(draft.confidence),
         }];
       });
-      return submitReviewDecision(
+      const updated = await submitReviewDecision(
         authHeader,
         submitted.id,
-        decision,
+        submitted.decision,
         rationale.trim(),
         Number(confidence),
         groupDecisions,
       );
+      // A successful HTTP response is not enough to advance the queue. Keep
+      // the draft and current location when the response is for another
+      // review/version or does not prove that this decision was committed.
+      if (updated.review_id !== submitted.id || updated.status !== "resolved"
+          || !updated.decision || updated.decision.decision !== submitted.decision
+          || (submitted.fingerprint && updated.plan_fingerprint !== submitted.fingerprint)) {
+        throw new Error("服务器返回的审核版本或决定不一致，草稿保留，请核对服务器记录");
+      }
+      return updated;
     },
     onSuccess: async (updated) => {
       const submitted = submittingRef.current;
@@ -668,6 +678,7 @@ export default function StudioReviewDetailPage() {
     submittingRef.current = {
       id: reviewId,
       fingerprint,
+      decision: decision as ReviewDecision,
       advance: advanceAfter,
       anchor: { createdAt: item.created_at, reviewId: item.review_id },
     };

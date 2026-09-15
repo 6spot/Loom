@@ -1,0 +1,28 @@
+{
+  "browser": "Chromium",
+  "headless": true,
+  "viewport": "1440x1100",
+  "credentials": "redacted",
+  "routes": [
+    "/studio/login",
+    "/studio",
+    "/studio/imports/{job_id}",
+    "/studio/review/{review_id}"
+  ],
+  "assertions": {
+    "login_redirected_to_studio": true,
+    "completed_job_title_visible": true,
+    "completed_status_visible": true,
+    "present_step_visible": true,
+    "process_rail_visible": true,
+    "model_opinions_visible": true,
+    "resolved_content_review_visible": true,
+    "review_context_visible": true,
+    "review_history_visible": true
+  },
+  "page_errors": [],
+  "screenshots": [
+    "browser/studio-job-completed.png",
+    "browser/studio-review-resolved.png"
+  ]
+}
