@@ -85,11 +85,12 @@ CHRONICLE_DATA_DIR=/srv/loom-data/chronicle
 ```
 
 Create it before the first start. The sources directory holds uploaded
-C1-T3 revision files and must be writable by the image's `chronicle` user
-(uid 10001); PostgreSQL manages its own subdirectory ownership:
+C1-T3 revision files and Chronicle background candidates. The whole directory
+must be writable by the image's `chronicle` user (uid 10001); PostgreSQL
+manages its own subdirectory ownership:
 
 ```bash
-sudo mkdir -p /srv/loom-data/chronicle/postgres /srv/loom-data/chronicle/sources
+sudo mkdir -p /srv/loom-data/chronicle/postgres /srv/loom-data/chronicle/sources/background-assets
 sudo chown 10001:10001 /srv/loom-data/chronicle/sources
 ```
 
@@ -314,7 +315,16 @@ set -a
 set +a
 ```
 
-The checked-in accepted artifacts remain an independent replay path; a database backup does not replace their provenance role.
+The checked-in accepted artifacts remain an independent replay path; a database backup does not replace their provenance role. Background assets need a matching file backup because PostgreSQL stores their metadata, hashes, binding and audit records, while the image bytes live under the source bind:
+
+```bash
+tar --xattrs --acls --numeric-owner \
+  -C /srv/loom-data/chronicle \
+  -czf chronicle-background-assets-$(date +%Y%m%d-%H%M%S).tar.gz \
+  sources/background-assets
+```
+
+Take the `pg_dump` and asset-directory archive from the same maintenance window. A restore is complete only when the database rows and the matching `sources/background-assets` files are restored together; missing or hash-mismatched files remain unavailable to public readers.
 
 ## Security boundary
 

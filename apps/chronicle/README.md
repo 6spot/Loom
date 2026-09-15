@@ -33,7 +33,7 @@ Initial data may focus on a narrow period, but the product and data model must r
 - [`docs/continuous-reading.md`](docs/continuous-reading.md) — second-round chapter annotations, immutable streams, source time and snapshot APIs.
 - [`docs/reading-experience.md`](docs/reading-experience.md) — reading layout, current-fragment context, accessible previews and position restoration.
 - [`docs/person-state-reading.md`](docs/person-state-reading.md) — third-round source-grounded offices, affiliations, narrative phases, evidence review and certainty display (implementation target).
-- [`docs/background-art.md`](docs/background-art.md) — era-aware background art, explicit generation/upload and human save-to-display workflow; product upload/display integration remains planned.
+- [`docs/background-art.md`](docs/background-art.md) — era-aware background art, the explicit generation/upload and human save-to-display workflow, plus the implemented candidate/binding HTTP contract.
 - [First-round task graph](../../docs/tasks/chronicle/first-round/README.md) — #548 chapter production and review task context.
 - [`docs/staged-chapter-production.md`](docs/staged-chapter-production.md) — current 0.4 staged full-chapter production contract.
 - [`docs/chapter-production.md`](docs/chapter-production.md) — historical first-round contract and version references.
@@ -78,6 +78,8 @@ directly.
 5. Saved, explicitly approved background art that follows reading position.
 
 The current publication contains one selected source batch. Global continuity
-across batches, complete person biographies and product background-art binding
-still require implementation. See [product.md](docs/product.md) and the
+across batches, complete person biographies and the browser-side background-art
+experience still require implementation; the Chronicle backend candidate and
+binding contract is documented in [background-art.md](docs/background-art.md).
+See [product.md](docs/product.md) and the
 [convergence tasks](../../docs/tasks/chronicle/product-convergence/README.md).

@@ -70,12 +70,21 @@ impl TypedError {
         )
     }
 
-    /// 405 for unsupported methods on Studio document routes.
+    /// 405 for unsupported methods on Studio document/job proxy routes.
     pub fn studio_method_not_allowed() -> Self {
         Self::new(
             StatusCode::METHOD_NOT_ALLOWED,
             "method_not_allowed",
             "only GET and POST are supported",
+        )
+    }
+
+    /// 405 for unsupported methods on Studio background proxy routes.
+    pub fn studio_background_method_not_allowed() -> Self {
+        Self::new(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "method_not_allowed",
+            "only GET, POST, and DELETE are supported",
         )
     }
 

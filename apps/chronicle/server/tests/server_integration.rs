@@ -103,6 +103,7 @@ async fn spawn_mock_upstream() -> (UpstreamTarget, tokio::task::JoinHandle<()>) 
                     (409, REVIEW_CONFLICT.to_string())
                 } else if path.starts_with("/api/v1/studio/documents")
                     || path.starts_with("/api/v1/studio/jobs")
+                    || path.starts_with("/api/v1/studio/background")
                 {
                     // Echo the Studio request for proxy assertions.
                     let escaped_type = content_type.replace('\\', "\\\\").replace('"', "\\\"");
@@ -295,6 +296,76 @@ async fn public_namespaces_proxy_to_c0_paths() {
         let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
         assert_eq!(payload["proxied_path"], expected_proxied, "{public}");
     }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn public_background_routes_proxy_to_pinned_c0_paths() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+    for (public, expected_proxied) in [
+        (
+            "/api/v1/public/backgrounds?version=abc&paragraph_id=hp_1",
+            "/v0/backgrounds?version=abc&paragraph_id=hp_1",
+        ),
+        (
+            "/api/v1/public/background-assets/asset-1?version=abc&paragraph_id=hp_1",
+            "/v0/background-assets/asset-1?version=abc&paragraph_id=hp_1",
+        ),
+        (
+            "/api/v1/public/background-resources/binding-1?version=abc&paragraph_id=hp_1",
+            "/v0/background-resources/binding-1?version=abc&paragraph_id=hp_1",
+        ),
+    ] {
+        let (status, _, body) = get(server.port, public, None).await;
+        assert_eq!((public, status), (public, 200));
+        let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+        assert_eq!(payload["proxied_path"], expected_proxied, "{public}");
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn studio_background_routes_require_auth_and_forward_delete() {
+    let (upstream, _mock) = spawn_mock_upstream().await;
+    let server = spawn_server(test_state(upstream, true)).await;
+
+    let (missing, _, body) = get(server.port, "/api/v1/studio/background-assets", None).await;
+    assert_eq!(missing, 401);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["error"]["code"], "unauthorized");
+
+    let (listed, _, body) = get(
+        server.port,
+        "/api/v1/studio/background-assets?source=operator",
+        Some(ADMIN_AUTH),
+    )
+    .await;
+    assert_eq!(listed, 200);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["method"], "GET");
+    assert_eq!(
+        payload["proxied_path"],
+        "/api/v1/studio/background-assets?source=operator"
+    );
+
+    let (disabled, _, body) = raw_request_with_body(
+        server.port,
+        "DELETE",
+        "/api/v1/studio/background-bindings/binding-1",
+        Some(ADMIN_AUTH),
+        None,
+        b"",
+    )
+    .await
+    .expect("live server answers");
+    assert_eq!(disabled, 200);
+    let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
+    assert_eq!(payload["method"], "DELETE");
+    assert_eq!(
+        payload["proxied_path"],
+        "/api/v1/studio/background-bindings/binding-1"
+    );
     server.stop().await;
 }
 
