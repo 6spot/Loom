@@ -87,15 +87,32 @@ def _reviewed_person_states(conn, *, publication_id) -> list[dict]:
     ]
 
 
-def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
-    """Select complete published chapters; never read unaccepted candidates."""
-    latest = canonical_store.read_latest_catalog_sha256(conn)
-    if catalog_sha is not None and catalog_sha != latest:
-        raise PersistenceConflict("source catalog changed; refresh the source selection")
-    catalog_sha = latest
+def _validated_source_selection(conn, *, catalog_sha=None, publication_ids=None) -> dict:
+    """Validate one immutable catalog snapshot and its selected publications.
+
+    A catalog hash in a persisted narrative scope is a snapshot reference, not
+    a claim that the snapshot is still the latest catalog. The catalog row and
+    its publication sequence define the historical visibility boundary. This
+    helper is shared by the read-side action projection and the mutating
+    narrative queue, so an old-but-retained frozen scope cannot be advertised
+    as runnable and then rejected merely because a newer catalog was appended.
+    """
     if catalog_sha is None:
+        catalog_sha = canonical_store.read_latest_catalog_sha256(conn)
+    if not isinstance(catalog_sha, str) or not catalog_sha:
         raise PersistenceError("historical narrative requires a published source catalog")
-    catalog = conn.execute("SELECT payload FROM chronicle.canonical_catalogs WHERE artifact_sha256 = %s", (catalog_sha,)).fetchone()[0]
+    catalog_row = conn.execute(
+        "SELECT payload, publication_sequence FROM chronicle.canonical_catalogs "
+        "WHERE artifact_sha256 = %s",
+        (catalog_sha,),
+    ).fetchone()
+    if catalog_row is None:
+        raise PersistenceConflict("frozen source catalog is no longer available")
+    catalog, publication_sequence = catalog_row
+    if publication_sequence is None:
+        raise PersistenceConflict("frozen source catalog has no publication sequence")
+    if not isinstance(catalog, dict):
+        raise PersistenceConflict("frozen source catalog is invalid")
     rows = conn.execute("""WITH latest AS (
         SELECT DISTINCT ON (p.document_id) p.document_id, p.revision_id
         FROM chronicle.chapter_publications p
@@ -105,16 +122,44 @@ def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
         ORDER BY p.document_id, r.revision_no DESC
     ) SELECT p.publication_id FROM latest s
       JOIN chronicle.chapter_publications p ON p.revision_id = s.revision_id
-      ORDER BY p.document_id, p.chapter_id""", (catalog_sha,)).fetchall()
+        ORDER BY p.document_id, p.chapter_id""", (catalog_sha,)).fetchall()
     available = [str(row[0]) for row in rows]
     if publication_ids is None:
         publication_ids = available
     elif (not isinstance(publication_ids, list) or any(not isinstance(item, str) for item in publication_ids)
           or len(set(publication_ids)) != len(publication_ids) or not set(publication_ids) <= set(available)):
-        raise PersistenceError("choose distinct complete chapters from the current published sources")
-    publication_ids = sorted(publication_ids)
-    if not publication_ids or len(publication_ids) > contract.MAX_CHAPTERS:
+        raise PersistenceError("choose distinct complete chapters from the frozen published sources")
+    selected_publication_ids = sorted(publication_ids)
+    if not selected_publication_ids or len(selected_publication_ids) > contract.MAX_CHAPTERS:
         raise PersistenceError("historical narrative scope must contain 1–16 complete published chapters; reduce scope, never truncate")
+    return {
+        "catalog_sha": catalog_sha,
+        "catalog": catalog,
+        "publication_ids": selected_publication_ids,
+    }
+
+
+def validate_source_scope(conn, *, catalog_sha, publication_ids) -> dict:
+    """Validate a persisted narrative source scope without loading model data.
+
+    This is intentionally read-only and uses the same catalog/publication
+    validator as :func:`source_descriptors` and :func:`queue_narrative`.
+    Callers may use the returned normalized IDs for metadata only; execution
+    must still load the full descriptors before creating a job.
+    """
+    return _validated_source_selection(
+        conn, catalog_sha=catalog_sha, publication_ids=publication_ids
+    )
+
+
+def source_descriptors(conn, *, catalog_sha=None, publication_ids=None) -> dict:
+    """Select complete published chapters; never read unaccepted candidates."""
+    selection = _validated_source_selection(
+        conn, catalog_sha=catalog_sha, publication_ids=publication_ids
+    )
+    catalog_sha = selection["catalog_sha"]
+    catalog = selection["catalog"]
+    publication_ids = selection["publication_ids"]
     sources, selected_bundles = [], set()
     for publication_id in publication_ids:
         full = chapter_store.read_published_chapter(conn, publication_id=publication_id)
@@ -195,14 +240,31 @@ def list_source_choices(conn, *, limit=50, offset=0):
             "has_more": bool(rows and offset + len(rows) < rows[0][5]), "offset": offset}
 
 
-def queue_narrative(conn, *, catalog_sha, publication_ids, model_selection=None):
+def queue_narrative(
+    conn, *, catalog_sha, publication_ids, model_selection=None, parent_job_id=None
+):
     """An ordinary IngestionJob reusing present over already published sources."""
     import resolve_publish
     with conn.transaction():
         resolve_publish.acquire_publish_lock(conn)
         if not isinstance(catalog_sha, str) or not isinstance(publication_ids, list):
             raise PersistenceError("a fixed source catalog is required")
+        if parent_job_id is not None:
+            parent = conn.execute(
+                """SELECT revision_id, status, checkpoint
+                   FROM chronicle.ingestion_jobs WHERE job_id = %s FOR UPDATE""",
+                (parent_job_id,),
+            ).fetchone()
+            if parent is None:
+                raise PersistenceError("unknown parent job")
+            if parent[1] not in ("failed", "cancelled"):
+                raise PersistenceConflict("only a failed or cancelled task can start a linked rerun")
+            parent_scope = parent[2].get("narrative_scope") if isinstance(parent[2], dict) else None
+            if not isinstance(parent_scope, dict) or parent_scope.get("catalog_sha") != catalog_sha or parent_scope.get("publication_ids") != publication_ids:
+                raise PersistenceConflict("narrative source selection changed; choose sources again")
         descriptors = source_descriptors(conn, catalog_sha=catalog_sha, publication_ids=publication_ids)
+        if parent_job_id is not None and parent[0] != uuid.UUID(descriptors["sources"][0]["revision_id"]):
+            raise PersistenceConflict("narrative parent and source revision do not match")
         # Two expected review resumptions plus the ordinary three execution
         # attempts. Human gates must not consume every publication retry.
         job_id = control_plane.queue_job(conn, revision_id=uuid.UUID(descriptors["sources"][0]["revision_id"]), max_attempts=5)
@@ -212,11 +274,16 @@ def queue_narrative(conn, *, catalog_sha, publication_ids, model_selection=None)
         scope = {"catalog_sha": catalog_sha, "publication_ids": publication_ids}
         conn.execute("UPDATE chronicle.ingestion_jobs SET checkpoint = %s WHERE job_id = %s",
                      (Jsonb({"narrative_scope": scope}), job_id))
-        if model_selection is not None:
+        if model_selection is not None or parent_job_id is not None:
             if not isinstance(model_selection, dict):
-                raise PersistenceError("narrative model selection must be an object")
+                if model_selection is not None:
+                    raise PersistenceError("narrative model selection must be an object")
             import studio_production
-            request = {"version": "0.1", "model_selection": copy.deepcopy(model_selection)}
+            request = {
+                "version": "0.1",
+                "model_selection": copy.deepcopy(model_selection),
+                "parent_job_id": str(parent_job_id) if parent_job_id is not None else None,
+            }
             control_plane.record_output(
                 conn,
                 job_id=job_id,

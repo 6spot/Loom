@@ -14,6 +14,7 @@ for path in (HERE, HERE.parent / 'persistence', HERE.parent / 'read_api'):
 
 import psycopg
 import control_plane
+import canonical_store
 import narrative_store as store
 import narrative_stage
 import studio_jobs
@@ -239,6 +240,45 @@ class NarrativePipelineTests(unittest.TestCase):
                 history.dispatch_history(conn, '/v0/history/paragraphs', f'version={version}&at=hp_' + '0' * 24)
             with self.assertRaises(ReadModelNotFound):
                 history.dispatch_history(conn, '/v0/history', 'version=' + '0' * 64)
+
+    def test_new_run_reuses_frozen_sources_after_catalog_refresh(self):
+        parent = self._start(narrative=RetryCorrectionTestModel(), expected_status='failed')
+        with psycopg.connect(self.database_url) as conn:
+            scope = store.job_scope(conn, parent)
+            self.assertIsInstance(scope, dict)
+            old_catalog = conn.execute(
+                "SELECT payload FROM chronicle.canonical_catalogs WHERE artifact_sha256 = %s",
+                (scope['catalog_sha'],),
+            ).fetchone()[0]
+            refreshed = copy.deepcopy(old_catalog)
+            refreshed['test_refresh_marker'] = uuid.uuid4().hex
+            refreshed_sha, _ = canonical_store.persist_catalog_locked(conn, refreshed)
+            self.assertNotEqual(scope['catalog_sha'], refreshed_sha)
+
+            status, _, body = studio_jobs.dispatch_jobs(
+                conn,
+                control_plane,
+                method='GET',
+                path=f'/api/v1/studio/jobs/{parent}',
+            )
+            self.assertEqual(200, status, body)
+            projected = json.loads(body)['job']
+            actions = {item['key']: item for item in projected['actions']}
+            self.assertTrue(actions['new_run']['available'])
+            self.assertIsNone(actions['new_run']['reason'])
+
+            status, _, body = studio_jobs.dispatch_jobs(
+                conn,
+                control_plane,
+                method='POST',
+                path=f'/api/v1/studio/jobs/{parent}/new-run',
+                body=b'{}',
+            )
+            self.assertEqual(201, status, body)
+            child = json.loads(body)['job']
+            self.assertEqual(str(parent), child['production_request']['parent_job_id'])
+            self.assertNotEqual(str(parent), child['job_id'])
+            self.assertEqual(scope, store.job_scope(conn, uuid.UUID(child['job_id'])))
 
     def test_stale_decision_and_cancelled_model_write_are_rejected(self):
         job = self._start()

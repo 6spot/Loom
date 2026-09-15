@@ -274,7 +274,7 @@ class StudioJobsHttpTests(unittest.TestCase):
             "candidate_sha256": "b" * 64,
             "history_sha256": "c" * 64,
             "step_output_sha256s": ["d" * 64],
-            "decision": {"kind": "human"},
+            "decision": {"kind": "human", "candidate": "do-not-embed"},
             "draft_sha256": "e" * 64,
             "prompt": "must not be exposed",
         }
@@ -295,6 +295,8 @@ class StudioJobsHttpTests(unittest.TestCase):
             if item["artifact_type"] == studio_production.ACCEPTANCE_TYPE
         )
         self.assertTrue(acceptance["readable"])
+        accepted = detail["job"]["accepted_results"][0]
+        self.assertIn("d" * 64, accepted["model_output_sha256s"])
         status, page = self._json(
             "GET", f"{STUDIO_JOBS_PREFIX}/{job_id}/outputs/{digest}"
         )
@@ -302,6 +304,8 @@ class StudioJobsHttpTests(unittest.TestCase):
         value = json.loads(page["text"])
         self.assertEqual("accepted", value["status"])
         self.assertEqual("chunk-1", value["chunk_id"])
+        self.assertEqual({"kind": "human"}, value["decision"])
+        self.assertNotIn("do-not-embed", page["text"])
         self.assertNotIn("prompt", value)
 
     def test_queue_inspect_complete_round_trip(self) -> None:
@@ -324,6 +328,11 @@ class StudioJobsHttpTests(unittest.TestCase):
         self.assertEqual(status, 200, payload)
         self.assertEqual(payload["schema"], "chronicle.job-list")
         self.assertEqual(len(payload["jobs"]), 1)
+        listed = payload["jobs"][0]
+        self.assertEqual(listed["task"]["label"], "章节生产任务")
+        self.assertEqual(len(listed["step_graph"]["steps"]), 8)
+        self.assertEqual(listed["step_graph"]["dependencies"]["present"], ["publish"])
+        self.assertIn("cancel", listed["available_actions"])
 
         # The HTTP surface queues work; the current staged worker owns
         # execution and is covered by the T01 fixture-backed PostgreSQL suite.
@@ -361,6 +370,83 @@ class StudioJobsHttpTests(unittest.TestCase):
         status, payload = self._json("POST", f"{STUDIO_JOBS_PREFIX}/{job_id}/retry")
         self.assertEqual(status, 409, payload)
         self.assertEqual(payload["error"]["code"], "conflict")
+
+    def test_unified_projection_reports_real_actions_and_new_run(self) -> None:
+        _, payload = self._json(
+            "POST", STUDIO_JOBS_PREFIX,
+            {"revision_id": str(self.revision_id), "max_attempts": 3},
+        )
+        job_id = payload["job"]["job_id"]
+        self.assertEqual(payload["job"]["task"]["type"], "chapter")
+        actions = {item["key"]: item for item in payload["job"]["actions"]}
+        self.assertTrue(actions["cancel"]["available"])
+        self.assertFalse(actions["new_run"]["available"])
+        self.assertEqual(payload["job"]["current_step"]["label"], "准备")
+        with psycopg.connect(self.database_url) as conn:
+            job_uuid = uuid.UUID(job_id)
+            control_plane.claim_job(conn, worker="studio-projection", job_id=job_uuid)
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="running")
+            control_plane.advance_stage(conn, job_id=job_uuid, stage="prepare", status="failed", error="test failure")
+            control_plane.set_job_status(conn, job_id=job_uuid, status="failed", error="test failure")
+        status, payload = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}")
+        self.assertEqual(status, 200, payload)
+        actions = {item["key"]: item for item in payload["job"]["actions"]}
+        self.assertTrue(actions["retry"]["available"])
+        self.assertTrue(actions["new_run"]["available"])
+        self.assertFalse(actions["cancel"]["available"])
+        self.assertEqual(payload["job"]["current_step"]["failure_reason"], "test failure")
+        status, child_payload = self._json("POST", f"{STUDIO_JOBS_PREFIX}/{job_id}/new-run", {})
+        self.assertEqual(status, 201, child_payload)
+        child = child_payload["job"]
+        self.assertEqual(child["production_request"]["parent_job_id"], job_id)
+        self.assertEqual(child["revision_id"], str(self.revision_id))
+
+    def test_attempt_projection_and_raw_result_page_are_redacted_and_linked(self) -> None:
+        _, payload = self._json("POST", STUDIO_JOBS_PREFIX, {"revision_id": str(self.revision_id)})
+        job_id = payload["job"]["job_id"]
+        job_uuid = uuid.UUID(job_id)
+        start = {
+            "schema": "chronicle.chapter-step-attempt", "version": "0.1",
+            "node_key": "node-1", "step": "extraction", "slot": "primary",
+            "round": 0, "attempt": 1, "model": "model-a",
+            "model_config": {"api_key": "private-key", "endpoint": "https://private.invalid"},
+            "prompt": "private prompt", "input": {"secret": "private input"},
+            "input_sha256": "a" * 64, "status": "started",
+            "started_at": "2026-09-15T01:00:00+00:00",
+        }
+        start_sha = sha256_json(start)
+        result = {
+            "schema": "chronicle.chapter-step", "version": "0.1",
+            "node_key": "node-1", "step": "extraction", "slot": "primary",
+            "round": 0, "attempt": 1, "model": "model-a", "attempt_sha256": start_sha,
+            "raw_text": "可读模型结果。", "parsed": {"claims": [{"text": "事实", "api_key": "private"}]},
+            "validation_errors": [], "receipt": {
+                "status": "completed", "elapsed_seconds": 2.5,
+                "usage": {"output_tokens": 9}, "endpoint": "https://private.invalid",
+            }, "status": "completed",
+        }
+        result_sha = sha256_json(result)
+        with psycopg.connect(self.database_url) as conn:
+            control_plane.record_output(conn, job_id=job_uuid, revision_id=self.revision_id,
+                artifact_type="chapter-production-attempt", artifact_sha256=start_sha, payload=start)
+            control_plane.record_output(conn, job_id=job_uuid, revision_id=self.revision_id,
+                artifact_type="chapter-production-step", artifact_sha256=result_sha, payload=result)
+        _, detail = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}")
+        attempt = detail["job"]["attempts"][0]
+        self.assertEqual(attempt["attempt_sha256"], start_sha)
+        self.assertEqual(attempt["result_sha256"], result_sha)
+        self.assertEqual(attempt["attempt_count"], 1)
+        self.assertTrue(attempt["output_complete"])
+        self.assertEqual(attempt["validation_status"], "passed")
+        self.assertEqual(attempt["usage"], {"output_tokens": 9})
+        self.assertNotIn("private-key", json.dumps(detail, ensure_ascii=False))
+        self.assertNotIn("private.invalid", json.dumps(detail, ensure_ascii=False))
+        status, page = self._json("GET", f"{STUDIO_JOBS_PREFIX}/{job_id}/outputs/{result_sha}")
+        self.assertEqual(status, 200, page)
+        self.assertEqual(page["revision_id"], str(self.revision_id))
+        self.assertNotIn("private-key", page["text"])
+        self.assertNotIn("private.invalid", page["text"])
+        self.assertNotIn("prompt", page["text"])
 
     def test_resume_requires_resolved_reviews(self) -> None:
         _, payload = self._json(

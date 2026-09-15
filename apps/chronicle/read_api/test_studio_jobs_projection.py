@@ -8,6 +8,119 @@ from studio_jobs import _studio_job_projection
 
 
 class StudioJobProjectionTests(unittest.TestCase):
+    def test_unified_task_graph_attempts_actions_and_nested_redaction(self) -> None:
+        detail = {
+            "job_id": "job-narrative",
+            "revision_id": "revision-1",
+            "status": "failed",
+            "attempt": 2,
+            "max_attempts": 3,
+            "job_kind": "narrative",
+            "document": {"document_id": "document-1", "title": "史料综合", "revision_no": 2,
+                          "storage_key": "/srv/private/source.txt"},
+            "source_count": 2,
+            "current_stage": "present",
+            "actions": [
+                # The authoritative action_state below wins over a stale
+                # browser-shaped action list.
+                {"key": "cancel", "available": True, "enabled": True, "reason": None,
+                 "label": "取消任务", "href": "/api/v1/studio/jobs/job-narrative/cancel"},
+            ],
+            "action_state": {
+                "actions": [
+                    {"key": "retry", "available": True, "enabled": True, "reason": None},
+                    {"key": "new_run", "available": True, "enabled": True, "reason": None},
+                ],
+                "available_actions": ["retry", "new_run"],
+                "action_reasons": {},
+            },
+            "stages": [
+                {"stage": "prepare", "status": "skipped", "attempt": 0},
+                {"stage": "present", "status": "failed", "attempt": 1,
+                 "error": "api_key=do-not-return", "started_at": "2026-09-15T01:00:00+00:00",
+                 "finished_at": "2026-09-15T01:00:01+00:00"},
+            ],
+            "chunks": [],
+            "reviews": [],
+            "outputs": [],
+            "attempts": [{
+                "attempt_id": "a" * 64,
+                "result_sha256": "b" * 64,
+                "step": "facts_compare",
+                "model": "model-b",
+                "status": "failed",
+                "output_complete": False,
+                "validation": {"status": "failed", "errors": [{"reason": "bad", "api_key": "secret"}]},
+                "comparison_status": "unavailable",
+                "usage": None,
+                "usage_status": "unreported",
+            }],
+            "results": [],
+            "accepted_results": [],
+            "production_request": {
+                "model_selection": {"endpoint": "https://private.invalid", "steps": ["model-b"]},
+                "prompt": "private prompt",
+            },
+            "error": "endpoint=https://private.invalid path=/srv/private/source.txt",
+        }
+        projected = _studio_job_projection(detail)
+
+        self.assertEqual(projected["task"]["type"], "narrative")
+        self.assertEqual(projected["task"]["label"], "多史料综合任务")
+        self.assertEqual(projected["current_step"]["label"], "综合呈现")
+        self.assertEqual(projected["step_graph"]["dependencies"]["present"], ["publish"])
+        self.assertEqual(projected["attempts"][0]["comparison_status"], "unavailable")
+        self.assertNotIn("storage_key", projected["document"])
+        self.assertNotIn("private.invalid", repr(projected))
+        self.assertNotIn("/srv/private", repr(projected))
+        self.assertNotIn("cancel", projected["available_actions"])
+        self.assertNotIn("api_key", repr(projected))
+        self.assertNotIn("do-not-return", repr(projected))
+
+    def test_incomplete_comparison_never_projects_as_agreed(self) -> None:
+        projected = _studio_job_projection({
+            "job_id": "job-2",
+            "status": "failed",
+            "attempt": 1,
+            "max_attempts": 1,
+            "job_kind": "chapter",
+            "stages": [],
+            "chunks": [],
+            "reviews": [],
+            "outputs": [],
+            "attempts": [{
+                "step": "narrative_compare",
+                "status": "failed",
+                "output_complete": False,
+                "comparison_status": "agreed",
+            }],
+        })
+        # The persistence projection is responsible for deriving this value;
+        # the read boundary preserves an explicit unavailable status and does
+        # not manufacture agreement from the selected hash.
+        self.assertNotEqual(projected["attempts"][0]["comparison_status"], "agreed")
+
+    def test_validation_failure_never_projects_as_agreed(self) -> None:
+        projected = _studio_job_projection({
+            "job_id": "job-3",
+            "status": "completed",
+            "attempt": 1,
+            "max_attempts": 1,
+            "job_kind": "chapter",
+            "stages": [],
+            "chunks": [],
+            "reviews": [],
+            "outputs": [],
+            "attempts": [{
+                "step": "review_compare",
+                "status": "completed",
+                "output_complete": True,
+                "validation_status": "failed",
+                "comparison_status": "agreed",
+            }],
+        })
+        self.assertEqual(projected["attempts"][0]["comparison_status"], "unavailable")
+
     def test_staged_progress_exposes_only_bounded_metadata(self) -> None:
         progress = {"step": "extraction", "status": "completed", "model": "model-a",
                     "request": "PRIVATE SOURCE", "steps": {
