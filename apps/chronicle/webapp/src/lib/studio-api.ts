@@ -164,7 +164,17 @@ export interface AcceptedResult {
   draft_sha256?: string | null;
   model_output_sha256s?: string[];
   model_opinion_sha256s?: string[];
-  decision?: string | null;
+  // Chapter acceptance receipts expose a structured decision in the staged
+  // job projection (for example `{ kind, review_id }`), while older jobs
+  // returned the decision vocabulary directly. Keep both wire shapes so the
+  // Studio can render completed real jobs without attempting to mount an
+  // object as a React child.
+  decision?: string | {
+    kind?: string | null;
+    review_id?: string | null;
+    review_output_sha256s?: string[];
+    [key: string]: unknown;
+  } | null;
   review_id?: string | null;
   [key: string]: unknown;
 }

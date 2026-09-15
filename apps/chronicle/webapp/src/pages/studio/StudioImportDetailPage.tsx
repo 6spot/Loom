@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { Button } from "../../components/ui/button";
 import { useStudioAuth } from "../../lib/studio-auth";
 import { stageLabel, studioStatusLabel } from "../../lib/studio-i18n";
-import { getJob, jobIsLive, mutateJob, newRunJob, rerunJob, type JobAttempt, type JobDetail, type JobOutputSummary, type ModelSelection } from "../../lib/studio-api";
+import { getJob, jobIsLive, mutateJob, newRunJob, rerunJob, type AcceptedResult, type JobAttempt, type JobDetail, type JobOutputSummary, type ModelSelection } from "../../lib/studio-api";
 import { actionEnabled, currentStage, currentWorkspaceStep, failureAdvice, formatStudioTime, hasAuthoritativeActions, jobAction, jobKind, jobNextAction, jobReason, jobSourceCount, jobSteps, jobTitle, PRODUCTION_STEPS, reviewKind, stepLabel, stepState } from "../../lib/studio-workspace";
 import ModelSelector from "../../components/studio/ModelSelector";
 import JobResultViewer from "../../components/studio/JobResultViewer";
@@ -37,10 +37,15 @@ function resultStepLabel(step: string | null | undefined): string {
   return labels[step ?? ""] || stepLabel(step);
 }
 
-function acceptedDecisionLabel(value: string | null | undefined): string {
-  if (value === "accept" || value === "approve") return "已接受";
-  if (value === "reject") return "已驳回";
-  if (value === "revise") return "已提交修订";
+export function acceptedDecisionLabel(value: AcceptedResult["decision"]): string {
+  const token = typeof value === "string" ? value : value?.kind;
+  if (token === "accept" || token === "approve") return "已接受";
+  if (token === "reject") return "已驳回";
+  if (token === "revise") return "已提交修订";
+  // The staged chapter projection uses a structured receipt object rather
+  // than a decision string. Its presence is the durable acceptance signal;
+  // do not pass the object through to JSX.
+  if (value && typeof value === "object") return "已接受";
   return value || "已记录";
 }
 

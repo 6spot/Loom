@@ -1,0 +1,177 @@
+{
+  "redaction": {
+    "credentials": "omitted",
+    "ids": "omitted",
+    "sha256_values": "omitted",
+    "source_text": "omitted"
+  },
+  "service": {
+    "status": {
+      "schema": "chronicle.studio-status",
+      "version": "0.1",
+      "upstream_reachable": true
+    },
+    "document_upload": {
+      "request": "POST /api/v1/studio/documents",
+      "response": {
+        "schema": "chronicle.document",
+        "version": "0.1",
+        "title_present": true
+      }
+    },
+    "revision_upload": {
+      "request": "POST /api/v1/studio/documents/{document_id}/revisions",
+      "response": {
+        "schema": "chronicle.revision",
+        "version": "0.1",
+        "revision_no": 1,
+        "content_chars": 90,
+        "language": "zh-CN",
+        "source_label": "T08-live-test"
+      }
+    },
+    "job_queue": {
+      "request": "POST /api/v1/studio/jobs",
+      "response": {
+        "schema": "chronicle.job",
+        "version": "0.3",
+        "job_kind": "chapter",
+        "status": "queued",
+        "current_step": "prepare",
+        "actions": {
+          "cancel": true,
+          "retry": false,
+          "resume": false,
+          "new_run": false
+        }
+      }
+    }
+  },
+  "review_context": {
+    "content_review_detail": {
+      "schema": "chronicle.review",
+      "version": "0.1",
+      "scope": "chapter_content",
+      "packet_schema": "chronicle.chapter-content-review",
+      "packet_version": "0.1",
+      "initial_issue_count": 3,
+      "initial_history_count": 11,
+      "mechanical_validation_errors": []
+    },
+    "contexts": {
+      "schema": "chronicle.review-source-contexts",
+      "version": "0.1",
+      "total": 1,
+      "has_more": false,
+      "available": true,
+      "anchor_count": 1,
+      "evidence_kinds": ["record_source"]
+    },
+    "source": {
+      "schema": "chronicle.review-source",
+      "version": "0.1",
+      "view": "chapter",
+      "has_more": false,
+      "text_chars": 38,
+      "bounds_present": true,
+      "segments": 1
+    },
+    "history": {
+      "schema": "chronicle.chapter-review-history",
+      "version": "0.1",
+      "entry": 0,
+      "has_more": false,
+      "text_chars": 457,
+      "entry_sha256_present": true
+    },
+    "revised_review": {
+      "schema": "chronicle.review",
+      "version": "0.1",
+      "scope": "chapter_content",
+      "status": "open_before_accept",
+      "issue_count": 5,
+      "history_count": 15,
+      "can_accept": true,
+      "mechanical_validation_errors": []
+    }
+  },
+  "flow": [
+    {
+      "phase": "processing",
+      "schema": "chronicle.job",
+      "version": "0.3",
+      "status": "needs_review",
+      "current_step": "extract",
+      "open_reviews": 1
+    },
+    {
+      "phase": "content_review_revise",
+      "scope": "chapter_content",
+      "decision": "revise",
+      "review_status": "resolved",
+      "new_review_opened": true
+    },
+    {
+      "phase": "content_review_accept",
+      "scope": "chapter_content",
+      "decision": "accept",
+      "review_status": "resolved",
+      "mechanical_validation_errors": []
+    },
+    {
+      "phase": "resolution_review",
+      "scope": "resolution",
+      "decision": "uncertain",
+      "review_status": "resolved",
+      "context_count": 3
+    },
+    {
+      "phase": "person_state_review",
+      "scope": "person_state",
+      "review_count": 2,
+      "default_assessment": "uncertain",
+      "review_status": "resolved"
+    },
+    {
+      "phase": "continue",
+      "action": "resume",
+      "status": "running",
+      "open_reviews": 0
+    },
+    {
+      "phase": "completed",
+      "schema": "chronicle.job",
+      "version": "0.3",
+      "status": "completed",
+      "current_step": "present",
+      "open_reviews": 0,
+      "step_graph": {
+        "step_count": 8,
+        "completed_count": 8,
+        "keys": [
+          "prepare",
+          "structure",
+          "segment",
+          "extract",
+          "assemble",
+          "resolve",
+          "publish",
+          "present"
+        ]
+      },
+      "chunks": {
+        "count": 2,
+        "completed_count": 2,
+        "accepted_count": 2
+      },
+      "review_summary": {
+        "total": 5,
+        "resolved_count": 5,
+        "open_count": 0
+      },
+      "outputs_count": 41,
+      "attempts_count": 14,
+      "accepted_results_count": 2
+    }
+  ]
+}
