@@ -38,6 +38,15 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/status", any(studio_status))
         .route("/documents", any(studio_documents))
         .route("/documents/{*rest}", any(studio_documents))
+        .route("/background-assets", any(studio_background_assets))
+        .route("/background-assets/{*rest}", any(studio_background_assets))
+        .route("/backgrounds", any(studio_background_assets))
+        .route("/backgrounds/{*rest}", any(studio_background_assets))
+        .route("/background-bindings", any(studio_background_bindings))
+        .route(
+            "/background-bindings/{*rest}",
+            any(studio_background_bindings),
+        )
         .route("/jobs", any(studio_jobs))
         .route("/jobs/{*rest}", any(studio_jobs))
         .fallback(studio_not_found);
@@ -72,6 +81,19 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/v1/public/reading-events/{*rest}", any(public_reading))
         .route("/api/v1/public/history", any(public_reading))
         .route("/api/v1/public/history/{*rest}", any(public_reading))
+        .route("/api/v1/public/backgrounds", any(public_backgrounds))
+        .route(
+            "/api/v1/public/backgrounds/{*rest}",
+            any(public_backgrounds),
+        )
+        .route(
+            "/api/v1/public/background-assets/{*rest}",
+            any(public_background_assets),
+        )
+        .route(
+            "/api/v1/public/background-resources/{*rest}",
+            any(public_background_resources),
+        )
         .nest("/api/v1/studio", studio)
         .fallback(fallback)
         // The 2 MiB default body cap is lifted so Studio uploads can reach
@@ -318,6 +340,13 @@ fn validated_history_rest(rest: &str) -> Option<&str> {
     Some(rest)
 }
 
+fn validated_background_rest(rest: &str) -> Option<&str> {
+    if rest.is_empty() {
+        return Some(rest);
+    }
+    validated_history_rest(rest)
+}
+
 /// Forward one public read to the C0 upstream. Only owned values cross the
 /// await boundary (`&Request<Body>` futures are not `Handler`-compatible).
 async fn proxy_public(
@@ -340,6 +369,77 @@ async fn proxy_public(
         Ok(upstream) => render_proxied(upstream, "GET", &upstream_path),
         Err(err) => render_upstream_error(err, "GET", &upstream_path),
     }
+}
+
+/// Public background metadata is pinned by the Python sidecar to an exact
+/// history edition and paragraph.  Image bytes use the same public read
+/// namespace and are never exposed by a guessed candidate id alone.
+async fn public_backgrounds(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    request: axum::http::Request<Body>,
+) -> Response {
+    let path = uri.path();
+    let Some(rest) = path.strip_prefix("/api/v1/public/backgrounds") else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    let Some(rest) = validated_background_rest(rest.strip_prefix('/').unwrap_or(rest)) else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    let upstream_path = if rest.is_empty() {
+        "/v0/backgrounds".to_string()
+    } else {
+        format!("/v0/backgrounds/{rest}")
+    };
+    proxy_public(
+        &state,
+        request.method().clone(),
+        upstream_path,
+        uri.query().map(str::to_string),
+    )
+    .await
+}
+
+async fn public_background_assets(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    request: axum::http::Request<Body>,
+) -> Response {
+    let path = uri.path();
+    let Some(rest) = path.strip_prefix("/api/v1/public/background-assets/") else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    let Some(rest) = validated_background_rest(rest) else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    proxy_public(
+        &state,
+        request.method().clone(),
+        format!("/v0/background-assets/{rest}"),
+        uri.query().map(str::to_string),
+    )
+    .await
+}
+
+async fn public_background_resources(
+    State(state): State<Arc<AppState>>,
+    OriginalUri(uri): OriginalUri,
+    request: axum::http::Request<Body>,
+) -> Response {
+    let path = uri.path();
+    let Some(rest) = path.strip_prefix("/api/v1/public/background-resources/") else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    let Some(rest) = validated_background_rest(rest) else {
+        return TypedError::not_found("route not found").into_response();
+    };
+    proxy_public(
+        &state,
+        request.method().clone(),
+        format!("/v0/background-resources/{rest}"),
+        uri.query().map(str::to_string),
+    )
+    .await
 }
 
 /// Render a proxied upstream response byte-for-byte (status, content type,
@@ -443,7 +543,50 @@ async fn studio_documents(
         return TypedError::not_found("route not found").into_response();
     }
     let upstream_path = format!("/api/v1/studio{path}");
-    proxy_studio(&state, request, &upstream_path).await
+    proxy_studio(&state, request, &upstream_path, false).await
+}
+
+/// Authenticated Studio image-candidate operations.  The Python sidecar owns
+/// image decoding, Chronicle filesystem storage and metadata persistence;
+/// Rust only enforces the namespace boundary and forwards the request.
+async fn studio_background_assets(
+    State(state): State<Arc<AppState>>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match require_admin(&state, &request) {
+        AuthDecision::Authorized(_) => {}
+        denial => return auth_denied(denial),
+    }
+    let path = request.uri().path().to_string();
+    if path != "/background-assets"
+        && !path.starts_with("/background-assets/")
+        && path != "/backgrounds"
+        && !path.starts_with("/backgrounds/")
+    {
+        log_request("STUDIO", &path, 404);
+        return TypedError::not_found("route not found").into_response();
+    }
+    let upstream_path = format!("/api/v1/studio{path}");
+    proxy_studio(&state, request, &upstream_path, true).await
+}
+
+/// Authenticated Studio binding operations.  Binding validation and the
+/// explicit replace/disable audit protocol remain in Chronicle persistence.
+async fn studio_background_bindings(
+    State(state): State<Arc<AppState>>,
+    request: axum::http::Request<Body>,
+) -> Response {
+    match require_admin(&state, &request) {
+        AuthDecision::Authorized(_) => {}
+        denial => return auth_denied(denial),
+    }
+    let path = request.uri().path().to_string();
+    if path != "/background-bindings" && !path.starts_with("/background-bindings/") {
+        log_request("STUDIO", &path, 404);
+        return TypedError::not_found("route not found").into_response();
+    }
+    let upstream_path = format!("/api/v1/studio{path}");
+    proxy_studio(&state, request, &upstream_path, true).await
 }
 
 /// Forward one authenticated Studio request (documents or jobs) to the sidecar.
@@ -451,10 +594,19 @@ async fn proxy_studio(
     state: &AppState,
     request: axum::http::Request<Body>,
     upstream_path: &str,
+    allow_delete: bool,
 ) -> Response {
     let method = request.method().clone();
-    if method != Method::GET && method != Method::POST {
-        return TypedError::studio_method_not_allowed().into_response();
+    if method != Method::GET
+        && method != Method::POST
+        && !(allow_delete && method == Method::DELETE)
+    {
+        let error = if allow_delete {
+            TypedError::studio_background_method_not_allowed()
+        } else {
+            TypedError::studio_method_not_allowed()
+        };
+        return error.into_response();
     }
     let query = request.uri().query().map(str::to_string);
     let content_type = request
@@ -522,7 +674,7 @@ async fn studio_jobs(
         return TypedError::not_found("route not found").into_response();
     }
     let upstream_path = format!("/api/v1/studio{path}");
-    proxy_studio(&state, request, &upstream_path).await
+    proxy_studio(&state, request, &upstream_path, false).await
 }
 
 async fn studio_status(

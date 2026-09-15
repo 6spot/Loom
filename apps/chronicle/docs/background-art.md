@@ -1,6 +1,6 @@
 # Chronicle 历史背景图：人工制作、保存与展示
 
-状态：产品设计；[D01/#588](https://github.com/6spot/Loom/issues/588) 交付可复用技能与离线候选归档工具。Studio 图片上传、人工保存/关联、素材读取和页面背景渲染尚未实现，需另行拆分任务。本文件不改变既有古文文本上传接口或阅读产物 schema。
+状态：产品设计与后端素材/关联基础设施已实现；页面背景组件和 Studio 编辑界面仍由后续任务负责。[D01/#588](https://github.com/6spot/Loom/issues/588) 交付的可复用技能与离线候选归档工具仍与生产素材库分离。本文件不改变既有古文文本上传接口或阅读产物 schema。
 
 ## 1. 用户确认的流程
 
@@ -37,16 +37,62 @@
 
 读取的是当前被人工启用的素材版本和关联。替换时，已有会话如何固定背景版本由实现合同进一步确定；无论采用何种刷新策略，都不能越过人工保存边界。无关联、已停用、素材不存在或加载失败时回到纯纸色，不能自动生成、借用另一张图或把上一事件的背景一直留到无关正文。
 
-## 4. 存放和调阅
+## 4. 后端格式与 HTTP 合同
+
+后端素材库由 Chronicle 自己的 PostgreSQL schema 和持久文件目录共同组成。它不读取 Runtime、World、Timeline、Work 或 Loom Binding authority，也不调用图像模型。
+
+### 4.1 素材候选与版本
+
+- `POST /api/v1/studio/background-assets?filename=...&source=...&era=...&prompt=...&metadata=<JSON>` 接收原始 PNG、JPEG 或 WebP 请求体；如提供 `Content-Type` 或文件名，二者必须与实际解码格式一致。上传只创建候选，不创建公开关联。
+- `POST /api/v1/studio/background-assets/{asset_id}/versions?filename=...` 可向同一候选素材追加一个新的不可变图片版本；已有 binding 仍固定原来明确保存的 `asset_version_id`，不会因追加版本自动切换。
+- 服务端为素材和版本生成 UUIDv7，并记录 SHA-256、实际格式、媒体类型、字节数、宽高、来源、时代、实际 prompt 和 JSON metadata。第一版单文件上限为 8 MiB、像素上限为 40,000,000；部署可用 `CHRONICLE_BACKGROUND_MAX_UPLOAD_BYTES` 进一步降低字节上限，不能提高 8 MiB 上限。
+- 服务端使用 Pillow 对编码流执行实际格式识别、`verify` 和完整像素解码；SVG、HTML、伪 MIME、截断数据、路径穿越文件名和超限图片都会失败。文本古文的 `documents`/revision API 保持原合同，不接受图片。
+- 候选只能经 `GET /api/v1/studio/background-assets` 查询，通过 `GET /api/v1/studio/background-assets/{asset_id}/preview`（或 `/content`）预览。上述 Studio 路由由 Rust 的 Basic Auth 边界保护。
+
+### 4.2 保存、替换与停用
+
+`POST /api/v1/studio/background-bindings` 使用 JSON 保存明确关联：
+
+```json
+{
+  "edition_version": "<published SHA-256>",
+  "start_paragraph_id": "hp_<24 hex>",
+  "end_paragraph_id": "hp_<24 hex>",
+  "asset_id": "<UUIDv7>",
+  "asset_version_id": "<UUIDv7>",
+  "display": {
+    "opacity": 0.35,
+    "position": {"x": 0.5, "y": 0.5},
+    "scale": 1.0,
+    "mask": null
+  },
+  "actor": "studio-admin"
+}
+```
+
+保存只接受已发布的精确历史 edition、属于该 edition 的起止段落和文件完整性校验通过的素材版本；起止范围按综合正文段落序号闭区间保存，同一 edition 的 active 范围不能重叠。`opacity` 为 0–1、`scale` 为 0.1–4、位置坐标为 0–1，mask 只允许受控的边缘值与 `rect`/`gradient` 形状。
+
+变更必须显式调用 `POST /api/v1/studio/background-bindings/{binding_id}/replace`，停用可调用 `POST .../disable` 或 `DELETE .../{binding_id}`；`GET .../{binding_id}/audit` 返回 created/replaced/disabled 审计记录。响应包含 `revision` 与 `etag`，替换/停用可用 `expected_revision` 或 `expected_etag` 做并发保护。一张素材可以被多个位置复用，停用一个关联不会删除素材或其他关联；新 edition 不继承旧段落坐标。
+
+文件先以服务端生成的相对 storage key 原子写入，再在同一保存边界注册数据库记录；注册失败会清理新文件。绑定保存前后均会再次验证文件大小、hash 和完整解码，避免数据库记录或公开资源指向半成品。
+
+### 4.3 公开读取边界
+
+Rust 对外提供匿名 GET `/api/v1/public/backgrounds?version=<edition>&paragraph_id=<paragraph>` 返回当前 active 关联的 metadata/display；图片字节通过 `/api/v1/public/background-assets/{asset_id}?version=<edition>&paragraph_id=<paragraph>` 或 `/api/v1/public/background-resources/{binding_id}?version=<edition>&paragraph_id=<paragraph>` 读取。Python sidecar 内部对应 `/v0/backgrounds`、`/v0/background-assets` 和 `/v0/background-resources`，不会直接把 `/v0` 暴露给公共入口。
+
+公开图片读取必须同时命中当前 active binding、精确 edition/paragraph（资源 id 也必须与该关联匹配）并通过文件完整性校验。未保存候选、停用关联、错误 edition/段落或猜测的 asset/binding ID 都返回 404；ID 不映射为可猜的文件系统路径。阅读层拿到的 `display`/revision/etag 应直接使用返回配置，缺图时回退纸底，不自动生成或借用其他图片。
+
+## 5. 存放、备份和调阅
 
 - 可复用技能：仓库 [.agents/skills/historical-background-art](../../../.agents/skills/historical-background-art/SKILL.md)，支持其他项目自己的图库路径。
 - 开发候选素材：[assets/backgrounds](../assets/backgrounds/README.md)。保留原图、实际提示词、元数据和 hash；由技能工具 archive/list/show/verify 管理，不是 HTTP 上传或启用接口。
-- 未来生产图片：使用 Chronicle 应用自有的持久素材存储和产品元数据，通过受鉴权的 Studio 上传、预览、保存及管理。原件、需要的显示衍生图和关联都应可备份、重启后可取回。
+- 生产图片：使用 Chronicle 应用自有的持久素材存储和产品元数据，通过受鉴权的 Studio 上传、预览、保存及管理。默认目录是 `CHRONICLE_SOURCE_DIR/background-assets`，也可用 `CHRONICLE_BACKGROUND_DIR` 指定；原件、素材版本和关联都应可备份、重启后可取回。
+- Compose 默认把该目录放在 `${CHRONICLE_DATA_DIR}/sources/background-assets`，由 `chronicle-source-init` 与 source 文件一起准备权限。备份必须同时覆盖 PostgreSQL（素材 metadata、binding、audit）和该目录的图片文件；只备份其中一侧不能恢复可读背景。
 - 技能的生成输出必须复制到选定图库；生产界面不能引用开发机绝对路径、工具临时目录或扫描仓库目录推断是否已保存。
 
-现有 [documents.md](documents.md) 只允许 UTF-8 `.txt/.md` 古文原料，不扩成图片接口。图片上传将在后续任务中定义格式、尺寸/体积限制、实际解码校验和受控读取；不能复用文本 revision API 或混入史料内容生产链。
+现有 [documents.md](documents.md) 只允许 UTF-8 `.txt/.md` 古文原料，不扩成图片接口。背景图片使用本节独立的 `background-assets` API、格式/尺寸/体积限制、实际解码校验和受控读取；不能复用文本 revision API 或混入史料内容生产链。
 
-## 5. 时代、颜色和阅读层次
+## 6. 时代、颜色和阅读层次
 
 保留现代书卷感。页面基础色与图像题材色分别设计：
 
@@ -62,7 +108,7 @@
 
 赤壁可采用青灰江面、远处船阵和少量赭红火光。民国和现代应重新选择适当媒介及时代细节。人物意象图不当作真实肖像；生成的摄影感图片不冒充档案照片。图像来源和性质在素材详情可查，不把制作术语铺满默认阅读界面。
 
-## 6. 随阅读显示
+## 7. 随阅读显示
 
 消费 [reading-experience.md](reading-experience.md) 的同一 active unit。人工关联可以覆盖一段连续叙事，范围内保持同图；跨入另一已确认范围才切换。正文回忆过去事件、悬停事件词、打开引用或移动鼠标不改背景。多个位置重叠的处理应在保存前让操作者看清并解决，不能临时由模型决定优先级。
 
@@ -70,13 +116,12 @@
 
 预加载只针对当前及相邻的已保存背景，加载失败不清空正文、不请求生成，也不无限重试。一次读取不会为全书生成或下载所有图片。
 
-## 7. 后续任务与验收边界
+## 8. 后续任务与验收边界
 
 技能与离线库由 D01 交付。以下产品工作按[产品收敛任务](../../../docs/tasks/chronicle/product-convergence/README.md)拆分，不能以 D01 完成宣称已具备：
 
-1. 素材与关联合同、应用持久存储及受鉴权的上传/预览/保存/停用 API；候选与公开读取边界。
-2. Studio 素材库、位置建议、生成/上传入口及人工效果预览；保存成功才启用的交互。
-3. 阅读背景组件、已保存关联读取、单一阅读 controller 接线与无图回退。
-4. 无自动生成、未保存不可见、确认后仅指定位置可见、失败/替换/停用/重启/跨 revision/窄屏/无障碍验收。
+1. Studio 素材库、位置建议、生成/上传入口及人工效果预览；保存成功才启用的交互。
+2. 阅读背景组件、已保存关联读取、单一阅读 controller 接线与无图回退。
+3. 无自动生成、未保存不可见、确认后仅指定位置可见、失败/替换/停用/重启/跨 revision/窄屏/无障碍验收。
 
 原第二轮 T01–T17 的生产任务保持其现有范围；背景产品链路需要独立交付与真实阅读验收。任务状态由现用管理工具维护，不要求默认分支 Task Ledger 对账。

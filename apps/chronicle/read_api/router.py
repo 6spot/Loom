@@ -29,6 +29,7 @@ from reading_events import (
 from search import search_catalog
 from history import dispatch_history
 from person_history import dispatch_person_history
+from backgrounds import dispatch_public as dispatch_public_background
 
 
 def _single(query: dict[str, list[str]], name: str) -> str | None:
@@ -206,6 +207,12 @@ def dispatch(
     try:
         if path == "/healthz":
             return 200, {"status": "ok"}
+
+        background = dispatch_public_background(
+            repo.conn, method=method, path=path, raw_query=raw_query
+        )
+        if background is not None:
+            return background
 
         if path == "/v0/history" or path.startswith("/v0/history/"):
             return 200, dispatch_history(repo.conn, path, raw_query)

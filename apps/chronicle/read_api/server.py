@@ -22,9 +22,17 @@ if str(_PERSISTENCE_DIR) not in sys.path:
     sys.path.insert(0, str(_PERSISTENCE_DIR))
 
 import documents as document_store
+import background_assets as background_store
 from read_common import ReadModelError
 from repository import ChronicleReadRepository
 from router import dispatch
+from backgrounds import (
+    STUDIO_ASSETS_PREFIX,
+    STUDIO_ASSET_ALIAS,
+    STUDIO_BINDINGS_PREFIX,
+    dispatch_resource,
+    dispatch_studio as dispatch_studio_background,
+)
 from studio_documents import STUDIO_PREFIX, dispatch_studio
 from studio_jobs import STUDIO_JOBS_PREFIX, dispatch_jobs
 from studio_reviews import STUDIO_REVIEWS_PREFIX, dispatch_reviews
@@ -53,12 +61,21 @@ def handler_class(
     database_url: str,
     storage_dir: str | Path | None = None,
     max_upload_bytes: int | None = None,
+    background_max_upload_bytes: int | None = None,
 ):
     resolved_storage = Path(storage_dir) if storage_dir else document_store.storage_dir_from_env()
     resolved_max = (
         max_upload_bytes
         if max_upload_bytes is not None
         else document_store.max_upload_bytes()
+    )
+    resolved_background_storage = background_store.storage_dir_from_env(
+        source_dir=resolved_storage
+    )
+    resolved_background_max = (
+        background_max_upload_bytes
+        if background_max_upload_bytes is not None
+        else background_store.max_upload_bytes()
     )
 
     class Handler(BaseHTTPRequestHandler):
@@ -86,6 +103,16 @@ def handler_class(
                     with psycopg.connect(database_url) as conn:
                         with conn.transaction():
                             conn.execute("SET TRANSACTION READ ONLY")
+                            resource = dispatch_resource(
+                                conn,
+                                storage_dir=resolved_background_storage,
+                                method=self.command,
+                                path=path,
+                                raw_query=query,
+                            )
+                            if resource is not None:
+                                self._send_bytes(*resource)
+                                return
                             status, payload = dispatch(
                                 ChronicleReadRepository(conn),
                                 self.command,
@@ -163,6 +190,71 @@ def handler_class(
                         document_store,
                         storage_dir=resolved_storage,
                         max_upload_bytes=resolved_max,
+                        method=self.command,
+                        path=path,
+                        raw_query=query,
+                        body=body,
+                        content_type=media,
+                    )
+            except psycopg.Error:
+                status, content_type, payload = (
+                    503,
+                    "application/json; charset=utf-8",
+                    (
+                        '{"schema":"chronicle.error","version":"0.1",'
+                        '"error":{"code":"database_unavailable",'
+                        '"message":"Chronicle PostgreSQL write failed"}}\n'
+                    ).encode("utf-8"),
+                )
+            self._send_bytes(status, content_type, payload)
+
+        def _handle_studio_backgrounds(self, path: str, query: str) -> None:
+            if self.command not in ("GET", "POST", "DELETE"):
+                self._method_not_allowed()
+                return
+            try:
+                declared = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                declared = 0
+            is_upload = self.command == "POST" and (
+                path == STUDIO_ASSETS_PREFIX
+                or path == STUDIO_ASSET_ALIAS
+                or (
+                    path.startswith(STUDIO_ASSETS_PREFIX + "/")
+                    and path.endswith("/versions")
+                )
+                or (
+                    path.startswith(STUDIO_ASSET_ALIAS + "/")
+                    and path.endswith("/versions")
+                )
+            )
+            limit = resolved_background_max if is_upload else 65536
+            if declared < 0 or declared > limit:
+                # Consume a bounded prefix before answering so a normal
+                # client that already sent a just-over-limit request does not
+                # race the response and receive a broken pipe.  The sidecar
+                # still never buffers more than one configured limit plus one
+                # byte for a rejected request.
+                if declared > limit:
+                    self.rfile.read(min(declared, limit + 1))
+                payload = {
+                    "schema": "chronicle.error",
+                    "version": "0.1",
+                    "error": {
+                        "code": "payload_too_large",
+                        "message": f"background request body exceeds {limit} bytes",
+                    },
+                }
+                self._send_json(413, payload)
+                return
+            body = self.rfile.read(declared) if declared > 0 else b""
+            media = self.headers.get("Content-Type")
+            try:
+                with psycopg.connect(database_url) as conn:
+                    status, content_type, payload = dispatch_studio_background(
+                        conn,
+                        storage_dir=resolved_background_storage,
+                        max_upload_bytes=resolved_background_max,
                         method=self.command,
                         path=path,
                         raw_query=query,
@@ -278,6 +370,16 @@ def handler_class(
                 return
             if split.path == STUDIO_PREFIX or split.path.startswith(STUDIO_PREFIX + "/"):
                 self._handle_studio_documents(split.path, split.query)
+                return
+            if (
+                split.path == STUDIO_ASSETS_PREFIX
+                or split.path.startswith(STUDIO_ASSETS_PREFIX + "/")
+                or split.path == STUDIO_ASSET_ALIAS
+                or split.path.startswith(STUDIO_ASSET_ALIAS + "/")
+                or split.path == STUDIO_BINDINGS_PREFIX
+                or split.path.startswith(STUDIO_BINDINGS_PREFIX + "/")
+            ):
+                self._handle_studio_backgrounds(split.path, split.query)
                 return
             # ReviewItems are a job-scoped subresource. Match this more-specific
             # prefix before the generic jobs prefix so requests reach T11's
