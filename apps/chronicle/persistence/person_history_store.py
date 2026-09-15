@@ -370,6 +370,18 @@ def build_context(conn, *, descriptors: dict[str, Any], revision_source, person_
     person_id = str(_uuid(person_id, "person_id"))
     _require_person_in_descriptors(descriptors, person_id)
     base = narrative_store.build_context(descriptors, revision_source)
+    # The shared source reader returns the complete chapter state index. A
+    # person-history model is scoped to one canonical person, however: other
+    # people's repeated state rows add prompt volume without being eligible
+    # biography evidence. Keep the source chapter and all of this person's
+    # state provenance intact while removing unrelated identities from the
+    # frozen target context.
+    for source in base.get("sources", []):
+        source["reviewed_person_states"] = [
+            state
+            for state in source.get("reviewed_person_states", [])
+            if isinstance(state, dict) and str(state.get("person_id")) == person_id
+        ]
     target = base["entities"][person_id]
     context = {
         "schema": contract.CONTEXT_SCHEMA,
