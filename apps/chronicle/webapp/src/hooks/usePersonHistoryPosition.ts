@@ -37,7 +37,11 @@ export function usePersonHistoryPosition({ paragraphs, preferredPhaseId }: Perso
       .filter((item): item is { id: string; node: HTMLElement } => Boolean(item.node));
     if (!candidates.length) return;
     const rootTop = root?.getBoundingClientRect().top ?? 0;
-    const readingLine = rootTop + Math.min(window.innerHeight * 0.28, 220);
+    // Once the main column has scrolled above the viewport, its document
+    // relative top is negative.  Keep the reading line in the viewport or
+    // the active phase can remain stuck on an earlier paragraph at the
+    // bottom of a short biography.
+    const readingLine = Math.max(0, rootTop) + Math.min(window.innerHeight * 0.28, 220);
     let best: { id: string; distance: number } | null = null;
     for (const item of candidates) {
       const rect = item.node.getBoundingClientRect();

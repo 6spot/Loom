@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { isHistoryLocator } from "../lib/history-api";
 import {
   isNotFound,
@@ -114,13 +115,14 @@ export function usePersonHistory(
   });
   const mainMapping = metadataMapping(mapping.data);
   const mappedPhaseIds = mappingPhaseIds(mainMapping);
+  const paragraphs = useMemo(() => flattenPages(pages.data?.pages), [pages.data?.pages]);
   return {
     metadata,
     mapping,
     pages,
     publication,
     personVersion,
-    paragraphs: flattenPages(pages.data?.pages),
+    paragraphs,
     mainMapping,
     mappingStatus: mainMapping?.status ?? null,
     mappedPhaseIds,
@@ -132,4 +134,3 @@ export function usePersonHistory(
     loadMore: () => pages.fetchNextPage(),
   };
 }
-
