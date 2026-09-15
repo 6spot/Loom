@@ -23,6 +23,7 @@ surface.
 /studio/imports          import operations
 /studio/review           identity, corroboration and narrative review
 /studio/sources          source/corpus operations
+/studio/backgrounds      background candidate library and saved bindings
 /studio/coverage         corpus Coverage visibility
 /studio/login            Studio login (HTTP Basic credentials, tab-session only)
 ```
@@ -76,6 +77,8 @@ GET /api/v1/public/history[?version]
 GET /api/v1/public/history/paragraphs?version&at|start&limit
 GET /api/v1/public/history/conclusions/{id}?version
 GET /api/v1/studio/status   (Studio only, HTTP Basic, server-enforced)
+GET/POST /api/v1/studio/background-assets        (Studio only, candidate assets)
+GET/POST /api/v1/studio/background-bindings      (Studio only, explicit display bindings)
 ```
 
 No PostgreSQL, application persistence adapter, staged artifacts, migrations,
