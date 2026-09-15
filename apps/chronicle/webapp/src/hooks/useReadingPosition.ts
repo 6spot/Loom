@@ -85,6 +85,8 @@ export interface ReadingPositionOptions {
   readonly storage?: StorageLike | null;
   readonly randomBytes?: RandomBytes;
   readonly urlStrategy?: ReadingUrlStrategy;
+  /** Selector for all layout units, including recycled placeholders when a window uses them. */
+  readonly activeUnitSelector?: string;
   readonly unitSelector?: string;
   readonly unitIdAttribute?: string;
   readonly ordinalAttribute?: string;
@@ -165,9 +167,17 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Find a unit by its attribute without assuming the selector has one branch. */
+function findUnitElement(selector: string, attribute: string, unitId: string): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return Array.from(document.querySelectorAll<HTMLElement>(selector))
+    .find((element) => element.getAttribute(attribute) === unitId) ?? null;
+}
+
 export function useReadingPosition(options: ReadingPositionOptions): ReadingPositionController {
   const strategy = options.urlStrategy ?? DEFAULT_READING_URL_STRATEGY;
   const unitSelector = options.unitSelector ?? "[data-reading-unit]";
+  const activeUnitSelector = options.activeUnitSelector ?? unitSelector;
   const unitIdAttribute = options.unitIdAttribute ?? "data-unit-id";
   const ordinalAttribute = options.ordinalAttribute ?? "data-ordinal";
   const settleDelayMs = options.settleDelayMs ?? 250;
@@ -253,14 +263,19 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     return `hk${Date.now().toString(36)}_${historySequence}`;
   }, []);
 
-  const selectorFor = useCallback(
-    (unitId: string) => `${unitSelector}[${unitIdAttribute}="${unitId}"]`,
+  const targetUnitElement = useCallback(
+    (unitId: string) => findUnitElement(unitSelector, unitIdAttribute, unitId),
     [unitSelector, unitIdAttribute],
+  );
+
+  const activeUnitElement = useCallback(
+    (unitId: string) => findUnitElement(activeUnitSelector, unitIdAttribute, unitId),
+    [activeUnitSelector, unitIdAttribute],
   );
 
   const measureUnits = useCallback((): MeasuredUnit[] => {
     if (typeof document === "undefined") return [];
-    const nodes = Array.from(document.querySelectorAll(unitSelector)) as HTMLElement[];
+    const nodes = Array.from(document.querySelectorAll(activeUnitSelector)) as HTMLElement[];
     const viewportBottom = typeof window === "undefined" ? 0 : window.innerHeight;
     return nodes
       .map((node) => {
@@ -279,19 +294,19 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         } satisfies MeasuredUnit;
       })
       .filter((unit) => unit.unitId.length > 0);
-  }, [unitSelector, unitIdAttribute, ordinalAttribute]);
+  }, [activeUnitSelector, unitIdAttribute, ordinalAttribute]);
 
   const ordinalOf = useCallback(
     (unitId: string): number => {
       if (typeof document !== "undefined") {
-        const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
+        const node = targetUnitElement(unitId) ?? activeUnitElement(unitId);
         const raw = node?.getAttribute(ordinalAttribute);
         const parsed = raw === null || raw === undefined ? Number.NaN : Number(raw);
         if (Number.isFinite(parsed)) return parsed;
       }
       return optionsRef.current.getUnit(unitId)?.ordinal ?? 0;
     },
-    [selectorFor, ordinalAttribute],
+    [targetUnitElement, activeUnitElement, ordinalAttribute],
   );
 
   const currentLocator = useCallback((): ReadingLocator | null => {
@@ -338,14 +353,14 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
   const measureRelativeOffset = useCallback(
     (unitId: string): number => {
       if (typeof document === "undefined" || typeof window === "undefined") return 0;
-      const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
+      const node = targetUnitElement(unitId) ?? activeUnitElement(unitId);
       if (!node) return 0;
       const rect = node.getBoundingClientRect();
       const referenceY = referenceLineFor(window.innerHeight,
         optionsRef.current.headerHeight ?? 0, optionsRef.current.referenceRatio ?? 0.3);
       return relativeOffsetWithin({ top: rect.top, bottom: rect.bottom }, referenceY);
     },
-    [selectorFor],
+    [targetUnitElement, activeUnitElement],
   );
 
   const scheduleSettleUrl = useCallback(() => {
@@ -373,7 +388,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         return;
       }
       if (typeof document === "undefined" || typeof window === "undefined") return;
-      const node = document.querySelector(selectorFor(unitId)) as HTMLElement | null;
+      const node = targetUnitElement(unitId);
       if (!node) return;
       const rect = node.getBoundingClientRect();
       const referenceY = referenceLineFor(window.innerHeight,
@@ -387,7 +402,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       window.scrollTo({ top: targetTop, behavior });
       return targetTop - window.scrollY;
     },
-    [selectorFor],
+    [targetUnitElement],
   );
 
   const hasUnloadedSpace = useCallback((unitId: string, delta: number) => {
@@ -400,7 +415,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
     // A temporary page boundary must not turn the requested offset into the
     // browser's clamped position before adjacent content has arrived.
     if (!requested && layoutAnchorRef.current?.pending) return true;
-    const node = document.querySelector<HTMLElement>(selectorFor(unitId));
+    const node = targetUnitElement(unitId) ?? activeUnitElement(unitId);
     if (!node) return false;
     const rect = node.getBoundingClientRect();
     const referenceLine = referenceLineFor(window.innerHeight,
@@ -415,12 +430,12 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       documentPoint: window.scrollY + rect.top + rect.height * offset,
     };
     return Boolean(pending);
-  }, [selectorFor, hasUnloadedSpace]);
+  }, [targetUnitElement, activeUnitElement, hasUnloadedSpace]);
 
   const preserveLayoutAnchor = useCallback(() => {
     const anchor = layoutAnchorRef.current;
     if (!optionsRef.current.preserveLayoutPosition || !anchor || typeof window === "undefined") return;
-    const node = document.querySelector<HTMLElement>(selectorFor(anchor.unitId));
+    const node = targetUnitElement(anchor.unitId) ?? activeUnitElement(anchor.unitId);
     if (!node) return;
     const rect = node.getBoundingClientRect();
     const referenceLine = referenceLineFor(window.innerHeight,
@@ -450,7 +465,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
       rememberLayoutAnchor(anchor.unitId);
       commitState({ navigationState: "idle" });
     }
-  }, [selectorFor, hasUnloadedSpace, rememberLayoutAnchor, commitState]);
+  }, [targetUnitElement, activeUnitElement, hasUnloadedSpace, rememberLayoutAnchor, commitState]);
 
   const waitForDom = useCallback(
     (unitId: string, seq: number): Promise<boolean> =>
@@ -465,7 +480,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
             resolve(false);
             return;
           }
-          if (document.querySelector(selectorFor(unitId))) {
+          if (targetUnitElement(unitId)) {
             resolve(true);
             return;
           }
@@ -478,7 +493,7 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         };
         requestAnimationFrame(step);
       }),
-    [selectorFor, restoreFrameBudget],
+    [targetUnitElement, restoreFrameBudget],
   );
 
   /**
@@ -590,14 +605,14 @@ export function useReadingPosition(options: ReadingPositionOptions): ReadingPosi
         trigger?.focus();
       }
       if (detail.push && !detail.focusId && typeof document !== "undefined") {
-        const target = document.querySelector(selectorFor(locator.unit_id)) as HTMLElement | null;
+        const target = targetUnitElement(locator.unit_id);
         if (target) {
           target.tabIndex = -1;
           target.focus({ preventScroll: true });
         }
       }
     },
-    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, rememberLayoutAnchor, ordinalOf, selectorFor],
+    [beginOperation, commitState, setNavState, nextHistoryKey, writeUrl, waitForDom, scrollToTarget, rememberLayoutAnchor, ordinalOf, targetUnitElement],
   );
 
   const refreshActive = useCallback(() => {

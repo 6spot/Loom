@@ -259,7 +259,10 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   }, [pub.version]);
 
   const controller = useReadingPosition({
-    urlStrategy: HISTORY_POSITION_STRATEGY, unitSelector: "[data-history-paragraph]", headerHeight: chromeHeight,
+    urlStrategy: HISTORY_POSITION_STRATEGY,
+    unitSelector: "[data-history-paragraph]",
+    activeUnitSelector: '[data-history-paragraph], [data-reading-unit-placeholder]',
+    headerHeight: chromeHeight,
     preserveLayoutPosition: true,
     getUnit: (id) => {
       const p = paragraphRef.current.find((v) => v.id === id);

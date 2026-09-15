@@ -415,6 +415,7 @@ export default function ReadingWindow({
                 key={unit.unit_id}
                 className="rcw-placeholder"
                 data-test="reading-unit-placeholder"
+                data-reading-unit-placeholder="true"
                 data-unit-id={unit.unit_id}
                 data-ordinal={unit.ordinal}
                 data-height={height}

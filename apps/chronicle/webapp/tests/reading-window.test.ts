@@ -457,6 +457,7 @@ describe("reading-window: window states", () => {
     expect(html).not.toContain('data-test="reading-paused"');
     expect(html).toContain('data-auto-prefetch="true"');
     expect(html).toContain('data-test="reading-unit-placeholder"');
+    expect(html).toContain('data-reading-unit-placeholder="true"');
     expect((html.match(/data-test="reading-unit"/g) ?? []).length).toBeLessThanOrEqual(120);
   });
 

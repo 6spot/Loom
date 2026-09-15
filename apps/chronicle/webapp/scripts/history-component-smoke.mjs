@@ -103,6 +103,39 @@ try {
   assert.equal(await page.evaluate(() => window.scrollY), groupScroll, "time ticks do not move prose");
   await page.getByRole("button", { name: "回到当前", exact: true }).click();
 
+  // Continuous wheel input must advance through recycled placeholders once the
+  // mounted reading window passes its 120-unit normal limit, all the way to the
+  // final unit without losing the fixed edition or duplicating live units.
+  await page.goto(`${base}/history/${version}/${id(0)}`);
+  await expect(paragraph(0)).toBeAttached();
+  let lastActiveOrdinal = -1;
+  let peakMountedUnits = 0;
+  let sawRecycledPlaceholder = false;
+  let reachedEnd = false;
+  const finalParagraph = page.locator(`[data-history-paragraph][data-unit-id="${id(TOTAL_PARAGRAPHS - 1)}"]`);
+  for (let attempt = 0; attempt < 500 && !reachedEnd; attempt += 1) {
+    await page.mouse.wheel(0, 450);
+    await page.waitForTimeout(35);
+    const active = page.locator('[data-test="reading-unit"][data-active="true"] [data-history-paragraph]');
+    const activeOrdinal = Number(await active.getAttribute("data-ordinal") ?? "-1");
+    assert(activeOrdinal >= lastActiveOrdinal, `continuous scroll regressed at paragraph ${activeOrdinal}`);
+    lastActiveOrdinal = activeOrdinal;
+    peakMountedUnits = Math.max(peakMountedUnits, Number(await page.locator('[data-test="reading-window"]').getAttribute("data-mounted") ?? "0"));
+    sawRecycledPlaceholder ||= await page.locator('[data-reading-unit-placeholder="true"]').count() > 0;
+    reachedEnd = lastActiveOrdinal >= 300 && await finalParagraph.count() > 0 && await finalParagraph.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return rect.bottom > 0 && rect.top < window.innerHeight;
+    });
+  }
+  assert(reachedEnd, `continuous scroll must reach the final paragraph (last=${lastActiveOrdinal})`);
+  assert(sawRecycledPlaceholder, "continuous scroll must exercise recycled placeholders");
+  await expect(finalParagraph).toHaveCount(1);
+  assert(lastActiveOrdinal >= 300, `continuous scroll must advance the active unit past paragraph 120 (last=${lastActiveOrdinal})`);
+  assert(peakMountedUnits <= 140, `mounted unit window exceeded bounded limit: ${peakMountedUnits}`);
+  assert.equal(await page.locator('[data-test="reading-load-error"]').count(), 0, "continuous scroll must not stop on a page error");
+  assert.equal(new Set(await page.locator('[data-history-paragraph]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-unit-id")))).size,
+    await page.locator('[data-history-paragraph]').count(), "mounted paragraphs must remain deduplicated");
+
   await paragraph(18).scrollIntoViewIfNeeded();
   await expect(paragraph(20)).toBeAttached();
   await near().getByRole("button", { name: /赤壁之战/ }).click();
