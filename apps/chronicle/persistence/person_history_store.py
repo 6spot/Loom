@@ -377,11 +377,17 @@ def build_context(conn, *, descriptors: dict[str, Any], revision_source, person_
     # state provenance intact while removing unrelated identities from the
     # frozen target context.
     for source in base.get("sources", []):
-        source["reviewed_person_states"] = [
-            state
-            for state in source.get("reviewed_person_states", [])
-            if isinstance(state, dict) and str(state.get("person_id")) == person_id
-        ]
+        seen_states: set[str] = set()
+        target_states = []
+        for state in source.get("reviewed_person_states", []):
+            if not isinstance(state, dict) or str(state.get("person_id")) != person_id:
+                continue
+            state_sha = sha256_json(state)
+            if state_sha in seen_states:
+                continue
+            seen_states.add(state_sha)
+            target_states.append(state)
+        source["reviewed_person_states"] = target_states
     target = base["entities"][person_id]
     context = {
         "schema": contract.CONTEXT_SCHEMA,
