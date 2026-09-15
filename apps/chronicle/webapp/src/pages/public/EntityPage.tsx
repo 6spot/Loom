@@ -4,7 +4,7 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import HistoryReturnLink from "../../components/HistoryReturnLink";
-import PersonStateDetails from "../../components/reading/PersonStateDetails";
+import PersonHistoryReader from "../../components/reading/PersonHistoryReader";
 import type { ReadingStateFact } from "../../components/reading/ReadingContextPanel";
 import { useEntity, personStatePhaseKey } from "../../lib/queries";
 import {
@@ -22,7 +22,6 @@ import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } fr
 import type { ReaderPresentation as ReaderPresentationData, Representation, TrajectoryEvent } from "../../lib/types";
 import { buildReadingUrl, readReturnToken } from "../../lib/reading-location";
 import { ReadingHistoryStore, ReadingStorage } from "../../lib/reading-history";
-import { useSourcePersonStateContext } from "../../hooks/usePersonStateContext";
 import type { ReadingLocator } from "../../lib/reading-types";
 import "../../styles/entity.css";
 
@@ -181,7 +180,7 @@ function HistoryPhasePanel({
     return (
       <section className="panel entity-phase-panel" data-test="entity-phase-invalid">
         <div className="panel-heading"><h2>当前阶段状态</h2></div>
-        <div role="alert"><p>这条人物页缺少有效的历史段落位置。请从历史正文重新进入，避免带入其他段落的状态。</p></div>
+        <div role="alert"><p>这条页面地址缺少有效的历史段落位置。请从历史正文重新进入，避免带入其他段落的状态。</p></div>
       </section>
     );
   }
@@ -215,79 +214,13 @@ function HistoryPhasePanel({
         </div>
         <span className="count">{states.length ? `${states.length} 项` : "暂无记载"}</span>
       </div>
-      {states.length ? <HistoryStateFacts version={locator!.version} facts={states} /> : <p className="chr-context-unknown">本段没有该人物的官职、爵号或效力记载。</p>}
+      {states.length ? <HistoryStateFacts version={locator!.version} facts={states} /> : <p className="chr-context-unknown">本段没有这一对象的官职、爵号或效力记载。</p>}
       {related.length ? (
         <div className="entity-phase-related" data-test="entity-phase-related">
           <h3>同段相关对象</h3>
           <div className="chip-row">{related.map((item) => <span key={item.id} className="chip">{item.name}</span>)}</div>
         </div>
       ) : null}
-    </section>
-  );
-}
-
-/**
- * Main-history/direct-entry experience view. The entity endpoint already
- * returns published, source-backed event associations in chronological order;
- * present them once as a readable timeline instead of exposing the old event
- * card/claim dump as the page's primary content. This is an evidence-backed
- * reading aid, not a generated or complete biography.
- */
-function EntityExperienceTimeline({ events, search }: { events: readonly TrajectoryEvent[]; search: string }) {
-  return (
-    <section className="panel entity-experience-panel" data-test="entity-experience">
-      <div className="panel-heading">
-        <div><h2>有据经历</h2><p className="entity-experience-scope">只列当前已发布资料关联到此人物的经历，不代表完整生平。</p></div>
-        <span className="count">{events.length ? `${events.length} 项` : "暂无记载"}</span>
-      </div>
-      {events.length ? (
-        <ol className="entity-experience-timeline">
-          {events.map((event) => (
-            <li className="entity-experience-entry" data-test="entity-experience-entry" key={event.canonical_event_id}>
-              <span className="entity-experience-time">{formatTime(event.time ?? {})}</span>
-              <div className="entity-experience-content">
-                <Link className="entity-experience-event" data-test="entity-experience-event" to={withHistoricalTime(`/events/${encodeURIComponent(event.canonical_event_id)}`, search)}>
-                  {event.display?.title ?? "未命名经历"}
-                </Link>
-                {involvementChips(event.source_involvements ?? []).length ? <div className="trajectory-meta">{involvementChips(event.source_involvements ?? []).map((chip) => <span key={chip} className="role-chip">{chip}</span>)}</div> : null}
-              </div>
-            </li>
-          ))}
-        </ol>
-      ) : <p className="chr-context-unknown">当前已发布资料没有可连续展开的有据经历。</p>}
-    </section>
-  );
-}
-
-/**
- * Source-reading person state for this entity. A source locator resolves to
- * the full compiled PersonSummary; without one this panel stays an honest
- * scope empty state rather than turning the main history into a biography.
- */
-function SourcePersonPanel({ locator, entityId, events, search }: { locator: ReadingLocator | null; entityId: string; events: readonly TrajectoryEvent[]; search: string }) {
-  const source = useSourcePersonStateContext(locator, { enabled: Boolean(locator) });
-  if (!locator) {
-    return <EntityExperienceTimeline events={events} search={search} />;
-  }
-  if (source.status === "loading") return <section className="panel entity-experience-panel"><div className="panel-heading"><h2>有据经历</h2></div><p role="status">正在载入来源人物阶段资料…</p></section>;
-  if (source.status === "error") return (
-    <section className="panel entity-experience-panel" data-test="entity-source-person-error">
-      <div className="panel-heading"><h2>有据经历</h2></div>
-      <div role="alert"><p>来源人物资料暂时无法读取。</p><button type="button" className="public-text-button" data-test="entity-source-person-retry" onClick={source.retry}>重试</button></div>
-    </section>
-  );
-  const person = source.people.find((item) => item.person_id === entityId);
-  if (!person) return (
-    <section className="panel entity-experience-panel" data-test="entity-source-person-missing">
-      <div className="panel-heading"><h2>有据经历</h2></div>
-      <p>当前来源阅读位置没有登记此人物；不按名称或年份猜一份身份。</p>
-    </section>
-  );
-  return (
-    <section className="panel entity-experience-panel" data-test="entity-source-person">
-      <div className="panel-heading"><h2>有据经历</h2><span className="count">当前史料</span></div>
-      <p className="entity-experience-scope">只列当前来源阅读位置已经发布的阶段记载，明确与存疑逐项保留。</p>
-      <PersonStateDetails person={person} phases={source.phases} />
     </section>
   );
 }
@@ -365,6 +298,7 @@ export default function EntityPage() {
   const version = params.get("version");
   const paragraphId = params.get("para");
   const phaseId = params.get("phase");
+  const requestedPersonVersion = params.get("person_version") ?? params.get("person_history_version") ?? params.get("history_version");
   const hasHistoryLocator = version !== null || paragraphId !== null;
   const hasValidHistoryLocator = version !== null && paragraphId !== null && isHistoryLocator({ version, paragraph_id: paragraphId });
   const returnLocator = useReadingReturn(location.search);
@@ -381,43 +315,60 @@ export default function EntityPage() {
   const readerPresentation = data.reader_presentation ?? null;
   const isPerson = data.display?.type === "person";
   const intro = presentationOverview(readerPresentation);
-  const hasEvidence = Boolean(readerPresentation?.blocks?.length) || reps.length > 0 || (!isPerson && events.length > 0) || claims.length > 0 || resolutionLinks.length > 0;
+  const hasPublishedEvidence = Boolean(readerPresentation?.blocks?.length) || reps.length > 0 || claims.length > 0 || resolutionLinks.length > 0;
+
+  if (isPerson) {
+    return (
+      <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
+        <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>人物</span></div>
+        <PersonHistoryReader
+          key={`${data.canonical_entity_id}:${requestedPersonVersion ?? "latest"}`}
+          entityId={data.canonical_entity_id}
+          name={data.display?.name ?? "未命名人物"}
+          search={location.search}
+          returnLocator={returnLocator}
+          requestedPersonVersion={requestedPersonVersion}
+          mainLocator={{ version, paragraphId, phaseId }}
+          hasEvidence={hasPublishedEvidence}
+          events={events}
+        />
+        <EntityEvidence entityId={data.canonical_entity_id} readerPresentation={readerPresentation} reps={reps} events={events} claims={claims} resolutionLinks={resolutionLinks} showEventRecords={false} search={location.search} />
+      </section>
+    );
+  }
+
+  const hasEntityEvidence = hasPublishedEvidence || events.length > 0;
 
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
-      <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>{isPerson ? "人物" : "对象"}</span></div>
+      <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>对象</span></div>
       <HistoryReturnLink fallback={<ReadingReturnBar returnLocator={returnLocator} />} />
       <p className="muted" data-test="entity-phase-note">
         {hasValidHistoryLocator
           ? "来自固定历史版本的当前段落；返回时会恢复原来的阅读位置。"
           : hasHistoryLocator
-            ? "这条人物页地址缺少有效的历史段落位置，请从历史正文重新进入。"
-            : "直接进入人物页；不会替你选择某个年份或历史阶段。"}
+            ? "这条页面地址缺少有效的历史段落位置，请从历史正文重新进入。"
+            : "直接进入：不会替你选择某个年份或历史阶段。"}
       </p>
       <header className="page-header">
-        <p className="eyebrow">{isPerson ? "人物" : "对象"}</p>
+        <p className="eyebrow">对象</p>
         <h1>{data.display?.name ?? "未命名对象"}</h1>
         <div className="hero-meta">
           <span className="chip type">{entityKindLabel(data.display?.type)}</span>
           {data.source_count !== undefined ? <span className="chip">{data.source_count} 个来源</span> : null}
         </div>
-        <p className="lede" data-test="entity-scope">{isPerson
-          ? "姓名是入口；身份、经历和阶段状态只显示已发布资料能够支持的范围。"
-          : "这里仅显示已发布资料能够支持的内容。"}</p>
-        {hasEvidence ? <a className="primary-link" href="#evidence" data-test="entity-evidence-link">查看来源与依据</a> : null}
+        <p className="lede" data-test="entity-scope">这里仅显示已发布资料能够支持的内容。</p>
+        {hasEntityEvidence ? <a className="primary-link" href="#evidence" data-test="entity-evidence-link">查看来源与依据</a> : null}
       </header>
 
       <section className="entity-reader-summary" data-test="entity-reader-summary">
-        <div className="entity-reader-heading"><div><p className="eyebrow">{isPerson ? "人物概况" : "资料摘要"}</p><h2>{isPerson ? "简介" : "摘要"}</h2></div></div>
-        {intro ? <p className="entity-reader-intro" data-test="entity-intro">{intro}</p> : <p className="entity-intro-empty" data-test="entity-intro-empty">{isPerson
-          ? "目前没有单独的人物简介。页面只展示已发布资料支持的内容；没有专门的人物生平时，不把历史片段拼成完整传记。"
-          : "目前没有单独的资料摘要。页面不会从常识补写内容。"}</p>}
+        <div className="entity-reader-heading"><div><p className="eyebrow">资料摘要</p><h2>摘要</h2></div></div>
+        {intro ? <p className="entity-reader-intro" data-test="entity-intro">{intro}</p> : <p className="entity-intro-empty" data-test="entity-intro-empty">目前没有单独的资料摘要。页面不会从常识补写内容。</p>}
       </section>
 
       <div className="detail-grid">
         <div className="detail-main">
-          {isPerson ? <SourcePersonPanel locator={returnLocator} entityId={data.canonical_entity_id} events={events} search={location.search} /> : null}
-          <EntityEvidence entityId={data.canonical_entity_id} readerPresentation={readerPresentation} reps={reps} events={events} claims={claims} resolutionLinks={resolutionLinks} showEventRecords={!isPerson} search={location.search} />
+          <EntityEvidence entityId={data.canonical_entity_id} readerPresentation={readerPresentation} reps={reps} events={events} claims={claims} resolutionLinks={resolutionLinks} showEventRecords search={location.search} />
         </div>
         <aside className="detail-side">
           <HistoryPhasePanel version={version} paragraphId={paragraphId} phaseId={phaseId} entityId={data.canonical_entity_id} />

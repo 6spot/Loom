@@ -2,8 +2,12 @@
 //
 // Operates the real published HistoryPage and the independent person page of
 // the running Rust/Python/PG stack. It pins the exact `{version, paragraph_id,
-// phase_id}` the gate published, proves the reviewed two-tier state reaches
-// the composite body and the person page, and proves the in-place return.
+// phase_id}` the gate published and proves the reviewed two-tier state reaches
+// the composite body, then follows the same anchor into the C3-T14 person
+// reader: the person page must keep the pinned locator and, because this
+// fixture publishes no independent person-history version, state that honestly
+// instead of presenting the composite paragraph states as a biography. The
+// in-place return closes the loop.
 // Viewport/keyboard/touch/zoom breadth is covered by the registered component
 // suites (`r3-all`); this suite carries the real-backend terminal proof.
 
@@ -52,15 +56,39 @@ export async function run(ctx) {
   runner.info("state_certainty", certainty);
   await runner.screenshot(page, "history-desktop");
 
-  // -- keyboard: focus the entity link and Enter navigates ---------------
+  // -- keyboard: focus the entity link and Enter opens the published reader --
+  // C3-T14 replaced the composite person detail with the independent T13
+  // reader. This stage fixture publishes no person-history version, so the page
+  // must render its three regions and state the honest empty result instead of
+  // reusing the pinned composite paragraph states as a biography.
   const viewLink = entityRow.locator('[data-test="reading-context-view-entity"]').first();
   await viewLink.focus();
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/entities\//, { timeout: 30000 });
-  const phasePanel = page.locator('[data-test="entity-phase-state"]');
-  await phasePanel.waitFor({ timeout: 30000 });
-  const entityPhase = await phasePanel.getAttribute("data-phase-id");
-  runner.check("person_page_phase_matches_history", entityPhase === history.phase_id, `${entityPhase}`);
+  await page.waitForSelector('[data-test="person-history-page"]', { timeout: 30000 });
+  for (const region of ["entity-left", "entity-main", "entity-right"]) {
+    await page.waitForSelector(`[data-test="${region}"]`, { timeout: 30000 });
+  }
+  runner.check("person_page_uses_the_published_reader", true);
+  const personUrl = new URL(page.url());
+  runner.check(
+    "person_page_keeps_the_pinned_main_locator",
+    personUrl.searchParams.get("version") === history.version
+      && personUrl.searchParams.get("para") === history.paragraph_id
+      && personUrl.searchParams.get("person_version") === null,
+    personUrl.toString(),
+  );
+  const emptyState = page.locator('[data-test="person-history-empty"]');
+  await emptyState.waitFor({ timeout: 30000 });
+  runner.check(
+    "unpublished_person_history_is_stated",
+    (await emptyState.innerText()).includes("目前没有已发布的人物生平"),
+  );
+  runner.check(
+    "unpublished_person_page_does_not_invent_a_phase",
+    (await page.locator('[data-test="entity-phase-state"][data-phase-id]').count()) === 0,
+    "a phase was selected without a published person history",
+  );
   await runner.screenshot(page, "person-page-desktop");
 
   // -- in-place return, same version + paragraph --------------------------

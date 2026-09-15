@@ -17,6 +17,7 @@ const read = (relative: string) => readFileSync(`${root}/src/${relative}`, "utf-
 const historyPage = read("pages/public/HistoryPage.tsx");
 const readingPage = read("pages/public/ReadingPage.tsx");
 const entityPage = read("pages/public/EntityPage.tsx");
+const personReader = read("components/reading/PersonHistoryReader.tsx");
 const reviewPage = read("pages/studio/StudioReviewPage.tsx");
 const reviewDetail = read("pages/studio/StudioReviewDetailPage.tsx");
 
@@ -37,29 +38,37 @@ describe("main history phase context wiring", () => {
 });
 
 describe("entity page phase and source return", () => {
-  it("reads the phase/paragraph locator and keeps a direct-entry semantic", () => {
+  it("reads the phase/paragraph locator and keeps the shared non-person phase panel", () => {
     expect(entityPage).toContain('params.get("phase")');
     expect(entityPage).toContain('params.get("para")');
     expect(entityPage).toContain("HistoryPhasePanel");
-    expect(entityPage).toContain("直接进入人物页");
+    expect(entityPage).toContain("不会替你选择某个年份或历史阶段");
   });
 
-  it("uses the full compiled PersonSummary from the source locator, not a name guess", () => {
-    expect(entityPage).toContain("useSourcePersonStateContext");
-    expect(entityPage).toContain("PersonStateDetails");
-    expect(entityPage).toContain("source.people.find");
-    expect(entityPage).toContain("不按名称或年份猜一份身份");
+  it("delegates person entities to the published person history reader, not a name guess", () => {
+    expect(entityPage).toContain("PersonHistoryReader");
+    expect(entityPage).toContain('params.get("person_version")');
+    expect(entityPage).toContain("mainLocator");
+    expect(entityPage).not.toContain("useSourcePersonStateContext");
+    expect(entityPage).not.toContain("PersonStateDetails");
+    expect(entityPage).not.toContain("source.people.find");
   });
 
-  it("renders a reader-first person surface and keeps technical records on demand", () => {
+  it("renders the person surface from the published reader in three regions", () => {
+    expect(personReader).toContain('data-test="entity-left"');
+    expect(personReader).toContain('data-test="entity-main"');
+    expect(personReader).toContain('data-test="entity-right"');
+    expect(personReader).toContain("person_history_version");
+    expect(personReader).toContain("不代表完整一生");
+  });
+
+  it("renders a reader-first entity surface and keeps technical records on demand", () => {
     expect(entityPage).toContain("presentationOverview");
     expect(entityPage).toContain("entity-reader-summary");
-    expect(entityPage).toContain("EntityExperienceTimeline");
-    expect(entityPage).toContain("entity-experience-entry");
-    expect(entityPage).toContain("entity-experience-timeline");
-    expect(entityPage).toContain("不代表完整生平");
     expect(entityPage).toContain('<details className="entity-evidence"');
     expect(entityPage).toContain("查看来源、不同说法与技术资料");
+    expect(entityPage).not.toContain("EntityExperienceTimeline");
+    expect(entityPage).not.toContain("SourcePersonPanel");
     expect(entityPage).not.toContain("<p className=\"eyebrow\">Canonical Entity</p>");
     expect(entityPage).not.toContain("canonical Events");
     expect(entityPage).not.toContain("<h2>来源表示</h2>");
