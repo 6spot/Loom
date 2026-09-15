@@ -1,6 +1,7 @@
 """PostgreSQL proof of the narrative generation/comparison/review graph."""
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import unittest
@@ -83,6 +84,13 @@ class _Provider:
                 "selection_rationale": "按具体来源依据选择完整候选。",
                 "differences": differences,
             }
+            if self.owner.conflict and stage == "facts_compare":
+                result["disagreements"] = [{
+                    "id": "disagreement_001",
+                    "conclusion_ids": ["f0"],
+                    "message": "两个完整候选对同一来源事实给出不可自动消解的解释。",
+                    "evidence": ["evidence_001"],
+                }]
         return json.dumps(result, ensure_ascii=False)
 
 
@@ -98,8 +106,9 @@ class _MultiModels:
         "prose_compare": ("comparator",),
     }
 
-    def __init__(self):
+    def __init__(self, conflict=False):
         self.calls = []
+        self.conflict = conflict
         names = {slot for slots in self.steps.values() for slot in slots}
         self.providers = {
             (step, slot): _Provider(self, slot)
@@ -185,43 +194,78 @@ class NarrativeMultiModelPostgresTests(unittest.TestCase):
             )
             control_plane.resume_job(conn, job_id=job_id)
 
-    def test_two_fact_models_and_one_prose_model_keep_their_audited_frontier(self):
+    def test_no_objection_frontier_auto_accepts_and_publishes(self):
         job, text, source_sha, chapter_model = self._history_job()
         models = _MultiModels()
         self.assertEqual(
-            "needs_review",
+            "completed",
             self._run_once(
                 job, text, source_sha, chapter_model, narrative_model=models
             )[1],
         )
         self.assertEqual(2, len([call for call in models.calls if call[0] == "facts_generate"]))
         self.assertEqual(1, len([call for call in models.calls if call[0] == "facts_compare"]))
-        self.assertFalse([call for call in models.calls if call[0] == "prose_generate"])
+        self.assertEqual(1, len([call for call in models.calls if call[0] == "prose_generate"]))
         with psycopg.connect(self.database_url) as conn:
-            row = narrative_store.read_candidate(conn, job, "facts")
-            self.assertEqual(2, row["review_payload"]["candidate_count"])
-            self.assertEqual(1, len(row["review_payload"]["comparisons"]))
+            facts = narrative_store.read_candidate(conn, job, "facts")
+            prose = narrative_store.read_candidate(conn, job, "prose")
+            self.assertEqual("accepted", facts["status"])
+            self.assertIsNone(facts["review_id"])
+            self.assertEqual("accepted", prose["status"])
+            self.assertIsNone(prose["review_id"])
+            self.assertEqual("policy_model_review", facts["acceptance_type"])
+            self.assertEqual("policy_model_review", prose["acceptance_type"])
+            self.assertEqual([], conn.execute(
+                "SELECT review_id FROM chronicle.review_items"
+                " WHERE job_id = %s AND payload->>'scope' = 'narrative'", (job,)
+            ).fetchall())
+            receipts = conn.execute(
+                "SELECT acceptance_type, policy_version, review_id, model_output_sha256s,"
+                " model_opinion_sha256s FROM chronicle.narrative_acceptances"
+                " WHERE job_id = %s ORDER BY kind", (job,)
+            ).fetchall()
+            self.assertEqual(2, len(receipts))
+            self.assertTrue(all(item[0] == "policy_model_review" for item in receipts))
+            self.assertTrue(all(item[1] == "narrative-content-acceptance-v1" for item in receipts))
+            self.assertTrue(all(item[2] is None for item in receipts))
+            self.assertTrue(all(item[3] for item in receipts))
+            self.assertTrue(receipts[0][4])
             outputs = narrative_store.read_outputs(conn, job_id=job)
             self.assertEqual(
-                {"facts_generate", "facts_compare"},
+                {"facts_generate", "facts_compare", "prose_generate"},
                 {
                     item["step"]
                     for item in outputs
                     if item["artifact_type"] == narrative_store.STEP_TYPE
                 },
             )
+            publication = narrative_store.read_publication(conn)
+            self.assertTrue(publication["paragraphs"])
+            self.assertTrue(all(item["publication_id"] for item in publication["evidence"].values()))
+            facts_acceptance, prose_acceptance = conn.execute(
+                "SELECT facts_acceptance_id, prose_acceptance_id"
+                " FROM chronicle.historical_narratives WHERE job_id = %s", (job,)
+            ).fetchone()
+            self.assertEqual(facts["acceptance_id"], str(facts_acceptance))
+            self.assertEqual(prose["acceptance_id"], str(prose_acceptance))
 
-        self._approve(job, "facts")
+    def test_source_conflict_stops_for_human_exception_then_publishes_one_bound_path(self):
+        job, text, source_sha, chapter_model = self._history_job()
+        models = _MultiModels(conflict=True)
         self.assertEqual(
             "needs_review",
             self._run_once(
                 job, text, source_sha, chapter_model, narrative_model=models
             )[1],
         )
-        self.assertEqual(1, len([call for call in models.calls if call[0] == "prose_generate"]))
-        self.assertFalse([call for call in models.calls if call[0] == "prose_compare"])
-
-        self._approve(job, "prose")
+        with psycopg.connect(self.database_url) as conn:
+            row = narrative_store.read_candidate(conn, job, "facts")
+            self.assertEqual("open", row["status"])
+            self.assertIsNone(row["acceptance_id"])
+            self.assertEqual(0, conn.execute(
+                "SELECT count(*) FROM chronicle.historical_narratives WHERE job_id = %s", (job,)
+            ).fetchone()[0])
+        self._approve(job, "facts")
         self.assertEqual(
             "completed",
             self._run_once(
@@ -230,6 +274,103 @@ class NarrativeMultiModelPostgresTests(unittest.TestCase):
         )
         self.assertEqual(2, len([call for call in models.calls if call[0] == "facts_generate"]))
         self.assertEqual(1, len([call for call in models.calls if call[0] == "prose_generate"]))
+        with psycopg.connect(self.database_url) as conn:
+            facts = narrative_store.read_candidate(conn, job, "facts")
+            prose = narrative_store.read_candidate(conn, job, "prose")
+            self.assertEqual("human", facts["acceptance_type"])
+            self.assertIsNotNone(facts["review_id"])
+            self.assertEqual("policy_model_review", prose["acceptance_type"])
+            self.assertEqual(2, conn.execute(
+                "SELECT count(*) FROM chronicle.narrative_acceptances WHERE job_id = %s", (job,)
+            ).fetchone()[0])
+
+    def test_postgres_publication_trigger_rejects_missing_or_wrong_acceptance(self):
+        job, text, source_sha, chapter_model = self._history_job()
+        models = _MultiModels()
+        self.assertEqual(
+            "completed",
+            self._run_once(
+                job, text, source_sha, chapter_model, narrative_model=models
+            )[1],
+        )
+        with psycopg.connect(self.database_url) as conn:
+            row = conn.execute(
+                "SELECT catalog_sha, facts_review_id, prose_review_id, facts_acceptance_id,"
+                " prose_acceptance_id, facts_sha, prose_sha, payload"
+                " FROM chronicle.historical_narratives WHERE job_id = %s", (job,)
+            ).fetchone()
+            catalog, facts_review, prose_review, facts_acceptance, prose_acceptance, facts_sha, prose_sha, payload = row
+            args = ("f" * 64, job, catalog, facts_review, prose_review,
+                    facts_acceptance, prose_acceptance, facts_sha, prose_sha, payload)
+            with self.assertRaises(psycopg.Error):
+                with conn.transaction():
+                    conn.execute(
+                        "INSERT INTO chronicle.historical_narratives"
+                        " (version_sha, job_id, catalog_sha, facts_review_id, prose_review_id,"
+                        " facts_acceptance_id, prose_acceptance_id, facts_sha, prose_sha, payload)"
+                        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (*args[:3], facts_review, prose_review, None, None, facts_sha, prose_sha, payload),
+                    )
+            with self.assertRaises(psycopg.Error):
+                with conn.transaction():
+                    conn.execute(
+                        "INSERT INTO chronicle.historical_narratives"
+                        " (version_sha, job_id, catalog_sha, facts_review_id, prose_review_id,"
+                        " facts_acceptance_id, prose_acceptance_id, facts_sha, prose_sha, payload)"
+                        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        ("e" * 64, job, catalog, facts_review, prose_review,
+                         facts_acceptance, prose_acceptance, "0" * 64, prose_sha, payload),
+                    )
+
+    def test_human_revision_is_a_new_frontier_and_invalidates_old_acceptance(self):
+        job, text, source_sha, chapter_model = self._history_job()
+        models = _MultiModels(conflict=True)
+        self.assertEqual(
+            "needs_review",
+            self._run_once(
+                job, text, source_sha, chapter_model, narrative_model=models
+            )[1],
+        )
+        self._approve(job, "facts")
+        with psycopg.connect(self.database_url) as conn:
+            old = narrative_store.read_candidate(conn, job, "facts")
+            old_acceptance_id = old["acceptance_id"]
+            edited = copy.deepcopy(old["candidate"])
+            edited["title"] = "人工修订后的综合叙事"
+            revised = narrative_store.revise_candidate(
+                conn, job_id=job, kind="facts", candidate_sha=old["candidate_sha"],
+                content=edited, rationale="人工编辑必须重新核对完整稿。",
+            )
+            self.assertEqual("open", revised["status"])
+            self.assertEqual(1, revised["revision_no"])
+            self.assertEqual(old["candidate_sha"], revised["parent_candidate_sha"])
+            self.assertNotEqual(old["candidate_sha"], revised["candidate_sha"])
+            self.assertNotEqual(old_acceptance_id, revised["acceptance_id"])
+            self.assertIsNone(revised["decision"])
+            self.assertEqual("needs_review", control_plane.get_job_detail(conn, job_id=job)["status"])
+            self.assertEqual("resolved", conn.execute(
+                "SELECT status FROM chronicle.review_items WHERE review_id = %s",
+                (old["review_id"],),
+            ).fetchone()[0])
+        self._approve(job, "facts")
+        self.assertEqual(
+            "completed",
+            self._run_once(
+                job, text, source_sha, chapter_model, narrative_model=models
+            )[1],
+        )
+        with psycopg.connect(self.database_url) as conn:
+            facts = narrative_store.read_candidate(conn, job, "facts")
+            prose = narrative_store.read_candidate(conn, job, "prose")
+            self.assertEqual("human", facts["acceptance_type"])
+            self.assertNotEqual(old_acceptance_id, facts["acceptance_id"])
+            self.assertEqual(facts["candidate_sha"], prose["upstream_candidate_sha"])
+            published_facts, published_prose = conn.execute(
+                "SELECT facts_acceptance_id, prose_acceptance_id"
+                " FROM chronicle.historical_narratives WHERE job_id = %s", (job,)
+            ).fetchone()
+            self.assertEqual(facts["acceptance_id"], str(published_facts))
+            self.assertEqual(prose["acceptance_id"], str(published_prose))
 
 
 if __name__ == "__main__":

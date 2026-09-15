@@ -1,4 +1,4 @@
-"""Two review gates inside the existing present stage; no new worker queue."""
+"""Auditable acceptance inside the existing present stage; no new worker queue."""
 from __future__ import annotations
 
 import json
@@ -233,13 +233,12 @@ def _choose_multi(
     """Compare a complete fixed candidate set and retain every result."""
     if not generated:
         raise PipelineFailure(f"{kind}_generate returned no model candidates")
-    if any(record.get("status") == "failed" for record in generated):
+    complete_generated = [
+        record for record in generated if record.get("status") == "completed"
+    ]
+    if not complete_generated:
         raise PipelineFailure(
-            f"{kind}_generate model attempt failed; successful sibling results remain saved"
-        )
-    if any(record.get("status") != "completed" for record in generated):
-        raise PipelineFailure(
-            f"{kind}_generate output contract failed; saved diagnostics are available"
+            f"{kind}_generate has no complete candidate; saved diagnostics are available"
         )
     candidate_set = [
         {
@@ -247,10 +246,20 @@ def _choose_multi(
             "model": record.get("model"),
             "content": record.get("parsed"),
         }
-        for record in generated
+        for record in complete_generated
     ]
+    generation_issues = []
+    if len(complete_generated) != len(generated):
+        generation_issues.append({
+            "id": "generation_incomplete",
+            "type": "model_review_incomplete",
+            "target": f"{kind}_generate",
+            "message": "部分配置模型没有完成同一候选指纹的完整结果，不能自动通过。",
+            "evidence": [record.get("output_sha256") for record in generated if record.get("output_sha256")],
+            "represented": False,
+        })
     if len(candidate_set) == 1:
-        return generated[0]["parsed"], [], [], generated[0].get("model")
+        return complete_generated[0]["parsed"], [], generation_issues, complete_generated[0].get("model")
     data = {
         "context": context,
         "kind": kind,
@@ -261,10 +270,6 @@ def _choose_multi(
         data["facts"] = facts
     comparison_step = f"{kind}_compare"
     comparisons = run_step(comparison_step, data, 0)
-    if any(record.get("status") == "failed" for record in comparisons):
-        raise PipelineFailure(
-            f"{comparison_step} model attempt failed; comparison is not agreement"
-        )
     completed = [record for record in comparisons if record.get("status") == "completed"]
     selections = {
         record.get("parsed", {}).get("selected_sha256")
@@ -283,8 +288,8 @@ def _choose_multi(
         for item in comparisons
     )
     selected_sha = next(iter(selections)) if valid else candidate_set[0]["candidate_sha256"]
-    selected = next(item for item in generated if item["output_sha256"] == selected_sha)
-    issues = []
+    selected = next(item for item in complete_generated if item["output_sha256"] == selected_sha)
+    issues = generation_issues
     if not valid or disputed:
         issues.append(_multi_compare_issue(kind, comparisons, selections=selections))
     return selected["parsed"], comparisons, issues, selected.get("model")
@@ -437,7 +442,7 @@ def _execute_multi(
 
     with psycopg.connect(database_url) as conn:
         prose_row = store.read_candidate(conn, job_id, "prose")
-    if prose_row is None:
+    if prose_row is None or prose_row.get("upstream_candidate_sha") != facts_row["candidate_sha"]:
         generated = run_step(
             "prose_generate",
             {"context": context, "facts": approved_facts},
@@ -469,6 +474,7 @@ def _execute_multi(
                 candidate_records=generated,
                 comparison_records=comparisons,
                 issues=issues,
+                upstream_candidate_sha=facts_row["candidate_sha"],
             )
     if prose_row["status"] == "open":
         return "needs_review"

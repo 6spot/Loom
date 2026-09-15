@@ -14,9 +14,11 @@
 沿用现有 IngestionJob、租约、ReviewItem 和 `present` 阶段。章节发布完成后，
 操作员在 Studio 导入页显式选择完整已发布章节，固定当前 catalog 后创建只执行
 `present` 的普通 job；其他阶段标为 skipped。不在每次章节导入后自动重写正文，
-也不默选全库章节。配置综合模型后，该 job 先提出事实核对稿。
-审核通过后再组织叙事，叙事经过第二次审核才发布。两个审核均属于现有 Studio
-队列，状态不由 Markdown 或 Issue 是否关闭决定。
+也不默选全库章节。配置综合模型后，该 job 先提出事实核对稿。事实通过结构、
+语义、依据和模型核对后，若没有异议则写入 `policy_model_review` acceptance
+receipt 并自动组织正文；来源矛盾、模型结果缺失或任何超范围情形才进入 Studio
+异常审核。人工审核仍使用现有 ReviewItem，状态不由 Markdown 或 Issue 是否关闭
+决定。
 
 ### 逐步多模型执行
 
@@ -38,9 +40,11 @@ Studio 可通过 `GET /api/v1/studio/jobs/history/model-options` 查看不含凭
 `conclusion_ids`/`evidence` 引用。来源的同书两传、转引、独立或未知关系，以及
 不同阶段的身份状态，必须按冻结 context 解释；模型数量、confidence 或简单多数
 不能决定史实。比较无法给出可解释唯一选择时保留全部候选并标记待人工处理，事实
-审核仍是 prose 的前置闸门。prose 只接收已批准 facts；漏阶段、增加未审核结论或
-不满足来源约束的完整结果留在审计记录中并拒绝进入下一步。现有两次 ReviewItem
-审核、发布锁和 atomic publish 不变，T06 之前没有自动发布旁路。
+审核仍是 prose 的前置闸门。没有异议且所有模型结果完整时，程序记录
+`policy_model_review` receipt；有异议时完整上下文、候选、原始模型结果和待处理
+问题进入人工异常审核。prose 只接收已接受 facts；漏阶段、增加未审核结论或
+不满足来源约束的完整结果留在审计记录中并拒绝进入下一步。现有发布锁和 atomic
+publish 统一收束到同一个 acceptance trigger；自动路径不伪造 human ReviewItem。
 
 核对稿 `chronicle.source-corroboration/0.1` 包含：
 
@@ -124,7 +128,7 @@ R3 的专门时态算法可生产
 历史公开 API 可提供已发布内容的简体字形展示投影；原始发布记录、原文、
 引文、原文坐标及其摘要始终保持原样，字形转换不增加史实或身份判断。
 
-每个发布版本固定：输入 catalog、完整来源版本、两次审核决定、结论、正文、
+每个发布版本固定：输入 catalog、完整来源版本、facts/prose acceptance receipt、结论、正文、
 时间分组、事件入口和人物地点资料。新综合位置是 `{version, paragraph_id}`，
 URL 为 `/history/<sha256>/<hp_id>`，复用现有系统 ID，不生成标题别名。
 `/history/<sha256>` 从该版本首段进入；旧查询参数地址校验后替换为新路径。
@@ -148,17 +152,20 @@ URL 为 `/history/<sha256>/<hp_id>`，复用现有系统 ID，不生成标题别
 普通 retry 会续用同一冻结 context 下最近一次失败稿及诊断；不同 context 不复用旧稿。
 每次请求 hash、context hash、模型、原响应和校验错误写入原 `ingestion_outputs`。
 每次生成保存独立递增序号；重复的模型响应也保留为不同尝试，不能因内容 hash 去重而续用错稿。
-两个审核暂停会各占一次 claim，因此显式综合 job 的 `max_attempts=5`：两次审核
-续跑加原有三次执行机会。运输重试和内容纠正不创造另一条生产队列。
+异常审核暂停会占用 claim，因此显式综合 job 的 `max_attempts=5` 可覆盖两次
+人工异常续跑和原有三次执行机会。无异议路径不额外消耗审核 claim；运输重试和
+内容纠正不创造另一条生产队列。
 
-事实批准请求必须精确列出所有最终结论的 `reviewed_conclusion_ids`。审核可以
-修改、添加、拆分或移除候选结论，重新验证引用与阶段后保存最终内容。批准时
-绑定原 candidate SHA；重复、迟到、已取消或版本不符的决定失败。驳回会记录
+人工事实批准请求必须精确列出所有最终结论的 `reviewed_conclusion_ids`。人工编辑
+必须创建新的 candidate revision，重新校验受影响内容并重新审核；旧 acceptance
+不会授权新稿。批准时绑定当前 candidate SHA；重复、迟到、已取消或版本不符的决定失败。驳回会记录
 决定并取消本次 job；取消会把未完成的审核标为 dismissed，保留候选及审计。
 
 发布锁后、编译后、写入后和最外层 checkpoint 提交前再次检查未到期租约。
-任一失败必须连同发布记录和完成状态一起回滚。数据库 trigger 要求同一 job
-两次 approve 的内容 hash 与发布对应，候选和发布表拒绝更新／删除。
+任一失败必须连同发布记录和完成状态一起回滚。数据库 trigger 要求同一 job 的
+facts/prose acceptance 均存在、对应当前候选和最终内容 hash；human receipt 必须
+绑定已解决的 approve ReviewItem，policy/model receipt 必须绑定完成的模型输出。
+候选、revision、acceptance 和发布表拒绝更新／删除。
 
 首版限定一次至多 16 个完整章节、64 个阶段、256 条结论、256 个叙事段落；
 单段至多 8192 个 Unicode code point，正文产物至多 2 MiB。超限返回明确错误，
@@ -175,7 +182,7 @@ URL 为 `/history/<sha256>/<hp_id>`，复用现有系统 ID，不生成标题别
 | `GET /api/v1/studio/jobs/history/sources?limit&offset` | 当前 catalog 下最新来源 revision 的完整已发布章节 |
 | `POST /api/v1/studio/jobs/history` | `{catalog_sha, publication_ids[, model_selection]}` 显式创建综合任务 |
 | `GET /api/v1/studio/jobs/history/model-options` | 当前综合任务可用的无凭据模型槽位 |
-| 既有 Studio review decision / resume / retry / cancel | 两次审核、恢复与取消，共用鉴权和 control plane |
+| 既有 Studio review decision / resume / retry / cancel | 异常人工审核、恢复与取消，共用鉴权和 control plane；自动结果不伪造 ReviewItem |
 | `GET /api/v1/public/history[?version]` | 已发布版本的分组、精选入口与段数，未发布时 publication 为空 |
 | `GET /api/v1/public/history/paragraphs?version&at\|start&limit` | 固定版本定位／分页正文 |
 | `GET /api/v1/public/history/conclusions/{id}?version` | 结论、明确性及固定原文引用 |

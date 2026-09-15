@@ -200,7 +200,10 @@ The default uses `CHRONICLE_CHAPTER_MODEL` for translation, extraction, linking
 and repair. `CHRONICLE_CHAPTER_REVIEW_MODELS` is an optional comma-separated
 list for review and comparison; omitted means the primary model. There is no
 comparison request when a step has only one candidate. Every configured
-reviewer must finish and approve the exact version before AI acceptance.
+reviewer result must finish for the exact candidate before the policy can
+accept it. A complete, source-grounded, no-objection frontier records an
+immutable `policy_model_review` receipt; missing results, objections and
+contradictions remain human exceptions.
 
 For different models, endpoints or budgets at any of the six steps, copy
 [`worker/config/chapter-pipeline.example.json`](../worker/config/chapter-pipeline.example.json),
@@ -322,14 +325,15 @@ narrative job. The history model-options endpoint lists the credential-free
 profiles; a job may submit the returned `model_selection` to choose its slots.
 It is an ordinary IngestionJob whose other stages are skipped. Its `present`
 stage runs `facts_generate` for each selected model, runs `facts_compare` only
-when there are multiple candidates, then creates a facts ReviewItem containing
-every complete candidate and comparison. Review the questions, source
-relationships, phase boundaries and every conclusion, then approve and
-continue. The worker creates prose using the accepted facts and applies the
-same candidate/comparison contract before the second review. Read and edit the
-prose and selected navigation entries in that review before continuing to
-publication. The UI keeps save/next actions reachable on long pages and allows
-conclusion splitting and phase/evidence editing.
+when there are multiple candidates, then evaluates the complete facts frontier.
+A no-objection frontier receives a `policy_model_review` receipt; source
+contradictions, missing results and other exceptions create a facts ReviewItem
+containing every complete candidate, comparison and pending issue. The worker
+creates prose using the accepted facts and applies the same candidate/comparison
+contract. Prose follows the same receipt-or-exception rule. A human edit always
+creates a new candidate revision, invalidates the old acceptance and requires
+fresh validation/review. The UI keeps save/next actions reachable on long pages
+and allows conclusion splitting and phase/evidence editing.
 
 The worker keeps model calls outside transactions and renews its lease on a
 separate short connection. Each selected model node permits up to three
@@ -341,8 +345,8 @@ completion commit together under the existing publication lock and an
 expiry-aware lease check. A rejected draft cancels its job; cancellation
 dismisses open narrative reviews without deleting their audit records.
 
-The five-claim budget includes two normal review resumptions plus three
-execution opportunities. After transient failures use the existing retry
+The five-claim budget includes up to two normal exception-review resumptions
+plus three execution opportunities. After transient failures use the existing retry
 operation. Changed source catalogs require a fresh selection and fresh review,
 not automatic adoption of old decisions. The complete application contract,
 capacity and versioned APIs are in [source-corroboration.md](source-corroboration.md).
@@ -540,8 +544,8 @@ reuses the identical manifest and assessment without a model call; a
 fault while writing the manifest leaves zero public rows and a clean
 retry publishes the complete set. The same file also drives the full
 0.3 → explicit composite job chain: source publication alone exposes no
-history; the facts and prose review gates each block publication; after
-both approvals the published history text, reviewed states and conclusion
+history; the facts and prose acceptance receipts each block publication; after
+both policy/human decisions are valid the published history text, reviewed states and conclusion
 evidence read back on one fixed `publication_version`, with the reviewed
 source states present in the frozen composite context. Four independent
 negative cases prove the publish boundary: mutating the persisted
