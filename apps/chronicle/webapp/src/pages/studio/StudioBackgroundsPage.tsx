@@ -426,12 +426,13 @@ export default function StudioBackgroundsPage() {
     },
   });
   const disableMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedBinding) throw new StudioApiError(400, "missing_binding", "请选择一个已保存的背景关联。");
-      return disableBackgroundBinding(authHeader, selectedBinding.binding_id, {
+    mutationFn: async (binding?: BackgroundBinding) => {
+      const target = binding ?? selectedBinding;
+      if (!target) throw new StudioApiError(400, "missing_binding", "请选择一个已保存的背景关联。");
+      return disableBackgroundBinding(authHeader, target.binding_id, {
         actor: auth.username,
-        expected_revision: selectedBinding.revision,
-        expected_etag: selectedBinding.etag,
+        expected_revision: target.revision,
+        expected_etag: target.etag,
       });
     },
     onSuccess: async (binding) => {
@@ -622,7 +623,7 @@ export default function StudioBackgroundsPage() {
               <span><strong>{bindingRangeLabel(binding, history.data ?? null)}</strong><small>{binding.active ? "读者可读 · " : "已停用 · "}{binding.asset.filename} · v{binding.asset_version} · {binding.edition_version === historyVersion ? "当前 edition" : "其他 edition"}</small></span>
               <span className="studio-status" data-status={binding.active ? "completed" : "failed"}>{binding.active ? "已展示" : "已停用"}</span>
             </button>
-            <div className="studio-background-binding-actions">{binding.active ? <Button variant="outline" size="sm" onClick={() => { chooseBinding(binding); disableMutation.mutate(); }}>停用</Button> : <Button variant="outline" size="sm" onClick={() => chooseBinding(binding)}>重新编辑</Button>}<details className="studio-details"><summary>详情</summary><dl className="studio-facts"><div><dt>范围</dt><dd>第 {binding.start_ordinal + 1}–{binding.end_ordinal + 1} 段</dd></div><div><dt>版本</dt><dd>{binding.revision} · {binding.etag}</dd></div><div><dt>保存时间</dt><dd>{formatTime(binding.updated_at)}</dd></div><div><dt>binding ID</dt><dd className="studio-mono">{binding.binding_id}</dd></div></dl></details></div>
+            <div className="studio-background-binding-actions">{binding.active ? <Button variant="outline" size="sm" onClick={() => { chooseBinding(binding); disableMutation.mutate(binding); }}>停用</Button> : <Button variant="outline" size="sm" onClick={() => chooseBinding(binding)}>重新编辑</Button>}<details className="studio-details"><summary>详情</summary><dl className="studio-facts"><div><dt>范围</dt><dd>第 {binding.start_ordinal + 1}–{binding.end_ordinal + 1} 段</dd></div><div><dt>版本</dt><dd>{binding.revision} · {binding.etag}</dd></div><div><dt>保存时间</dt><dd>{formatTime(binding.updated_at)}</dd></div><div><dt>binding ID</dt><dd className="studio-mono">{binding.binding_id}</dd></div></dl></details></div>
           </article>)}
         </div>
         {bindings.data?.has_more ? <p className="studio-muted">只显示最近 100 条关联；可按正文范围缩小后端查询。</p> : null}
