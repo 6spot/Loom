@@ -2,6 +2,8 @@
 /* Keep the last loaded paragraph alignable with the reading reference line,
  * including while the next page is in flight and at the true end of history. */
 .history-body { min-width: 0; overflow-anchor: none; padding-bottom: 70dvh; }
+.history-reading .rcw-window { max-width: none; margin: 0; padding: 0; }
+.history-reading .rcw-units { gap: 0; }
 .history-paragraph { margin: 0 0 1.55rem; font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif; font-size: 1.15rem; line-height: 2.1; letter-spacing: .025em; }
 .history-paragraph:focus { outline: none; }
 .history-paragraph:focus-visible { outline: 1px solid var(--public-accent); outline-offset: .5rem; }

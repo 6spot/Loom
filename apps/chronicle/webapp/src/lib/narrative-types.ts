@@ -28,14 +28,32 @@ export interface NarrativeFacts {
   phases: NarrativePhase[]; conclusions: NarrativeFact[];
   source_relations: Array<{ left: string; right: string; relation: string; reason: string }>;
 }
+
+/** Shared shape for prose paragraphs used by the review/editor surface. */
+export interface NarrativeProseSegment {
+  text: string; conclusion_ids: string[]; event_id: string | null;
+  event_relation: string | null; event_text: string | null;
+}
+export interface NarrativeProseParagraph {
+  id: string; phase_id: string; segments: NarrativeProseSegment[];
+  entities: Array<{ entity_id: string; importance: "primary" | "other" }>;
+}
+export interface NarrativeProseEntryPoint {
+  label: string; kind: "event" | "period"; paragraph_id: string;
+  event_id: string | null; reason: string;
+}
+export interface NarrativeProseNavigationItem {
+  paragraph_id: string; label: string; reason: string;
+}
+export interface NarrativeProseNavigationSection {
+  label: string | null; first_paragraph_id: string; last_paragraph_id: string;
+  items: NarrativeProseNavigationItem[];
+}
 export interface NarrativeProse {
   schema: "chronicle.historical-narrative"; version: "0.1";
-  paragraphs: Array<{ id: string; phase_id: string;
-    segments: Array<{ text: string; conclusion_ids: string[]; event_id: string | null; event_relation: string | null; event_text: string | null }>;
-    entities: Array<{ entity_id: string; importance: "primary" | "other" }> }>;
-  entry_points: Array<{ label: string; kind: "event" | "period"; paragraph_id: string; event_id: string | null; reason: string }>;
-  navigation?: Array<{ label: string | null; first_paragraph_id: string; last_paragraph_id: string;
-    items: Array<{ paragraph_id: string; label: string; reason: string }> }>;
+  paragraphs: NarrativeProseParagraph[];
+  entry_points: NarrativeProseEntryPoint[];
+  navigation?: NarrativeProseNavigationSection[];
 }
 export type NarrativeContent = NarrativeFacts | NarrativeProse;
 export interface NarrativeReviewData {

@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
   type FocusEvent as ReactFocusEvent,
+  type ReactNode,
 } from "react";
 import type { ChapterSourceClient } from "../ChapterSourceReference";
 import {
@@ -47,6 +48,17 @@ export interface ReadingWindowError {
   readonly unitId?: string | null;
 }
 
+export interface ReadingUnitRenderContext {
+  readonly unit: ReadingUnit;
+  readonly active: boolean;
+  readonly pinned: boolean;
+  readonly chapterTitle: string | null;
+  readonly showChapterHeading: boolean;
+  readonly showSources: boolean;
+  readonly expandedAnchorId: string | null;
+  readonly onToggleSource: (unitId: string, anchorId: string | null) => void;
+}
+
 export interface ReadingWindowProps {
   /** 已加载的正文页（顺序不限）；窗口负责去重与排序。 */
   readonly pages: readonly StreamPage[];
@@ -63,6 +75,8 @@ export interface ReadingWindowProps {
   readonly sourceClient?: ChapterSourceClient;
   readonly renderEvent?: ReadingEventRenderer;
   readonly renderSource?: ReadingSourceRenderer;
+  /** Optional stream-specific unit renderer; the window still owns mounting and recycling. */
+  readonly renderUnit?: (context: ReadingUnitRenderContext) => ReactNode;
   /** 目标 unit 的 DOM 装载完成（供 controller locate/聚焦）。 */
   readonly onUnitReady?: (unitId: string, element: HTMLElement) => void;
   /** 测得目标 unit 高度（供 controller 恢复滚动位置）。 */
@@ -82,6 +96,7 @@ interface MountedUnitProps {
   sourceClient?: ChapterSourceClient;
   renderEvent?: ReadingEventRenderer;
   renderSource?: ReadingSourceRenderer;
+  renderUnit?: (context: ReadingUnitRenderContext) => ReactNode;
   onToggleSource: (unitId: string, anchorId: string | null) => void;
   onReady: (unitId: string, element: HTMLElement) => void;
   onMeasured: (unitId: string, height: number) => void;
@@ -98,6 +113,7 @@ function MountedUnit({
   sourceClient,
   renderEvent,
   renderSource,
+  renderUnit,
   onToggleSource,
   onReady,
   onMeasured,
@@ -125,14 +141,23 @@ function MountedUnit({
       ref={ref}
       className="rcw-unit"
       data-test="reading-unit"
-      data-unit-id={unit.unit_id}
-      data-ordinal={unit.ordinal}
+      data-unit-id={renderUnit ? undefined : unit.unit_id}
+      data-ordinal={renderUnit ? undefined : unit.ordinal}
       data-chapter-id={unit.chapter_id}
       data-text={readingUnitText(unit)}
       data-active={active ? "true" : "false"}
       data-pinned={pinned ? "true" : "false"}
     >
-      <ReadingContent
+      {renderUnit ? renderUnit({
+        unit,
+        active,
+        pinned,
+        chapterTitle,
+        showChapterHeading,
+        showSources,
+        expandedAnchorId,
+        onToggleSource,
+      }) : <ReadingContent
         unit={unit}
         chapterTitle={chapterTitle}
         showChapterHeading={showChapterHeading}
@@ -142,7 +167,7 @@ function MountedUnit({
         renderEvent={renderEvent}
         renderSource={renderSource}
         onToggleSource={onToggleSource}
-      />
+      />}
     </article>
   );
 }
@@ -166,6 +191,7 @@ export default function ReadingWindow({
   sourceClient,
   renderEvent,
   renderSource,
+  renderUnit,
   onUnitReady,
   onUnitMeasured,
   onPinnedUnitIdsChange,
@@ -274,7 +300,8 @@ export default function ReadingWindow({
         for (const element of mounted ?? []) {
           for (let index = 0; index < selection.rangeCount; index += 1) {
             if (selection.getRangeAt(index).intersectsNode(element)) {
-              const unitId = element.getAttribute("data-unit-id");
+              const unitId = element.getAttribute("data-unit-id") ??
+                element.querySelector<HTMLElement>("[data-unit-id]")?.getAttribute("data-unit-id");
               if (unitId) next.add(unitId);
               break;
             }
@@ -296,7 +323,8 @@ export default function ReadingWindow({
   const handleFocus = (event: ReactFocusEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement | null;
     const unitElement = target?.closest?.('[data-test="reading-unit"]') ?? null;
-    setFocusedUnitId(unitElement?.getAttribute("data-unit-id") ?? null);
+    setFocusedUnitId(unitElement?.getAttribute("data-unit-id") ??
+      unitElement?.querySelector<HTMLElement>("[data-unit-id]")?.getAttribute("data-unit-id") ?? null);
   };
 
   const handleBlur = (event: ReactFocusEvent<HTMLDivElement>) => {
@@ -410,6 +438,7 @@ export default function ReadingWindow({
               sourceClient={sourceClient}
               renderEvent={renderEvent}
               renderSource={renderSource}
+              renderUnit={renderUnit}
               onToggleSource={handleToggleSource}
               onReady={handleReady}
               onMeasured={handleMeasured}

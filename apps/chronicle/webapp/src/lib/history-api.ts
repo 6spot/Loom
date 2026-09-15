@@ -39,6 +39,56 @@ export interface HistoryPage {
   publication_version: string; paragraphs: HistoryParagraph[]; start: number; total: number;
   previous_start: number | null; next_start: number | null;
 }
+
+/**
+ * The public history API pages a global edition, not an individual fragment.
+ * Keep the page-selection rule beside the API DTO so the controller and the
+ * window cannot accidentally fall back to the first/last page of a different
+ * cached range after a deep link.
+ */
+export function historyAdjacentPages(
+  pages: readonly HistoryPage[] | null | undefined,
+  activeParagraphId?: string | null,
+): { readonly previous: HistoryPage | null; readonly next: HistoryPage | null } {
+  const ranges = (pages ?? [])
+    .filter((page) => page?.paragraphs?.length)
+    .map((page) => ({
+      page,
+      first: Math.min(...page.paragraphs.map((paragraph) => paragraph.ordinal)),
+      last: Math.max(...page.paragraphs.map((paragraph) => paragraph.ordinal)),
+      active: page.paragraphs.some((paragraph) => paragraph.id === activeParagraphId),
+    }))
+    .sort((left, right) => left.first - right.first || left.last - right.last);
+
+  const rangesByContinuity: Array<{
+    first: number;
+    last: number;
+    previous: HistoryPage;
+    next: HistoryPage;
+    active: boolean;
+  }> = [];
+  for (const range of ranges) {
+    const current = rangesByContinuity[rangesByContinuity.length - 1];
+    if (!current || range.first > current.last + 1) {
+      rangesByContinuity.push({
+        first: range.first,
+        last: range.last,
+        previous: range.page,
+        next: range.page,
+        active: range.active,
+      });
+      continue;
+    }
+    current.active ||= range.active;
+    if (range.last > current.last) {
+      current.last = range.last;
+      current.next = range.page;
+    }
+  }
+
+  const current = rangesByContinuity.find((range) => range.active) ?? rangesByContinuity[0];
+  return { previous: current?.previous ?? null, next: current?.next ?? null };
+}
 export interface HistoryPhaseData {
   publication: HistoryPublication;
   page: HistoryPage;
@@ -164,7 +214,7 @@ export async function loadHistory(version?: string | null, signal?: AbortSignal)
   const response = await fetchJSON<{ publication: HistoryPublication | null }>(version === undefined || version === null ? API : `${API}?version=${encodeURIComponent(version)}`, { signal });
   const pub = response.publication;
   if (pub && (!SHA.test(pub.version) || (version != null && pub.version !== version) || !PARAGRAPH.test(pub.first_paragraph_id)
-    || !Number.isInteger(pub.paragraph_count) || pub.paragraph_count < 1 || pub.paragraph_count > 256
+    || !Number.isSafeInteger(pub.paragraph_count) || pub.paragraph_count < 1
     || !Array.isArray(pub.entry_points) || pub.entry_points.length > 12 || !validNavigation(pub))) throw new Error("历史版本或时间轴数据不完整，请刷新后重试。");
   return pub;
 }
@@ -173,7 +223,10 @@ export async function loadHistoryPage(version: string, query: { at?: string; sta
   if (query.at !== undefined) params.set("at", query.at);
   if (query.start !== undefined) params.set("start", String(query.start));
   const page = await fetchJSON<HistoryPage>(`${API}/paragraphs?${params}`, { signal });
-  if (page.publication_version !== version || page.total > 256 || page.paragraphs.length > 50 || !page.paragraphs.every((p, n) => PARAGRAPH.test(p.id) && p.ordinal === page.start + n)) throw new Error("正文与当前历史版本不一致。");
+  if (page.publication_version !== version || !Number.isSafeInteger(page.total) || page.total < 1
+    || !Number.isSafeInteger(page.start) || page.start < 0 || page.start > page.total
+    || !Array.isArray(page.paragraphs) || page.paragraphs.length > 50 || page.start + page.paragraphs.length > page.total
+    || !page.paragraphs.every((p, n) => PARAGRAPH.test(p.id) && p.ordinal === page.start + n)) throw new Error("正文与当前历史版本不一致。");
   return page;
 }
 

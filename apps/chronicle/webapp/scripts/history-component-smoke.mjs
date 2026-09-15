@@ -9,17 +9,20 @@ const base = args[args.indexOf("--base-url") + 1];
 if (!base || !args.includes("--base-url")) throw new Error("--base-url is required");
 const version = "a".repeat(64);
 const catalog = "c".repeat(64);
+const TOTAL_PARAGRAPHS = 320;
+const GROUP_SIZE = 40;
+const GROUP_COUNT = Math.ceil(TOTAL_PARAGRAPHS / GROUP_SIZE);
 const id = (n) => `hp_${n.toString(16).padStart(24, "0")}`;
-const groups = Array.from({ length: 7 }, (_, i) => ({ id: `g${i}`, year: i === 3 ? null : 200 + i,
+const groups = Array.from({ length: GROUP_COUNT }, (_, i) => ({ id: `g${i}`, year: i === 3 ? null : 200 + i,
   period: i === 1 ? "测试历法的长时段（窄屏换行）" : null,
-  label: `测试阶段 ${i}`, first_paragraph_id: id(i * 10), count: Math.min(10, 64 - i * 10) }));
+  label: `测试阶段 ${i}`, first_paragraph_id: id(i * GROUP_SIZE), count: Math.min(GROUP_SIZE, TOTAL_PARAGRAPHS - i * GROUP_SIZE) }));
 const entries = [
   { label: "汉末局势", kind: "period", ordinal: 0, event_id: null },
   { label: "赤壁之战", kind: "event", ordinal: 20, event_id: "event-1" },
   { label: "荆州局势", kind: "event", ordinal: 45, event_id: "event-2" },
 ].map((entry) => ({ ...entry, paragraph_id: id(entry.ordinal), year: 200 + Math.floor(entry.ordinal / 10), period: null, excerpt: "合成浏览器测试入口，不是历史验收材料。" }));
-const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i, phase_id: `phase${i}`, group_id: `g${Math.floor(i / 10)}`,
-  segments: [{ text: i === 0 ? "很短的开篇，定位后仍应停在本段。" : `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 ? 1 : 10)}`,
+const paragraphs = Array.from({ length: TOTAL_PARAGRAPHS }, (_, i) => ({ id: id(i), ordinal: i, phase_id: `phase${i}`, group_id: `g${Math.floor(i / GROUP_SIZE)}`,
+  segments: [{ text: i === 0 ? "很短的开篇，定位后仍应停在本段。" : `浏览器测试第 ${i + 1} 段。${i === 20 || i === 5 ? "赤壁之战。" : ""}${"这是一段用于验证滚动和阅读位置的合成正文，测试页面应当保持连续。".repeat(i === 19 || i === 63 || i === TOTAL_PARAGRAPHS - 1 ? 1 : 10)}`,
     conclusion_ids: ["fact-1"], certainty: i === 21 ? "uncertain" : "clear", event_id: i === 20 || i === 5 ? "event-1" : null,
     event_relation: i === 20 ? "current" : i === 5 ? "retrospective" : null, event_text: i === 20 || i === 5 ? "赤壁之战" : null }],
   entities: [{ id: "person-1", name: "曹操", kind: "person", importance: "primary", states: [{ id: "state-1", label: "官职", value: i < 20 ? "测试前期官职" : "测试后期官职", certainty: "clear", reason: "仅用于交互测试" }] },
@@ -28,8 +31,8 @@ const paragraphs = Array.from({ length: 64 }, (_, i) => ({ id: id(i), ordinal: i
 const publication = { version, catalog_sha: catalog, title: "合成阅读测试", paragraph_count: paragraphs.length,
   first_paragraph_id: id(0), groups, entry_points: entries,
   navigation: groups.map((group, n) => ({ id: group.first_paragraph_id, label: group.year === null ? null : `${group.year} 年`, period: null,
-    start: n * 10, end: Math.min(63, n * 10 + 9),
-    items: entries.filter((entry) => entry.ordinal >= n * 10 && entry.ordinal < (n + 1) * 10).map((entry) => ({ ...entry, importance: "major" })),
+    start: n * GROUP_SIZE, end: Math.min(TOTAL_PARAGRAPHS - 1, n * GROUP_SIZE + GROUP_SIZE - 1),
+    items: entries.filter((entry) => entry.ordinal >= n * GROUP_SIZE && entry.ordinal < (n + 1) * GROUP_SIZE).map((entry) => ({ ...entry, importance: "major" })),
   })),
 };
 const browser = await chromium.launch({ headless: true });
@@ -38,6 +41,7 @@ const page = await context.newPage();
 const errors = [];
 page.on("pageerror", (error) => errors.push(error.message));
 let delayTarget = null;
+let failStart = null;
 await page.route("**/api/v1/public/**", async (route) => {
   const url = new URL(route.request().url());
   let body = {};
@@ -50,6 +54,11 @@ await page.route("**/api/v1/public/**", async (route) => {
     const start = at ? Math.floor(paragraphs.findIndex((p) => p.id === at) / limit) * limit : Number(url.searchParams.get("start") || 0);
     body = { publication_version: version, paragraphs: paragraphs.slice(start, start + limit), start, total: paragraphs.length,
       previous_start: start ? Math.max(0, start - limit) : null, next_start: start + limit < paragraphs.length ? start + limit : null };
+    if (start === failStart) {
+      failStart = null;
+      await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "temporary_failure" }) });
+      return;
+    }
   } else if (url.pathname.includes("/history/conclusions/")) body = { publication_version: version, conclusion: { id: "fact-1", question: "合成依据", text: "仅验证按需查看", certainty: "clear", reason: "测试", evidence: [] }, source_relations: [] };
   else if (url.pathname.includes("/entities/")) body = { canonical_entity_id: "person-1", display: { name: "曹操", type: "person" }, events: [], claims: [], representations: [] };
   await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -81,7 +90,7 @@ try {
   const axis = page.getByRole("navigation", { name: "历史时间轴" });
   await expect(axis.locator(".history-axis-node")).toHaveCount(3);
   await expect(axis.locator("[aria-expanded]")).toHaveCount(0);
-  await expect(axis.locator(".history-axis-time")).toHaveCount(6);
+  await expect(axis.locator(".history-axis-time")).toHaveCount(7);
   await expect(axis).not.toContainText("年代未详");
   await expect(axis).not.toContainText("从这段读起");
   await expect(axis).not.toContainText("测试阶段");
@@ -147,6 +156,23 @@ try {
   await expect(paragraph(20)).toBeAttached();
   assert(page.url().includes(`/history/${version}/`));
 
+  // A single global edition crosses the synthetic three-fragment boundary;
+  // the page request remains versioned and the controller keeps one stream.
+  await page.goto(`${base}/history/${version}/${id(170)}`);
+  await expect(paragraph(170)).toBeAttached();
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(170));
+  await expect(page.locator('[data-test="reading-context-entity"]')).toContainText("测试后期官职");
+  failStart = 200;
+  await expect(paragraph(199)).toBeAttached();
+  await paragraph(199).scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 100));
+  await page.waitForTimeout(300);
+  await expect(page.locator('[data-test="reading-load-error"]')).toBeVisible();
+  await expect(paragraph(170)).toBeAttached();
+  await page.locator('[data-test="reading-retry"]').click();
+  await expect(paragraph(200)).toBeAttached();
+  await expect(page.locator('[data-test="reading-load-error"]')).toHaveCount(0);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: /此时此地/ })).toBeVisible();
   await page.getByRole("button", { name: /此时此地/ }).click();
@@ -205,12 +231,12 @@ try {
   // Native prose scrolling follows an undated interval with no event anchors
   // in the axis's own scrollport, including short-height desktop viewports.
   await page.setViewportSize({ width: 1440, height: 540 });
-  await page.goto(`${base}/history/${version}/${id(19)}`);
-  await expect(paragraph(34)).toBeAttached();
-  await paragraph(34).evaluate((node) => node.scrollIntoView({ block: "start" }));
-  const proseTop = await paragraph(34).evaluate((node) => node.getBoundingClientRect().top);
-  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(34));
-  await expect(page.locator('.history-axis-section[data-current="true"]')).toHaveAttribute("data-axis-section", id(30));
+  await page.goto(`${base}/history/${version}/${id(134)}`);
+  await expect(paragraph(134)).toBeAttached();
+  await paragraph(134).evaluate((node) => node.scrollIntoView({ block: "start" }));
+  const proseTop = await paragraph(134).evaluate((node) => node.getBoundingClientRect().top);
+  await expect(page.locator('[data-test="reading-context-panel"]')).toHaveAttribute("data-unit", id(134));
+  await expect(page.locator('.history-axis-section[data-current="true"]')).toHaveAttribute("data-axis-section", id(120));
   await expect(page.locator('.history-axis-position[aria-current="location"]')).toHaveCount(1);
   await expect(page.locator('.history-axis-time[aria-current="location"]')).toHaveCount(0);
   await expect.poll(() => page.locator(".history-axis-scroll").evaluate((box) => {
@@ -218,7 +244,7 @@ try {
     const target = item.getBoundingClientRect(), viewport = box.getBoundingClientRect();
     return target.top >= viewport.top && target.bottom <= viewport.bottom;
   })).toBe(true);
-  assert(Math.abs(await paragraph(34).evaluate((node) => node.getBoundingClientRect().top) - proseTop) < 3, "axis follow must preserve prose position");
+  assert(Math.abs(await paragraph(134).evaluate((node) => node.getBoundingClientRect().top) - proseTop) < 3, "axis follow must preserve prose position");
   const beforeAxisBrowse = await page.evaluate(() => window.scrollY);
   await page.locator(".history-axis-scroll").hover();
   await page.mouse.wheel(0, -1500);
@@ -231,8 +257,8 @@ try {
   // The native dialog is initially display:none. Opening it must reveal the
   // current marker after layout, including late positions on short phones.
   await page.setViewportSize({ width: 320, height: 540 });
-  await page.goto(`${base}/history/${version}/${id(63)}`);
-  await stableMobileTarget(63);
+  await page.goto(`${base}/history/${version}/${id(TOTAL_PARAGRAPHS - 1)}`);
+  await stableMobileTarget(TOTAL_PARAGRAPHS - 1);
   for (let opened = 0; opened < 2; opened++) {
     await page.locator(".history-axis-open").click();
     await expect.poll(() => page.locator("dialog .history-axis-scroll").evaluate((box) => {
@@ -243,7 +269,7 @@ try {
       return item.top >= frame.top && item.bottom <= Math.min(frame.bottom, dialog.bottom);
     })).toBe(true);
     await page.keyboard.press("Escape");
-    assert(page.url().endsWith(`/${id(63)}`), "opening the axis must preserve the prose locator");
+    assert(page.url().endsWith(`/${id(TOTAL_PARAGRAPHS - 1)}`), "opening the axis must preserve the prose locator");
   }
   assert.deepEqual(errors, []);
   console.log("history-component-smoke: PASS (curated entries, paging, state, focus, previews, evidence, cancellation, back/refresh, mobile, short boundary/end paragraphs, wrapped dates on deep link/reload/jump/resize/scroll)");
