@@ -5,6 +5,7 @@ import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReaderPresentation from "../../components/ReaderPresentation";
 import HistoryReturnLink from "../../components/HistoryReturnLink";
 import PersonStateDetails from "../../components/reading/PersonStateDetails";
+import PersonHistoryReader from "../../components/reading/PersonHistoryReader";
 import type { ReadingStateFact } from "../../components/reading/ReadingContextPanel";
 import { useEntity, personStatePhaseKey } from "../../lib/queries";
 import {
@@ -365,6 +366,7 @@ export default function EntityPage() {
   const version = params.get("version");
   const paragraphId = params.get("para");
   const phaseId = params.get("phase");
+  const requestedPersonVersion = params.get("person_version") ?? params.get("person_history_version") ?? params.get("history_version");
   const hasHistoryLocator = version !== null || paragraphId !== null;
   const hasValidHistoryLocator = version !== null && paragraphId !== null && isHistoryLocator({ version, paragraph_id: paragraphId });
   const returnLocator = useReadingReturn(location.search);
@@ -382,6 +384,25 @@ export default function EntityPage() {
   const isPerson = data.display?.type === "person";
   const intro = presentationOverview(readerPresentation);
   const hasEvidence = Boolean(readerPresentation?.blocks?.length) || reps.length > 0 || (!isPerson && events.length > 0) || claims.length > 0 || resolutionLinks.length > 0;
+
+  if (isPerson) {
+    return (
+      <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
+        <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>人物</span></div>
+        <PersonHistoryReader
+          entityId={data.canonical_entity_id}
+          name={data.display?.name ?? "未命名人物"}
+          search={location.search}
+          returnLocator={returnLocator}
+          requestedPersonVersion={requestedPersonVersion}
+          mainLocator={{ version, paragraphId, phaseId }}
+          hasEvidence={hasEvidence}
+          events={events}
+        />
+        <EntityEvidence entityId={data.canonical_entity_id} readerPresentation={readerPresentation} reps={reps} events={events} claims={claims} resolutionLinks={resolutionLinks} showEventRecords={false} search={location.search} />
+      </section>
+    );
+  }
 
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
