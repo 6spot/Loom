@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HISTORY_POSITION_STRATEGY as strategy, HistoryPhaseError, historyPath, historyPositionKey, loadHistory, loadHistoryPage, loadHistoryPhase } from "../src/lib/history-api";
+import { HISTORY_POSITION_STRATEGY as strategy, HistoryPhaseError, historyAdjacentPages, historyPath, historyPositionKey, loadHistory, loadHistoryPage, loadHistoryPhase, type HistoryPage } from "../src/lib/history-api";
 import { isReadingLocator } from "../src/lib/reading-types";
 import { ReadingHistoryStore, ReadingStorage } from "../src/lib/reading-history";
 
@@ -68,6 +68,66 @@ describe("fixed narrative responses", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ publication: pub }))));
     expect(await loadHistory(version)).toEqual(pub);
   });
+
+  it("accepts a global edition larger than one legacy fragment", async () => {
+    const total = 320;
+    const publication = {
+      version,
+      paragraph_count: total,
+      first_paragraph_id: id,
+      entry_points: [],
+      navigation: [{ id, label: "连续编年", period: null, start: 0, end: total - 1, items: [] }],
+    };
+    vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+      if (String(input).includes("/paragraphs?")) {
+        const start = 300;
+        return new Response(JSON.stringify({
+          publication_version: version,
+          total,
+          start,
+          previous_start: 280,
+          next_start: null,
+          paragraphs: Array.from({ length: 20 }, (_, index) => ({
+            id: `hp_${(start + index).toString(16).padStart(24, "0")}`,
+            ordinal: start + index,
+            phase_id: "phase-global",
+            group_id: "group-global",
+            segments: [],
+            entities: [],
+          })),
+        }));
+      }
+      return new Response(JSON.stringify({ publication }));
+    }));
+    expect(await loadHistory(version)).toEqual(publication);
+    const page = await loadHistoryPage(version, { start: 300 });
+    expect(page.total).toBe(total);
+    expect(page.paragraphs.at(-1)?.ordinal).toBe(319);
+  });
+
+  it("selects adjacent pages from the cached range containing the active paragraph", () => {
+    const makePage = (start: number, previousStart: number | null, nextStart: number | null): HistoryPage => ({
+      publication_version: version,
+      start,
+      total: 320,
+      previous_start: previousStart,
+      next_start: nextStart,
+      paragraphs: Array.from({ length: 20 }, (_, index) => ({
+        id: `hp_${(start + index).toString(16).padStart(24, "0")}`,
+        ordinal: start + index,
+        phase_id: "phase-global",
+        group_id: "group-global",
+        segments: [],
+        entities: [],
+      })),
+    });
+    const beginning = makePage(0, null, 20);
+    const middle = makePage(140, 120, 160);
+    const ending = makePage(300, 280, null);
+    expect(historyAdjacentPages([ending, beginning, middle], ending.paragraphs[0].id)).toEqual({ previous: ending, next: ending });
+    expect(historyAdjacentPages([ending, beginning, middle], middle.paragraphs[0].id)).toEqual({ previous: middle, next: middle });
+  });
+
   it("refuses a server response from a different publication", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ publication: { version: "c".repeat(64), paragraph_count: 1, entry_points: [] } }))));
     await expect(loadHistory(version)).rejects.toThrow("版本");

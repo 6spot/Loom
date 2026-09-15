@@ -457,6 +457,7 @@ describe("reading-window: window states", () => {
     expect(html).not.toContain('data-test="reading-paused"');
     expect(html).toContain('data-auto-prefetch="true"');
     expect(html).toContain('data-test="reading-unit-placeholder"');
+    expect(html).toContain('data-reading-unit-placeholder="true"');
     expect((html.match(/data-test="reading-unit"/g) ?? []).length).toBeLessThanOrEqual(120);
   });
 
@@ -485,6 +486,23 @@ describe("reading-window: window states", () => {
     expect(units[0].ordinal).toBe(5000);
     expect(html).toContain('data-ordinal="5020"');
     expect(html).toContain('data-active="true"');
+  });
+
+  it("supports a stream renderer without duplicating locator attributes", () => {
+    const units = mergeReadingUnitPages([INITIAL_PAGE]);
+    const html = renderToString(React.createElement(ReadingWindow, {
+      pages: [INITIAL_PAGE],
+      activeUnitId: activeFromOrdinal(units, 3),
+      renderUnit: ({ unit }: { unit: ReadingUnit }) => React.createElement("p", {
+        className: "history-paragraph",
+        "data-history-paragraph": "true",
+        "data-unit-id": unit.unit_id,
+        "data-ordinal": unit.ordinal,
+      }, readingUnitText(unit)),
+    }));
+    expect(html.match(/data-test="reading-unit"/g)).toHaveLength(4);
+    expect(html.match(/data-history-paragraph="true"/g)).toHaveLength(4);
+    expect(html.match(/data-unit-id="ru_/g)).toHaveLength(4);
   });
 });
 

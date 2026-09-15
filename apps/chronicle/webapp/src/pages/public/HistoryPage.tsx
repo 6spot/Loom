@@ -5,13 +5,14 @@ import PublicDialog from "../../components/PublicDialog";
 import ChapterSourceReference from "../../components/ChapterSourceReference";
 import ReadingContextPanel from "../../components/reading/ReadingContextPanel";
 import HistoryAxis from "../../components/reading/HistoryAxis";
+import ReadingWindow from "../../components/reading/ReadingWindow";
 import { useReadingPosition } from "../../hooks/useReadingPosition";
 import { useHistoryPersonStateContext } from "../../hooks/usePersonStateContext";
 import { historyPath, historyPositionKey, historyTime, historyTimeLabel, HISTORY_POSITION_STRATEGY,
-  loadHistory, loadHistoryPage, loadHistoryConclusion,
+  historyAdjacentPages, loadHistory, loadHistoryPage, loadHistoryConclusion,
   type HistoryPublication, type HistoryEntity, type HistoryParagraph, type HistoryPage as HistoryPageData,
   type HistoryEntry } from "../../lib/history-api";
-import type { ContextEntityView } from "../../lib/reading-types";
+import type { ContextEntityView, ReadingDirection, ReadingUnit, StreamPage } from "../../lib/reading-types";
 import "../../styles/reading-layout.css";
 import "../../styles/history.css";
 
@@ -97,12 +98,111 @@ export default function HistoryPage() {
   return <PinnedHistory key={query.data.version} publication={query.data} />;
 }
 
+const HISTORY_STREAM_ID = "historical-narrative";
+
+function contextFor(entities: readonly HistoryEntity[]): ContextEntityView[] {
+  return entities.map((entity) => ({
+    entity_ref: entity.id,
+    canonical_id: entity.id,
+    name: entity.name,
+    kind: entity.kind,
+    importance: entity.importance,
+    event_roles: [],
+    source_anchor_ids: [],
+  }));
+}
+
+/** Adapt the global history DTO to the shared bounded reading window. */
+function historyReadingUnit(
+  paragraph: HistoryParagraph,
+  pub: HistoryPublication,
+  groups: ReadonlyMap<string, HistoryPublication["groups"][number]>,
+): ReadingUnit {
+  return {
+    unit_id: paragraph.id,
+    ordinal: paragraph.ordinal,
+    stream_id: HISTORY_STREAM_ID,
+    catalog_sha: pub.version,
+    publication_id: pub.version,
+    chapter_id: paragraph.group_id,
+    block_id: paragraph.id,
+    artifact_sha256: pub.version,
+    text_hash: paragraph.id,
+    source_anchor_ids: [],
+    // The history renderer uses the original segments below; the shared unit
+    // only needs text segments for bounded-height estimation and window keys.
+    segments: paragraph.segments.map((segment) => ({ kind: "text", text: segment.text })),
+    narrative_time: historyTime(groups.get(paragraph.group_id)),
+    context_entities: contextFor(paragraph.entities),
+    group_id: paragraph.group_id,
+    continues_previous: false,
+  };
+}
+
+function historyReadingPage(
+  page: HistoryPageData,
+  pub: HistoryPublication,
+  groups: ReadonlyMap<string, HistoryPublication["groups"][number]>,
+): StreamPage {
+  return {
+    stream_id: HISTORY_STREAM_ID,
+    catalog_sha: pub.version,
+    limit: page.paragraphs.length,
+    units: page.paragraphs.map((paragraph) => historyReadingUnit(paragraph, pub, groups)),
+    prev_cursor: page.previous_start === null ? null : String(page.previous_start),
+    next_cursor: page.next_start === null ? null : String(page.next_start),
+    has_previous: page.previous_start !== null,
+    has_next: page.next_start !== null,
+    group_continuation: null,
+  };
+}
+
+function HistoryParagraphBody({
+  paragraph,
+  entriesByEvent,
+  jump,
+}: {
+  paragraph: HistoryParagraph;
+  entriesByEvent: ReadonlyMap<string, HistoryEntry>;
+  jump: (id: string) => void;
+}) {
+  return (
+    <p
+      className="history-paragraph"
+      data-history-paragraph
+      data-unit-id={paragraph.id}
+      data-ordinal={paragraph.ordinal}
+      tabIndex={-1}
+    >
+      {paragraph.segments.map((segment, index) => {
+        const entry = segment.event_id ? entriesByEvent.get(segment.event_id) : null;
+        const mentionAt = segment.event_text ? segment.text.indexOf(segment.event_text) : -1;
+        return (
+          <span
+            key={`${paragraph.id}:${index}`}
+            data-certainty={segment.certainty}
+            className={segment.certainty === "uncertain" ? "history-uncertain" : undefined}
+          >
+            {segment.certainty === "uncertain" ? <span className="public-sr-only">存疑表述：</span> : null}
+            {entry && mentionAt >= 0 && segment.event_text ? <>
+              {segment.text.slice(0, mentionAt)}
+              <EventWord text={segment.event_text} entry={entry} jump={jump} />
+              {segment.text.slice(mentionAt + segment.event_text.length)}
+            </> : segment.text}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
 function PinnedHistory({ publication: pub }: { publication: HistoryPublication }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [pages, setPages] = useState<HistoryPageData[]>([]);
   const pagesRef = useRef(pages); pagesRef.current = pages;
-  const [loading, setLoading] = useState(false);
+  const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
+  const [loadingDirection, setLoadingDirection] = useState<ReadingDirection | null>(null);
   const [failure, setFailure] = useState<{ direction: "previous" | "next"; message: string } | null>(null);
   const [toolsParagraph, setToolsParagraph] = useState<HistoryParagraph | null>(null);
   const [conclusionId, setConclusionId] = useState<string | null>(null);
@@ -110,9 +210,8 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1199px)").matches);
   const [headerHeight, setHeaderHeight] = useState(72);
   const [chromeHeight, setChromeHeight] = useState(72);
-  const epoch = useRef(0);
-  const abort = useRef<AbortController | null>(null);
-  const flight = useRef(false);
+  const loadingDirectionsRef = useRef<Record<ReadingDirection, boolean>>({ previous: false, next: false });
+  const requestAbortRef = useRef<Partial<Record<ReadingDirection, AbortController>>>({});
   const mounted = useRef(true);
   const chromeRef = useRef<HTMLDivElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
@@ -134,16 +233,36 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     if (bar) observer.observe(bar);
     window.addEventListener("resize", measure);
     mounted.current = true;
-    return () => { mounted.current = false; abort.current?.abort(); observer.disconnect(); media.removeEventListener("change", resize); window.removeEventListener("resize", measure); };
+    return () => {
+      mounted.current = false;
+      requestAbortRef.current.previous?.abort();
+      requestAbortRef.current.next?.abort();
+      observer.disconnect();
+      media.removeEventListener("change", resize);
+      window.removeEventListener("resize", measure);
+    };
   }, []);
   const paragraphs = useMemo(() => pages.flatMap((page) => page.paragraphs).filter((p, n, all) => all.findIndex((v) => v.id === p.id) === n).sort((a, b) => a.ordinal - b.ordinal), [pages]);
   const paragraphRef = useRef(paragraphs); paragraphRef.current = paragraphs;
   const groups = useMemo(() => new Map(pub.groups.map((g) => [g.id, g])), [pub]);
-  const contextFor = (entities: readonly HistoryEntity[]): ContextEntityView[] => entities.map((e) => ({ entity_ref: e.id, canonical_id: e.id,
-    name: e.name, kind: e.kind, importance: e.importance, event_roles: [], source_anchor_ids: [] }));
+  const paragraphById = useMemo(() => new Map(paragraphs.map((paragraph) => [paragraph.id, paragraph])), [paragraphs]);
+  const windowPages = useMemo<StreamPage[]>(() => pages.map((page) => historyReadingPage(page, pub, groups)), [pages, pub, groups]);
+
+  const addPage = useCallback((page: HistoryPageData) => {
+    if (page.publication_version !== pub.version || page.paragraphs.length === 0) return;
+    cache.current.set(page.start, page);
+    setPages((previous) => {
+      const byStart = new Map(previous.map((item) => [item.start, item]));
+      byStart.set(page.start, page);
+      return [...byStart.values()].sort((left, right) => left.start - right.start);
+    });
+  }, [pub.version]);
 
   const controller = useReadingPosition({
-    urlStrategy: HISTORY_POSITION_STRATEGY, unitSelector: "[data-history-paragraph]", headerHeight: chromeHeight,
+    urlStrategy: HISTORY_POSITION_STRATEGY,
+    unitSelector: "[data-history-paragraph]",
+    activeUnitSelector: '[data-history-paragraph], [data-reading-unit-placeholder]',
+    headerHeight: chromeHeight,
     preserveLayoutPosition: true,
     getUnit: (id) => {
       const p = paragraphRef.current.find((v) => v.id === id);
@@ -151,16 +270,21 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     },
     resolveStart: async () => historyPositionKey({ version: pub.version, paragraph_id: pub.first_paragraph_id }),
     locate: async (key, signal) => {
-      if (key.catalog_sha !== pub.version) return null;
-      const seq = ++epoch.current;
-      abort.current?.abort(); abort.current = new AbortController(); flight.current = false;
-      setLoading(false); setFailure(null);
+      if (key.catalog_sha !== pub.version || signal?.aborted) return null;
+      setPendingUnitId(key.unit_id);
+      setFailure(null);
       let page = [...cache.current.values()].find((candidate) => candidate.paragraphs.some((p) => p.id === key.unit_id));
       if (!page) page = await loadHistoryPage(pub.version, { at: key.unit_id }, signal);
-      if (!mounted.current || signal?.aborted || seq !== epoch.current) return null;
-      cache.current.set(page.start, page);
-      if (!paragraphRef.current.some((p) => p.id === key.unit_id)) setPages([page]);
+      if (!mounted.current || signal?.aborted) return null;
+      addPage(page);
       return { locator: key, unitIds: page.paragraphs.map((p) => p.id) };
+    },
+    getWindowEdges: (unitId) => {
+      const edges = historyAdjacentPages(pagesRef.current, unitId);
+      return {
+        hasPrevious: edges.previous?.previous_start != null,
+        hasNext: edges.next?.next_start != null,
+      };
     },
   });
   // React Router same-page navigation and the native history controller share one restore path.
@@ -177,30 +301,49 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const phaseContext = useHistoryPersonStateContext(pub.version, activeParagraph);
   const group = active ? groups.get(active.group_id) : null;
 
-  const requestAdjacent = useCallback(async (direction: "previous" | "next") => {
-    if (flight.current) return;
-    const currentPages = [...pagesRef.current].sort((a, b) => a.start - b.start);
-    const start = direction === "previous" ? currentPages[0]?.previous_start : currentPages[currentPages.length - 1]?.next_start;
+  const requestAdjacent = useCallback((direction: ReadingDirection) => {
+    if (loadingDirectionsRef.current[direction]) return;
+    const edges = historyAdjacentPages(pagesRef.current, controller.activeUnitId);
+    const edge = direction === "previous" ? edges.previous : edges.next;
+    const start = direction === "previous" ? edge?.previous_start : edge?.next_start;
     if (start == null) return;
-    const seq = epoch.current;
-    flight.current = true; setLoading(true); setFailure(null);
-    const requestAbort = new AbortController(); abort.current = requestAbort;
-    try {
-      const page = cache.current.get(start) ?? await loadHistoryPage(pub.version, { start }, requestAbort.signal);
-      if (!mounted.current || seq !== epoch.current) return;
-      cache.current.set(page.start, page);
-      setPages((old) => old.some((p) => p.start === page.start) ? old : [...old, page].sort((a, b) => a.start - b.start));
-    } catch (error) {
-      if (mounted.current && seq === epoch.current && !requestAbort.signal.aborted) setFailure({ direction, message: error instanceof Error ? error.message : "正文暂时无法载入" });
-    } finally {
-      if (seq === epoch.current) { flight.current = false; if (mounted.current) setLoading(false); }
+
+    const cached = cache.current.get(start);
+    if (cached) {
+      setFailure(null);
+      addPage(cached);
+      return;
     }
-  }, [pub.version]);
+
+    const requestAbort = new AbortController();
+    requestAbortRef.current[direction]?.abort();
+    requestAbortRef.current[direction] = requestAbort;
+    loadingDirectionsRef.current[direction] = true;
+    setLoadingDirection(direction);
+    setFailure(null);
+    void loadHistoryPage(pub.version, { start }, requestAbort.signal)
+      .then((page) => {
+        if (!mounted.current || requestAbort.signal.aborted) return;
+        addPage(page);
+      })
+      .catch((error: unknown) => {
+        if (mounted.current && !requestAbort.signal.aborted) {
+          setFailure({ direction, message: error instanceof Error ? error.message : "正文暂时无法载入" });
+        }
+      })
+      .finally(() => {
+        if (requestAbortRef.current[direction] === requestAbort) requestAbortRef.current[direction] = undefined;
+        loadingDirectionsRef.current[direction] = false;
+        if (mounted.current) {
+          setLoadingDirection(loadingDirectionsRef.current.next ? "next" : loadingDirectionsRef.current.previous ? "previous" : null);
+        }
+      });
+  }, [addPage, controller.activeUnitId, pub.version]);
   useLayoutEffect(() => {
     // The active date can wrap only after navigation commits. Preserve that
     // layout change through the same controller that owns paging and scroll.
     controller.notifyLayoutChange();
-  }, [pages, loading, failure, chromeHeight, active?.id, narrow, controller.notifyLayoutChange]);
+  }, [pages, loadingDirection, failure, chromeHeight, active?.id, narrow, controller.notifyLayoutChange]);
   useEffect(() => {
     const body = windowRef.current;
     if (!body) return;
@@ -209,15 +352,22 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     return () => observer.disconnect();
   }, [controller.notifyLayoutChange]);
   useEffect(() => {
-    if (!active || loading || failure || controller.navigationState !== "idle") return;
-    if (active.ordinal - paragraphs[0].ordinal < 6 && pages[0]?.previous_start != null) void requestAdjacent("previous");
-    else if (paragraphs[paragraphs.length - 1].ordinal - active.ordinal < 6) void requestAdjacent("next");
-  }, [active, paragraphs, pages, loading, failure, requestAdjacent, controller.navigationState]);
+    if (pendingUnitId && (controller.navigationState === "interrupted" ||
+      (controller.navigationState === "idle" && (controller.activeUnitId === pendingUnitId || controller.issue)))) {
+      setPendingUnitId(null);
+    }
+  }, [pendingUnitId, controller.navigationState, controller.activeUnitId, controller.issue]);
 
-  const jump = (id: string) => controller.navigate({ kind: "locate", locator: historyPositionKey({ version: pub.version, paragraph_id: id }) });
+  const jump = useCallback((id: string) => {
+    controller.navigate({ kind: "locate", locator: historyPositionKey({ version: pub.version, paragraph_id: id }) });
+  }, [controller.navigate, pub.version]);
   const nearbyIndex = pub.entry_points.reduce((n, entry, index) => entry.ordinal <= (active?.ordinal ?? 0) ? index : n, 0);
   const nearby = pub.entry_points.slice(Math.max(0, nearbyIndex - 1), nearbyIndex + 3);
-  const entriesByEvent = new Map(pub.entry_points.filter((e) => e.event_id).map((e) => [e.event_id, e]));
+  const entriesByEvent = useMemo(() => new Map(pub.entry_points.filter((entry) => entry.event_id).map((entry) => [entry.event_id as string, entry])), [pub]);
+  const renderUnit = useCallback(({ unit }: { unit: ReadingUnit }) => {
+    const paragraph = paragraphById.get(unit.unit_id);
+    return paragraph ? <HistoryParagraphBody paragraph={paragraph} entriesByEvent={entriesByEvent} jump={jump} /> : null;
+  }, [entriesByEvent, jump, paragraphById]);
   const side = <ReadingContextPanel entities={contextFor(phaseContext.entities)} unitId={active?.id} variant={narrow ? "panel" : "column"}
     stateFacts={phaseContext.stateFacts}
     stage={<PhaseStage status={phaseContext.status} phaseId={phaseContext.phaseId} count={phaseContext.entities.length} />}
@@ -239,18 +389,20 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
       <div className="rpage-tools">{narrow ? side : null}<button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button></div></div>
     {controller.issue ? <div className="history-load-error" role="alert"><p>无法定位这段正文。{controller.issue.detail}</p><button className="public-text-button" onClick={() => controller.restoreFromUrl()}>重试定位</button><Link to="/">返回首页</Link></div> : null}
     <div className="rpage-grid"><div className="rpage-axis-column history-desktop-axis">{axis}</div><div className="rpage-main history-body" ref={windowRef} aria-label="历史正文">
-      {pages[0]?.previous_start != null ? <button type="button" className="public-text-button history-load-previous" disabled={loading} onClick={() => void requestAdjacent("previous")}>读取更早的历史</button> : null}
-      {paragraphs.map((paragraph) => <p key={paragraph.id} className="history-paragraph" data-history-paragraph data-unit-id={paragraph.id} data-ordinal={paragraph.ordinal} tabIndex={-1}>
-        {paragraph.segments.map((segment, index) => { const entry = segment.event_id ? entriesByEvent.get(segment.event_id) : null;
-          const mentionAt = segment.event_text ? segment.text.indexOf(segment.event_text) : -1;
-          return <span key={index} data-certainty={segment.certainty} className={segment.certainty === "uncertain" ? "history-uncertain" : undefined}>
-            {segment.certainty === "uncertain" ? <span className="public-sr-only">存疑表述：</span> : null}
-            {entry && mentionAt >= 0 && segment.event_text ? <>{segment.text.slice(0, mentionAt)}<EventWord text={segment.event_text} entry={entry} jump={jump} />{segment.text.slice(mentionAt + segment.event_text.length)}</> : segment.text}
-          </span>;
-        })}
-      </p>)}
-      {loading || (paragraphs.length === 0 && !controller.issue) ? <p className="history-reading-status" role="status">正在载入正文…</p> : null}
-      {failure ? <div className="history-load-error" role="alert"><p>{failure.message}，已读正文保留。</p><button className="public-text-button" onClick={() => void requestAdjacent(failure.direction)}>重试</button></div> : null}
+      <ReadingWindow
+        pages={windowPages}
+        activeUnitId={controller.activeUnitId}
+        pinnedUnitIds={pendingUnitId ? [pendingUnitId] : []}
+        showChapterHeadings={false}
+        showSources={false}
+        loadingDirection={loadingDirection}
+        error={failure}
+        callbacks={{ requestPage: requestAdjacent, onRetry: () => requestAdjacent(failure?.direction ?? "next") }}
+        renderUnit={renderUnit}
+        onUnitReady={controller.notifyLayoutChange}
+        onUnitMeasured={controller.notifyLayoutChange}
+      />
+      {paragraphs.length === 0 && !controller.issue && !loadingDirection ? <p className="history-reading-status" role="status">正在载入正文…</p> : null}
       {paragraphs.length > 0 && paragraphs[paragraphs.length - 1].ordinal === pub.paragraph_count - 1 ? <p className="history-reading-end">已读到当前收录的末尾</p> : null}
     </div>{!narrow ? <div className="rpage-context-column">{side}</div> : null}</div>
     {axisOpen ? <PublicDialog title="时间轴" onClose={() => setAxisOpen(false)} compact>{axis}</PublicDialog> : null}
