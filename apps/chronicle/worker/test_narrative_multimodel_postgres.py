@@ -14,13 +14,16 @@ for path in (HERE, HERE.parent / "persistence", HERE.parent / "read_api"):
         sys.path.insert(0, str(path))
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 import control_plane
+import narrative_acceptance
 import narrative_store
 import studio_jobs
 from test_narrative_contract import drafts
 from test_narrative_pipeline_postgres import NarrativeTestModel
 import test_reading_pipeline_postgres as base
+from common import sha256_json
 
 
 class _Provider:
@@ -322,6 +325,126 @@ class NarrativeMultiModelPostgresTests(unittest.TestCase):
                          facts_acceptance, prose_acceptance, "0" * 64, prose_sha, payload),
                     )
 
+    def test_postgres_acceptance_trigger_rejects_forged_receipt_and_rolls_back(self):
+        job, text, source_sha, chapter_model = self._history_job()
+        models = _MultiModels()
+        self.assertEqual(
+            "completed",
+            self._run_once(
+                job, text, source_sha, chapter_model, narrative_model=models
+            )[1],
+        )
+        with psycopg.connect(self.database_url) as conn:
+            current = narrative_store.read_candidate(conn, job, "facts")
+            old_receipt = current["acceptance"]
+            forged_content = {"forged": True}
+            parent_sha = current["candidate_sha"]
+            revision_no = int(current["revision_no"] or 0) + 1
+
+            def forged_candidate_sha(content):
+                return sha256_json({
+                    "job_id": str(job),
+                    "kind": "facts",
+                    "context": current["context"],
+                    "candidate": content,
+                    "parent_candidate_sha": parent_sha,
+                    "revision_no": revision_no,
+                    "upstream_candidate_sha": current["upstream_candidate_sha"],
+                })
+
+            def attempt(receipt, expected_error):
+                candidate_sha = receipt["candidate_sha256"]
+                with self.assertRaisesRegex(psycopg.Error, expected_error):
+                    with conn.transaction():
+                        conn.execute(
+                            "INSERT INTO chronicle.narrative_candidate_versions"
+                            " (candidate_sha, job_id, kind, review_id, parent_candidate_sha, revision_no,"
+                            " upstream_candidate_sha, context_sha, context_payload, candidate_payload, model_version)"
+                            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                            (
+                                candidate_sha, job, "facts", None, parent_sha, revision_no,
+                                current["upstream_candidate_sha"], current["context_sha"],
+                                Jsonb(current["context"]),
+                                Jsonb(forged_content), "direct-sql-forge",
+                            ),
+                        )
+                        conn.execute(
+                            "INSERT INTO chronicle.narrative_acceptances"
+                            " (acceptance_id, job_id, kind, acceptance_type, policy_version,"
+                            " input_sha256, candidate_sha256, draft_sha256, content_sha256,"
+                            " pipeline_fingerprint, model_output_sha256s, model_opinion_sha256s,"
+                            " decision, decision_reason, review_id, payload)"
+                            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                            (
+                                uuid.uuid4(), job, "facts", "policy_model_review",
+                                receipt["policy_version"], receipt["input_sha256"],
+                                receipt["candidate_sha256"], receipt["draft_sha256"],
+                                receipt["content_sha256"], receipt["pipeline_fingerprint"],
+                                receipt["model_output_sha256s"], receipt["model_opinion_sha256s"],
+                                receipt["decision"], receipt["decision_reason"], None,
+                                Jsonb(receipt),
+                            ),
+                        )
+                self.assertEqual(
+                    parent_sha,
+                    narrative_store.read_candidate(conn, job, "facts")["candidate_sha"],
+                )
+                self.assertEqual(
+                    0,
+                    conn.execute(
+                        "SELECT count(*) FROM chronicle.narrative_candidate_versions"
+                        " WHERE job_id = %s AND candidate_sha = %s",
+                        (job, candidate_sha),
+                    ).fetchone()[0],
+                )
+                self.assertEqual(
+                    0,
+                    conn.execute(
+                        "SELECT count(*) FROM chronicle.narrative_acceptances"
+                        " WHERE job_id = %s AND candidate_sha256 = %s",
+                        (job, candidate_sha),
+                    ).fetchone()[0],
+                )
+
+            forged_sha = forged_candidate_sha(forged_content)
+            stale_digest = copy.deepcopy(old_receipt)
+            stale_digest.update({
+                "candidate_sha256": forged_sha,
+                "draft_sha256": sha256_json(forged_content),
+                "content_sha256": sha256_json(forged_content),
+            })
+            attempt(stale_digest, "receipt digest")
+
+            mismatched_content = narrative_acceptance.build_receipt(
+                job_id=job,
+                kind="facts",
+                acceptance_type="policy_model_review",
+                policy_version=old_receipt["policy_version"],
+                input_sha256=old_receipt["input_sha256"],
+                candidate_sha256=forged_sha,
+                content=current["candidate"],
+                pipeline_fingerprint=old_receipt["pipeline_fingerprint"],
+                model_output_sha256s=old_receipt["model_output_sha256s"],
+                model_opinion_sha256s=old_receipt["model_opinion_sha256s"],
+                decision_reason=old_receipt["decision_reason"],
+            )
+            attempt(mismatched_content, "draft/content hash")
+
+            reused_evidence = narrative_acceptance.build_receipt(
+                job_id=job,
+                kind="facts",
+                acceptance_type="policy_model_review",
+                policy_version=old_receipt["policy_version"],
+                input_sha256=old_receipt["input_sha256"],
+                candidate_sha256=forged_sha,
+                content=forged_content,
+                pipeline_fingerprint=old_receipt["pipeline_fingerprint"],
+                model_output_sha256s=old_receipt["model_output_sha256s"],
+                model_opinion_sha256s=old_receipt["model_opinion_sha256s"],
+                decision_reason=old_receipt["decision_reason"],
+            )
+            attempt(reused_evidence, "do not produce the current candidate payload")
+
     def test_human_revision_is_a_new_frontier_and_invalidates_old_acceptance(self):
         job, text, source_sha, chapter_model = self._history_job()
         models = _MultiModels(conflict=True)
@@ -352,6 +475,40 @@ class NarrativeMultiModelPostgresTests(unittest.TestCase):
                 "SELECT status FROM chronicle.review_items WHERE review_id = %s",
                 (old["review_id"],),
             ).fetchone()[0])
+            stale_review_receipt = narrative_acceptance.build_receipt(
+                job_id=job,
+                kind="facts",
+                acceptance_type="human",
+                policy_version=old["acceptance"]["policy_version"],
+                input_sha256=revised["context_sha"],
+                candidate_sha256=revised["candidate_sha"],
+                content=revised["candidate"],
+                pipeline_fingerprint=old["acceptance"]["pipeline_fingerprint"],
+                model_output_sha256s=old["acceptance"]["model_output_sha256s"],
+                model_opinion_sha256s=old["acceptance"]["model_opinion_sha256s"],
+                decision_reason=old["acceptance"]["decision_reason"],
+                review_id=old["review_id"],
+            )
+            with self.assertRaisesRegex(psycopg.Error, "candidate revision review"):
+                with conn.transaction():
+                    conn.execute(
+                        "INSERT INTO chronicle.narrative_acceptances"
+                        " (acceptance_id, job_id, kind, acceptance_type, policy_version,"
+                        " input_sha256, candidate_sha256, draft_sha256, content_sha256,"
+                        " pipeline_fingerprint, model_output_sha256s, model_opinion_sha256s,"
+                        " decision, decision_reason, review_id, payload)"
+                        " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (
+                            uuid.uuid4(), job, "facts", "human",
+                            stale_review_receipt["policy_version"], stale_review_receipt["input_sha256"],
+                            stale_review_receipt["candidate_sha256"], stale_review_receipt["draft_sha256"],
+                            stale_review_receipt["content_sha256"], stale_review_receipt["pipeline_fingerprint"],
+                            stale_review_receipt["model_output_sha256s"], stale_review_receipt["model_opinion_sha256s"],
+                            stale_review_receipt["decision"], stale_review_receipt["decision_reason"],
+                            old["review_id"], Jsonb(stale_review_receipt),
+                        ),
+                    )
+            self.assertIsNone(narrative_store.read_candidate(conn, job, "facts")["acceptance_id"])
         self._approve(job, "facts")
         self.assertEqual(
             "completed",
