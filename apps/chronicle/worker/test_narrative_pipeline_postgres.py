@@ -158,7 +158,7 @@ class NarrativePipelineTests(unittest.TestCase):
         with psycopg.connect(self.database_url) as conn:
             apply_migrations(conn)
             self.assertIsNone(store.read_publication(conn))
-            self.assertIsNone(history.dispatch_history(conn, '/v0/history', '')['publication'])
+            self.assertIsNone(history.dispatch_history(conn, '/v0/history', '')['edition'])
             with self.assertRaises(PersistenceConflict):
                 control_plane.resume_job(conn, job_id=job)
             row = store.read_candidate(conn, job, 'facts')
@@ -195,9 +195,10 @@ class NarrativePipelineTests(unittest.TestCase):
                     model=self.narrative, lease_seconds=2)
         with psycopg.connect(self.database_url) as conn:
             self.assertIsNone(store.read_publication(conn))
+            self.assertIsNone(history.dispatch_history(conn, '/v0/history', '')['edition'])
             stage, checkpoint = conn.execute("SELECT status, checkpoint FROM chronicle.ingestion_job_stages WHERE job_id=%s AND stage='present'", (job,)).fetchone()
             self.assertEqual('running', stage)
-            self.assertNotIn('historical_narrative_version', checkpoint)
+            self.assertNotIn('history_edition_version', checkpoint)
         with patch.object(store.contract, 'compile_publication', side_effect=PersistenceError('injected publish fault')):
             self.assertEqual('failed', self._run_once(*self.args, narrative_model=self.narrative)[1])
         with psycopg.connect(self.database_url) as conn:
@@ -217,12 +218,23 @@ class NarrativePipelineTests(unittest.TestCase):
             self.assertEqual(pub, store.read_publication(conn, pub['publication_version']))
             self.assertTrue(all(e['publication_id'] for e in pub['evidence'].values()))
             self.assertEqual(1, conn.execute('SELECT count(*) FROM chronicle.historical_narratives').fetchone()[0])
-            version = pub['publication_version']
+            source_version = pub['publication_version']
+            directory = history.dispatch_history(conn, '/v0/history', '')
+            edition = directory['edition']
+            self.assertIsNotNone(edition)
+            version = edition['edition_version']
+            self.assertNotEqual(source_version, version)
+            stage_checkpoint = conn.execute(
+                "SELECT checkpoint FROM chronicle.ingestion_job_stages"
+                " WHERE job_id=%s AND stage='present'",
+                (job,),
+            ).fetchone()[0]
+            self.assertEqual(version, stage_checkpoint['history_edition_version'])
             with self.assertRaises(psycopg.Error):
                 with conn.transaction():
-                    conn.execute("UPDATE chronicle.historical_narratives SET payload='{}'::jsonb WHERE version_sha=%s", (version,))
-            self.assertEqual(pub, store.read_publication(conn, version))
-            meta = history.dispatch_history(conn, '/v0/history', 'version=' + version)['publication']
+                    conn.execute("UPDATE chronicle.historical_narratives SET payload='{}'::jsonb WHERE version_sha=%s", (source_version,))
+            self.assertEqual(pub, store.read_publication(conn, source_version))
+            meta = history.dispatch_history(conn, '/v0/history', 'version=' + version)['edition']
             self.assertEqual(1, len(meta['entry_points']))
             first = history.dispatch_history(conn, '/v0/history/paragraphs', f'version={version}&limit=1')
             self.assertEqual(1, first['next_start'])
@@ -231,8 +243,9 @@ class NarrativePipelineTests(unittest.TestCase):
             self.assertEqual(0, next_page['previous_start'])
             found = history.dispatch_history(conn, '/v0/history/paragraphs', f'version={version}&at={next_page["paragraphs"][0]["id"]}&limit=1')
             self.assertEqual(next_page, found)
-            fact = history.dispatch_history(conn, '/v0/history/conclusions/f0', 'version=' + version)['conclusion']
-            self.assertEqual(context['sources'][0]['publication_id'], fact['evidence'][0]['publication_id'])
+            conclusion_id = next_page['paragraphs'][0]['conclusion_ids'][0]
+            fact = history.dispatch_history(conn, '/v0/history/conclusions/' + conclusion_id, 'version=' + version)['conclusion']
+            self.assertEqual(source_version, fact['evidence'][0]['publication_id'])
             for query in ('', 'version=', f'version={version}&version={version}', f'version={version}&limit=51', f'version={version}&start=0&at=x'):
                 with self.subTest(query=query), self.assertRaises(ReadModelError):
                     history.dispatch_history(conn, '/v0/history/paragraphs', query)

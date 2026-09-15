@@ -73,7 +73,7 @@ Studio auth 继续由 Rust front 在路由/资源检查前执行：匿名或错�
 
 第三轮在同一 `GET /api/v1/studio/jobs/reviews` 队列外壳内加入 `review_scope`，不新增顶层路径；`studio_person_states.py` 负责 `payload.scope=person_state` 分支，`studio_reviews.py` 仍持有队列本身。scope 语义只来自 T01 的 `person_state_contract.normalize_review_scope` / `review_scope_covers`，代码不另定默认值。
 
-- 队列：`review_scope=resolution|person_state|chapter_content|all`，省略为 `resolution`（覆盖 `resolution` 与 `narrative`，既有综合 facts/prose 不因扩展消失）；`person_state` 只含阶段依据包，`chapter_content` 见 §7；`all` 覆盖四类。`link_kind` 只在 `resolution` 合法，与其他 scope 混用 400。`cursor`、`open_count`、`plan_fingerprint` 与 URL 均绑定所选 scope；换 scope 复用旧 cursor 为 400。
+- 队列：`review_scope=resolution|person_state|chapter_content|person_history|history_edition|all`，省略为 `resolution`（覆盖 `resolution` 与 `narrative`，既有综合 facts/prose 不因扩展消失）；`person_state` 只含阶段依据包，`chapter_content` 见 §7，`history_edition` 只含全局历史接缝；`all` 覆盖全部 scope。`link_kind` 只在 `resolution` 合法，与其他 scope 混用 400。`cursor`、`open_count`、`plan_fingerprint` 与 URL 均绑定所选 scope；换 scope 复用旧 cursor 为 400。
 - 列表项：person_state 项返回 `review_mode`、`chapter_id`、`candidate_count`、`default_assessment`、`allowed_assessments` 与包自身的 `plan_fingerprint`；`decision` 只给有界的 `{default_assessment, override_count, rationale, dismissed}`，不内联逐候选明细。
 - 详情：`GET /reviews/{review_id}` 对 person_state 返回冻结包，`candidates` 只读投影自 accepted 0.3/0.4 与不可变 anchors（人物/官职/阶段标签、原文引文、`source_label`、`attribution`、`reason_codes`），不按名称合并、不重跑模型。候选分页 `limit`（1..50，默认 20）与绑定 `(review, plan_fingerprint)` 的 `cursor`；无 artifact 时只降级为 null 标签，不伪造结论。
 - contexts：`GET /reviews/{review_id}/contexts?candidate_id=&limit=&cursor=` 按冻结 `anchor_ids` 返回描述符，`candidate_id` 限定单个候选，缺省覆盖整包；cursor 复用 `source_context` 的 group 绑定（group 即 candidate_id）。证据类型按 accepted 0.3/0.4 state item 的实际 `claim_refs` 计算：有直接 Claim 的 fact 为 `direct_claim`，仅有精确 `source_selections` 的阶段事实为 `record_source`；同一 anchor 被多个候选引用时描述符保留全部 `candidate_keys` 与并集证据类型，不塌缩为第一个候选。
@@ -92,7 +92,7 @@ Studio 在候选的“查看原文前后文”被打开后才按 `candidate_id` 
 [分阶段生产合同](staged-chapter-production.md) 的内容例外仍使用同一队列，
 `kind=stage_gate`、`payload.scope=chapter_content`、`review_mode=chapter_content`、
 `stage=extract`。一个章节版本集中处理全部意见，已有身份与阶段依据审核的含义不变。
-`review_scope` 增加 `chapter_content`，`all` 包含四种内容；省略仍只覆盖原有
+`review_scope` 增加 `chapter_content` 与 `history_edition`，`all` 包含全部内容；省略仍只覆盖原有
 `resolution+narrative`。`link_kind` 仍只能与 `resolution` 合用。
 
 `persistence/chapter_content_review.py` 是内容决定的唯一写入者。冻结包保存在

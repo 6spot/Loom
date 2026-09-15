@@ -1148,16 +1148,16 @@ def run_synthesis(
             f"synthesis job {job['job_id']} did not publish: {current.get('status')}"
         )
     directory = public_json(base_url, "/api/v1/public/history")
-    publication = directory.get("publication")
-    if not isinstance(publication, dict) or not publication.get("version"):
+    edition = directory.get("edition")
+    if not isinstance(edition, dict) or not edition.get("edition_version"):
         raise GateError("published synthesis exposes no history version")
     return {
         "job_id": job["job_id"],
         "catalog_sha": catalog_sha,
         "publication_ids": publication_ids,
         "document_title": title,
-        "version": publication["version"],
-        "paragraph_count": publication["paragraph_count"],
+        "version": edition["edition_version"],
+        "paragraph_count": edition["paragraph_count"],
     }
 
 
@@ -1215,7 +1215,7 @@ def collect_history(base_url: str, version: str) -> dict[str, Any]:
     Only public HTTP reads are used; a source-only ReadingPage is not proof.
     """
     directory = public_json(base_url, f"/api/v1/public/history?version={version}")
-    publication = directory["publication"]
+    edition = directory["edition"]
     page = public_json(
         base_url,
         f"/api/v1/public/history/paragraphs?version={version}&limit=50",
@@ -1248,7 +1248,7 @@ def collect_history(base_url: str, version: str) -> dict[str, Any]:
         raise GateError("published person state carries no original evidence anchor")
     record = {
         "version": version,
-        "catalog_sha": directory["publication"]["catalog_sha"],
+        "catalog_sha": edition["catalog_sha"],
         "paragraph_id": paragraph["id"],
         "phase_id": paragraph["phase_id"],
         "entity_id": entity["id"],
@@ -1258,8 +1258,8 @@ def collect_history(base_url: str, version: str) -> dict[str, Any]:
         "conclusion_id": conclusion["conclusion"]["id"],
         "anchor_id": evidence[0].get("anchor_id"),
         "anchor_quote": evidence[0].get("quote"),
-        "paragraph_count": publication["paragraph_count"],
-        "entry_points": [entry["paragraph_id"] for entry in publication.get("entry_points", [])],
+        "paragraph_count": edition["paragraph_count"],
+        "entry_points": [entry["paragraph_id"] for entry in edition.get("entry_points", [])],
     }
     # Independent person page: the same version anchored at that paragraph must
     # expose the entity phase state; a missing person detail must fail closed.
@@ -1407,7 +1407,7 @@ def fault_checks(
 
     # F1: a deterministic mid-chain chapter failure leaves no public half-product.
     before = public_json(base_url, "/api/v1/public/history")
-    before_version = (before.get("publication") or {}).get("version")
+    before_version = (before.get("edition") or {}).get("edition_version")
     token = "GATEFAULTTOKEN"
     fault_source = evidence_dir / "fault-source.md"
     fault_source.write_text(upload["text"] + f"\n\n{token}\n", encoding="utf-8")
@@ -1426,7 +1426,7 @@ def fault_checks(
     if failed.get("status") != "failed":
         raise GateError("injected chapter failure did not fail the job")
     after = public_json(base_url, "/api/v1/public/history")
-    after_version = (after.get("publication") or {}).get("version")
+    after_version = (after.get("edition") or {}).get("edition_version")
     if after_version != before_version:
         raise GateError("failed source chain leaked a published history version")
     faults["chain_failure_no_partial"] = {
@@ -1439,7 +1439,7 @@ def fault_checks(
     stack.restart("chronicle-web", "chronicle-read")
     wait_health(base_url, timeout_seconds=180)
     restart = public_json(base_url, "/api/v1/public/history")
-    if (restart.get("publication") or {}).get("version") != version:
+    if (restart.get("edition") or {}).get("edition_version") != version:
         raise GateError("published history version changed across restart")
     reparsed = collect_history(base_url, version)
     if reparsed["paragraph_id"] != history["paragraph_id"]:

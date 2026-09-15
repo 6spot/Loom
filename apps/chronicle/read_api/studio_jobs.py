@@ -30,6 +30,11 @@ POST   /api/v1/studio/jobs/{job_id}/resume
 POST   /api/v1/studio/jobs/{job_id}/cancel
 GET    /api/v1/studio/jobs/model-options
 GET    /api/v1/studio/jobs/history/model-options
+GET    /api/v1/studio/jobs/history/editions/fragments
+GET    /api/v1/studio/jobs/history/editions
+POST   /api/v1/studio/jobs/history/editions
+GET    /api/v1/studio/jobs/history/editions/{draft_id}
+POST   /api/v1/studio/jobs/history/editions/{draft_id}/publish
 GET    /api/v1/studio/jobs/person-history/people[?catalog_sha=&publication_ids=&limit=&offset=]
 GET    /api/v1/studio/jobs/person-history/model-options
 POST   /api/v1/studio/jobs/person-history
@@ -64,6 +69,7 @@ _REVIEW_SCOPE_LABELS = {
     "chapter_content": "章节内容审核",
     "person_state": "阶段依据审核",
     "person_history": "人物生平审核",
+    "history_edition": "历史接缝审核",
 }
 
 
@@ -675,11 +681,148 @@ def dispatch_jobs(
         message = str(exc)
         if message.startswith("unknown "):
             return _error(404, "not_found", message)
+        contract_code = getattr(exc, "code", None)
+        if isinstance(contract_code, str):
+            return _error(409 if contract_code == "baseline_changed" else 400, contract_code, message)
         return _error(400, "bad_request", message)
+
+
+def _edition_body(body: bytes) -> dict[str, Any]:
+    try:
+        payload = json.loads(body.decode("utf-8")) if body else {}
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise _BadRequest(f"history edition request requires a JSON object: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise _BadRequest("history edition request requires a JSON object")
+    return payload
+
+
+def _edition_response(value: Any, *, status: int = 200, schema: str = "chronicle.history-edition-draft"):
+    key = (
+        "edition"
+        if schema == "chronicle.history-edition"
+        else "review"
+        if schema == "chronicle.history-edition-review"
+        else "draft"
+    )
+    return status, "application/json; charset=utf-8", _json_bytes(
+        {"schema": schema, "version": "0.1", key: value}
+    )
+
+
+def _history_edition_route(conn, *, method: str, path: str, query: dict[str, list[str]], body: bytes):
+    """Studio selection/draft/publish surface for the global history edition."""
+
+    import history_edition_store
+
+    prefix = STUDIO_JOBS_PREFIX + "/history/editions"
+    if path == prefix + "/fragments":
+        if method != "GET" or set(query) - {"limit", "offset"}:
+            raise _BadRequest("history fragments accepts GET with limit/offset")
+        try:
+            limit = int(_single(query, "limit") or "50")
+            offset = int(_single(query, "offset") or "0")
+        except ValueError as exc:
+            raise _BadRequest("invalid history fragment page") from exc
+        return 200, "application/json; charset=utf-8", _json_bytes(
+            history_edition_store.list_published_fragments(conn, limit=limit, offset=offset)
+        )
+    if path == prefix:
+        if method == "GET":
+            if set(query) - {"status", "limit", "offset"}:
+                raise _BadRequest("history editions accepts status, limit, and offset")
+            try:
+                limit = int(_single(query, "limit") or "50")
+                offset = int(_single(query, "offset") or "0")
+            except ValueError as exc:
+                raise _BadRequest("invalid history edition page") from exc
+            return 200, "application/json; charset=utf-8", _json_bytes(
+                history_edition_store.list_drafts(
+                    conn, status=_single(query, "status"), limit=limit, offset=offset
+                )
+            )
+        if method != "POST" or query:
+            raise _BadRequest("history edition drafts accept POST without query parameters")
+        payload = _edition_body(body)
+        allowed = {
+            "fragments", "fragment_versions", "boundary_reviews", "navigation",
+            "baseline_manifest_sha256", "fragment_coverages", "lineage", "operation",
+            "replacement_range", "job_id", "worker",
+        }
+        if set(payload) - allowed:
+            raise _BadRequest("unknown history edition draft field")
+        draft = history_edition_store.create_draft(
+            conn,
+            fragments=payload.get("fragments"),
+            fragment_versions=payload.get("fragment_versions"),
+            boundary_reviews=payload.get("boundary_reviews"),
+            navigation=payload.get("navigation"),
+            baseline_manifest_sha256=payload.get("baseline_manifest_sha256"),
+            fragment_coverages=payload.get("fragment_coverages"),
+            lineage=payload.get("lineage"),
+            operation=payload.get("operation"),
+            replacement_range=payload.get("replacement_range"),
+            job_id=payload.get("job_id"),
+            worker=payload.get("worker"),
+        )
+        return _edition_response(draft, status=201)
+
+    if not path.startswith(prefix + "/"):
+        return None
+    parts = path[len(prefix) + 1:].split("/")
+    if not parts or not parts[0]:
+        return None
+    draft_id = _require_uuid(parts[0], "history edition draft")
+    if len(parts) == 1:
+        if method != "GET" or query:
+            raise _BadRequest("history edition draft detail accepts GET without query parameters")
+        draft = history_edition_store.read_draft(conn, draft_id)
+        if draft is None:
+            raise _NotFound(f"unknown history edition draft {draft_id}")
+        return _edition_response(draft)
+    if len(parts) == 2 and parts[1] == "publish":
+        if method != "POST" or query:
+            raise _BadRequest("history edition publish accepts POST without query parameters")
+        payload = _edition_body(body)
+        allowed = {"job_id", "worker", "baseline_manifest_sha256"}
+        if set(payload) - allowed:
+            raise _BadRequest("unknown history edition publish field")
+        edition = history_edition_store.publish_draft(
+            conn,
+            draft_id,
+            job_id=payload.get("job_id"),
+            worker=payload.get("worker"),
+            baseline_manifest_sha256=payload.get("baseline_manifest_sha256"),
+        )
+        return _edition_response(edition, schema="chronicle.history-edition")
+    if len(parts) == 3 and parts[1] == "boundaries" and parts[2]:
+        if method != "POST" or query:
+            raise _BadRequest("history boundary decisions accept POST without query parameters")
+        payload = _edition_body(body)
+        allowed = {"decision", "rationale", "review_basis"}
+        if set(payload) - allowed or not isinstance(payload.get("decision"), str):
+            raise _BadRequest("history boundary decision requires decision and rationale")
+        review = history_edition_store.decide_boundary_review(
+            conn,
+            parts[2],
+            decision=payload["decision"],
+            rationale=payload.get("rationale", ""),
+            review_basis=payload.get("review_basis"),
+        )
+        return _edition_response(review, schema="chronicle.history-edition-review")
+    raise _NotFound("history edition route not found")
 
 
 def _route(conn, control_plane, *, method, path, raw_query, body):
     query = parse_qs(raw_query, keep_blank_values=True)
+    if path == STUDIO_JOBS_PREFIX + "/history/editions" or path.startswith(
+        STUDIO_JOBS_PREFIX + "/history/editions/"
+    ):
+        result = _history_edition_route(
+            conn, method=method, path=path, query=query, body=body
+        )
+        if result is not None:
+            return result
     if path == STUDIO_JOBS_PREFIX + "/model-options":
         import chapter_model_settings
         if method != "GET" or query:
@@ -762,7 +905,7 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
             payload = json.loads(body)
         except (ValueError, UnicodeDecodeError) as exc:
             raise _BadRequest("history generation requires a JSON object") from exc
-        if not isinstance(payload, dict) or set(payload) - {"catalog_sha", "publication_ids", "model_selection"}:
+        if not isinstance(payload, dict) or set(payload) - {"catalog_sha", "publication_ids", "model_selection", "coverage"}:
             raise _BadRequest("history generation requires catalog_sha and publication_ids; model_selection is optional")
         if set(payload) < {"catalog_sha", "publication_ids"}:
             raise _BadRequest("history generation requires catalog_sha and publication_ids")
@@ -777,6 +920,7 @@ def _route(conn, control_plane, *, method, path, raw_query, body):
             catalog_sha=payload["catalog_sha"],
             publication_ids=payload["publication_ids"],
             model_selection=selection,
+            coverage=payload.get("coverage"),
         )
         return _job_response(conn, control_plane, job_id=job_id, status=201)
 

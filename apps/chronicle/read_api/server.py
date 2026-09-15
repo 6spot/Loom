@@ -187,7 +187,7 @@ def handler_class(
                     declared = int(self.headers.get("Content-Length") or 0)
                 except ValueError:
                     declared = 0
-                limit = 3 * 1024 * 1024 if kind == "review" else 65536
+                limit = 3 * 1024 * 1024 if kind in ("review", "edition") else 65536
                 if declared > limit:
                     payload = (
                         json.dumps(
@@ -213,7 +213,9 @@ def handler_class(
             return None
 
         def _handle_studio_jobs(self, path: str, query: str) -> None:
-            body = self._read_small_studio_body("job")
+            body = self._read_small_studio_body(
+                "edition" if path.startswith(STUDIO_JOBS_PREFIX + "/history/editions") else "job"
+            )
             if body is None:
                 return
             try:

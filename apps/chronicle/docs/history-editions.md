@@ -199,6 +199,36 @@ hash，指向不存在本地 ID 的篡改映射也会以 `source_mapping_mismatc
 因为段落数或片段数增长而把所有事件/细节自动升级为入口。入口必须命中真实段落；
 `kind == "event"` 还必须命中该段中 `current` 的同一事件。
 
+## 持久化与读取接线（C3-T10）
+
+`persistence/history_edition_store.py` 将上述纯合同接到 Chronicle 自有
+PostgreSQL。`history_editions`、`history_edition_fragments` 和三个有序索引表
+均为发布后不可变记录；`history_edition_latest` 是唯一可变的最新指针。
+`history_edition_drafts` 只保存 Studio 的完整片段快照、基线和接缝审核引用，
+不会成为事实或来源权威。
+
+Studio 通过现有任务代理使用以下路径：
+
+```text
+GET  /api/v1/studio/jobs/history/editions/fragments
+GET  /api/v1/studio/jobs/history/editions
+POST /api/v1/studio/jobs/history/editions
+GET  /api/v1/studio/jobs/history/editions/{draft_id}
+POST /api/v1/studio/jobs/history/editions/{draft_id}/publish
+POST /api/v1/studio/jobs/history/editions/{draft_id}/boundaries/{review_id}
+```
+
+最后一个路径仍写入现有 `ReviewItem(stage_gate)`；接缝必须带两侧段落锚点和
+非空理由，只有 `resolved + accept` 才能进入 manifest。发布重新取得已有
+全局发布 advisory lock，重查 edition 基线、片段 hash、接缝状态和（绑定任务
+时的）未过期租约，最后才更新 latest 指针。
+
+唯一公开主历史入口是 `/api/v1/public/history`（sidecar 的 `/v0/history`）：
+省略 `version` 只读 latest 指针的元数据，带 `version` 则固定到该 edition；
+段落和结论查询从有序索引按 ordinal/ID 读取，再回到对应片段，不加载整个
+全局 manifest，也不调用模型。没有已发布 edition 时返回空态，未知版本、段落
+或结论不会回退到最近批次。
+
 ## 错误码
 
 纯合同异常为 `HistoryEditionError`，可读取 `.code`；它继承

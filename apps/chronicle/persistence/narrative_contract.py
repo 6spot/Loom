@@ -806,13 +806,37 @@ def compile_publication(context: dict, facts: dict, prose: dict) -> dict:
                     for segment in paragraph["segments"]]
         paragraphs.append({"id": paragraph_id, "ordinal": index, "phase_id": phase["id"],
                            "group_id": groups[-1]["id"], "segments": segments, "entities": entities})
-    result = {"schema": "chronicle.historical-publication", "version": VERSION, "publication_version": version,
-              "catalog_sha": context["catalog_sha"], "title": facts["title"], "paragraphs": paragraphs,
+    # T10 promotes this immutable narrative output to a selectable history
+    # fragment.  Coverage is an explicit source coordinate, never inferred
+    # from phase years.  Existing callers that predate the field receive one
+    # deterministic catalog-scoped range; Studio can supply a more precise
+    # reviewed range when composing cross-batch editions.
+    coverage = context.get("coverage")
+    if not isinstance(coverage, dict):
+        coverage = {
+            "scope": f"catalog:{context['catalog_sha']}",
+            "start": 0,
+            "end": len(paragraphs),
+        }
+    fragment_evidence = evidence_index(context)
+    # The fragment publication is the immutable narrative record.  Preserve
+    # each chapter publication as source provenance while making the evidence
+    # owner explicit so the T09 fragment contract can close all references to
+    # one publication scope.
+    for evidence in fragment_evidence.values():
+        source_publication_id = evidence.get("publication_id")
+        evidence["source_publication_id"] = source_publication_id
+        evidence["publication_id"] = version
+    result = {"schema": "chronicle.historical-publication", "version": VERSION,
+              "publication_status": "published", "publication_version": version,
+              "publication_id": version, "coverage": copy.deepcopy(coverage),
+              "catalog_sha": context["catalog_sha"], "title": facts["title"], "phases": copy.deepcopy(facts["phases"]),
+              "paragraphs": paragraphs,
               "groups": [{key: value for key, value in group.items() if key != "key"} for group in groups],
               "entry_points": [{**entry, "paragraph_id": paragraph_ids[entry["paragraph_id"]]}
                   for entry in sorted(prose["entry_points"], key=lambda item: next(
                       i for i, p in enumerate(prose["paragraphs"]) if p["id"] == item["paragraph_id"]))],
-              "conclusions": facts["conclusions"], "evidence": evidence_index(context),
+              "conclusions": facts["conclusions"], "evidence": fragment_evidence,
               "source_relations": facts["source_relations"]}
     if "navigation" in prose:
         result["navigation"] = [{**section,
