@@ -142,7 +142,7 @@ Select component suites by the surface they exercise:
 | Synthesized history and curated navigation | `scripts/history-component-smoke.mjs`. |
 | Narrative review | `scripts/narrative-review-component-smoke.mjs`. |
 | Studio upload, task progress, model comparison or retry | `scripts/studio-workspace-component-smoke.mjs`. |
-| Background candidate upload, explicit save and reader display | `scripts/studio-background-component-smoke.mjs` (fixture) and `scripts/history-background-real-stack-smoke.mjs` (real T15 backend). |
+| Background candidate upload, explicit save and reader display | `scripts/studio-background-component-smoke.mjs` (fixture), `scripts/history-background-component-smoke.mjs` (reader fixture), and `scripts/history-background-real-stack-smoke.mjs` (real T15 backend). |
 
 The runnable examples below show the Vite base URL and output arguments. Choose
 the matching examples instead of running all of them. Component suites use
@@ -190,6 +190,7 @@ node scripts/history-component-smoke.mjs --base-url http://127.0.0.1:5173
 node scripts/narrative-review-component-smoke.mjs --base-url http://127.0.0.1:5173
 node scripts/studio-workspace-component-smoke.mjs --base-url http://127.0.0.1:5173 --output /tmp/chronicle-studio-workspace
 node scripts/studio-background-component-smoke.mjs --base-url http://127.0.0.1:5173 --output /tmp/chronicle-studio-backgrounds
+node scripts/history-background-component-smoke.mjs --base-url http://127.0.0.1:5173
 CHRONICLE_ADMIN_USER=<admin> CHRONICLE_ADMIN_PASSWORD=<password> \
   node scripts/history-background-real-stack-smoke.mjs --base-url http://127.0.0.1:8080 --output /tmp/chronicle-background-real-stack
 ```
