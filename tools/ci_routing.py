@@ -32,6 +32,11 @@ STEPS = (
     "chronicle_notes",
 )
 SUITES = ("studio", "narrative", "reading", "history", "person")
+# The plan is passed through GitHub Actions outputs and environment variables.
+# Keep enough examples to explain each selected route without duplicating every
+# evidence file path into each selected job's reason list. The complete path
+# list remains in ``paths`` and is still used to make the selection.
+MAX_REASON_EXAMPLES = 4
 CI_FILES = {
     "tools/ci_routing.py", "tools/test_ci_routing.py",
     "tools/requirements-ci.txt", ".github/CODEOWNERS",
@@ -84,7 +89,8 @@ def classify(paths: list[str], *, full: bool = False) -> dict:
     def enable(*jobs: str, why: str) -> None:
         for job in jobs:
             plan["jobs"][job] = True
-            if why not in plan["reasons"][job]:
+            if (why not in plan["reasons"][job]
+                    and len(plan["reasons"][job]) < MAX_REASON_EXAMPLES):
                 plan["reasons"][job].append(why)
 
     def step(*names: str) -> None:

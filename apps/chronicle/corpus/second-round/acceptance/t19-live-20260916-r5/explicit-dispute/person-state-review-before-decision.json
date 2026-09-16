@@ -1,0 +1,198 @@
+{
+  "review": {
+    "allowed_assessments": [
+      "supported",
+      "uncertain",
+      "disputed",
+      "rejected"
+    ],
+    "candidate_count": 5,
+    "candidates": [
+      {
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "assessment_default": "uncertain",
+        "attribution": "narrator",
+        "candidate_key": "psc_4862b0e0988bb0bb0fd89168",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "dimension": null,
+        "item_ref": "tr_001",
+        "kind": "unit_phase",
+        "operation": null,
+        "person_id": null,
+        "person_name": null,
+        "phase_refs": [
+          "ph_001",
+          "ph_002"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "qualification": null,
+        "quote": "景，景子忠，皆為漢太尉",
+        "reason_codes": [],
+        "relation": null,
+        "source_label": "sanguozhi-054-zhou-yu-real-excerpt",
+        "target": null,
+        "value": "ambiguous"
+      },
+      {
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "assessment_default": "uncertain",
+        "attribution": "narrator",
+        "candidate_key": "psc_7123062d31626242b06fd45d",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "dimension": null,
+        "item_ref": "ph_002",
+        "kind": "phase",
+        "operation": null,
+        "person_id": null,
+        "person_name": null,
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "phase_definition",
+        "qualification": null,
+        "quote": "景，景子忠，皆為漢太尉",
+        "reason_codes": [],
+        "relation": null,
+        "source_label": "sanguozhi-054-zhou-yu-real-excerpt",
+        "target": null,
+        "value": "忠任漢太尉"
+      },
+      {
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "assessment_default": "uncertain",
+        "attribution": "narrator",
+        "candidate_key": "psc_728cf10ae34113216241ed0a",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "dimension": "office",
+        "item_ref": "pf_001",
+        "kind": "fact",
+        "operation": "attest",
+        "person_id": null,
+        "person_name": "景",
+        "phase_refs": [
+          "ph_001"
+        ],
+        "predicted_effect": "prior_identity",
+        "qualification": "ordinary",
+        "quote": "景，景子忠，皆為漢太尉",
+        "reason_codes": [],
+        "relation": null,
+        "source_label": "sanguozhi-054-zhou-yu-real-excerpt",
+        "target": null,
+        "value": "漢太尉"
+      },
+      {
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "assessment_default": "uncertain",
+        "attribution": "narrator",
+        "candidate_key": "psc_7ca018ea91451fb007597373",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "dimension": null,
+        "item_ref": "ph_001",
+        "kind": "phase",
+        "operation": null,
+        "person_id": null,
+        "person_name": null,
+        "phase_refs": [
+          "ph_001"
+        ],
+        "predicted_effect": "phase_definition",
+        "qualification": null,
+        "quote": "景，景子忠，皆為漢太尉",
+        "reason_codes": [],
+        "relation": null,
+        "source_label": "sanguozhi-054-zhou-yu-real-excerpt",
+        "target": null,
+        "value": "景任漢太尉"
+      },
+      {
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "assessment_default": "uncertain",
+        "attribution": "narrator",
+        "candidate_key": "psc_fb19de49c731aadfe3a19954",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "dimension": "office",
+        "item_ref": "pf_002",
+        "kind": "fact",
+        "operation": "attest",
+        "person_id": null,
+        "person_name": "忠",
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "prior_identity",
+        "qualification": "ordinary",
+        "quote": "景，景子忠，皆為漢太尉",
+        "reason_codes": [],
+        "relation": null,
+        "source_label": "sanguozhi-054-zhou-yu-real-excerpt",
+        "target": null,
+        "value": "漢太尉"
+      }
+    ],
+    "catalog_sha": "1095515c9d18ad6f07d139c64b760300b80759c2869bcfdee1e47448bbe88b51",
+    "chapter_id": "ch_2afd4219072f81f6099c151b",
+    "chunk_id": null,
+    "created_at": "2026-09-16T15:29:18.032147+00:00",
+    "cursor": null,
+    "decision": null,
+    "default_assessment": "uncertain",
+    "document": {
+      "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+      "filename": "sanguozhi-054-zhou-yu-real-excerpt.txt",
+      "language": "zh-CN",
+      "revision_no": 1,
+      "source_label": "lm80-r5-explicit-dispute",
+      "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+      "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳"
+    },
+    "has_more": false,
+    "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+    "job_status": "needs_review",
+    "kind": "stage_gate",
+    "left_label": "阶段依据审核",
+    "limit": 20,
+    "next_cursor": null,
+    "plan_fingerprint": "d554c4f881d57e7c9923469cef38efd44f8f72bf7dfc96ddaacc91eb8d6a89f7",
+    "resolved_at": null,
+    "review_id": "b22a0236-e676-4483-99a5-2a3be829d149",
+    "review_mode": "chapter_state_evidence",
+    "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+    "right_label": null,
+    "scope": "person_state",
+    "source_entry": {
+      "contexts_href": "/api/v1/studio/jobs/reviews/b22a0236-e676-4483-99a5-2a3be829d149/contexts",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "source_href_template": "/api/v1/studio/jobs/reviews/b22a0236-e676-4483-99a5-2a3be829d149/sources/{anchor_id}",
+      "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4"
+    },
+    "status": "open"
+  },
+  "schema": "chronicle.review",
+  "version": "0.1"
+}

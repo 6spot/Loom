@@ -1,0 +1,21 @@
+{
+  "artifact_type": "chapter-production-attempt",
+  "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+  "output_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+  "payload": {
+    "attempt": 1,
+    "input_sha256": "2d08749ef27fbd91d7b3b426fc3b16ce3722d48c82895f12a8d0a262323b87bc",
+    "model": "gpt-5.6-sol",
+    "node_key": "f1c3e1b0e4b0c432cb7f911dce781544299f2302baf9a014e791d5637bf7a655",
+    "pipeline_fingerprint": "6be89f15a92603f74a1547656bfdf5a9625391725d10a64c6289459622a772b1",
+    "request_fingerprint": "d6f5b6124814400ccae8e94d360625b1fd657ca3c0826379e993f1f4db27725d",
+    "retry_of": null,
+    "round": 0,
+    "schema": "chronicle.chapter-step-attempt",
+    "slot": "reviewer",
+    "started_at": "2026-09-16T15:05:45.577199+00:00",
+    "status": "started",
+    "step": "repair",
+    "version": "0.1"
+  }
+}

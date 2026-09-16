@@ -1,0 +1,167 @@
+{
+  "schema": "chronicle.t19-live-execution-evidence",
+  "version": "0.3",
+  "task": "C3-T19",
+  "issue": "LM-80",
+  "candidate_commit": "3956ab0202edf4e37101aeb9df5c7d5167128827",
+  "captured_at": "2026-09-16T12:51:31.512503+00:00",
+  "environment": {
+    "fresh_database": true,
+    "provider_endpoint_configured": true,
+    "credentials": "omitted",
+    "global_timeout_seconds": 1800,
+    "real_data": true,
+    "fixture_substitution": false
+  },
+  "source": {
+    "title": "三國志·吳書·周瑜傳",
+    "document_id": "c974ac04-a269-43ef-988f-afad49142f92",
+    "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+    "revision_no": 1,
+    "bytes": 14996,
+    "normalized_characters": 5018,
+    "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+  },
+  "provider": {
+    "config_sha256": "c81c62de2e19079792596df4508028a74b828e355140cf325bb294b31bc39521",
+    "profiles": {
+      "translation": {"slot": "executor", "model": "gpt-5.6-luna"},
+      "extraction": {"slot": "reviewer", "model": "gpt-5.6-sol"},
+      "comparison": {"slot": "reviewer", "model": "gpt-5.6-sol"},
+      "linking": {"slot": "reviewer", "model": "gpt-5.6-sol"},
+      "review": {"slot": "reviewer", "model": "gpt-5.6-sol"},
+      "repair": {"slot": "reviewer", "model": "gpt-5.6-sol"}
+    },
+    "usage_and_attempts": "The saved job detail and API pages retain every attempt status, usage record, input/output hash and stage timestamp; no provider credentials are included."
+  },
+  "run": {
+    "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+    "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+    "status": "completed",
+    "current_stage": "present",
+    "attempt": 5,
+    "max_attempts": 8,
+    "open_reviews": 0,
+    "stages": [
+      {"key": "prepare", "status": "completed", "attempt": 1},
+      {"key": "structure", "status": "completed", "attempt": 1},
+      {"key": "segment", "status": "completed", "attempt": 1},
+      {"key": "extract", "status": "completed", "attempt": 1},
+      {"key": "assemble", "status": "completed", "attempt": 1},
+      {"key": "resolve", "status": "completed", "attempt": 1},
+      {"key": "publish", "status": "completed", "attempt": 1},
+      {"key": "present", "status": "completed", "attempt": 1}
+    ],
+    "accepted_candidate": {
+      "status": "accepted",
+      "candidate_sha256": "c0c2eeca3895d86924e9a3b64e21f526fc7e99605707a486aed09c82a1fc151c",
+      "draft_sha256": "e946deaf441121a0ed6fcad2fbba108d35a7c720c0772ac329195a880d44da19",
+      "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+      "history_sha256": "d329c6d3fc9db19a485f676275c143045d6213f6fbb54c7175d41bad84328b01",
+      "receipt_sha256": "abb4ddcaa11aa34758cea6664fee4dc8f0e42d21717266dd9d7100668a1edfb3",
+      "decision": {"kind": "human", "review_id": "fefc0e0f-12cc-49f0-ba8c-e1e17202f9e3"}
+    }
+  },
+  "operator_review": {
+    "content": {
+      "review_id": "fefc0e0f-12cc-49f0-ba8c-e1e17202f9e3",
+      "status": "resolved",
+      "issues_reviewed": 483,
+      "validation_errors": 0,
+      "candidate_accepted": true,
+      "decision_artifact": "operator/content-acceptance/r3-content-review-acceptance.json",
+      "note": "Source-qualified uncertainty was retained. The final model review was not claimed as a pass when the context-limit record was reached; the human decision disposed the retained opinions and accepted the mechanically valid, source-grounded candidate."
+    },
+    "person_state": {
+      "review_id": "90012334-d494-4998-8566-a07f874c1f76",
+      "status": "resolved",
+      "candidate_count": 54,
+      "default_assessment": "uncertain",
+      "supported_with_source_quotes": 52,
+      "rejected_unknown_placeholders": 2,
+      "decision_artifact": "operator/content-acceptance/person-state-decision.json"
+    }
+  },
+  "failure_artifacts": {
+    "preserved": true,
+    "invalid_or_non_candidate_outputs": [
+      {"step": "extraction", "status": "invalid", "sha256": "76fa4ee60d23d9b2a0f7b38a33e98997c2e23533e8b34c6d93f1f8a83d771d55"},
+      {"step": "linking", "status": "invalid", "round": 0, "sha256": "c4c1778f0ded328a89eab7e6893e789f34b3595757a09e744c9ac6dd5e9a6fe6"},
+      {"step": "linking", "status": "invalid", "round": 1, "sha256": "d5080c4eab198d9099b9227f593813fd43186af6b0ec717328c66b59d7c70ba9"},
+      {"step": "review", "status": "invalid", "round": 1, "sha256": "86abdadc6fb694e5c33b1dfd4b43ae443457085e7c117172130147f4ea03a95d"},
+      {"step": "linking", "status": "invalid", "round": 2, "sha256": "f404fe0e83816fcc692fd5e6892b8f0100b45af1d9532f2b9419252613e7cbb6"}
+    ],
+    "artifact_directory": "model-outputs/api-pages/",
+    "prior_contract_evidence": "../t19-live-20260916-r2/",
+    "handling": "Invalid extraction/linking/review records and the context-limit/model-repair records remain readable and are excluded from the accepted candidate; none is overwritten or silently promoted."
+  },
+  "publication": {
+    "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+    "artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76",
+    "catalog_sha256": "81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4",
+    "assembled_bundle_sha256": "4a5e1af0172ac081562429c354da55a04d46b69711a33596a3205b13ddc3ccc2",
+    "publication_sequence": 1,
+    "status": "published"
+  },
+  "reading_stream": {
+    "stream_id": "d3469c4b-97c0-7cb5-b0a5-800c463e5c0e",
+    "manifest_sha256": "0c41df98eea6256b00740125883692be855d6bd434773d20c01ca6addcca1287",
+    "content_sha256": "ea2d0e85da0813a2511163b425784400d41e5ede6d42f12299e5e167b9028b1a",
+    "full_text_sha256": "3371583c938a4ce0c59efad8b41692af1d6a576e662c8f3a44989bb9bbdaae68",
+    "unit_count": 18,
+    "group_count": 8,
+    "status": "readable"
+  },
+  "readback": {
+    "evidence_manifest": "readback/manifest.json",
+    "all_captured_http_statuses": 200,
+    "endpoints": {
+      "stream_directory": "readback/01-reading-stream-directory.json",
+      "stream_detail": "readback/02-reading-stream-detail.json",
+      "units_page_1": "readback/03-reading-units-page-01.json",
+      "units_page_2": "readback/04-reading-units-page-02.json",
+      "groups_page_1": "readback/05-reading-groups-page-01.json",
+      "groups_page_2": "readback/06-reading-groups-page-02.json",
+      "locate": "readback/07-reading-locate.json",
+      "chapter_directory": "readback/08-chapter-directory.json",
+      "chapter_detail": "readback/09-chapter-detail.json",
+      "source_anchor": "readback/10-chapter-source-anchor.json"
+    },
+    "pagination_checks": {
+      "units_page_1_ordinals": [0, 1],
+      "units_page_2_ordinals": [2, 3],
+      "groups_page_1_ordinals": [0, 1],
+      "groups_page_2_ordinals": [2, 3],
+      "located_target_ordinal": 0,
+      "chapter_detail_translation_blocks": 18,
+      "chapter_detail_entities": 70,
+      "chapter_detail_events": 23,
+      "source_anchor_has_next": true
+    },
+    "regression": {
+      "before": "assembled revision refs returned reference_unmapped HTTP 409 from public chapter detail",
+      "after": "the same published chapter detail returned HTTP 200 with chapter-scoped revision refs and source anchor readback",
+      "fix_commit": "3956ab0202edf4e37101aeb9df5c7d5167128827"
+    }
+  },
+  "content_checks": {
+    "evidence": "content-checks.json",
+    "count": 12,
+    "passed": 9,
+    "passed_with_uncertainty": 3,
+    "failed": 0
+  },
+  "scope_boundary": {
+    "background_ui": "Not rerun in this downstream-fix turn; prior staged-live evidence remains unchanged and is not recast as this run.",
+    "additional_editions": "Not run in this turn; this evidence is the requested real linked publication/readback chain for the fresh chapter.",
+    "capacity_fixture": "Not rerun in this turn; deterministic 300+ capacity evidence remains separate from real data.",
+    "ci": "Local targeted tests are recorded in the PR handoff; CI is not watched by this run."
+  },
+  "evidence_files": {
+    "job_detail": "model-outputs/job-detail.json",
+    "saved_outputs": "model-outputs/saved-outputs.json",
+    "raw_api_pages": "model-outputs/api-pages/",
+    "operator_decisions": "operator/",
+    "readback": "readback/"
+  }
+}

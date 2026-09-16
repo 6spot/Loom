@@ -1,0 +1,32 @@
+{
+  "job_id": "d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7",
+  "revision_id": "0fbd5773-ea2d-42fd-b735-1fd0d5088740",
+  "output_sha256": "e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 886,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "linking",
+    "node_key": "1fb0e58ed1da53be303b37a3ddec32636f4b0fab792789a1ba8a4e4dcdb22598",
+    "slot": "reviewer_1",
+    "model": "gpt-5.6-sol",
+    "round": 0,
+    "attempt": 1,
+    "status": "failed",
+    "attempt_sha256": "3fdc5eec6d2fd2bcc84f20060a5cf7d85f4092e995e21ca2b94291b9d54021cd",
+    "input_sha256": "437ebd7d600aa5512e1192918596bc460715557e99daaef75a2eb5f0e6f827c4",
+    "pipeline_fingerprint": "9cb80c63f331ea43541b42c3338e34045c811fdeb050b88927710970541f7fcf",
+    "request_fingerprint": "a7ce17b237d853806f8f4bb8f9d7a1b93441f43fb3e9d1edb23c1592126b93df",
+    "raw_text": "",
+    "parsed": null,
+    "validation_errors": [],
+    "error": "model attempt exceeded CHRONICLE_MODEL_TIMEOUT_SECONDS (1800s)",
+    "receipt": {
+      "status": "timeout",
+      "usage": null,
+      "elapsed_seconds": 1800.006,
+      "http_attempts": 1
+    }
+  }
+}

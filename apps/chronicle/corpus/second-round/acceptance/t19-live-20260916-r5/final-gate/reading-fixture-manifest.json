@@ -1,0 +1,121 @@
+{
+  "base_url": "http://127.0.0.1:18085",
+  "budgets": {
+    "active_to_sidebar_p95_ms": 100,
+    "max_long_task_ms": 200,
+    "mounted_max_units": 140,
+    "restore_p95_ms": 250,
+    "target_groups": 1000,
+    "target_units": 5000
+  },
+  "generated_by": "C3-T01",
+  "negatives": [
+    {
+      "catalog_sha": "08c7a4abe56afdca9daba4184825c9d2afade58ada5f4f83f132d954e5b4085c",
+      "kind": "unknown_time",
+      "stream_id": "01a0aae6-4a3d-74a5-a3bd-c8d23a161f07",
+      "unit_id": "ru_bbbb1d9be16336e01160b7a4"
+    },
+    {
+      "catalog_sha": "08c7a4abe56afdca9daba4184825c9d2afade58ada5f4f83f132d954e5b4085c",
+      "kind": "missing_context",
+      "previous_context_unit_id": "ru_bbbb1d9be16336e01160b7a4",
+      "stream_id": "01a0aae6-4a3d-74a5-a3bd-c8d23a161f07",
+      "unit_id": "ru_875517ccdbbff10faa63a53a"
+    },
+    {
+      "catalog_sha": "08c7a4abe56afdca9daba4184825c9d2afade58ada5f4f83f132d954e5b4085c",
+      "entity_ref": "scale_ent_1",
+      "kind": "missing_role",
+      "stream_id": "01a0aae6-4a3d-74a5-a3bd-c8d23a161f07",
+      "unit_id": "ru_bbbb1d9be16336e01160b7a4"
+    }
+  ],
+  "scale": {
+    "catalog_sha": "08c7a4abe56afdca9daba4184825c9d2afade58ada5f4f83f132d954e5b4085c",
+    "first_unit_id": "ru_bbbb1d9be16336e01160b7a4",
+    "group_count": 1000,
+    "last_unit_id": "ru_b0c9ab8d8281d60a272151a1",
+    "status": "measured",
+    "stream_id": "01a0aae6-4a3d-74a5-a3bd-c8d23a161f07",
+    "synthetic": true,
+    "target_groups": 1000,
+    "target_units": 5000,
+    "unit_count": 5000
+  },
+  "schema": "chronicle.reading-flow-fixture",
+  "streams": [
+    {
+      "catalog_sha": "cdc93799e8a3001daa8975691def78aad80be97a85c4063cb9c6b39210612fa8",
+      "event_ids": [
+        "01a0aae5-3ceb-7e31-8f10-88ce58795aa3",
+        "01a0aae5-3ceb-7700-9f62-f57cafe97404",
+        "01a0aae5-3ceb-7b52-a635-f7aa706d1204"
+      ],
+      "first_unit_id": "ru_ab968bddcd2e75dbcc9146a3",
+      "group_count": 1,
+      "source_title": "三國志",
+      "stream_id": "89d39afd-320c-7407-bd6e-cc8930e4ee20",
+      "unit_count": 3
+    },
+    {
+      "catalog_sha": "5adacf830708dd29258a0d8bbc6d54283cd3af5e387614b667f279fe6ffcc74c",
+      "event_ids": [
+        "01a0aae5-72eb-77c2-96cd-ddaaded0eefc"
+      ],
+      "first_unit_id": "ru_251905a37bf8c736fcd53874",
+      "group_count": 1,
+      "source_title": "資治通鑑",
+      "stream_id": "7f01cd0a-e96c-7840-893e-5af0da60fbf6",
+      "unit_count": 1
+    },
+    {
+      "catalog_sha": "828c33d3b339554bd8ddce224ab27fd584933ce95bfac6533544e52cc1b212f5",
+      "event_ids": [
+        "01a0aae5-cbd8-7568-b670-595f87d45ed3",
+        "01a0aae5-cbd8-7449-b3d1-220ec3c6cdc8",
+        "01a0aae5-cbd8-7b71-9799-bbf11c76a3a5"
+      ],
+      "first_unit_id": "ru_6f5ef53937a735172dfe422c",
+      "group_count": 1,
+      "source_title": "staged-version-2",
+      "stream_id": "17fefeac-c3f7-7bdd-838e-c3b531675b1d",
+      "unit_count": 3
+    }
+  ],
+  "version": "0.1",
+  "versions": [
+    {
+      "catalog_sha": "cdc93799e8a3001daa8975691def78aad80be97a85c4063cb9c6b39210612fa8",
+      "label": "v1",
+      "stream_id": "89d39afd-320c-7407-bd6e-cc8930e4ee20"
+    },
+    {
+      "catalog_sha": "828c33d3b339554bd8ddce224ab27fd584933ce95bfac6533544e52cc1b212f5",
+      "label": "v2",
+      "stream_id": "17fefeac-c3f7-7bdd-838e-c3b531675b1d"
+    }
+  ],
+  "viewports": [
+    {
+      "height": 900,
+      "name": "desktop-1440",
+      "width": 1440
+    },
+    {
+      "height": 768,
+      "name": "tablet-1024",
+      "width": 1024
+    },
+    {
+      "height": 844,
+      "name": "mobile-390",
+      "width": 390
+    },
+    {
+      "height": 568,
+      "name": "narrow-320",
+      "width": 320
+    }
+  ]
+}

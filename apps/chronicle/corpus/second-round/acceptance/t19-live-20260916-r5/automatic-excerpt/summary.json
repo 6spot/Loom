@@ -1,0 +1,14 @@
+{
+  "acceptance": [],
+  "document_id": "1b930c42-499c-49c9-8d75-11af0a30d0b0",
+  "fixture_substitution": false,
+  "job_id": "26bc287b-fd95-4538-bfc4-103efe598e36",
+  "label": "automatic-excerpt",
+  "open_reviews": 0,
+  "real_provider": true,
+  "reviews": [],
+  "revision_id": "6e6faf51-1935-4576-a03e-5e0f73a55a98",
+  "routing_outputs": [],
+  "status": "failed",
+  "terminal_validation_error": null
+}

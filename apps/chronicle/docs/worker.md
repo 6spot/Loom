@@ -214,8 +214,12 @@ profile IDs per step. Each profile accepts `model`, optional `endpoint`,
 `max_output_tokens` and `response_format` (`json_object` or `text`). Profile
 fields `timeout_seconds` and `total_timeout_seconds` are rejected at startup
 with an instruction to use `CHRONICLE_MODEL_TIMEOUT_SECONDS`. Translation
-always requests plain text. Other steps carry their schema in the prompt and run strict local
-validation even when an endpoint does not support structured output.
+always requests plain text. For a structured step, the default `json_object`
+profile additionally sends a strict, provider-compatible JSON-Schema projection
+of that exact step contract; the full local schema and semantic checks remain
+the acceptance authority. An explicit `text` profile is not a valid extraction
+provider: the chapter entry fails closed before a model call instead of allowing
+the provider to drift into the old full-mention shape.
 
 `max_parallel` defaults to 2 (range 1–4); `max_step_attempts` defaults to 2
 (range 1–3); `max_repair_rounds` defaults to 1 (range 0–1). Each HTTP attempt

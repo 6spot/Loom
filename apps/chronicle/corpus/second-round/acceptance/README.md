@@ -32,6 +32,21 @@ Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 
   3 个入口；最终部署的 35 项真实阅读及 14 项定位/样式检查通过。保留全部失败与原稿，不把单章
   经审核成功称为自动质量通过或四章/R3 整体验收完成；人物页旧式资料展示
   仍是明确的后续缺口。
+- [`t19-live-20260916/`](t19-live-20260916/README.md)：LM-80 当前 head
+  的新库真实资料运行、模型切换重跑、原始输出及失败闭环证据；另有当前
+  staged gate 摘要和 deterministic fixture 背景素材浏览器 smoke。真实资料
+  两章均在 extraction fail-closed，0 章接受或发布；本目录明确区分 fixture
+  contract PASS 与真实内容质量未完成，不覆盖或改写上方历史记录。
+- [`t19-live-20260916-r2/`](t19-live-20260916-r2/README.md)：Reviewer 要求的
+  provider output-contract 修复后同一真实资料流程重跑。真实 gateway 已接受
+  strict extraction schema，先主传 fresh child 的 extraction attempt 2 通过
+  本地校验；其余步骤仍因语义校验或 1,800 秒超时失败，未声称完成内容验收。
+- [`t19-live-20260916-r3/`](t19-live-20260916-r3/README.md)：当前 PR head 的
+  linking/downstream 修复后同一真实资料流程重跑。周瑜传在新库中经 review、
+  人工异常处理、acceptance、publication 到 public chapter/source 与连续
+  reading-stream readback 全链路完成；保留 strict-schema 重试、失败输出及
+  source-qualified uncertainty。该目录是本次真实链路证据，不把未重跑的背景
+  UI、追加 edition 或 300+ fixture 容量检查写成完成。
 
 ## 最新单章流程结果（2026-09-13）
 

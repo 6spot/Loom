@@ -1,0 +1,23 @@
+{
+  "job_id": "c31ab470-82e1-4f81-86b8-e9229a128b7e",
+  "revision_id": "0fbd5773-ea2d-42fd-b735-1fd0d5088740",
+  "output_sha256": "2b631ea95cc723cab5f2eadf5daed5c19d8fd9f50f6a717f4a60b2afe392ab1c",
+  "artifact_type": "chapter-production-attempt",
+  "total_chars": 683,
+  "payload": {
+    "schema": "chronicle.chapter-step-attempt",
+    "version": "0.1",
+    "step": "extraction",
+    "node_key": "dbd85460ab649572936bf4a142b756ffda309e0822327f2889bd0b7a769e4478",
+    "slot": "executor",
+    "model": "gpt-5.6-luna",
+    "round": 0,
+    "attempt": 2,
+    "status": "started",
+    "started_at": "2026-09-16T07:34:32.181185+00:00",
+    "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "pipeline_fingerprint": "469e5f1a8978af6a469828cda49b5196a1514a067643ecbf6b7d657653529b39",
+    "request_fingerprint": "a7ce17b237d853806f8f4bb8f9d7a1b93441f43fb3e9d1edb23c1592126b93df",
+    "retry_of": "40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3"
+  }
+}

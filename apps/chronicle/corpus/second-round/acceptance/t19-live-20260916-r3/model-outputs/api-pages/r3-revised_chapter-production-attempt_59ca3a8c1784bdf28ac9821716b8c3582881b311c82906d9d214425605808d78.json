@@ -1,0 +1,23 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "59ca3a8c1784bdf28ac9821716b8c3582881b311c82906d9d214425605808d78",
+  "artifact_type": "chapter-production-attempt",
+  "total_chars": 616,
+  "payload": {
+    "schema": "chronicle.chapter-step-attempt",
+    "version": "0.1",
+    "step": "repair",
+    "node_key": "5030485558bd3e3a3c11baa08d1f341d92e15005ae7fcb2bdf2be1bfa8502833",
+    "slot": "reviewer",
+    "model": "gpt-5.6-sol",
+    "round": 0,
+    "attempt": 1,
+    "status": "started",
+    "started_at": "2026-09-16T10:22:35.323080+00:00",
+    "input_sha256": "d2e32ad3a25358fd946f9a8b91e950e5041bbb6a466e9fe555d62377fd9563f0",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "retry_of": null
+  }
+}

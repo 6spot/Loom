@@ -1,0 +1,3169 @@
+{
+  "schema": "chronicle.chapter-step",
+  "version": "0.1",
+  "step": "extraction",
+  "node_key": "a29218c9cd3aa131f7e963c126674746d7981b3a715dc4b37265a173675cf944",
+  "slot": "executor",
+  "model": "gpt-5.6-luna",
+  "round": 0,
+  "attempt": 2,
+  "status": "invalid",
+  "attempt_sha256": "d0d0cacf2c8d4a6d6f78fc7f8bd0086b26cf93a09ce831791eeb31e64f49ec41",
+  "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "pipeline_fingerprint": "55010b09d2d97a298fe7d9b62a2a979ac5843942079a5b240d12d5b8e4b69a88",
+  "request_fingerprint": "a4b59d5aa703912c7a8d983dd895bde51a6e5d420fb4c340fb21c9da6af45759",
+  "raw_text": "{\"chapter_id\":\"ch_c2554faa8d4fe4e977b13c89\",\"bundle\":{\"schema_version\":\"0.1\",\"source\":{\"temp_id\":\"src_001\",\"kind\":\"source\",\"source_type\":\"book\",\"title\":\"sanguozhi-032-xianzhu-liubei\",\"language\":\"zh-Hant\",\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},\"entities\":[{\"temp_id\":\"ent_001\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉備\",\"aliases\":[\"先主\",\"備\",\"玄德\",\"劉豫州\"],\"description\":\"本章主要人物。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_002\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"曹操\",\"aliases\":[\"曹公\",\"操\"],\"description\":\"劉備主要對手。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_003\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"孫權\",\"aliases\":[\"權\"],\"description\":\"江東政權領袖。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_004\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉璋\",\"aliases\":[\"璋\"],\"description\":\"益州牧，後向劉備投降。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_005\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"諸葛亮\",\"aliases\":[\"亮\",\"孔明\"],\"description\":\"劉備重要謀臣。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_006\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"關羽\",\"aliases\":[\"羽\"],\"description\":\"劉備部將。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_007\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"張飛\",\"aliases\":[\"飛\"],\"description\":\"劉備部將。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_008\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉禪\",\"aliases\":[\"禪\"],\"description\":\"劉備之子。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_009\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"陶謙\",\"aliases\":[\"謙\"],\"description\":\"徐州牧。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_010\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"公孫瓚\",\"aliases\":[\"瓚\"],\"description\":\"劉備早期盟友及任用者。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_011\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"袁紹\",\"aliases\":[\"紹\"],\"description\":\"冀州牧及北方軍閥。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_012\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉表\",\"aliases\":[\"表\",\"劉荊州\"],\"description\":\"荊州牧。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_013\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"董承\",\"aliases\":[\"承\"],\"description\":\"車騎將軍，與劉備謀誅曹操。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_014\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"黃忠\",\"aliases\":[\"忠\"],\"description\":\"劉備部將。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"ent_015\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"夏侯淵\",\"aliases\":[\"淵\"],\"description\":\"曹操所部將領。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_016\",\"kind\":\"entity\",\"type\":\"polity\",\"canonical_name\":\"漢\",\"aliases\":[\"漢室\"],\"description\":\"劉備所承續之漢朝政治正統。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"ent_017\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"益州\",\"aliases\":[],\"description\":\"劉璋所領、後為劉備取得的州域。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_018\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"荊州\",\"aliases\":[],\"description\":\"劉備曾屯駐並與孫權分割的州域。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_019\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"成都\",\"aliases\":[],\"description\":\"益州及蜀漢都城。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_020\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"漢中\",\"aliases\":[\"漢川\"],\"description\":\"劉備取得的重要地域。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"ent_021\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"安喜尉\",\"aliases\":[],\"description\":\"縣尉職。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_022\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"豫州刺史\",\"aliases\":[],\"description\":\"州刺史職。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_023\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"左將軍\",\"aliases\":[],\"description\":\"將軍號。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_024\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"漢中王\",\"aliases\":[],\"description\":\"王爵及政治稱號。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_025\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"大司馬\",\"aliases\":[],\"description\":\"軍政高位。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_026\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"皇帝\",\"aliases\":[],\"description\":\"帝位。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_027\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"丞相\",\"aliases\":[],\"description\":\"中央官職。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"ent_028\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"司徒\",\"aliases\":[],\"description\":\"中央官職。\",\"attributes\":{},\"mentions\":[],\"resolution\":{\"status\":\"unresolved\",\"canonical_id\":null,\"candidate_ids\":[]},\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}}],\"events\":[{\"temp_id\":\"evt_001\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"劉備被任為安喜尉\",\"summary\":\"劉備因討黃巾有功，被除為安喜尉。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"appointee\"},{\"entity_ref\":\"ent_021\",\"role\":\"office\"}],\"places\":[],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_002\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"劉備任豫州刺史並屯小沛\",\"summary\":\"陶謙表劉備為豫州刺史，劉備屯小沛。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_009\",\"role\":\"nominator\"},{\"entity_ref\":\"ent_001\",\"role\":\"appointee\"},{\"entity_ref\":\"ent_022\",\"role\":\"office\"}],\"places\":[\"小沛\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_003\",\"kind\":\"event\",\"type\":\"territorial_change\",\"title\":\"劉備領徐州\",\"summary\":\"陶謙死後，州人迎立劉備，劉備遂領徐州。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"holder\"},{\"entity_ref\":\"ent_009\",\"role\":\"predecessor\"}],\"places\":[\"徐州\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.95,\"job_id\":null}},{\"temp_id\":\"evt_004\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"曹操表劉備為鎮東將軍並封宜城亭侯\",\"summary\":\"劉備與袁術相持時，曹操表劉備為鎮東將軍並封宜城亭侯。\",\"time\":{\"original_text\":\"建安元年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"建安\",\"era_year\":1,\"season\":null,\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_002\",\"role\":\"nominator\"},{\"entity_ref\":\"ent_001\",\"role\":\"appointee\"}],\"places\":[],\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"evt_005\",\"kind\":\"event\",\"type\":\"military\",\"title\":\"呂布襲取下邳並俘獲劉備妻子\",\"summary\":\"呂布乘虛襲下邳，劉備妻子被俘，劉備轉軍海西。\",\"time\":{\"original_text\":\"建安元年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"建安\",\"era_year\":1,\"season\":null,\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"defender\"}],\"places\":[\"下邳\",\"海西\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_006\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"曹操以劉備為豫州牧\",\"summary\":\"劉備敗走歸曹操後，曹操厚遇之，以為豫州牧。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_002\",\"role\":\"appointing_authority\"},{\"entity_ref\":\"ent_001\",\"role\":\"appointee\"}],\"places\":[],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_007\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"曹操表劉備為左將軍\",\"summary\":\"曹操破呂布後，表劉備為左將軍。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_002\",\"role\":\"nominator\"},{\"entity_ref\":\"ent_001\",\"role\":\"appointee\"},{\"entity_ref\":\"ent_023\",\"role\":\"office\"}],\"places\":[\"許\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_008\",\"kind\":\"event\",\"type\":\"diplomatic\",\"title\":\"劉備與董承謀誅曹操\",\"summary\":\"劉備與董承等共同謀劃誅殺曹操，但事情敗露。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"conspirator\"},{\"entity_ref\":\"ent_013\",\"role\":\"conspirator\"},{\"entity_ref\":\"ent_002\",\"role\":\"target\"}],\"places\":[],\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"evt_009\",\"kind\":\"event\",\"type\":\"military\",\"title\":\"劉備據下邳並殺車冑\",\"summary\":\"劉備據下邳，殺徐州刺史車冑，留關羽守下邳，自己返回小沛。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"},{\"entity_ref\":\"ent_006\",\"role\":\"garrison_commander\"}],\"places\":[\"下邳\",\"小沛\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_010\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"曹操擊敗劉備於徐州\",\"summary\":\"建安五年，曹操東征劉備，劉備敗績，曹操收其眾並俘獲其妻子及關羽。\",\"time\":{\"original_text\":\"五年\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":null,\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_002\",\"role\":\"attacker\"},{\"entity_ref\":\"ent_001\",\"role\":\"defender\"},{\"entity_ref\":\"ent_006\",\"role\":\"captured\"}],\"places\":[\"徐州\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"evt_011\",\"kind\":\"event\",\"type\":\"diplomatic\",\"title\":\"劉備投奔袁紹\",\"summary\":\"劉備走青州，袁譚迎之並使袁紹接見。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"refugee\"},{\"entity_ref\":\"ent_011\",\"role\":\"host\"}],\"places\":[\"青州\",\"平原\",\"鄴\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_012\",\"kind\":\"event\",\"type\":\"diplomatic\",\"title\":\"劉表接納劉備屯新野\",\"summary\":\"劉表郊迎劉備，以賓客禮待之，益其兵，使屯新野。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"recipient\"},{\"entity_ref\":\"ent_012\",\"role\":\"host\"}],\"places\":[\"新野\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"evt_013\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"劉備於博望擊破夏侯惇等\",\"summary\":\"劉備設伏並焚屯偽遁，夏侯惇等追擊後為伏兵擊破。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"},{\"entity_ref\":\"ent_015\",\"role\":\"attacker\"}],\"places\":[\"博望\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_014\",\"kind\":\"event\",\"type\":\"surrender\",\"title\":\"劉琮向曹操請降，劉備率眾南下\",\"summary\":\"劉琮代立後遣使請降，劉備率眾離開樊城，荊州人多歸附。\",\"time\":{\"original_text\":\"十二年\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":null,\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"},{\"entity_ref\":\"ent_012\",\"role\":\"predecessor\"}],\"places\":[\"樊\",\"襄陽\",\"當陽\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"evt_015\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"赤壁之戰擊破曹操\",\"summary\":\"劉備與孫權水軍合力在赤壁擊敗曹操，焚燒其舟船，追擊至南郡。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"commander\"},{\"entity_ref\":\"ent_003\",\"role\":\"ally\"},{\"entity_ref\":\"ent_002\",\"role\":\"defeated\"}],\"places\":[\"赤壁\",\"南郡\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_016\",\"kind\":\"event\",\"type\":\"territorial_change\",\"title\":\"劉備取得荊州南部四郡\",\"summary\":\"劉備南征四郡，武陵、長沙、桂陽、零陵太守皆降。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"conqueror\"},{\"entity_ref\":\"ent_018\",\"role\":\"territorial_context\"}],\"places\":[\"武陵\",\"長沙\",\"桂陽\",\"零陵\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"evt_017\",\"kind\":\"event\",\"type\":\"territorial_change\",\"title\":\"劉備取得益州\",\"summary\":\"劉備進圍成都，劉璋出降，劉備復領益州牧。\",\"time\":{\"original_text\":\"十九年夏\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":\"summer\",\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"conqueror\"},{\"entity_ref\":\"ent_004\",\"role\":\"surrendered_ruler\"},{\"entity_ref\":\"ent_017\",\"role\":\"territorial_context\"}],\"places\":[\"成都\",\"雒城\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_018\",\"kind\":\"event\",\"type\":\"territorial_change\",\"title\":\"劉備與孫權分割荊州\",\"summary\":\"劉備與孫權連和，分荊州諸郡東西歸屬。\",\"time\":{\"original_text\":\"二十年\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":null,\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"negotiator\"},{\"entity_ref\":\"ent_003\",\"role\":\"negotiator\"},{\"entity_ref\":\"ent_018\",\"role\":\"territorial_context\"}],\"places\":[\"荊州\",\"江夏\",\"長沙\",\"桂陽\",\"南郡\",\"零陵\",\"武陵\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_019\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"劉備取得漢中\",\"summary\":\"劉備在定軍山擊破夏侯淵，曹操南征後撤軍，劉備遂有漢中。\",\"time\":{\"original_text\":\"二十四年春\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":\"spring\",\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"victor\"},{\"entity_ref\":\"ent_014\",\"role\":\"commander\"},{\"entity_ref\":\"ent_015\",\"role\":\"defeated\"},{\"entity_ref\":\"ent_020\",\"role\":\"territorial_context\"}],\"places\":[\"定軍山\",\"漢中\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_020\",\"kind\":\"event\",\"type\":\"succession\",\"title\":\"劉備受封漢中王並拜大司馬\",\"summary\":\"群臣上表漢帝，推劉備為漢中王並拜大司馬，劉備於沔陽受王冠。\",\"time\":{\"original_text\":\"二十四年秋\",\"source_calendar\":{\"system\":\"unknown\",\"era\":null,\"era_year\":null,\"season\":\"autumn\",\"month\":null,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"recipient\"},{\"entity_ref\":\"ent_024\",\"role\":\"title\"},{\"entity_ref\":\"ent_025\",\"role\":\"office\"}],\"places\":[\"沔陽\",\"漢中\",\"巴\",\"蜀\",\"廣漢\",\"犍為\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_021\",\"kind\":\"event\",\"type\":\"territorial_change\",\"title\":\"孫權襲殺關羽並取得荊州\",\"summary\":\"關羽攻曹仁時，孫權襲殺關羽並取荊州。\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_003\",\"role\":\"attacker\"},{\"entity_ref\":\"ent_006\",\"role\":\"killed\"},{\"entity_ref\":\"ent_018\",\"role\":\"territorial_context\"}],\"places\":[\"樊\",\"荊州\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_022\",\"kind\":\"event\",\"type\":\"succession\",\"title\":\"劉備即皇帝位\",\"summary\":\"劉備於成都武擔之南即皇帝位，承續漢祚。\",\"time\":{\"original_text\":\"建安二十六年四月丙午\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"建安\",\"era_year\":26,\"season\":null,\"month\":4,\"day\":\"丙午\",\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"enthroned\"},{\"entity_ref\":\"ent_016\",\"role\":\"claimed_successor\"},{\"entity_ref\":\"ent_026\",\"role\":\"office\"}],\"places\":[\"成都武擔之南\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"evt_023\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"章武元年任命諸葛亮為丞相、許靖為司徒\",\"summary\":\"劉備建立百官，任命諸葛亮為丞相、許靖為司徒。\",\"time\":{\"original_text\":\"章武元年夏四月\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"章武\",\"era_year\":1,\"season\":\"summer\",\"month\":4,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"appointing_authority\"},{\"entity_ref\":\"ent_005\",\"role\":\"appointee\"},{\"entity_ref\":\"ent_027\",\"role\":\"office\"},{\"entity_ref\":\"ent_028\",\"role\":\"office\"}],\"places\":[\"成都\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_024\",\"kind\":\"event\",\"type\":\"military\",\"title\":\"劉備伐吳\",\"summary\":\"劉備因孫權襲關羽而東征，率諸軍伐吳。\",\"time\":{\"original_text\":\"章武元年秋七月\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"章武\",\"era_year\":1,\"season\":\"autumn\",\"month\":7,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"attacker\"},{\"entity_ref\":\"ent_003\",\"role\":\"target\"}],\"places\":[\"巫\",\"秭歸\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"evt_025\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"夷陵之戰劉備敗退\",\"summary\":\"陸議於猇亭大破劉備軍，劉備退至永安。\",\"time\":{\"original_text\":\"章武二年夏六月\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"章武\",\"era_year\":2,\"season\":\"summer\",\"month\":6,\"day\":null,\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"defeated\"},{\"entity_ref\":\"ent_003\",\"role\":\"victor\"}],\"places\":[\"猇亭\",\"秭歸\",\"魚復\",\"永安\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"evt_026\",\"kind\":\"event\",\"type\":\"death\",\"title\":\"劉備病逝於永安宮\",\"summary\":\"劉備病篤，託孤於諸葛亮，夏四月癸巳殂於永安宮，年六十三。\",\"time\":{\"original_text\":\"章武三年夏四月癸巳\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\",\"era\":\"章武\",\"era_year\":3,\"season\":\"summer\",\"month\":4,\"day\":\"癸巳\",\"inherited_fields\":[]},\"normalized\":null},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"deceased\"},{\"entity_ref\":\"ent_005\",\"role\":\"regent\"},{\"entity_ref\":\"ent_008\",\"role\":\"successor\"}],\"places\":[\"永安宮\"],\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}}],\"claims\":[{\"temp_id\":\"clm_001\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"descended_from\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_016\"},\"time\":null,\"evidence\":{\"text\":\"先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.96,\"job_id\":null}},{\"temp_id\":\"clm_002\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"held_territory\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_017\"},\"time\":null,\"evidence\":{\"text\":\"先主复領益州牧\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.97,\"job_id\":null}},{\"temp_id\":\"clm_003\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"held_territory\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_020\"},\"time\":null,\"evidence\":{\"text\":\"夏，曹公果引軍還，先主遂有漢中。\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"clm_004\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"was_enthroned_as\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_024\"},\"time\":null,\"evidence\":{\"text\":\"封備漢中王，拜大司馬\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"clm_005\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"became\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_026\"},\"time\":null,\"evidence\":{\"text\":\"即皇帝位於成都武擔之南。\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}},{\"temp_id\":\"clm_006\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_005\"},\"predicate\":\"held_office\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_027\"},\"time\":null,\"evidence\":{\"text\":\"以諸葛亮為丞相\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.98,\"job_id\":null}},{\"temp_id\":\"clm_007\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"died_at\",\"object\":{\"kind\":\"entity\",\"ref\":\"ent_019\"},\"time\":null,\"evidence\":{\"text\":\"夏四月癸巳，先主殂於永安宮，時年六十三。\",\"source_ref\":\"src_001\",\"locator\":{\"work\":\"三國志\",\"chapter\":\"先主傳\",\"volume\":null,\"section\":null,\"paragraph\":null,\"fixture\":null}},\"assessment\":{\"status\":\"unassessed\",\"note\":null},\"extraction\":{\"method\":\"model\",\"confidence\":0.99,\"job_id\":null}}],\"warnings\":[]},\"mentions\":[],\"record_sources\":[{\"record_kind\":\"entity\",\"record_ref\":\"ent_001\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"先主姓劉，諱備，字玄德，涿郡涿縣人\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_002\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"曹公自出東征\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_003\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"孫權\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_004\",\"selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"益州牧劉璋\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_005\",\"selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"諸葛亮說先主攻琮\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_006\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"先主遣關羽守下邳\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_007\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"車騎將軍張飛\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_008\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"子禪為皇太子\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_009\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"徐州牧陶謙\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_010\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"遼西公孫瓚\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_011\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"袁紹\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_012\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"劉表\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_013\",\"selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"車騎將軍董承\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_014\",\"selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"先主命黃忠\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_015\",\"selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"淵將兵來爭其地\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_016\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"漢景帝子中山靖王勝之後\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_017\",\"selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"入益州\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_018\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"荊州豪傑歸先主者日益多\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_019\",\"selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位於成都武擔之南\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_020\",\"selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"先主遂有漢中\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_021\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"除安喜尉\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_022\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"謙表先主為豫州刺史\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_023\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"表先主為左將軍\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_024\",\"selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"封備漢中王\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_025\",\"selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"拜大司馬\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_026\",\"selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_027\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"以諸葛亮為丞相\",\"occurrence\":1}]},{\"record_kind\":\"entity\",\"record_ref\":\"ent_028\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"許靖為司徒\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_001\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_002\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"謙表先主為豫州刺史，屯小沛\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_003\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"先主遂領徐州\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_004\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"曹公表先主為鎮東將軍，封宜城亭侯，是歲建安元年也\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_005\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"呂布乘虛襲下邳。下邳守將曹豹反，閒迎布。布虜先主妻子，先主轉軍海西\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_006\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"曹公厚遇之，以為豫州牧\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_007\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"表先主為左將軍\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_008\",\"selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"遂與承及長水校尉种輯、將軍吳子蘭、王子服等同謀\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_009\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_010\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"五年，曹公東征先主，先主敗績\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_011\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"先主走青州。青州刺史袁譚，先主故茂才也，將步騎迎先主\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_012\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"表自郊迎，以上賓禮待之，益其兵，使屯新野\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_013\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"先主設伏兵，一旦自燒屯偽遁，惇等追之，為伏兵所破\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_014\",\"selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"子琮代立，遣使請降。先主屯樊，不知曹公卒至，至宛乃聞之，遂將其眾去\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_015\",\"selections\":[{\"first_block_id\":\"b_021\",\"last_block_id\":\"b_021\",\"quote\":\"與曹公戰於赤壁，大破之，焚其舟船\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_016\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"先主表琦為荊州刺史，又南征四郡。武陵太守金旋、長沙太守韓玄、桂陽太守趙範、零陵太守劉度皆降\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_017\",\"selections\":[{\"first_block_id\":\"b_033\",\"last_block_id\":\"b_033\",\"quote\":\"進圍成都數十日，璋出降\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_018\",\"selections\":[{\"first_block_id\":\"b_035\",\"last_block_id\":\"b_035\",\"quote\":\"與權連和，分荊州、江夏、長沙、桂陽東屬，南郡、零陵、武陵西屬\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_019\",\"selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"於定軍山勢作營。淵將兵來爭其地。先主命黃忠乘高鼓譟攻之，大破淵軍，斬淵及曹公所署益州刺史趙顒等\",\"occurrence\":1},{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"夏，曹公果引軍還，先主遂有漢中\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_020\",\"selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"臣等輒依舊典，封備漢中王，拜大司馬\",\"occurrence\":1},{\"first_block_id\":\"b_045\",\"last_block_id\":\"b_045\",\"quote\":\"遂於沔陽設壇場，陳兵列眾，群臣陪位，讀奏訖，禦王冠於先主\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_021\",\"selections\":[{\"first_block_id\":\"b_051\",\"last_block_id\":\"b_051\",\"quote\":\"俄而孫權襲殺羽，取荊州\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_022\",\"selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位於成都武擔之南\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_023\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"以諸葛亮為丞相，許靖為司徒。置百官，立宗廟\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_024\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"秋七月，遂帥諸軍伐吳\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_025\",\"selections\":[{\"first_block_id\":\"b_069\",\"last_block_id\":\"b_069\",\"quote\":\"後十餘日，陸議大破先主軍於猇亭，將軍馮習、張南等皆沒。先主自猇亭還秭歸，收合離散兵，遂棄船舫，由步道還魚复，改魚复縣曰永安\",\"occurrence\":1}]},{\"record_kind\":\"event\",\"record_ref\":\"evt_026\",\"selections\":[{\"first_block_id\":\"b_071\",\"last_block_id\":\"b_071\",\"quote\":\"先主病篤，託孤於丞相亮，尚書令李嚴為副。夏四月癸巳，先主殂於永安宮，時年六十三\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_001\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_002\",\"selections\":[{\"first_block_id\":\"b_033\",\"last_block_id\":\"b_033\",\"quote\":\"先主复領益州牧\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_003\",\"selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"夏，曹公果引軍還，先主遂有漢中\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_004\",\"selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"封備漢中王，拜大司馬\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_005\",\"selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位於成都武擔之南\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_006\",\"selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"以諸葛亮為丞相\",\"occurrence\":1}]},{\"record_kind\":\"claim\",\"record_ref\":\"clm_007\",\"selections\":[{\"first_block_id\":\"b_071\",\"last_block_id\":\"b_071\",\"quote\":\"夏四月癸巳，先主殂於永安宮，時年六十三。\",\"occurrence\":1}]}],\"person_states\":{\"phases\":[{\"phase_id\":\"ph_001\",\"label\":\"早年及起兵前\",\"event_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"先主少孤，與母販履織蓆為業\",\"occurrence\":1}]},{\"phase_id\":\"ph_002\",\"label\":\"討黃巾及早期任官\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_001\"}],\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"靈帝末，黃巾起，州郡各舉義兵，先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉\",\"occurrence\":1}]},{\"phase_id\":\"ph_003\",\"label\":\"徐州及曹操麾下時期\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_002\"},{\"kind\":\"event\",\"ref\":\"evt_003\"},{\"kind\":\"event\",\"ref\":\"evt_004\"},{\"kind\":\"event\",\"ref\":\"evt_005\"},{\"kind\":\"event\",\"ref\":\"evt_006\"},{\"kind\":\"event\",\"ref\":\"evt_007\"},{\"kind\":\"event\",\"ref\":\"evt_009\"},{\"kind\":\"event\",\"ref\":\"evt_010\"}],\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"先主遂領徐州\",\"occurrence\":1},{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"表先主為左將軍\",\"occurrence\":1}]},{\"phase_id\":\"ph_004\",\"label\":\"依附袁紹及屯駐荊州\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_011\"},{\"kind\":\"event\",\"ref\":\"evt_012\"},{\"kind\":\"event\",\"ref\":\"evt_013\"},{\"kind\":\"event\",\"ref\":\"evt_014\"}],\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"先主走青州\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"使屯新野\",\"occurrence\":1}]},{\"phase_id\":\"ph_005\",\"label\":\"赤壁後取得荊州南部\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_015\"},{\"kind\":\"event\",\"ref\":\"evt_016\"}],\"source_selections\":[{\"first_block_id\":\"b_021\",\"last_block_id\":\"b_021\",\"quote\":\"與曹公戰於赤壁，大破之，焚其舟船\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"又南征四郡\",\"occurrence\":1}]},{\"phase_id\":\"ph_006\",\"label\":\"入益州及建立蜀地統治\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_017\"},{\"kind\":\"event\",\"ref\":\"evt_018\"}],\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"將步卒數万人入益州\",\"occurrence\":1},{\"first_block_id\":\"b_033\",\"last_block_id\":\"b_033\",\"quote\":\"進圍成都數十日，璋出降\",\"occurrence\":1}]},{\"phase_id\":\"ph_007\",\"label\":\"取得漢中及稱王\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_019\"},{\"kind\":\"event\",\"ref\":\"evt_020\"}],\"source_selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"夏，曹公果引軍還，先主遂有漢中\",\"occurrence\":1},{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"封備漢中王，拜大司馬\",\"occurrence\":1}]},{\"phase_id\":\"ph_008\",\"label\":\"稱帝及伐吳\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_021\"},{\"kind\":\"event\",\"ref\":\"evt_022\"},{\"kind\":\"event\",\"ref\":\"evt_023\"},{\"kind\":\"event\",\"ref\":\"evt_024\"},{\"kind\":\"event\",\"ref\":\"evt_025\"}],\"source_selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位於成都武擔之南\",\"occurrence\":1},{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"秋七月，遂帥諸軍伐吳\",\"occurrence\":1},{\"first_block_id\":\"b_069\",\"last_block_id\":\"b_069\",\"quote\":\"陸議大破先主軍於猇亭\",\"occurrence\":1}]},{\"phase_id\":\"ph_009\",\"label\":\"永安託孤及卒\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_026\"}],\"source_selections\":[{\"first_block_id\":\"b_071\",\"last_block_id\":\"b_071\",\"quote\":\"先主病篤，託孤於丞相亮，尚書令李嚴為副。夏四月癸巳，先主殂於永安宮\",\"occurrence\":1}]}],\"phase_orders\":[],\"facts\":[{\"fact_id\":\"pf_001\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_021\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_002\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"除安喜尉\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_002\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_022\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"recommendation\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"謙表先主為豫州刺史\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_003\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_023\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"recommendation\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"表先主為左將軍\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_004\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_024\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"recommendation\",\"phase_ref\":\"ph_007\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_004\"}],\"source_selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"封備漢中王\",\"occurrence\":1}],\"attribution\":\"quotation\"},{\"fact_id\":\"pf_005\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_025\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"recommendation\",\"phase_ref\":\"ph_007\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_004\"}],\"source_selections\":[{\"first_block_id\":\"b_043\",\"last_block_id\":\"b_043\",\"quote\":\"拜大司馬\",\"occurrence\":1}],\"attribution\":\"quotation\"},{\"fact_id\":\"pf_006\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_026\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_008\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_005\"}],\"source_selections\":[{\"first_block_id\":\"b_061\",\"last_block_id\":\"b_061\",\"quote\":\"即皇帝位於成都武擔之南\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_007\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_005\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_027\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_008\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_006\"}],\"source_selections\":[{\"first_block_id\":\"b_067\",\"last_block_id\":\"b_067\",\"quote\":\"以諸葛亮為丞相\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_008\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"affiliation\",\"value_ref\":null,\"relation\":\"attached_to\",\"target_ref\":{\"kind\":\"entity\",\"ref\":\"ent_017\"},\"operation\":\"attest\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_006\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_002\"}],\"source_selections\":[{\"first_block_id\":\"b_033\",\"last_block_id\":\"b_033\",\"quote\":\"先主复領益州牧\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_009\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"affiliation\",\"value_ref\":null,\"relation\":\"attached_to\",\"target_ref\":{\"kind\":\"entity\",\"ref\":\"ent_020\"},\"operation\":\"attest\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_007\",\"claim_refs\":[{\"kind\":\"claim\",\"ref\":\"clm_003\"}],\"source_selections\":[{\"first_block_id\":\"b_039\",\"last_block_id\":\"b_039\",\"quote\":\"先主遂有漢中\",\"occurrence\":1}],\"attribution\":\"narrator\"}],\"continuities\":[],\"disagreements\":[]},\"warnings\":[]}",
+  "parsed": {
+    "bundle": {
+      "claims": [
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_016",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_001",
+          "evidence": {
+            "text": "先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "descended_from",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_017",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_002",
+          "evidence": {
+            "text": "先主复領益州牧",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "held_territory",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_020",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_003",
+          "evidence": {
+            "text": "夏，曹公果引軍還，先主遂有漢中。",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "held_territory",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_024",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_004",
+          "evidence": {
+            "text": "封備漢中王，拜大司馬",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "was_enthroned_as",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_026",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_005",
+          "evidence": {
+            "text": "即皇帝位於成都武擔之南。",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "became",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_027",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_005",
+            "kind": "entity"
+          },
+          "temp_id": "clm_006",
+          "evidence": {
+            "text": "以諸葛亮為丞相",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "held_office",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          }
+        },
+        {
+          "kind": "claim",
+          "time": null,
+          "object": {
+            "ref": "ent_019",
+            "kind": "entity"
+          },
+          "subject": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "temp_id": "clm_007",
+          "evidence": {
+            "text": "夏四月癸巳，先主殂於永安宮，時年六十三。",
+            "locator": {
+              "work": "三國志",
+              "volume": null,
+              "chapter": "先主傳",
+              "fixture": null,
+              "section": null,
+              "paragraph": null
+            },
+            "source_ref": "src_001"
+          },
+          "predicate": "died_at",
+          "assessment": {
+            "note": null,
+            "status": "unassessed"
+          },
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          }
+        }
+      ],
+      "events": [
+        {
+          "kind": "event",
+          "time": null,
+          "type": "appointment",
+          "title": "劉備被任為安喜尉",
+          "places": [],
+          "summary": "劉備因討黃巾有功，被除為安喜尉。",
+          "temp_id": "evt_001",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "appointee",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_021"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "appointment",
+          "title": "劉備任豫州刺史並屯小沛",
+          "places": [
+            "小沛"
+          ],
+          "summary": "陶謙表劉備為豫州刺史，劉備屯小沛。",
+          "temp_id": "evt_002",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "nominator",
+              "entity_ref": "ent_009"
+            },
+            {
+              "role": "appointee",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_022"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "territorial_change",
+          "title": "劉備領徐州",
+          "places": [
+            "徐州"
+          ],
+          "summary": "陶謙死後，州人迎立劉備，劉備遂領徐州。",
+          "temp_id": "evt_003",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "participants": [
+            {
+              "role": "holder",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "predecessor",
+              "entity_ref": "ent_009"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "建安元年",
+            "source_calendar": {
+              "day": null,
+              "era": "建安",
+              "month": null,
+              "season": null,
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 1,
+              "inherited_fields": []
+            }
+          },
+          "type": "appointment",
+          "title": "曹操表劉備為鎮東將軍並封宜城亭侯",
+          "places": [],
+          "summary": "劉備與袁術相持時，曹操表劉備為鎮東將軍並封宜城亭侯。",
+          "temp_id": "evt_004",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "participants": [
+            {
+              "role": "nominator",
+              "entity_ref": "ent_002"
+            },
+            {
+              "role": "appointee",
+              "entity_ref": "ent_001"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "建安元年",
+            "source_calendar": {
+              "day": null,
+              "era": "建安",
+              "month": null,
+              "season": null,
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 1,
+              "inherited_fields": []
+            }
+          },
+          "type": "military",
+          "title": "呂布襲取下邳並俘獲劉備妻子",
+          "places": [
+            "下邳",
+            "海西"
+          ],
+          "summary": "呂布乘虛襲下邳，劉備妻子被俘，劉備轉軍海西。",
+          "temp_id": "evt_005",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "defender",
+              "entity_ref": "ent_001"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "appointment",
+          "title": "曹操以劉備為豫州牧",
+          "places": [],
+          "summary": "劉備敗走歸曹操後，曹操厚遇之，以為豫州牧。",
+          "temp_id": "evt_006",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "appointing_authority",
+              "entity_ref": "ent_002"
+            },
+            {
+              "role": "appointee",
+              "entity_ref": "ent_001"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "appointment",
+          "title": "曹操表劉備為左將軍",
+          "places": [
+            "許"
+          ],
+          "summary": "曹操破呂布後，表劉備為左將軍。",
+          "temp_id": "evt_007",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "nominator",
+              "entity_ref": "ent_002"
+            },
+            {
+              "role": "appointee",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_023"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "diplomatic",
+          "title": "劉備與董承謀誅曹操",
+          "places": [],
+          "summary": "劉備與董承等共同謀劃誅殺曹操，但事情敗露。",
+          "temp_id": "evt_008",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "participants": [
+            {
+              "role": "conspirator",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "conspirator",
+              "entity_ref": "ent_013"
+            },
+            {
+              "role": "target",
+              "entity_ref": "ent_002"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "military",
+          "title": "劉備據下邳並殺車冑",
+          "places": [
+            "下邳",
+            "小沛"
+          ],
+          "summary": "劉備據下邳，殺徐州刺史車冑，留關羽守下邳，自己返回小沛。",
+          "temp_id": "evt_009",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "commander",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "garrison_commander",
+              "entity_ref": "ent_006"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "五年",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": null,
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "battle",
+          "title": "曹操擊敗劉備於徐州",
+          "places": [
+            "徐州"
+          ],
+          "summary": "建安五年，曹操東征劉備，劉備敗績，曹操收其眾並俘獲其妻子及關羽。",
+          "temp_id": "evt_010",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "participants": [
+            {
+              "role": "attacker",
+              "entity_ref": "ent_002"
+            },
+            {
+              "role": "defender",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "captured",
+              "entity_ref": "ent_006"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "diplomatic",
+          "title": "劉備投奔袁紹",
+          "places": [
+            "青州",
+            "平原",
+            "鄴"
+          ],
+          "summary": "劉備走青州，袁譚迎之並使袁紹接見。",
+          "temp_id": "evt_011",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "refugee",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "host",
+              "entity_ref": "ent_011"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "diplomatic",
+          "title": "劉表接納劉備屯新野",
+          "places": [
+            "新野"
+          ],
+          "summary": "劉表郊迎劉備，以賓客禮待之，益其兵，使屯新野。",
+          "temp_id": "evt_012",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "participants": [
+            {
+              "role": "recipient",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "host",
+              "entity_ref": "ent_012"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "battle",
+          "title": "劉備於博望擊破夏侯惇等",
+          "places": [
+            "博望"
+          ],
+          "summary": "劉備設伏並焚屯偽遁，夏侯惇等追擊後為伏兵擊破。",
+          "temp_id": "evt_013",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "commander",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "attacker",
+              "entity_ref": "ent_015"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "十二年",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": null,
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "surrender",
+          "title": "劉琮向曹操請降，劉備率眾南下",
+          "places": [
+            "樊",
+            "襄陽",
+            "當陽"
+          ],
+          "summary": "劉琮代立後遣使請降，劉備率眾離開樊城，荊州人多歸附。",
+          "temp_id": "evt_014",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.96
+          },
+          "participants": [
+            {
+              "role": "commander",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "predecessor",
+              "entity_ref": "ent_012"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "battle",
+          "title": "赤壁之戰擊破曹操",
+          "places": [
+            "赤壁",
+            "南郡"
+          ],
+          "summary": "劉備與孫權水軍合力在赤壁擊敗曹操，焚燒其舟船，追擊至南郡。",
+          "temp_id": "evt_015",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "commander",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "ally",
+              "entity_ref": "ent_003"
+            },
+            {
+              "role": "defeated",
+              "entity_ref": "ent_002"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "territorial_change",
+          "title": "劉備取得荊州南部四郡",
+          "places": [
+            "武陵",
+            "長沙",
+            "桂陽",
+            "零陵"
+          ],
+          "summary": "劉備南征四郡，武陵、長沙、桂陽、零陵太守皆降。",
+          "temp_id": "evt_016",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "participants": [
+            {
+              "role": "conqueror",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "territorial_context",
+              "entity_ref": "ent_018"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "十九年夏",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": "summer",
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "territorial_change",
+          "title": "劉備取得益州",
+          "places": [
+            "成都",
+            "雒城"
+          ],
+          "summary": "劉備進圍成都，劉璋出降，劉備復領益州牧。",
+          "temp_id": "evt_017",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "conqueror",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "surrendered_ruler",
+              "entity_ref": "ent_004"
+            },
+            {
+              "role": "territorial_context",
+              "entity_ref": "ent_017"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "二十年",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": null,
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "territorial_change",
+          "title": "劉備與孫權分割荊州",
+          "places": [
+            "荊州",
+            "江夏",
+            "長沙",
+            "桂陽",
+            "南郡",
+            "零陵",
+            "武陵"
+          ],
+          "summary": "劉備與孫權連和，分荊州諸郡東西歸屬。",
+          "temp_id": "evt_018",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "negotiator",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "negotiator",
+              "entity_ref": "ent_003"
+            },
+            {
+              "role": "territorial_context",
+              "entity_ref": "ent_018"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "二十四年春",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": "spring",
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "battle",
+          "title": "劉備取得漢中",
+          "places": [
+            "定軍山",
+            "漢中"
+          ],
+          "summary": "劉備在定軍山擊破夏侯淵，曹操南征後撤軍，劉備遂有漢中。",
+          "temp_id": "evt_019",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "victor",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "commander",
+              "entity_ref": "ent_014"
+            },
+            {
+              "role": "defeated",
+              "entity_ref": "ent_015"
+            },
+            {
+              "role": "territorial_context",
+              "entity_ref": "ent_020"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "二十四年秋",
+            "source_calendar": {
+              "day": null,
+              "era": null,
+              "month": null,
+              "season": "autumn",
+              "system": "unknown",
+              "era_year": null,
+              "inherited_fields": []
+            }
+          },
+          "type": "succession",
+          "title": "劉備受封漢中王並拜大司馬",
+          "places": [
+            "沔陽",
+            "漢中",
+            "巴",
+            "蜀",
+            "廣漢",
+            "犍為"
+          ],
+          "summary": "群臣上表漢帝，推劉備為漢中王並拜大司馬，劉備於沔陽受王冠。",
+          "temp_id": "evt_020",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "recipient",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "title",
+              "entity_ref": "ent_024"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_025"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": null,
+          "type": "territorial_change",
+          "title": "孫權襲殺關羽並取得荊州",
+          "places": [
+            "樊",
+            "荊州"
+          ],
+          "summary": "關羽攻曹仁時，孫權襲殺關羽並取荊州。",
+          "temp_id": "evt_021",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "attacker",
+              "entity_ref": "ent_003"
+            },
+            {
+              "role": "killed",
+              "entity_ref": "ent_006"
+            },
+            {
+              "role": "territorial_context",
+              "entity_ref": "ent_018"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "建安二十六年四月丙午",
+            "source_calendar": {
+              "day": "丙午",
+              "era": "建安",
+              "month": 4,
+              "season": null,
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 26,
+              "inherited_fields": []
+            }
+          },
+          "type": "succession",
+          "title": "劉備即皇帝位",
+          "places": [
+            "成都武擔之南"
+          ],
+          "summary": "劉備於成都武擔之南即皇帝位，承續漢祚。",
+          "temp_id": "evt_022",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "participants": [
+            {
+              "role": "enthroned",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "claimed_successor",
+              "entity_ref": "ent_016"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_026"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "章武元年夏四月",
+            "source_calendar": {
+              "day": null,
+              "era": "章武",
+              "month": 4,
+              "season": "summer",
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 1,
+              "inherited_fields": []
+            }
+          },
+          "type": "appointment",
+          "title": "章武元年任命諸葛亮為丞相、許靖為司徒",
+          "places": [
+            "成都"
+          ],
+          "summary": "劉備建立百官，任命諸葛亮為丞相、許靖為司徒。",
+          "temp_id": "evt_023",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "appointing_authority",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "appointee",
+              "entity_ref": "ent_005"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_027"
+            },
+            {
+              "role": "office",
+              "entity_ref": "ent_028"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "章武元年秋七月",
+            "source_calendar": {
+              "day": null,
+              "era": "章武",
+              "month": 7,
+              "season": "autumn",
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 1,
+              "inherited_fields": []
+            }
+          },
+          "type": "military",
+          "title": "劉備伐吳",
+          "places": [
+            "巫",
+            "秭歸"
+          ],
+          "summary": "劉備因孫權襲關羽而東征，率諸軍伐吳。",
+          "temp_id": "evt_024",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "participants": [
+            {
+              "role": "attacker",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "target",
+              "entity_ref": "ent_003"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "章武二年夏六月",
+            "source_calendar": {
+              "day": null,
+              "era": "章武",
+              "month": 6,
+              "season": "summer",
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 2,
+              "inherited_fields": []
+            }
+          },
+          "type": "battle",
+          "title": "夷陵之戰劉備敗退",
+          "places": [
+            "猇亭",
+            "秭歸",
+            "魚復",
+            "永安"
+          ],
+          "summary": "陸議於猇亭大破劉備軍，劉備退至永安。",
+          "temp_id": "evt_025",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "participants": [
+            {
+              "role": "defeated",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "victor",
+              "entity_ref": "ent_003"
+            }
+          ]
+        },
+        {
+          "kind": "event",
+          "time": {
+            "normalized": null,
+            "original_text": "章武三年夏四月癸巳",
+            "source_calendar": {
+              "day": "癸巳",
+              "era": "章武",
+              "month": 4,
+              "season": "summer",
+              "system": "chinese_lunisolar_regnal",
+              "era_year": 3,
+              "inherited_fields": []
+            }
+          },
+          "type": "death",
+          "title": "劉備病逝於永安宮",
+          "places": [
+            "永安宮"
+          ],
+          "summary": "劉備病篤，託孤於諸葛亮，夏四月癸巳殂於永安宮，年六十三。",
+          "temp_id": "evt_026",
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "participants": [
+            {
+              "role": "deceased",
+              "entity_ref": "ent_001"
+            },
+            {
+              "role": "regent",
+              "entity_ref": "ent_005"
+            },
+            {
+              "role": "successor",
+              "entity_ref": "ent_008"
+            }
+          ]
+        }
+      ],
+      "source": {
+        "kind": "source",
+        "title": "sanguozhi-032-xianzhu-liubei",
+        "temp_id": "src_001",
+        "language": "zh-Hant",
+        "extraction": {
+          "job_id": null,
+          "method": "model",
+          "confidence": 0.98
+        },
+        "source_type": "book"
+      },
+      "entities": [
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "先主",
+            "備",
+            "玄德",
+            "劉豫州"
+          ],
+          "temp_id": "ent_001",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "本章主要人物。",
+          "canonical_name": "劉備"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "曹公",
+            "操"
+          ],
+          "temp_id": "ent_002",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備主要對手。",
+          "canonical_name": "曹操"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "權"
+          ],
+          "temp_id": "ent_003",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "江東政權領袖。",
+          "canonical_name": "孫權"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "璋"
+          ],
+          "temp_id": "ent_004",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "益州牧，後向劉備投降。",
+          "canonical_name": "劉璋"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "亮",
+            "孔明"
+          ],
+          "temp_id": "ent_005",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備重要謀臣。",
+          "canonical_name": "諸葛亮"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "羽"
+          ],
+          "temp_id": "ent_006",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備部將。",
+          "canonical_name": "關羽"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "飛"
+          ],
+          "temp_id": "ent_007",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備部將。",
+          "canonical_name": "張飛"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "禪"
+          ],
+          "temp_id": "ent_008",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備之子。",
+          "canonical_name": "劉禪"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "謙"
+          ],
+          "temp_id": "ent_009",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "徐州牧。",
+          "canonical_name": "陶謙"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "瓚"
+          ],
+          "temp_id": "ent_010",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備早期盟友及任用者。",
+          "canonical_name": "公孫瓚"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "紹"
+          ],
+          "temp_id": "ent_011",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "冀州牧及北方軍閥。",
+          "canonical_name": "袁紹"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "表",
+            "劉荊州"
+          ],
+          "temp_id": "ent_012",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "荊州牧。",
+          "canonical_name": "劉表"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "承"
+          ],
+          "temp_id": "ent_013",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "車騎將軍，與劉備謀誅曹操。",
+          "canonical_name": "董承"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "忠"
+          ],
+          "temp_id": "ent_014",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.99
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備部將。",
+          "canonical_name": "黃忠"
+        },
+        {
+          "kind": "entity",
+          "type": "person",
+          "aliases": [
+            "淵"
+          ],
+          "temp_id": "ent_015",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "曹操所部將領。",
+          "canonical_name": "夏侯淵"
+        },
+        {
+          "kind": "entity",
+          "type": "polity",
+          "aliases": [
+            "漢室"
+          ],
+          "temp_id": "ent_016",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.97
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備所承續之漢朝政治正統。",
+          "canonical_name": "漢"
+        },
+        {
+          "kind": "entity",
+          "type": "place",
+          "aliases": [],
+          "temp_id": "ent_017",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉璋所領、後為劉備取得的州域。",
+          "canonical_name": "益州"
+        },
+        {
+          "kind": "entity",
+          "type": "place",
+          "aliases": [],
+          "temp_id": "ent_018",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備曾屯駐並與孫權分割的州域。",
+          "canonical_name": "荊州"
+        },
+        {
+          "kind": "entity",
+          "type": "place",
+          "aliases": [],
+          "temp_id": "ent_019",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "益州及蜀漢都城。",
+          "canonical_name": "成都"
+        },
+        {
+          "kind": "entity",
+          "type": "place",
+          "aliases": [
+            "漢川"
+          ],
+          "temp_id": "ent_020",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.98
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "劉備取得的重要地域。",
+          "canonical_name": "漢中"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_021",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "縣尉職。",
+          "canonical_name": "安喜尉"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_022",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "州刺史職。",
+          "canonical_name": "豫州刺史"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_023",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "將軍號。",
+          "canonical_name": "左將軍"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_024",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "王爵及政治稱號。",
+          "canonical_name": "漢中王"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_025",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "軍政高位。",
+          "canonical_name": "大司馬"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_026",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "帝位。",
+          "canonical_name": "皇帝"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_027",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "中央官職。",
+          "canonical_name": "丞相"
+        },
+        {
+          "kind": "entity",
+          "type": "office",
+          "aliases": [],
+          "temp_id": "ent_028",
+          "mentions": [],
+          "attributes": {},
+          "extraction": {
+            "job_id": null,
+            "method": "model",
+            "confidence": 0.95
+          },
+          "resolution": {
+            "status": "unresolved",
+            "canonical_id": null,
+            "candidate_ids": []
+          },
+          "description": "中央官職。",
+          "canonical_name": "司徒"
+        }
+      ],
+      "warnings": [],
+      "schema_version": "0.1"
+    },
+    "mentions": [],
+    "warnings": [],
+    "chapter_id": "ch_c2554faa8d4fe4e977b13c89",
+    "person_states": {
+      "facts": [
+        {
+          "fact_id": "pf_001",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_002",
+          "value_ref": {
+            "ref": "ent_021",
+            "kind": "entity"
+          },
+          "claim_refs": [],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "narrator",
+          "qualification": "ordinary",
+          "source_selections": [
+            {
+              "quote": "除安喜尉",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_002",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_003",
+          "value_ref": {
+            "ref": "ent_022",
+            "kind": "entity"
+          },
+          "claim_refs": [],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "narrator",
+          "qualification": "recommendation",
+          "source_selections": [
+            {
+              "quote": "謙表先主為豫州刺史",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_003",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_003",
+          "value_ref": {
+            "ref": "ent_023",
+            "kind": "entity"
+          },
+          "claim_refs": [],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "narrator",
+          "qualification": "recommendation",
+          "source_selections": [
+            {
+              "quote": "表先主為左將軍",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_004",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_007",
+          "value_ref": {
+            "ref": "ent_024",
+            "kind": "entity"
+          },
+          "claim_refs": [
+            {
+              "ref": "clm_004",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "quotation",
+          "qualification": "recommendation",
+          "source_selections": [
+            {
+              "quote": "封備漢中王",
+              "occurrence": 1,
+              "last_block_id": "b_043",
+              "first_block_id": "b_043"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_005",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_007",
+          "value_ref": {
+            "ref": "ent_025",
+            "kind": "entity"
+          },
+          "claim_refs": [
+            {
+              "ref": "clm_004",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "quotation",
+          "qualification": "recommendation",
+          "source_selections": [
+            {
+              "quote": "拜大司馬",
+              "occurrence": 1,
+              "last_block_id": "b_043",
+              "first_block_id": "b_043"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_006",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_008",
+          "value_ref": {
+            "ref": "ent_026",
+            "kind": "entity"
+          },
+          "claim_refs": [
+            {
+              "ref": "clm_005",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "narrator",
+          "qualification": "ordinary",
+          "source_selections": [
+            {
+              "quote": "即皇帝位於成都武擔之南",
+              "occurrence": 1,
+              "last_block_id": "b_061",
+              "first_block_id": "b_061"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_007",
+          "relation": null,
+          "dimension": "office",
+          "operation": "start",
+          "phase_ref": "ph_008",
+          "value_ref": {
+            "ref": "ent_027",
+            "kind": "entity"
+          },
+          "claim_refs": [
+            {
+              "ref": "clm_006",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_005",
+            "kind": "entity"
+          },
+          "target_ref": null,
+          "attribution": "narrator",
+          "qualification": "ordinary",
+          "source_selections": [
+            {
+              "quote": "以諸葛亮為丞相",
+              "occurrence": 1,
+              "last_block_id": "b_067",
+              "first_block_id": "b_067"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_008",
+          "relation": "attached_to",
+          "dimension": "affiliation",
+          "operation": "attest",
+          "phase_ref": "ph_006",
+          "value_ref": null,
+          "claim_refs": [
+            {
+              "ref": "clm_002",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": {
+            "ref": "ent_017",
+            "kind": "entity"
+          },
+          "attribution": "narrator",
+          "qualification": "ordinary",
+          "source_selections": [
+            {
+              "quote": "先主复領益州牧",
+              "occurrence": 1,
+              "last_block_id": "b_033",
+              "first_block_id": "b_033"
+            }
+          ]
+        },
+        {
+          "fact_id": "pf_009",
+          "relation": "attached_to",
+          "dimension": "affiliation",
+          "operation": "attest",
+          "phase_ref": "ph_007",
+          "value_ref": null,
+          "claim_refs": [
+            {
+              "ref": "clm_003",
+              "kind": "claim"
+            }
+          ],
+          "person_ref": {
+            "ref": "ent_001",
+            "kind": "entity"
+          },
+          "target_ref": {
+            "ref": "ent_020",
+            "kind": "entity"
+          },
+          "attribution": "narrator",
+          "qualification": "ordinary",
+          "source_selections": [
+            {
+              "quote": "先主遂有漢中",
+              "occurrence": 1,
+              "last_block_id": "b_039",
+              "first_block_id": "b_039"
+            }
+          ]
+        }
+      ],
+      "phases": [
+        {
+          "label": "早年及起兵前",
+          "phase_id": "ph_001",
+          "event_refs": [],
+          "source_selections": [
+            {
+              "quote": "先主少孤，與母販履織蓆為業",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ]
+        },
+        {
+          "label": "討黃巾及早期任官",
+          "phase_id": "ph_002",
+          "event_refs": [
+            {
+              "ref": "evt_001",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "靈帝末，黃巾起，州郡各舉義兵，先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ]
+        },
+        {
+          "label": "徐州及曹操麾下時期",
+          "phase_id": "ph_003",
+          "event_refs": [
+            {
+              "ref": "evt_002",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_003",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_004",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_005",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_006",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_007",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_009",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_010",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "先主遂領徐州",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            },
+            {
+              "quote": "表先主為左將軍",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ]
+        },
+        {
+          "label": "依附袁紹及屯駐荊州",
+          "phase_id": "ph_004",
+          "event_refs": [
+            {
+              "ref": "evt_011",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_012",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_013",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_014",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "先主走青州",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            },
+            {
+              "quote": "使屯新野",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ]
+        },
+        {
+          "label": "赤壁後取得荊州南部",
+          "phase_id": "ph_005",
+          "event_refs": [
+            {
+              "ref": "evt_015",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_016",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "與曹公戰於赤壁，大破之，焚其舟船",
+              "occurrence": 1,
+              "last_block_id": "b_021",
+              "first_block_id": "b_021"
+            },
+            {
+              "quote": "又南征四郡",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ]
+        },
+        {
+          "label": "入益州及建立蜀地統治",
+          "phase_id": "ph_006",
+          "event_refs": [
+            {
+              "ref": "evt_017",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_018",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "將步卒數万人入益州",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            },
+            {
+              "quote": "進圍成都數十日，璋出降",
+              "occurrence": 1,
+              "last_block_id": "b_033",
+              "first_block_id": "b_033"
+            }
+          ]
+        },
+        {
+          "label": "取得漢中及稱王",
+          "phase_id": "ph_007",
+          "event_refs": [
+            {
+              "ref": "evt_019",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_020",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "夏，曹公果引軍還，先主遂有漢中",
+              "occurrence": 1,
+              "last_block_id": "b_039",
+              "first_block_id": "b_039"
+            },
+            {
+              "quote": "封備漢中王，拜大司馬",
+              "occurrence": 1,
+              "last_block_id": "b_043",
+              "first_block_id": "b_043"
+            }
+          ]
+        },
+        {
+          "label": "稱帝及伐吳",
+          "phase_id": "ph_008",
+          "event_refs": [
+            {
+              "ref": "evt_021",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_022",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_023",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_024",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_025",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "即皇帝位於成都武擔之南",
+              "occurrence": 1,
+              "last_block_id": "b_061",
+              "first_block_id": "b_061"
+            },
+            {
+              "quote": "秋七月，遂帥諸軍伐吳",
+              "occurrence": 1,
+              "last_block_id": "b_067",
+              "first_block_id": "b_067"
+            },
+            {
+              "quote": "陸議大破先主軍於猇亭",
+              "occurrence": 1,
+              "last_block_id": "b_069",
+              "first_block_id": "b_069"
+            }
+          ]
+        },
+        {
+          "label": "永安託孤及卒",
+          "phase_id": "ph_009",
+          "event_refs": [
+            {
+              "ref": "evt_026",
+              "kind": "event"
+            }
+          ],
+          "source_selections": [
+            {
+              "quote": "先主病篤，託孤於丞相亮，尚書令李嚴為副。夏四月癸巳，先主殂於永安宮",
+              "occurrence": 1,
+              "last_block_id": "b_071",
+              "first_block_id": "b_071"
+            }
+          ]
+        }
+      ],
+      "continuities": [],
+      "phase_orders": [],
+      "disagreements": []
+    },
+    "record_sources": [
+      {
+        "record_ref": "ent_001",
+        "selections": [
+          {
+            "quote": "先主姓劉，諱備，字玄德，涿郡涿縣人",
+            "occurrence": 1,
+            "last_block_id": "b_001",
+            "first_block_id": "b_001"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_002",
+        "selections": [
+          {
+            "quote": "曹公自出東征",
+            "occurrence": 1,
+            "last_block_id": "b_009",
+            "first_block_id": "b_009"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_003",
+        "selections": [
+          {
+            "quote": "孫權",
+            "occurrence": 1,
+            "last_block_id": "b_023",
+            "first_block_id": "b_023"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_004",
+        "selections": [
+          {
+            "quote": "益州牧劉璋",
+            "occurrence": 1,
+            "last_block_id": "b_029",
+            "first_block_id": "b_029"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_005",
+        "selections": [
+          {
+            "quote": "諸葛亮說先主攻琮",
+            "occurrence": 1,
+            "last_block_id": "b_019",
+            "first_block_id": "b_019"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_006",
+        "selections": [
+          {
+            "quote": "先主遣關羽守下邳",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_007",
+        "selections": [
+          {
+            "quote": "車騎將軍張飛",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_008",
+        "selections": [
+          {
+            "quote": "子禪為皇太子",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_009",
+        "selections": [
+          {
+            "quote": "徐州牧陶謙",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_010",
+        "selections": [
+          {
+            "quote": "遼西公孫瓚",
+            "occurrence": 1,
+            "last_block_id": "b_005",
+            "first_block_id": "b_005"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_011",
+        "selections": [
+          {
+            "quote": "袁紹",
+            "occurrence": 1,
+            "last_block_id": "b_015",
+            "first_block_id": "b_015"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_012",
+        "selections": [
+          {
+            "quote": "劉表",
+            "occurrence": 1,
+            "last_block_id": "b_017",
+            "first_block_id": "b_017"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_013",
+        "selections": [
+          {
+            "quote": "車騎將軍董承",
+            "occurrence": 1,
+            "last_block_id": "b_011",
+            "first_block_id": "b_011"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_014",
+        "selections": [
+          {
+            "quote": "先主命黃忠",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_015",
+        "selections": [
+          {
+            "quote": "淵將兵來爭其地",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_016",
+        "selections": [
+          {
+            "quote": "漢景帝子中山靖王勝之後",
+            "occurrence": 1,
+            "last_block_id": "b_001",
+            "first_block_id": "b_001"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_017",
+        "selections": [
+          {
+            "quote": "入益州",
+            "occurrence": 1,
+            "last_block_id": "b_029",
+            "first_block_id": "b_029"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_018",
+        "selections": [
+          {
+            "quote": "荊州豪傑歸先主者日益多",
+            "occurrence": 1,
+            "last_block_id": "b_017",
+            "first_block_id": "b_017"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_019",
+        "selections": [
+          {
+            "quote": "即皇帝位於成都武擔之南",
+            "occurrence": 1,
+            "last_block_id": "b_061",
+            "first_block_id": "b_061"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_020",
+        "selections": [
+          {
+            "quote": "先主遂有漢中",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_021",
+        "selections": [
+          {
+            "quote": "除安喜尉",
+            "occurrence": 1,
+            "last_block_id": "b_005",
+            "first_block_id": "b_005"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_022",
+        "selections": [
+          {
+            "quote": "謙表先主為豫州刺史",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_023",
+        "selections": [
+          {
+            "quote": "表先主為左將軍",
+            "occurrence": 1,
+            "last_block_id": "b_009",
+            "first_block_id": "b_009"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_024",
+        "selections": [
+          {
+            "quote": "封備漢中王",
+            "occurrence": 1,
+            "last_block_id": "b_043",
+            "first_block_id": "b_043"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_025",
+        "selections": [
+          {
+            "quote": "拜大司馬",
+            "occurrence": 1,
+            "last_block_id": "b_043",
+            "first_block_id": "b_043"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_026",
+        "selections": [
+          {
+            "quote": "即皇帝位",
+            "occurrence": 1,
+            "last_block_id": "b_061",
+            "first_block_id": "b_061"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_027",
+        "selections": [
+          {
+            "quote": "以諸葛亮為丞相",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "ent_028",
+        "selections": [
+          {
+            "quote": "許靖為司徒",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "entity"
+      },
+      {
+        "record_ref": "evt_001",
+        "selections": [
+          {
+            "quote": "先主率其屬從校尉鄒靖討黃巾賊有功，除安喜尉",
+            "occurrence": 1,
+            "last_block_id": "b_005",
+            "first_block_id": "b_005"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_002",
+        "selections": [
+          {
+            "quote": "謙表先主為豫州刺史，屯小沛",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_003",
+        "selections": [
+          {
+            "quote": "先主遂領徐州",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_004",
+        "selections": [
+          {
+            "quote": "曹公表先主為鎮東將軍，封宜城亭侯，是歲建安元年也",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_005",
+        "selections": [
+          {
+            "quote": "呂布乘虛襲下邳。下邳守將曹豹反，閒迎布。布虜先主妻子，先主轉軍海西",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_006",
+        "selections": [
+          {
+            "quote": "曹公厚遇之，以為豫州牧",
+            "occurrence": 1,
+            "last_block_id": "b_009",
+            "first_block_id": "b_009"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_007",
+        "selections": [
+          {
+            "quote": "表先主為左將軍",
+            "occurrence": 1,
+            "last_block_id": "b_009",
+            "first_block_id": "b_009"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_008",
+        "selections": [
+          {
+            "quote": "遂與承及長水校尉种輯、將軍吳子蘭、王子服等同謀",
+            "occurrence": 1,
+            "last_block_id": "b_011",
+            "first_block_id": "b_011"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_009",
+        "selections": [
+          {
+            "quote": "先主據下邳。靈等還，先主乃殺徐州刺史車冑，留關羽守下邳，而身還小沛",
+            "occurrence": 1,
+            "last_block_id": "b_013",
+            "first_block_id": "b_013"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_010",
+        "selections": [
+          {
+            "quote": "五年，曹公東征先主，先主敗績",
+            "occurrence": 1,
+            "last_block_id": "b_013",
+            "first_block_id": "b_013"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_011",
+        "selections": [
+          {
+            "quote": "先主走青州。青州刺史袁譚，先主故茂才也，將步騎迎先主",
+            "occurrence": 1,
+            "last_block_id": "b_015",
+            "first_block_id": "b_015"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_012",
+        "selections": [
+          {
+            "quote": "表自郊迎，以上賓禮待之，益其兵，使屯新野",
+            "occurrence": 1,
+            "last_block_id": "b_017",
+            "first_block_id": "b_017"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_013",
+        "selections": [
+          {
+            "quote": "先主設伏兵，一旦自燒屯偽遁，惇等追之，為伏兵所破",
+            "occurrence": 1,
+            "last_block_id": "b_017",
+            "first_block_id": "b_017"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_014",
+        "selections": [
+          {
+            "quote": "子琮代立，遣使請降。先主屯樊，不知曹公卒至，至宛乃聞之，遂將其眾去",
+            "occurrence": 1,
+            "last_block_id": "b_019",
+            "first_block_id": "b_019"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_015",
+        "selections": [
+          {
+            "quote": "與曹公戰於赤壁，大破之，焚其舟船",
+            "occurrence": 1,
+            "last_block_id": "b_021",
+            "first_block_id": "b_021"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_016",
+        "selections": [
+          {
+            "quote": "先主表琦為荊州刺史，又南征四郡。武陵太守金旋、長沙太守韓玄、桂陽太守趙範、零陵太守劉度皆降",
+            "occurrence": 1,
+            "last_block_id": "b_023",
+            "first_block_id": "b_023"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_017",
+        "selections": [
+          {
+            "quote": "進圍成都數十日，璋出降",
+            "occurrence": 1,
+            "last_block_id": "b_033",
+            "first_block_id": "b_033"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_018",
+        "selections": [
+          {
+            "quote": "與權連和，分荊州、江夏、長沙、桂陽東屬，南郡、零陵、武陵西屬",
+            "occurrence": 1,
+            "last_block_id": "b_035",
+            "first_block_id": "b_035"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_019",
+        "selections": [
+          {
+            "quote": "於定軍山勢作營。淵將兵來爭其地。先主命黃忠乘高鼓譟攻之，大破淵軍，斬淵及曹公所署益州刺史趙顒等",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          },
+          {
+            "quote": "夏，曹公果引軍還，先主遂有漢中",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_020",
+        "selections": [
+          {
+            "quote": "臣等輒依舊典，封備漢中王，拜大司馬",
+            "occurrence": 1,
+            "last_block_id": "b_043",
+            "first_block_id": "b_043"
+          },
+          {
+            "quote": "遂於沔陽設壇場，陳兵列眾，群臣陪位，讀奏訖，禦王冠於先主",
+            "occurrence": 1,
+            "last_block_id": "b_045",
+            "first_block_id": "b_045"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_021",
+        "selections": [
+          {
+            "quote": "俄而孫權襲殺羽，取荊州",
+            "occurrence": 1,
+            "last_block_id": "b_051",
+            "first_block_id": "b_051"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_022",
+        "selections": [
+          {
+            "quote": "即皇帝位於成都武擔之南",
+            "occurrence": 1,
+            "last_block_id": "b_061",
+            "first_block_id": "b_061"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_023",
+        "selections": [
+          {
+            "quote": "以諸葛亮為丞相，許靖為司徒。置百官，立宗廟",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_024",
+        "selections": [
+          {
+            "quote": "秋七月，遂帥諸軍伐吳",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_025",
+        "selections": [
+          {
+            "quote": "後十餘日，陸議大破先主軍於猇亭，將軍馮習、張南等皆沒。先主自猇亭還秭歸，收合離散兵，遂棄船舫，由步道還魚复，改魚复縣曰永安",
+            "occurrence": 1,
+            "last_block_id": "b_069",
+            "first_block_id": "b_069"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "evt_026",
+        "selections": [
+          {
+            "quote": "先主病篤，託孤於丞相亮，尚書令李嚴為副。夏四月癸巳，先主殂於永安宮，時年六十三",
+            "occurrence": 1,
+            "last_block_id": "b_071",
+            "first_block_id": "b_071"
+          }
+        ],
+        "record_kind": "event"
+      },
+      {
+        "record_ref": "clm_001",
+        "selections": [
+          {
+            "quote": "先主姓劉，諱備，字玄德，涿郡涿縣人，漢景帝子中山靖王勝之後也。",
+            "occurrence": 1,
+            "last_block_id": "b_001",
+            "first_block_id": "b_001"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_002",
+        "selections": [
+          {
+            "quote": "先主复領益州牧",
+            "occurrence": 1,
+            "last_block_id": "b_033",
+            "first_block_id": "b_033"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_003",
+        "selections": [
+          {
+            "quote": "夏，曹公果引軍還，先主遂有漢中",
+            "occurrence": 1,
+            "last_block_id": "b_039",
+            "first_block_id": "b_039"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_004",
+        "selections": [
+          {
+            "quote": "封備漢中王，拜大司馬",
+            "occurrence": 1,
+            "last_block_id": "b_043",
+            "first_block_id": "b_043"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_005",
+        "selections": [
+          {
+            "quote": "即皇帝位於成都武擔之南",
+            "occurrence": 1,
+            "last_block_id": "b_061",
+            "first_block_id": "b_061"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_006",
+        "selections": [
+          {
+            "quote": "以諸葛亮為丞相",
+            "occurrence": 1,
+            "last_block_id": "b_067",
+            "first_block_id": "b_067"
+          }
+        ],
+        "record_kind": "claim"
+      },
+      {
+        "record_ref": "clm_007",
+        "selections": [
+          {
+            "quote": "夏四月癸巳，先主殂於永安宮，時年六十三。",
+            "occurrence": 1,
+            "last_block_id": "b_071",
+            "first_block_id": "b_071"
+          }
+        ],
+        "record_kind": "claim"
+      }
+    ]
+  },
+  "validation_errors": [
+    "references: evt_002 references missing place entity '小沛'",
+    "references: evt_003 references missing place entity '徐州'",
+    "references: evt_005 references missing place entity '下邳'",
+    "references: evt_005 references missing place entity '海西'",
+    "references: evt_007 references missing place entity '許'",
+    "references: evt_009 references missing place entity '下邳'",
+    "references: evt_009 references missing place entity '小沛'",
+    "references: evt_010 references missing place entity '徐州'",
+    "references: evt_011 references missing place entity '平原'",
+    "references: evt_011 references missing place entity '鄴'",
+    "references: evt_011 references missing place entity '青州'",
+    "references: evt_012 references missing place entity '新野'",
+    "references: evt_013 references missing place entity '博望'",
+    "references: evt_014 references missing place entity '樊'",
+    "references: evt_014 references missing place entity '當陽'",
+    "references: evt_014 references missing place entity '襄陽'",
+    "references: evt_015 references missing place entity '南郡'",
+    "references: evt_015 references missing place entity '赤壁'",
+    "references: evt_016 references missing place entity '桂陽'",
+    "references: evt_016 references missing place entity '武陵'",
+    "references: evt_016 references missing place entity '長沙'",
+    "references: evt_016 references missing place entity '零陵'",
+    "references: evt_017 references missing place entity '成都'",
+    "references: evt_017 references missing place entity '雒城'",
+    "references: evt_018 references missing place entity '南郡'",
+    "references: evt_018 references missing place entity '桂陽'",
+    "references: evt_018 references missing place entity '武陵'",
+    "references: evt_018 references missing place entity '江夏'",
+    "references: evt_018 references missing place entity '荊州'",
+    "references: evt_018 references missing place entity '長沙'",
+    "references: evt_018 references missing place entity '零陵'",
+    "references: evt_019 references missing place entity '定軍山'",
+    "references: evt_019 references missing place entity '漢中'",
+    "references: evt_020 references missing place entity '巴'",
+    "references: evt_020 references missing place entity '廣漢'",
+    "references: evt_020 references missing place entity '沔陽'",
+    "references: evt_020 references missing place entity '漢中'",
+    "references: evt_020 references missing place entity '犍為'",
+    "references: evt_020 references missing place entity '蜀'",
+    "references: evt_021 references missing place entity '樊'",
+    "references: evt_021 references missing place entity '荊州'",
+    "references: evt_022 references missing place entity '成都武擔之南'",
+    "references: evt_023 references missing place entity '成都'",
+    "references: evt_024 references missing place entity '巫'",
+    "references: evt_024 references missing place entity '秭歸'",
+    "references: evt_025 references missing place entity '永安'",
+    "references: evt_025 references missing place entity '猇亭'",
+    "references: evt_025 references missing place entity '秭歸'",
+    "references: evt_025 references missing place entity '魚復'",
+    "references: evt_026 references missing place entity '永安宮'",
+    "record_sources: clm_003 evidence text '夏，曹公果引軍還，先主遂有漢中。' must equal first selection quote '夏，曹公果引軍還，先主遂有漢中'",
+    "record_sources: clm_005 evidence text '即皇帝位於成都武擔之南。' must equal first selection quote '即皇帝位於成都武擔之南'",
+    "anchors: record_sources 'ent_010'[1] quote occurs 0 time(s) in ['b_005'..'b_005'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_003': re-point first/last_block_id to the enclosing block(s) and recount",
+    "time_precision: evt_020 time.original_text '二十四年秋' is not grounded in chapter text",
+    "time_precision: evt_024 time.original_text '章武元年秋七月' is not grounded in chapter text",
+    "time_precision: evt_025 time.original_text '章武二年夏六月' is not grounded in chapter text",
+    "time_precision: evt_026 time.original_text '章武三年夏四月癸巳' is not grounded in chapter text",
+    "person_state_types: person_states.facts[1] qualification 'recommendation' can only attest; it cannot start/end a current office",
+    "person_state_types: person_states.facts[2] qualification 'recommendation' can only attest; it cannot start/end a current office",
+    "person_state_types: person_states.facts[3] qualification 'recommendation' can only attest; it cannot start/end a current office",
+    "person_state_types: person_states.facts[4] qualification 'recommendation' can only attest; it cannot start/end a current office",
+    "person_state_types: person_states.facts[7] affiliation target 'ent_017' is a place, not a person/polity/organization",
+    "person_state_types: person_states.facts[8] affiliation target 'ent_020' is a place, not a person/polity/organization"
+  ],
+  "error": null,
+  "receipt": {
+    "status": "completed",
+    "model": "gpt-5.6-luna",
+    "usage": {
+      "input_tokens": 81992,
+      "output_tokens": 13686,
+      "total_tokens": 95678,
+      "reasoning_tokens": 545
+    },
+    "elapsed_seconds": 91.322,
+    "http_attempts": 1
+  }
+}

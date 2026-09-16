@@ -1,0 +1,628 @@
+{
+  "conclusions": [
+    {
+      "event_id": "evt_000012",
+      "evidence": [
+        "r3-e000-part-2"
+      ],
+      "id": "r3-c000-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000014",
+      "evidence": [
+        "r3-e001-part-2"
+      ],
+      "id": "r3-c001-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": null,
+      "evidence": [
+        "r3-e002-part-2"
+      ],
+      "id": "r3-c002-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": null,
+      "evidence": [
+        "r3-e003-part-2"
+      ],
+      "id": "r3-c003-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000016",
+      "evidence": [
+        "r3-e004-part-2"
+      ],
+      "id": "r3-c004-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000010",
+      "evidence": [
+        "r3-e005-part-2"
+      ],
+      "id": "r3-c005-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000020",
+      "evidence": [
+        "r3-e006-part-2"
+      ],
+      "id": "r3-c006-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000020",
+      "evidence": [
+        "r3-e007-part-2"
+      ],
+      "id": "r3-c007-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    },
+    {
+      "event_id": "evt_000010",
+      "evidence": [
+        "r3-e008-part-2"
+      ],
+      "id": "r3-c008-part-2",
+      "phase_ids": [
+        "r3-phase-2"
+      ]
+    }
+  ],
+  "coverage": {
+    "end": 18,
+    "end_anchor": "b_029",
+    "scope": "r3-real-source-01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+    "start": 9,
+    "start_anchor": "b_017"
+  },
+  "derivation": {
+    "content_judgement": "reuses the accepted r3 public chapter text and source block/anchor references; no fixture text",
+    "kind": "readback_to_history_contract",
+    "source": "t19-live-20260916-r3/readback/09-chapter-detail.json"
+  },
+  "entry_points": [
+    {
+      "event_id": null,
+      "kind": "period",
+      "label": "周瑜传 r3 片段 2",
+      "paragraph_id": "r3-p000-part-2",
+      "reason": "入口直接指向已人工接受的 r3 真实资料发布片段。"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "r3-e000-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。劉備以左將軍領荊州牧，治公安，備詣京見權，瑜上疏曰：「劉備以梟雄之姿，而有關羽、張飛熊虎之將，必非久屈為人用者。愚謂大計宜徙備置吳，盛為築宮室，多其美女玩好，以娛其耳目，分此二人，各置一方，使如瑜者得挾與攻戰，大事可定也。今猥割土地以資業之，聚此三人，俱在疆場，恐蛟龍得雲雨，終非池中物也。」權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。是時劉璋為益州牧。外有張魯寇侵，瑜乃詣京見權曰：「今曹操新折衄，方憂在腹心，未能與將軍連兵相事也。乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。瑜還江陵為行裝，而道於巴丘病卒，〈臣松之案，瑜欲取蜀，還江陵治嚴，所卒之處，應在今之巴陵，與前所鎮巴丘，名同處異也。〉時年三十六。權素服舉哀。感動左右。喪當還吳，又迎之蕪湖，眾事費度，一為供給。後著令曰：「故將軍周瑜、程普，其有人客，皆不得問。」",
+      "source_anchor_ids": [
+        "anc_04fc8b605beaa949",
+        "anc_05876143f4f2b11f",
+        "anc_06bcf822115a7a91",
+        "anc_13cb74e52a3c0b75",
+        "anc_2e603287c3d22d5a",
+        "anc_5d04dc715c208884",
+        "anc_61855d30ea38611b",
+        "anc_69470a029c09ab9e",
+        "anc_7284df807b0da436",
+        "anc_7327cec051755cea",
+        "anc_7525fe22ae037afd",
+        "anc_82da0254f7b3ff94",
+        "anc_84ad6c3652264d73",
+        "anc_87115f5a140a6898",
+        "anc_90e4079f918d62c8",
+        "anc_a5d15cee7f7dc2c1",
+        "anc_bc8a2744fc900738",
+        "anc_bdb70a8d8a520253",
+        "anc_beaee2c07b0810ee",
+        "anc_c30e493bb4878381",
+        "anc_d2fa02c66487238e",
+        "anc_d8644e5588f7949f",
+        "anc_de01d127a1dd5f71",
+        "anc_e0fd58e16cd71431"
+      ],
+      "source_block_ids": [
+        "b_017"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e001-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。劉備以左將軍領荊州牧，治公安，備詣京見權，瑜上疏曰：「劉備以梟雄之姿，而有關羽、張飛熊虎之將，必非久屈為人用者。愚謂大計宜徙備置吳，盛為築宮室，多其美女玩好，以娛其耳目，分此二人，各置一方，使如瑜者得挾與攻戰，大事可定也。今猥割土地以資業之，聚此三人，俱在疆場，恐蛟龍得雲雨，終非池中物也。」權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。是時劉璋為益州牧。外有張魯寇侵，瑜乃詣京見權曰：「今曹操新折衄，方憂在腹心，未能與將軍連兵相事也。乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。瑜還江陵為行裝，而道於巴丘病卒，〈臣松之案，瑜欲取蜀，還江陵治嚴，所卒之處，應在今之巴陵，與前所鎮巴丘，名同處異也。〉時年三十六。權素服舉哀。感動左右。喪當還吳，又迎之蕪湖，眾事費度，一為供給。後著令曰：「故將軍周瑜、程普，其有人客，皆不得問。」",
+      "source_anchor_ids": [
+        "anc_04fc8b605beaa949",
+        "anc_05876143f4f2b11f",
+        "anc_06bcf822115a7a91",
+        "anc_13cb74e52a3c0b75",
+        "anc_2e603287c3d22d5a",
+        "anc_5d04dc715c208884",
+        "anc_61855d30ea38611b",
+        "anc_69470a029c09ab9e",
+        "anc_7284df807b0da436",
+        "anc_7327cec051755cea",
+        "anc_7525fe22ae037afd",
+        "anc_82da0254f7b3ff94",
+        "anc_84ad6c3652264d73",
+        "anc_87115f5a140a6898",
+        "anc_90e4079f918d62c8",
+        "anc_a5d15cee7f7dc2c1",
+        "anc_bc8a2744fc900738",
+        "anc_bdb70a8d8a520253",
+        "anc_beaee2c07b0810ee",
+        "anc_c30e493bb4878381",
+        "anc_d2fa02c66487238e",
+        "anc_d8644e5588f7949f",
+        "anc_de01d127a1dd5f71",
+        "anc_e0fd58e16cd71431"
+      ],
+      "source_block_ids": [
+        "b_017"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e002-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "初瑜見友於策，太妃又使權以兄奉之。是時權位為將軍，諸將賓客為禮尚簡，而瑜獨先盡敬，便執臣節。性度恢廓，大率為得人，惟與程普不睦。〈《江表傳》曰：普頗以年長，數陵侮瑜。瑜折節容下，終不與校。普後自敬服而親重之，乃告人曰：「與周公瑾交，若飲醇醪，不覺自醉。」時人以其謙讓服人如此。初曹公聞瑜年少有美才，謂可遊說動也，乃密下揚州，遣九江蔣幹往見瑜。幹有儀容，以才辯見稱，獨步江、淮之間，莫與為對。乃布衣葛巾，自託私行詣瑜。瑜出迎之，立謂幹曰：「子翼良苦，遠涉江湖為曹氏作說客邪？」幹曰：「吾與足下州里，中間別隔，遙聞芳烈，故來敘闊，並觀雅規，而云說客，無乃逆詐乎？」瑜曰：「吾雖不及夔、曠，聞弦賞音，足知雅曲也。」因延幹入，為設酒食。畢，遣之曰：「適吾有密事，且出就館，事了，別自相請。」後三日，瑜請幹與周觀營中，行視倉庫軍資器仗訖，還宴飲，示之侍者服飾珍玩之物，因謂幹曰：「丈夫處世，遇知己之主，外託君臣之義，內結骨肉之恩，言行計從，禍福共之，假使蘇張更生，酈叟復出，猶撫其背而折其辭，豈足下幼生所能移乎？」幹但笑，終無所言。幹還，稱瑜雅量高致，非言辭所間。中州之士，亦以此多之。劉備之自京還也，權乘飛雲大船，與張昭、秦松、魯肅等十餘人共追送之，大宴會敘別。昭、肅等先出，權獨與備留語，因言次，嘆瑜曰：「公瑾文武籌略，萬人之英，顧其器量廣大，恐不久為人臣耳。」瑜之破魏軍也，曹公曰：「孤不羞走。」後書與權曰：「赤壁之役，值有疾病，孤燒船自退，橫使周瑜虛獲此名。」瑜威聲遠著，故曹公、劉備咸欲疑譖之。及卒，權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉！」後權稱尊號，謂公卿曰：「孤非周公瑾，不帝矣。」〉",
+      "source_anchor_ids": [
+        "anc_c247f3dcffbc8c95",
+        "anc_cc084e30309cd110"
+      ],
+      "source_block_ids": [
+        "b_019"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e003-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "瑜少精意於音樂。雖三爵之後，其有闕誤。瑜必知之，知之必顧，故時人謠曰：「曲有誤，周郎顧。」",
+      "source_anchor_ids": [
+        "anc_13c379b6ff4143dd"
+      ],
+      "source_block_ids": [
+        "b_021"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e004-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "瑜兩男一女，女配太子登。男循尚公主，拜騎都尉，有瑜風，早卒。循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。黃龍元年，封都鄉侯，後以罪徙廬陵郡。赤烏二年，諸葛瑾、步騭連名上疏曰：",
+      "source_anchor_ids": [
+        "anc_01822cee360d4451",
+        "anc_0ee3cdcaeaf5acef",
+        "anc_115824bca8a760ef",
+        "anc_2bb8ec3a2955f4f3",
+        "anc_39a10cf20a0e212b",
+        "anc_45b08758986c3f12",
+        "anc_5e93a12128aa701c",
+        "anc_623fe06e979a622e",
+        "anc_73f07dc0ba18471d",
+        "anc_7efb025251410ac5",
+        "anc_a6d980129a65f9d4",
+        "anc_b216505233ed4ccc",
+        "anc_c1eb07d1b1adcd3c",
+        "anc_d862a5305a47c459",
+        "anc_e637fed2165b9509",
+        "anc_e77f67b89e1a4d4b",
+        "anc_e78a5a1e5d5f4735",
+        "anc_e7ed8847ebbcd1de",
+        "anc_ea3cbe33529cb4a1",
+        "anc_eeed7d9689fee95a"
+      ],
+      "source_block_ids": [
+        "b_023"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e005-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。臣竊以瑜昔見寵任，入作心膂，出為爪牙，銜命出征，身當矢石，盡節用命，視死如歸。故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。雖周之方叔，漢之信、布，誠無以尚也。夫折沖扦難之臣，自古帝王莫不貴重，故漢高帝封爵之誓曰『使黃河如帶，太山如礪，國以永存，爰及苗裔』。申以丹書，重以盟詛，藏於宗廟，傳於無窮，欲使功臣之後，世世相踵，非徒子孫，乃關苗裔，報德明功，勤勤懇懇，如此之至，欲以勸戒後人，用命之臣，死而無悔也。況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。",
+      "source_anchor_ids": [
+        "anc_4b27c32d15aed9b5",
+        "anc_9d72fb906af564d2",
+        "anc_ab5d5a55e9ed3d68",
+        "anc_c668674472831daa",
+        "anc_ea3cbe33529cb4a1"
+      ],
+      "source_block_ids": [
+        "b_025"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e006-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。臣竊以瑜昔見寵任，入作心膂，出為爪牙，銜命出征，身當矢石，盡節用命，視死如歸。故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。雖周之方叔，漢之信、布，誠無以尚也。夫折沖扦難之臣，自古帝王莫不貴重，故漢高帝封爵之誓曰『使黃河如帶，太山如礪，國以永存，爰及苗裔』。申以丹書，重以盟詛，藏於宗廟，傳於無窮，欲使功臣之後，世世相踵，非徒子孫，乃關苗裔，報德明功，勤勤懇懇，如此之至，欲以勸戒後人，用命之臣，死而無悔也。況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。",
+      "source_anchor_ids": [
+        "anc_4b27c32d15aed9b5",
+        "anc_9d72fb906af564d2",
+        "anc_ab5d5a55e9ed3d68",
+        "anc_c668674472831daa",
+        "anc_ea3cbe33529cb4a1"
+      ],
+      "source_block_ids": [
+        "b_025"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e007-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "權答曰：「腹心舊勳，與孤協事，公瑾有之，誠所不忘。昔胤年少，初無功勞，橫受精兵，爵以侯將，蓋念公瑾以及於胤也。而胤恃此，酗淫自恣，前後告喻，曾無悛改。孤於公瑾，義猶二君，樂胤成就，豈有已哉？迫胤罪惡，未宜便還，且欲苦之，使自知耳。今二君勤勤援引漢高河山之誓，孤用恧然。雖德非其疇，猶欲庶幾，事亦如爾，故未順旨。以公瑾之子，而二君在中間，苟使能改，亦何患乎！」瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。",
+      "source_anchor_ids": [
+        "anc_0137848006fa0d8a",
+        "anc_169b503d22e93986",
+        "anc_76978f0a22d62377",
+        "anc_7d14eaf7973f145c",
+        "anc_c92a13d392331cef",
+        "anc_ca043387f52dbb78"
+      ],
+      "source_block_ids": [
+        "b_027"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e008-part-2",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+      "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。峻卒，全琮表峻子護為將。權曰：「昔走曹操，拓有荊州，皆是公瑾，常不忘之。初聞峻亡，仍欲用護，聞護性行危險，用之適為作禍，故便止之。孤念公瑾，豈有已乎？」\n",
+      "source_anchor_ids": [
+        "anc_1b7ab61dfd4e6bed",
+        "anc_24b1d893e6e6c3de",
+        "anc_43140dc4b5906930",
+        "anc_6f62844e902c5db0",
+        "anc_8cb0e4e28518d1e5",
+        "anc_b648b2547c8fe1f6",
+        "anc_cd86ff66c476d178",
+        "anc_dc9565d6026a82ee",
+        "anc_dff3f882c1585c6f"
+      ],
+      "source_block_ids": [
+        "b_029"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    }
+  ],
+  "paragraphs": [
+    {
+      "entities": [],
+      "id": "r3-p000-part-2",
+      "ordinal": 0,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c000-part-2"
+          ],
+          "event_id": "evt_000012",
+          "event_relation": "current",
+          "text": "孙权任命周瑜为偏将军，兼任南郡太守，把下隽、汉昌、刘阳、州陵划为他的奉邑，驻军占据江陵。刘备以左将军的身份兼任荆州牧，治所设在公安。刘备到京城拜见孙权，周瑜上书说：“刘备具有枭雄的气质，又有关羽、张飞这样如熊似虎的将领，必然不会长久屈居人下、受人驱使。我认为，从长远大计考虑，应该把刘备迁到吴地，为他大规模修建宫室，给他安排许多美女和珍玩，使他沉溺于声色享乐；再把关羽、张飞两人分开，各自安置在一方，让像我这样的人能够挟制他们、带领他们作战，这样大事就可以定下来了。如今却轻率地割让土地资助他们，使这三个人聚集在一起，又都处在边境战场上，只怕蛟龙一旦得到云雨，终究不会再是池中的东西了。”孙权考虑到曹操正在北方，应当广泛招揽英雄，又担心一时难以控制刘备，所以没有采纳这个建议。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_04fc8b605beaa949",
+        "anc_05876143f4f2b11f",
+        "anc_06bcf822115a7a91",
+        "anc_13cb74e52a3c0b75",
+        "anc_2e603287c3d22d5a",
+        "anc_5d04dc715c208884",
+        "anc_61855d30ea38611b",
+        "anc_69470a029c09ab9e",
+        "anc_7284df807b0da436",
+        "anc_7327cec051755cea",
+        "anc_7525fe22ae037afd",
+        "anc_82da0254f7b3ff94",
+        "anc_84ad6c3652264d73",
+        "anc_87115f5a140a6898",
+        "anc_90e4079f918d62c8",
+        "anc_a5d15cee7f7dc2c1",
+        "anc_bc8a2744fc900738",
+        "anc_bdb70a8d8a520253",
+        "anc_beaee2c07b0810ee",
+        "anc_c30e493bb4878381",
+        "anc_d2fa02c66487238e",
+        "anc_d8644e5588f7949f",
+        "anc_de01d127a1dd5f71",
+        "anc_e0fd58e16cd71431"
+      ],
+      "source_block_ids": [
+        "b_017"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p001-part-2",
+      "ordinal": 1,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c001-part-2"
+          ],
+          "event_id": "evt_000014",
+          "event_relation": "current",
+          "text": "当时刘璋担任益州牧，外有张鲁侵犯。周瑜于是到京城拜见孙权，说：“如今曹操刚刚遭受挫败，正为心腹之患忧虑，暂时还不能和将军连兵作战。我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。后来孙权下令说：“已故将军周瑜、程普的家人、门客，任何人都不得查问。”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_04fc8b605beaa949",
+        "anc_05876143f4f2b11f",
+        "anc_06bcf822115a7a91",
+        "anc_13cb74e52a3c0b75",
+        "anc_2e603287c3d22d5a",
+        "anc_5d04dc715c208884",
+        "anc_61855d30ea38611b",
+        "anc_69470a029c09ab9e",
+        "anc_7284df807b0da436",
+        "anc_7327cec051755cea",
+        "anc_7525fe22ae037afd",
+        "anc_82da0254f7b3ff94",
+        "anc_84ad6c3652264d73",
+        "anc_87115f5a140a6898",
+        "anc_90e4079f918d62c8",
+        "anc_a5d15cee7f7dc2c1",
+        "anc_bc8a2744fc900738",
+        "anc_bdb70a8d8a520253",
+        "anc_beaee2c07b0810ee",
+        "anc_c30e493bb4878381",
+        "anc_d2fa02c66487238e",
+        "anc_d8644e5588f7949f",
+        "anc_de01d127a1dd5f71",
+        "anc_e0fd58e16cd71431"
+      ],
+      "source_block_ids": [
+        "b_017"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p002-part-2",
+      "ordinal": 2,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c002-part-2"
+          ],
+          "event_id": null,
+          "event_relation": null,
+          "text": "当初周瑜与孙策结为朋友，太妃又让孙权像对待兄长一样侍奉他。当时孙权的身份是将军，各位将领和宾客之间的礼节还比较简略，唯独周瑜首先对他极尽敬意，始终恪守臣子的礼节。他性情宽宏豁达，大体上很能赢得人心，只是与程普关系不和。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_c247f3dcffbc8c95",
+        "anc_cc084e30309cd110"
+      ],
+      "source_block_ids": [
+        "b_019"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p003-part-2",
+      "ordinal": 3,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c003-part-2"
+          ],
+          "event_id": null,
+          "event_relation": null,
+          "text": "周瑜年轻时便精通音乐。即使喝了三杯酒以后，乐曲中只要有一点差错，周瑜也一定能听出来；听出来后，他必定回头去看演奏者。因此当时人们编了歌谣说：“曲子弹错了，周郎就回头。”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_13c379b6ff4143dd"
+      ],
+      "source_block_ids": [
+        "b_021"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p004-part-2",
+      "ordinal": 4,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c004-part-2"
+          ],
+          "event_id": "evt_000016",
+          "event_relation": "current",
+          "text": "周瑜有两个儿子和一个女儿。女儿嫁给太子孙登。长子周循娶了公主，被任命为骑都尉，很有周瑜的风采，但早早去世。周循的弟弟周胤起初被任命为兴业都尉，娶宗室女子为妻，统领一千名士兵，驻守公安。黄龙元年，周胤被封为都乡侯，后来因犯罪被迁徙到庐陵郡。赤乌二年，诸葛瑾、步骘联名上疏说："
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_01822cee360d4451",
+        "anc_0ee3cdcaeaf5acef",
+        "anc_115824bca8a760ef",
+        "anc_2bb8ec3a2955f4f3",
+        "anc_39a10cf20a0e212b",
+        "anc_45b08758986c3f12",
+        "anc_5e93a12128aa701c",
+        "anc_623fe06e979a622e",
+        "anc_73f07dc0ba18471d",
+        "anc_7efb025251410ac5",
+        "anc_a6d980129a65f9d4",
+        "anc_b216505233ed4ccc",
+        "anc_c1eb07d1b1adcd3c",
+        "anc_d862a5305a47c459",
+        "anc_e637fed2165b9509",
+        "anc_e77f67b89e1a4d4b",
+        "anc_e78a5a1e5d5f4735",
+        "anc_e7ed8847ebbcd1de",
+        "anc_ea3cbe33529cb4a1",
+        "anc_eeed7d9689fee95a"
+      ],
+      "source_block_ids": [
+        "b_023"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p005-part-2",
+      "ordinal": 5,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c005-part-2"
+          ],
+          "event_id": "evt_000010",
+          "event_relation": "current",
+          "text": "已故将军周瑜的儿子周胤，过去曾蒙受恩宠，被封爵任将，却不能以福德自我约束，想着建立功勋，后来竟放纵情欲，招致罪罚。臣私下认为，周瑜过去深受陛下宠信，入朝则担任心腹，出征则成为爪牙，奉命出征时亲自冒着箭矢和石块，竭尽忠诚，听从命令，把死亡看得如同归家一般。因此，他才能在乌林击溃曹操，在郢都击退曹仁，宣扬国家的威势和恩德，使中原震动，荆楚之地无不归服。即使是周朝的方叔、汉朝的韩信和英布，也实在没有超过他的。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_4b27c32d15aed9b5",
+        "anc_9d72fb906af564d2",
+        "anc_ab5d5a55e9ed3d68",
+        "anc_c668674472831daa",
+        "anc_ea3cbe33529cb4a1"
+      ],
+      "source_block_ids": [
+        "b_025"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p006-part-2",
+      "ordinal": 6,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c006-part-2"
+          ],
+          "event_id": "evt_000020",
+          "event_relation": "current",
+          "text": "那些能够抵御强敌、排除危难的臣子，自古以来没有哪个帝王不加以珍重。所以汉高祖封爵时发誓说：“即使黄河变得像衣带那么细，泰山变得像磨刀石那么小，国家也要永远存在，并延续到后代子孙。”还用丹书写下誓言，以盟誓重申，藏在宗庙之中，流传无穷，想让功臣的后代世世相承，不只是子孙，还要延及后裔，以报答恩德、彰明功劳，殷切恳切到了这样的程度，是想用来劝勉和告诫后人，使那些为国效命的臣子即使死去也没有遗憾。何况周瑜去世还没有多久，他的儿子周胤却已经降为平民，更加令人悲痛。臣私下认为，陛下圣明而尊重古制，重视功臣事业的兴盛和延续，应当替周胤申诉，请求赦免他余下的罪过，恢复他的兵权和爵位，使一只错过清晨的鸡重新能够鸣叫，让这个负罪的臣子得以继续建立功劳。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_4b27c32d15aed9b5",
+        "anc_9d72fb906af564d2",
+        "anc_ab5d5a55e9ed3d68",
+        "anc_c668674472831daa",
+        "anc_ea3cbe33529cb4a1"
+      ],
+      "source_block_ids": [
+        "b_025"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p007-part-2",
+      "ordinal": 7,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c007-part-2"
+          ],
+          "event_id": "evt_000020",
+          "event_relation": "current",
+          "text": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。但正赶上周胤病死。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_0137848006fa0d8a",
+        "anc_169b503d22e93986",
+        "anc_76978f0a22d62377",
+        "anc_7d14eaf7973f145c",
+        "anc_c92a13d392331cef",
+        "anc_ca043387f52dbb78"
+      ],
+      "source_block_ids": [
+        "b_027"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p008-part-2",
+      "ordinal": 8,
+      "phase_id": "r3-phase-2",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c008-part-2"
+          ],
+          "event_id": "evt_000010",
+          "event_relation": "current",
+          "text": "周瑜哥哥的儿子周峻，也因为周瑜建立的功勋，被任命为偏将军，统领一千名官兵。周峻去世后，全琮上表推荐周峻的儿子周护担任将领。孙权说：“当年击退曹操、开拓取得荆州，都是公瑾的功劳，我一直没有忘记。刚听说周峻去世时，我还想任用周护；后来听说周护性情行为危险，用他反而会造成祸患，所以就停止了任用。我思念公瑾，难道有止境吗？”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_1b7ab61dfd4e6bed",
+        "anc_24b1d893e6e6c3de",
+        "anc_43140dc4b5906930",
+        "anc_6f62844e902c5db0",
+        "anc_8cb0e4e28518d1e5",
+        "anc_b648b2547c8fe1f6",
+        "anc_cd86ff66c476d178",
+        "anc_dc9565d6026a82ee",
+        "anc_dff3f882c1585c6f"
+      ],
+      "source_block_ids": [
+        "b_029"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    }
+  ],
+  "phases": [
+    {
+      "id": "r3-phase-2",
+      "label": "周瑜传 r3 片段 2",
+      "period": null,
+      "year": null
+    }
+  ],
+  "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-2",
+  "publication_status": "published",
+  "publication_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-2",
+  "schema": "chronicle.historical-publication",
+  "source_artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76",
+  "source_job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+  "source_publication_schema": "chronicle.public-chapter",
+  "source_revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+  "title": "三國志·吳書·周瑜傳（r3 real publication, part 2）",
+  "version": "0.1"
+}

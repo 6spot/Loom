@@ -1,0 +1,42 @@
+{
+  "acceptance": [],
+  "document_id": "fc97d29e-ff03-4656-81e8-2faa98c270cb",
+  "fixture_substitution": false,
+  "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+  "label": "automatic",
+  "open_reviews": 1,
+  "real_provider": true,
+  "reviews": [
+    {
+      "decision": null,
+      "review_id": "4bb00b07-e1d7-4cbe-ad93-9da52ea065ce",
+      "scope": "chapter_content",
+      "status": "open"
+    }
+  ],
+  "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+  "routing_outputs": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "output_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "output_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "step": "repair"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "step": "repair"
+    }
+  ],
+  "status": "needs_review",
+  "terminal_validation_error": null
+}

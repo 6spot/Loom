@@ -77,10 +77,13 @@ class ChapterModelVersionTests(unittest.TestCase):
         )
         self.assertEqual("0.4", S.candidate_version_for_model(model))
         self.assertIsNone(model.model_for("translation", "executor").text_format)
+        extraction_format = model.model_for("extraction", "executor").text_format
         self.assertEqual(
-            {"type": "json_object"},
-            model.model_for("extraction", "executor").text_format,
+            extraction_format,
+            S.chapter_production.provider_text_format("extraction"),
         )
+        self.assertEqual("json_schema", extraction_format["type"])
+        self.assertTrue(extraction_format["strict"])
         for name in (
             "fixture:person-state-chapter",
             "fixture:reading-chapter",
@@ -100,6 +103,23 @@ class ChapterModelVersionTests(unittest.TestCase):
             S.candidate_version_for_model(
                 SimpleNamespace(name="fixture:chapter", candidate_version="9.9")
             )
+
+    def test_extract_entry_rejects_a_generic_json_object_provider(self) -> None:
+        model = S.chapter_model_from_env(live_env())
+        providers = dict(model.providers)
+        providers[("extraction", "executor")] = SimpleNamespace(
+            text_format={"type": "json_object"}
+        )
+        invalid = model.__class__(
+            name=model.name, profiles=model.profiles, steps=model.steps,
+            providers=providers, max_parallel=model.max_parallel,
+            max_step_attempts=model.max_step_attempts,
+            max_repair_rounds=model.max_repair_rounds,
+            candidate_version=model.candidate_version,
+            selection_key=model.selection_key,
+        )
+        with self.assertRaisesRegex(PersistenceError, "strict.*JSON Schema"):
+            S.require_staged_extraction_output_contract(invalid)
 
 
 class ChapterModelBudgetTests(unittest.TestCase):

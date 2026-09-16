@@ -1,0 +1,893 @@
+{
+  "review": {
+    "action_reasons": {
+      "new_run": "仅失败或已取消任务可以新建运行",
+      "resume": "仍有 3 项审核未完成",
+      "retry": "仅失败任务可以重试"
+    },
+    "actions": [
+      {
+        "available": false,
+        "enabled": false,
+        "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/retry",
+        "key": "retry",
+        "label": "重试",
+        "method": "POST",
+        "reason": "仅失败任务可以重试"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/resume",
+        "key": "resume",
+        "label": "继续生产",
+        "method": "POST",
+        "reason": "仍有 3 项审核未完成"
+      },
+      {
+        "available": true,
+        "enabled": true,
+        "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/cancel",
+        "key": "cancel",
+        "label": "取消任务",
+        "method": "POST",
+        "reason": null
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/new-run",
+        "key": "new_run",
+        "label": "新建运行",
+        "method": "POST",
+        "reason": "仅失败或已取消任务可以新建运行"
+      }
+    ],
+    "allowed_decisions": [
+      "same_entity",
+      "not_same",
+      "uncertain"
+    ],
+    "available_actions": [
+      "cancel"
+    ],
+    "blocking": true,
+    "candidate_id": "ec_002",
+    "chunk_id": null,
+    "created_at": "2026-09-16T15:21:30.942162+00:00",
+    "current_step": {
+      "failure_reason": "resolve review pending; awaiting human decisions",
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "status": "needs_review"
+    },
+    "current_step_key": "resolve",
+    "current_step_label": "来源核对",
+    "decision": null,
+    "document": {
+      "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+      "filename": "sanguozhi-054-zhou-yu-real-excerpt.txt",
+      "language": "zh-CN",
+      "revision_no": 1,
+      "source_label": "lm80-r5-explicit-dispute",
+      "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+      "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳"
+    },
+    "group_count": 1,
+    "groups": [
+      {
+        "component_root": "ent_000003",
+        "member_count": 1,
+        "members": [
+          {
+            "candidate_id": "ec_002",
+            "candidate_key": "a7b511775e804a9c14a11a8084eb797f56952a82365ee46da854fe96269e8455:ec_002",
+            "left": {
+              "bundle": "c1rev-2bc68417fb8a",
+              "ref": "ent_000004"
+            },
+            "link_kind": "entity",
+            "resolution_sha256": "a7b511775e804a9c14a11a8084eb797f56952a82365ee46da854fe96269e8455",
+            "right": {
+              "bundle": "c1rev-61b6b5b7d7da",
+              "ref": "ent_000003"
+            },
+            "signals": [
+              "exact canonical surface: 景",
+              "same entity type: person"
+            ]
+          }
+        ],
+        "review_group_id": "rg_5dff47ba7207494a6495c49a",
+        "right_subject": {
+          "component_kind": "proven_within_book",
+          "component_root": "ent_000003",
+          "members": [
+            {
+              "bundle": "c1rev-61b6b5b7d7da",
+              "ref": "ent_000003"
+            }
+          ]
+        },
+        "signals": [
+          "exact canonical surface: 景",
+          "same entity type: person"
+        ]
+      }
+    ],
+    "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+    "job_open_resolution_reviews": 3,
+    "job_status": "needs_review",
+    "kind": "stage_gate",
+    "left": {
+      "bundle": "c1rev-2bc68417fb8a",
+      "ref": "ent_000004"
+    },
+    "left_context": {
+      "bundle": "c1rev-2bc68417fb8a",
+      "display": {
+        "aliases": [],
+        "evidence": [
+          {
+            "claim_ref": "clm_000004",
+            "locator": {},
+            "predicate": "has_granduncle",
+            "relation": "object",
+            "source_ref": "src_001",
+            "text": "從祖父景"
+          },
+          {
+            "claim_ref": "clm_000005",
+            "locator": {},
+            "predicate": "parent_of",
+            "relation": "subject",
+            "source_ref": "src_001",
+            "text": "景子忠"
+          },
+          {
+            "claim_ref": "clm_000006",
+            "locator": {},
+            "predicate": "held_office",
+            "relation": "subject",
+            "source_ref": "src_001",
+            "text": "從祖父景，景子忠，皆為漢太尉。"
+          }
+        ],
+        "kind": "entity",
+        "mentions": [
+          "景"
+        ],
+        "name": "景",
+        "type": "person"
+      },
+      "record": {
+        "aliases": [],
+        "kind": "entity",
+        "mentions": [
+          {
+            "text": "景"
+          }
+        ],
+        "name": "景",
+        "type": "person"
+      },
+      "ref": "ent_000004",
+      "source_ref": "src_001",
+      "source_title": "sanguozhi-054-zhou-yu-real-excerpt"
+    },
+    "left_contexts": [
+      {
+        "bundle": "c1rev-2bc68417fb8a",
+        "display": {
+          "aliases": [],
+          "evidence": [
+            {
+              "claim_ref": "clm_000004",
+              "locator": {},
+              "predicate": "has_granduncle",
+              "relation": "object",
+              "source_ref": "src_001",
+              "text": "從祖父景"
+            },
+            {
+              "claim_ref": "clm_000005",
+              "locator": {},
+              "predicate": "parent_of",
+              "relation": "subject",
+              "source_ref": "src_001",
+              "text": "景子忠"
+            },
+            {
+              "claim_ref": "clm_000006",
+              "locator": {},
+              "predicate": "held_office",
+              "relation": "subject",
+              "source_ref": "src_001",
+              "text": "從祖父景，景子忠，皆為漢太尉。"
+            }
+          ],
+          "kind": "entity",
+          "mentions": [
+            "景"
+          ],
+          "name": "景",
+          "type": "person"
+        },
+        "record": {
+          "aliases": [],
+          "kind": "entity",
+          "mentions": [
+            {
+              "text": "景"
+            }
+          ],
+          "name": "景",
+          "type": "person"
+        },
+        "ref": "ent_000004",
+        "source_ref": "src_001",
+        "source_title": "sanguozhi-054-zhou-yu-real-excerpt"
+      }
+    ],
+    "left_label": "景",
+    "link_kind": "entity",
+    "member_count": 1,
+    "members": [
+      {
+        "candidate_id": "ec_002",
+        "candidate_key": "a7b511775e804a9c14a11a8084eb797f56952a82365ee46da854fe96269e8455:ec_002",
+        "left": {
+          "bundle": "c1rev-2bc68417fb8a",
+          "ref": "ent_000004"
+        },
+        "link_kind": "entity",
+        "resolution_sha256": "a7b511775e804a9c14a11a8084eb797f56952a82365ee46da854fe96269e8455",
+        "right": {
+          "bundle": "c1rev-61b6b5b7d7da",
+          "ref": "ent_000003"
+        },
+        "signals": [
+          "exact canonical surface: 景",
+          "same entity type: person"
+        ]
+      }
+    ],
+    "resolution_sha256": "a7b511775e804a9c14a11a8084eb797f56952a82365ee46da854fe96269e8455",
+    "resolved_at": null,
+    "review_groups": [
+      {
+        "member_count": 1,
+        "review_group_id": "rg_5dff47ba7207494a6495c49a",
+        "right_contexts": [
+          {
+            "bundle": "c1rev-61b6b5b7d7da",
+            "display": {
+              "aliases": [],
+              "evidence": [
+                {
+                  "claim_ref": "clm_000003",
+                  "locator": {},
+                  "predicate": "has_congzufu",
+                  "relation": "object",
+                  "source_ref": "src_001",
+                  "text": "從祖父景"
+                },
+                {
+                  "claim_ref": "clm_000004",
+                  "locator": {},
+                  "predicate": "son_of",
+                  "relation": "object",
+                  "source_ref": "src_001",
+                  "text": "景子忠"
+                },
+                {
+                  "claim_ref": "clm_000005",
+                  "locator": {},
+                  "predicate": "held_office",
+                  "relation": "subject",
+                  "source_ref": "src_001",
+                  "text": "景，景子忠，皆為漢太尉"
+                }
+              ],
+              "kind": "entity",
+              "mentions": [
+                "景"
+              ],
+              "name": "景",
+              "type": "person"
+            },
+            "record": {
+              "aliases": [],
+              "kind": "entity",
+              "mentions": [
+                {
+                  "text": "景"
+                }
+              ],
+              "name": "景",
+              "type": "person"
+            },
+            "ref": "ent_000003",
+            "source_ref": "src_001",
+            "source_title": "sanguozhi-054-zhou-yu-real-excerpt"
+          }
+        ],
+        "signals": [
+          "exact canonical surface: 景",
+          "same entity type: person"
+        ]
+      }
+    ],
+    "review_id": "2b7e64a5-b329-4b71-9b73-57f5a04c4c63",
+    "review_subject_id": "rs_569e3e67008b4e2f4b02f24a",
+    "review_subject_version": "0.2",
+    "review_type_label": "来源关系审核",
+    "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+    "right": {
+      "bundle": "c1rev-61b6b5b7d7da",
+      "ref": "ent_000003"
+    },
+    "right_context": {
+      "bundle": "c1rev-61b6b5b7d7da",
+      "display": {
+        "aliases": [],
+        "evidence": [
+          {
+            "claim_ref": "clm_000003",
+            "locator": {},
+            "predicate": "has_congzufu",
+            "relation": "object",
+            "source_ref": "src_001",
+            "text": "從祖父景"
+          },
+          {
+            "claim_ref": "clm_000004",
+            "locator": {},
+            "predicate": "son_of",
+            "relation": "object",
+            "source_ref": "src_001",
+            "text": "景子忠"
+          },
+          {
+            "claim_ref": "clm_000005",
+            "locator": {},
+            "predicate": "held_office",
+            "relation": "subject",
+            "source_ref": "src_001",
+            "text": "景，景子忠，皆為漢太尉"
+          }
+        ],
+        "kind": "entity",
+        "mentions": [
+          "景"
+        ],
+        "name": "景",
+        "type": "person"
+      },
+      "record": {
+        "aliases": [],
+        "kind": "entity",
+        "mentions": [
+          {
+            "text": "景"
+          }
+        ],
+        "name": "景",
+        "type": "person"
+      },
+      "ref": "ent_000003",
+      "source_ref": "src_001",
+      "source_title": "sanguozhi-054-zhou-yu-real-excerpt"
+    },
+    "right_contexts": [
+      {
+        "bundle": "c1rev-61b6b5b7d7da",
+        "display": {
+          "aliases": [],
+          "evidence": [
+            {
+              "claim_ref": "clm_000003",
+              "locator": {},
+              "predicate": "has_congzufu",
+              "relation": "object",
+              "source_ref": "src_001",
+              "text": "從祖父景"
+            },
+            {
+              "claim_ref": "clm_000004",
+              "locator": {},
+              "predicate": "son_of",
+              "relation": "object",
+              "source_ref": "src_001",
+              "text": "景子忠"
+            },
+            {
+              "claim_ref": "clm_000005",
+              "locator": {},
+              "predicate": "held_office",
+              "relation": "subject",
+              "source_ref": "src_001",
+              "text": "景，景子忠，皆為漢太尉"
+            }
+          ],
+          "kind": "entity",
+          "mentions": [
+            "景"
+          ],
+          "name": "景",
+          "type": "person"
+        },
+        "record": {
+          "aliases": [],
+          "kind": "entity",
+          "mentions": [
+            {
+              "text": "景"
+            }
+          ],
+          "name": "景",
+          "type": "person"
+        },
+        "ref": "ent_000003",
+        "source_ref": "src_001",
+        "source_title": "sanguozhi-054-zhou-yu-real-excerpt"
+      }
+    ],
+    "right_label": "景",
+    "scope": "resolution",
+    "source": {
+      "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+      "relationship": "immutable_revision",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "revision_no": 1,
+      "source_count": 1
+    },
+    "source_contexts": {
+      "href": "/api/v1/studio/jobs/reviews/2b7e64a5-b329-4b71-9b73-57f5a04c4c63/contexts",
+      "items": [
+        {
+          "anchor_count": 0,
+          "anchors": [],
+          "artifact_sha256": null,
+          "available": false,
+          "bundle": "c1rev-2bc68417fb8a",
+          "bundle_sha256": "5e26a27c215018000a27e4b8751110bd194af914d57b0b9782cc01d36e61d7d3",
+          "chapter_id": null,
+          "chapter_index": null,
+          "chapter_title": null,
+          "context_id": "ctx_9beef4f606e0712d",
+          "evidence_kinds": [
+            "direct_claim",
+            "mention",
+            "record_source",
+            "translation"
+          ],
+          "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+          "link_kind": "entity",
+          "record_ref": "ent_000004",
+          "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+          "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+          "source_title": "sanguozhi-054-zhou-yu-real-excerpt",
+          "unavailable_reason": "bundle_without_provenance"
+        },
+        {
+          "anchor_count": 0,
+          "anchors": [],
+          "artifact_sha256": null,
+          "available": false,
+          "bundle": "c1rev-61b6b5b7d7da",
+          "bundle_sha256": "3361f9f4048a6e08db464d0393ec129cdb0ba0d8d8e09178431e1b792ceb173d",
+          "chapter_id": null,
+          "chapter_index": null,
+          "chapter_title": null,
+          "context_id": "ctx_05b2bb5c58b7859d",
+          "evidence_kinds": [
+            "direct_claim",
+            "mention",
+            "record_source",
+            "translation"
+          ],
+          "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+          "link_kind": "entity",
+          "record_ref": "ent_000003",
+          "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+          "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+          "source_title": "sanguozhi-054-zhou-yu-real-excerpt",
+          "unavailable_reason": "bundle_without_provenance"
+        }
+      ],
+      "total": 2
+    },
+    "source_entry": {
+      "contexts_href": "/api/v1/studio/jobs/reviews/2b7e64a5-b329-4b71-9b73-57f5a04c4c63/contexts",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "source_href_template": "/api/v1/studio/jobs/reviews/2b7e64a5-b329-4b71-9b73-57f5a04c4c63/sources/{anchor_id}",
+      "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4"
+    },
+    "stages": [
+      {
+        "blocked_reason": null,
+        "dependencies": [],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.446181+00:00",
+        "key": "prepare",
+        "label": "准备",
+        "machine_key": "prepare",
+        "stage": "prepare",
+        "started_at": "2026-09-16T15:19:02.208416+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "prepare"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.539678+00:00",
+        "key": "structure",
+        "label": "结构识别",
+        "machine_key": "structure",
+        "stage": "structure",
+        "started_at": "2026-09-16T15:19:02.487083+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "structure"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.647329+00:00",
+        "key": "segment",
+        "label": "分段",
+        "machine_key": "segment",
+        "stage": "segment",
+        "started_at": "2026-09-16T15:19:02.587451+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "segment"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.623980+00:00",
+        "key": "extract",
+        "label": "内容抽取",
+        "machine_key": "extract",
+        "stage": "extract",
+        "started_at": "2026-09-16T15:19:02.695732+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "extract"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.783079+00:00",
+        "key": "assemble",
+        "label": "组装草稿",
+        "machine_key": "assemble",
+        "stage": "assemble",
+        "started_at": "2026-09-16T15:21:30.653966+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "assemble"
+        ],
+        "failure_reason": "resolve review pending; awaiting human decisions",
+        "finished_at": null,
+        "key": "resolve",
+        "label": "来源核对",
+        "machine_key": "resolve",
+        "stage": "resolve",
+        "started_at": "2026-09-16T15:21:30.824721+00:00",
+        "status": "needs_review"
+      },
+      {
+        "blocked_reason": "前置步骤未完成",
+        "dependencies": [
+          "resolve"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "publish",
+        "label": "发布",
+        "machine_key": "publish",
+        "stage": "publish",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "publish"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "present",
+        "label": "综合呈现",
+        "machine_key": "present",
+        "stage": "present",
+        "started_at": null,
+        "status": "pending"
+      }
+    ],
+    "status": "open",
+    "step_graph": {
+      "current_step": "resolve",
+      "dependencies": {
+        "assemble": [
+          "extract"
+        ],
+        "extract": [
+          "segment"
+        ],
+        "prepare": [],
+        "present": [
+          "publish"
+        ],
+        "publish": [
+          "resolve"
+        ],
+        "resolve": [
+          "assemble"
+        ],
+        "segment": [
+          "structure"
+        ],
+        "structure": [
+          "prepare"
+        ]
+      },
+      "steps": [
+        {
+          "blocked_reason": null,
+          "dependencies": [],
+          "failure_reason": null,
+          "finished_at": "2026-09-16T15:19:02.446181+00:00",
+          "key": "prepare",
+          "label": "准备",
+          "machine_key": "prepare",
+          "stage": "prepare",
+          "started_at": "2026-09-16T15:19:02.208416+00:00",
+          "status": "completed"
+        },
+        {
+          "blocked_reason": null,
+          "dependencies": [
+            "prepare"
+          ],
+          "failure_reason": null,
+          "finished_at": "2026-09-16T15:19:02.539678+00:00",
+          "key": "structure",
+          "label": "结构识别",
+          "machine_key": "structure",
+          "stage": "structure",
+          "started_at": "2026-09-16T15:19:02.487083+00:00",
+          "status": "completed"
+        },
+        {
+          "blocked_reason": null,
+          "dependencies": [
+            "structure"
+          ],
+          "failure_reason": null,
+          "finished_at": "2026-09-16T15:19:02.647329+00:00",
+          "key": "segment",
+          "label": "分段",
+          "machine_key": "segment",
+          "stage": "segment",
+          "started_at": "2026-09-16T15:19:02.587451+00:00",
+          "status": "completed"
+        },
+        {
+          "blocked_reason": null,
+          "dependencies": [
+            "segment"
+          ],
+          "failure_reason": null,
+          "finished_at": "2026-09-16T15:21:30.623980+00:00",
+          "key": "extract",
+          "label": "内容抽取",
+          "machine_key": "extract",
+          "stage": "extract",
+          "started_at": "2026-09-16T15:19:02.695732+00:00",
+          "status": "completed"
+        },
+        {
+          "blocked_reason": null,
+          "dependencies": [
+            "extract"
+          ],
+          "failure_reason": null,
+          "finished_at": "2026-09-16T15:21:30.783079+00:00",
+          "key": "assemble",
+          "label": "组装草稿",
+          "machine_key": "assemble",
+          "stage": "assemble",
+          "started_at": "2026-09-16T15:21:30.653966+00:00",
+          "status": "completed"
+        },
+        {
+          "blocked_reason": null,
+          "dependencies": [
+            "assemble"
+          ],
+          "failure_reason": "resolve review pending; awaiting human decisions",
+          "finished_at": null,
+          "key": "resolve",
+          "label": "来源核对",
+          "machine_key": "resolve",
+          "stage": "resolve",
+          "started_at": "2026-09-16T15:21:30.824721+00:00",
+          "status": "needs_review"
+        },
+        {
+          "blocked_reason": "前置步骤未完成",
+          "dependencies": [
+            "resolve"
+          ],
+          "failure_reason": null,
+          "finished_at": null,
+          "key": "publish",
+          "label": "发布",
+          "machine_key": "publish",
+          "stage": "publish",
+          "started_at": null,
+          "status": "pending"
+        },
+        {
+          "blocked_reason": "等待前置步骤",
+          "dependencies": [
+            "publish"
+          ],
+          "failure_reason": null,
+          "finished_at": null,
+          "key": "present",
+          "label": "综合呈现",
+          "machine_key": "present",
+          "stage": "present",
+          "started_at": null,
+          "status": "pending"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "blocked_reason": null,
+        "dependencies": [],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.446181+00:00",
+        "key": "prepare",
+        "label": "准备",
+        "machine_key": "prepare",
+        "stage": "prepare",
+        "started_at": "2026-09-16T15:19:02.208416+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "prepare"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.539678+00:00",
+        "key": "structure",
+        "label": "结构识别",
+        "machine_key": "structure",
+        "stage": "structure",
+        "started_at": "2026-09-16T15:19:02.487083+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "structure"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.647329+00:00",
+        "key": "segment",
+        "label": "分段",
+        "machine_key": "segment",
+        "stage": "segment",
+        "started_at": "2026-09-16T15:19:02.587451+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "segment"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.623980+00:00",
+        "key": "extract",
+        "label": "内容抽取",
+        "machine_key": "extract",
+        "stage": "extract",
+        "started_at": "2026-09-16T15:19:02.695732+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "extract"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.783079+00:00",
+        "key": "assemble",
+        "label": "组装草稿",
+        "machine_key": "assemble",
+        "stage": "assemble",
+        "started_at": "2026-09-16T15:21:30.653966+00:00",
+        "status": "completed"
+      },
+      {
+        "blocked_reason": null,
+        "dependencies": [
+          "assemble"
+        ],
+        "failure_reason": "resolve review pending; awaiting human decisions",
+        "finished_at": null,
+        "key": "resolve",
+        "label": "来源核对",
+        "machine_key": "resolve",
+        "stage": "resolve",
+        "started_at": "2026-09-16T15:21:30.824721+00:00",
+        "status": "needs_review"
+      },
+      {
+        "blocked_reason": "前置步骤未完成",
+        "dependencies": [
+          "resolve"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "publish",
+        "label": "发布",
+        "machine_key": "publish",
+        "stage": "publish",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "publish"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "present",
+        "label": "综合呈现",
+        "machine_key": "present",
+        "stage": "present",
+        "started_at": null,
+        "status": "pending"
+      }
+    ],
+    "suggestion": {
+      "confidence": 0.5,
+      "decision": "uncertain",
+      "rationale": "This review subject aggregates only candidate links that share already-proven component authority; grouping itself is not an identity decision.",
+      "signals": [
+        "exact canonical surface: 景",
+        "same entity type: person"
+      ]
+    },
+    "task": {
+      "label": "章节生产任务",
+      "machine_key": "chapter",
+      "source_count": 1,
+      "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳",
+      "type": "chapter"
+    },
+    "task_type": "chapter",
+    "task_type_label": "章节生产任务"
+  },
+  "schema": "chronicle.review",
+  "version": "0.1"
+}

@@ -1,0 +1,15 @@
+{
+  "disputed_candidate_item_ref": "pf_001",
+  "disputed_candidate_key": "psc_728cf10ae34113216241ed0a",
+  "disputed_candidate_kind": "fact",
+  "fixture_substitution": false,
+  "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+  "person_state_review_id": "b22a0236-e676-4483-99a5-2a3be829d149",
+  "publication_id": "01a0aad6-42d3-7eb7-a3c9-7b20470d4f22",
+  "real_provider": true,
+  "resolution_review_count": 3,
+  "automatic_content_acceptance_output_sha256": "9eac3e29b2efbd459b6385d61d361fea68f40730c313a7c84a55b48f11129554",
+  "review_output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+  "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+  "status": "completed"
+}

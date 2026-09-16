@@ -1,0 +1,32 @@
+{
+  "job_id": "69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac",
+  "revision_id": "7738b7b6-9f7e-42fd-ae9b-edfa91cbdd31",
+  "output_sha256": "da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 889,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "translation",
+    "node_key": "ffebc8c5eee820144273047885f80a6eef68318378b7ffd4cec223db7f2b2a1e",
+    "slot": "executor",
+    "model": "gpt-5.6-luna",
+    "round": 0,
+    "attempt": 1,
+    "status": "failed",
+    "attempt_sha256": "46ee5a7766860ecad1a49e96503f75517f4b9c1a587504bfd4fa5d4b7f77cd27",
+    "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "pipeline_fingerprint": "49590c32d20a6cc1e1a07e981bd99823c0d41af797b10a7542d4aa6c3f83ef00",
+    "request_fingerprint": "ac151de4c02a236ced4911098ab148de630bc42c2b2dfc006937e26a19b0b07c",
+    "raw_text": "",
+    "parsed": null,
+    "validation_errors": [],
+    "error": "model attempt exceeded CHRONICLE_MODEL_TIMEOUT_SECONDS (1800s)",
+    "receipt": {
+      "status": "timeout",
+      "usage": null,
+      "elapsed_seconds": 1800.023,
+      "http_attempts": 1
+    }
+  }
+}

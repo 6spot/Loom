@@ -1,0 +1,172 @@
+{
+  "base": "http://127.0.0.1:18083",
+  "catalog_sha": "81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4",
+  "stream_id": "d3469c4b-97c0-7cb5-b0a5-800c463e5c0e",
+  "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+  "unit_id": "ru_2beddf85efc0d3da1857b147",
+  "responses": [
+    {
+      "label": "01-reading-stream-directory",
+      "path": "/api/v1/public/reading-streams?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&limit=20",
+      "status": 200,
+      "bytes": 792,
+      "sha256": "d8f018915374ac93b061fcbf1c4c9521d33a8a020bd254d7cd99e9a824b909d6",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "02-reading-stream-detail",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4",
+      "status": 200,
+      "bytes": 1341,
+      "sha256": "8b23a8a17c4b9089419b36b54a38b1834d072973b952c41f8b007ac151d0380f",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "03-reading-units-page-01",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e/units?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&limit=2",
+      "status": 200,
+      "bytes": 13401,
+      "sha256": "998fdac4b7a7484fec8307654567008bd31dd213fe289a0252aa6d2e201c5f26",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "05-reading-groups-page-01",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e/groups?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&limit=2",
+      "status": 200,
+      "bytes": 2336,
+      "sha256": "6dbd24ba2a4fa37f845545e5cef1425deade6feae8d08385049d6973dc3a9253",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "07-reading-locate",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e/locate?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&unit_id=ru_2beddf85efc0d3da1857b147&limit=2",
+      "status": 200,
+      "bytes": 13934,
+      "sha256": "0e35dba88ca466e739685e40f37d3d9e19a4fb931e3230b6e8b7cad75bb6447e",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "08-chapter-directory",
+      "path": "/api/v1/public/chapters?limit=20",
+      "status": 200,
+      "bytes": 703,
+      "sha256": "1e563ad7a093ea6c9aa4cbc5094e4d45d53caefc661e0c9c1160ac846dcfa1ab",
+      "keys": [
+        "schema",
+        "version",
+        "query",
+        "items",
+        "next_cursor"
+      ]
+    },
+    {
+      "label": "09-chapter-detail",
+      "path": "/api/v1/public/chapters/01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+      "status": 200,
+      "bytes": 44019,
+      "sha256": "2a74bf02cb9f1b071d6ea3261979b42be1df69354a95871588eb450911333a6a",
+      "keys": [
+        "schema",
+        "version",
+        "publication_id",
+        "document_id",
+        "document_title",
+        "revision_id",
+        "revision_no",
+        "job_id",
+        "chapter_id",
+        "chapter_index",
+        "chapter_title",
+        "artifact_sha256",
+        "catalog_sha256",
+        "assembled_bundle_sha256",
+        "published_at",
+        "translation_blocks",
+        "source_overview",
+        "references"
+      ]
+    },
+    {
+      "label": "04-reading-units-page-02",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e/units?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&limit=2&cursor=eyJjYXRhbG9nX3NoYSI6IjgxMTcyY2JmZGJhNTBiYjY1ZGY1ZGRiMWRlYWZiZTIzYjI3OGFmOTdlMGZiOTM1MmY5OWMyYjNjMGRjMzFjYzQiLCJraW5kIjoibmV4dCIsIm9yZGluYWwiOjEsInNjb3BlIjoicmVhZGluZy11bml0cyIsInN0cmVhbV9pZCI6ImQzNDY5YzRiLTk3YzAtN2NiNS1iMGE1LTgwMGM0NjNlNWMwZSIsInYiOjF9&direction=forward",
+      "status": 200,
+      "bytes": 13185,
+      "sha256": "48d0ca445b3c396cee59a55cd574a4606836d1cfa9e22a3939b02b22e0bf5d90",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "06-reading-groups-page-02",
+      "path": "/api/v1/public/reading-streams/d3469c4b-97c0-7cb5-b0a5-800c463e5c0e/groups?catalog=81172cbfdba50bb65df5ddb1deafbe23b278af97e0fb9352f99c2b3c0dc31cc4&limit=2&cursor=eyJjYXRhbG9nX3NoYSI6IjgxMTcyY2JmZGJhNTBiYjY1ZGY1ZGRiMWRlYWZiZTIzYjI3OGFmOTdlMGZiOTM1MmY5OWMyYjNjMGRjMzFjYzQiLCJraW5kIjoibmV4dCIsIm9yZGluYWwiOjEsInNjb3BlIjoicmVhZGluZy1ncm91cHMiLCJzdHJlYW1faWQiOiJkMzQ2OWM0Yi05N2MwLTdjYjUtYjBhNS04MDBjNDYzZTVjMGUiLCJ2IjoxfQ&direction=forward",
+      "status": 200,
+      "bytes": 3577,
+      "sha256": "938aa1215b753644f414a112fc269561d91c98d063e454351b0c676f53cad1eb",
+      "keys": [
+        "schema",
+        "version",
+        "snapshot",
+        "query",
+        "page"
+      ]
+    },
+    {
+      "label": "10-chapter-source-anchor",
+      "path": "/api/v1/public/chapters/01a0aa45-b717-7b29-bbae-afd7b72f7fcf/sources/anc_06287e3af161b4d4?view=chapter&limit=20",
+      "status": 200,
+      "bytes": 1077,
+      "sha256": "d48abe53d16c751a445c2b83d6d9285106b55feaed5a36eee603bece425a9a2c",
+      "keys": [
+        "schema",
+        "version",
+        "publication_id",
+        "anchor_id",
+        "revision_id",
+        "source_sha256",
+        "chapter_id",
+        "bounds",
+        "source_hash",
+        "chapter_hash",
+        "view",
+        "text",
+        "segments",
+        "has_more",
+        "next_cursor"
+      ]
+    }
+  ]
+}

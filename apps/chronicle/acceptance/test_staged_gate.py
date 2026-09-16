@@ -546,6 +546,18 @@ class CliTests(unittest.TestCase):
         result = self._run_gate("--mode", "fixture")
         self.assertNotEqual(0, result.returncode)
 
+    def test_fixture_web_port_is_overridable_for_isolated_runs(self):
+        args = gate.parse_args(
+            [
+                "--mode", "fixture",
+                "--env-file", "/tmp/chronicle.env",
+                "--source-pack", "pack.json",
+                "--evidence-dir", "/tmp/evidence",
+                "--web-port", "18081",
+            ]
+        )
+        self.assertEqual(18081, args.web_port)
+
     def test_live_never_accepts_automatic_decisions(self):
         for flag in ("--auto-decide", "--non-interactive", "--execute"):
             result = self._run_gate(

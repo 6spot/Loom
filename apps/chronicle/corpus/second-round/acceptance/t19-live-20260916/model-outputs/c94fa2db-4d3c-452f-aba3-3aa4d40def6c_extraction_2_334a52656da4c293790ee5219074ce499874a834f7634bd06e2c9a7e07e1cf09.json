@@ -1,0 +1,25 @@
+{
+  "schema": "chronicle.chapter-step",
+  "version": "0.1",
+  "step": "extraction",
+  "node_key": "6d2fe4c7e64207814882dd47dc20ab8ee53acd716d01e3e101c3a964ce613eb3",
+  "slot": "executor",
+  "model": "gpt-5.6-sol",
+  "round": 0,
+  "attempt": 2,
+  "status": "failed",
+  "attempt_sha256": "24dfc9497581d2f5e513962b247143b634ceab56209b46b26052715c9025d81d",
+  "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+  "pipeline_fingerprint": "c0bfb569ba7748f97831cbf9a2dee4846f971c0fd7901a4554d7dd9fd6b45b72",
+  "request_fingerprint": "a4b59d5aa703912c7a8d983dd895bde51a6e5d420fb4c340fb21c9da6af45759",
+  "raw_text": "",
+  "parsed": null,
+  "validation_errors": [],
+  "error": "model response did not explicitly complete",
+  "receipt": {
+    "status": "failed",
+    "usage": null,
+    "elapsed_seconds": 331.645,
+    "http_attempts": 1
+  }
+}

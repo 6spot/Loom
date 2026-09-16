@@ -1,0 +1,140 @@
+{
+  "edition": {
+    "catalog_sha": null,
+    "content_sha256": "0b51b25d983bfb76ce7d02ee63db1052be4b26a1c5f3105bdf960c7935464e54",
+    "edition_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+    "entry_points": [
+      {
+        "event_id": null,
+        "excerpt": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 1",
+        "ordinal": 0,
+        "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "period": null,
+        "reason": "入口直接指向已人工接受的 r3 真实资料发布片段。",
+        "year": null
+      }
+    ],
+    "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+    "fragment_count": 1,
+    "groups": [
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "id": "hphase_017703b987a14db330ec9123",
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "year": null
+      }
+    ],
+    "last_paragraph_id": "hp_b0a3a5ac2726436f01738ed6",
+    "lineage": {
+      "derivation": "The two edition fragments are immutable contract snapshots of the accepted r3 public chapter blocks; the edition API stores their source publication linkage explicitly.",
+      "fixture_substitution": false,
+      "kind": "r3-real-publication-chain",
+      "operation": "initial",
+      "source_anchor_readback": "../t19-live-20260916-r3/readback/10-chapter-source-anchor.json",
+      "source_artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76",
+      "source_job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+      "source_readback": "../t19-live-20260916-r3/readback/09-chapter-detail.json",
+      "source_revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+    },
+    "manifest_sha256": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+    "navigation": [
+      {
+        "end": 8,
+        "id": "hp_988d69e0c8700a2316c51d15",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 1",
+            "ordinal": 0,
+            "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "start": 0
+      }
+    ],
+    "paragraph_count": 9,
+    "publication_sequence": 1,
+    "published_at": "2026-09-16T15:38:35.019621+00:00",
+    "title": "三國志·吳書·周瑜傳（r3 real publication, part 1）",
+    "version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0"
+  },
+  "publication": {
+    "catalog_sha": null,
+    "content_sha256": "0b51b25d983bfb76ce7d02ee63db1052be4b26a1c5f3105bdf960c7935464e54",
+    "edition_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+    "entry_points": [
+      {
+        "event_id": null,
+        "excerpt": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 1",
+        "ordinal": 0,
+        "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "period": null,
+        "reason": "入口直接指向已人工接受的 r3 真实资料发布片段。",
+        "year": null
+      }
+    ],
+    "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+    "fragment_count": 1,
+    "groups": [
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "id": "hphase_017703b987a14db330ec9123",
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "year": null
+      }
+    ],
+    "last_paragraph_id": "hp_b0a3a5ac2726436f01738ed6",
+    "lineage": {
+      "derivation": "The two edition fragments are immutable contract snapshots of the accepted r3 public chapter blocks; the edition API stores their source publication linkage explicitly.",
+      "fixture_substitution": false,
+      "kind": "r3-real-publication-chain",
+      "operation": "initial",
+      "source_anchor_readback": "../t19-live-20260916-r3/readback/10-chapter-source-anchor.json",
+      "source_artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76",
+      "source_job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+      "source_readback": "../t19-live-20260916-r3/readback/09-chapter-detail.json",
+      "source_revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+    },
+    "manifest_sha256": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+    "navigation": [
+      {
+        "end": 8,
+        "id": "hp_988d69e0c8700a2316c51d15",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 1",
+            "ordinal": 0,
+            "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "start": 0
+      }
+    ],
+    "paragraph_count": 9,
+    "publication_sequence": 1,
+    "published_at": "2026-09-16T15:38:35.019621+00:00",
+    "title": "三國志·吳書·周瑜傳（r3 real publication, part 1）",
+    "version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0"
+  },
+  "schema": "chronicle.history-directory",
+  "version": "0.1"
+}

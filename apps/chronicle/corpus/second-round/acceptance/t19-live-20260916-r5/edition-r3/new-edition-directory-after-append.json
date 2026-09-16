@@ -1,0 +1,194 @@
+{
+  "edition": {
+    "catalog_sha": null,
+    "content_sha256": "2f054a5a170e54da856286387070c0cd9d995776837c16ec24f06e462da95a86",
+    "edition_version": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff",
+    "entry_points": [
+      {
+        "event_id": null,
+        "excerpt": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 1",
+        "ordinal": 0,
+        "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "period": null,
+        "reason": "真实 r3 发布链首段。",
+        "year": null
+      },
+      {
+        "event_id": null,
+        "excerpt": "孙权任命周瑜为偏将军，兼任南郡太守，把下隽、汉昌、刘阳、州陵划为他的奉邑，驻军占据江陵。刘备以左将军的身份兼任荆州牧，治所设在公安。刘备到京城拜见孙权，周瑜上书说：“刘备具有枭雄的气质，又有关羽、张飞这样如熊似虎的将领，必然不会长久屈居人下、受人驱使。我认为，从长远大计考虑，应该把刘备迁到吴地，为他大规模修建宫室，给他",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 2",
+        "ordinal": 9,
+        "paragraph_id": "hp_69f5f939824f2c8768214b1e",
+        "period": null,
+        "reason": "真实 r3 发布链追加段。",
+        "year": null
+      }
+    ],
+    "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+    "fragment_count": 2,
+    "groups": [
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "id": "hphase_017703b987a14db330ec9123",
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "year": null
+      },
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_69f5f939824f2c8768214b1e",
+        "id": "hphase_1ece137dae255a95f6444e61",
+        "label": "周瑜传 r3 片段 2",
+        "period": null,
+        "year": null
+      }
+    ],
+    "last_paragraph_id": "hp_f9c37731ec2942ddfb28a6e1",
+    "lineage": {
+      "baseline_manifest_sha256": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+      "operation": "append",
+      "parent_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0"
+    },
+    "manifest_sha256": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff",
+    "navigation": [
+      {
+        "end": 8,
+        "id": "hp_988d69e0c8700a2316c51d15",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 1",
+            "ordinal": 0,
+            "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "start": 0
+      },
+      {
+        "end": 17,
+        "id": "hp_69f5f939824f2c8768214b1e",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 2",
+            "ordinal": 9,
+            "paragraph_id": "hp_69f5f939824f2c8768214b1e",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 2",
+        "period": null,
+        "start": 9
+      }
+    ],
+    "paragraph_count": 18,
+    "publication_sequence": 2,
+    "published_at": "2026-09-16T15:38:35.122972+00:00",
+    "title": "三國志·吳書·周瑜傳（r3 real publication, part 1）",
+    "version": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff"
+  },
+  "publication": {
+    "catalog_sha": null,
+    "content_sha256": "2f054a5a170e54da856286387070c0cd9d995776837c16ec24f06e462da95a86",
+    "edition_version": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff",
+    "entry_points": [
+      {
+        "event_id": null,
+        "excerpt": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 1",
+        "ordinal": 0,
+        "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "period": null,
+        "reason": "真实 r3 发布链首段。",
+        "year": null
+      },
+      {
+        "event_id": null,
+        "excerpt": "孙权任命周瑜为偏将军，兼任南郡太守，把下隽、汉昌、刘阳、州陵划为他的奉邑，驻军占据江陵。刘备以左将军的身份兼任荆州牧，治所设在公安。刘备到京城拜见孙权，周瑜上书说：“刘备具有枭雄的气质，又有关羽、张飞这样如熊似虎的将领，必然不会长久屈居人下、受人驱使。我认为，从长远大计考虑，应该把刘备迁到吴地，为他大规模修建宫室，给他",
+        "kind": "period",
+        "label": "周瑜传 r3 片段 2",
+        "ordinal": 9,
+        "paragraph_id": "hp_69f5f939824f2c8768214b1e",
+        "period": null,
+        "reason": "真实 r3 发布链追加段。",
+        "year": null
+      }
+    ],
+    "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+    "fragment_count": 2,
+    "groups": [
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_988d69e0c8700a2316c51d15",
+        "id": "hphase_017703b987a14db330ec9123",
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "year": null
+      },
+      {
+        "count": 9,
+        "first_paragraph_id": "hp_69f5f939824f2c8768214b1e",
+        "id": "hphase_1ece137dae255a95f6444e61",
+        "label": "周瑜传 r3 片段 2",
+        "period": null,
+        "year": null
+      }
+    ],
+    "last_paragraph_id": "hp_f9c37731ec2942ddfb28a6e1",
+    "lineage": {
+      "baseline_manifest_sha256": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+      "operation": "append",
+      "parent_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0"
+    },
+    "manifest_sha256": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff",
+    "navigation": [
+      {
+        "end": 8,
+        "id": "hp_988d69e0c8700a2316c51d15",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 1",
+            "ordinal": 0,
+            "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 1",
+        "period": null,
+        "start": 0
+      },
+      {
+        "end": 17,
+        "id": "hp_69f5f939824f2c8768214b1e",
+        "items": [
+          {
+            "importance": "major",
+            "label": "周瑜传 r3 片段 2",
+            "ordinal": 9,
+            "paragraph_id": "hp_69f5f939824f2c8768214b1e",
+            "period": null
+          }
+        ],
+        "label": "周瑜传 r3 片段 2",
+        "period": null,
+        "start": 9
+      }
+    ],
+    "paragraph_count": 18,
+    "publication_sequence": 2,
+    "published_at": "2026-09-16T15:38:35.122972+00:00",
+    "title": "三國志·吳書·周瑜傳（r3 real publication, part 1）",
+    "version": "1a919f0751290cc4c0b7858ca0c4111e07bc204d46be3c4ffc7560a3570a77ff"
+  },
+  "schema": "chronicle.history-directory",
+  "version": "0.1"
+}

@@ -1,0 +1,1371 @@
+[
+  {
+    "op": "replace",
+    "path": "/translation/blocks/1/text",
+    "before_sha256": "3f2d3d91a8cfd9a53a10d7bd405b9860f690d736f3db669957b7eb8847892015",
+    "value": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。周瑜当时二十四岁，吴地人都称他为周郎。周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守，跟随他攻打皖县，并攻克了那里。当时他们得到桥公的两个女儿，都是举世无双的美人。孙策娶了大桥，周瑜娶了小桥。后来又进逼寻阳，击败刘勋，讨伐江夏，回军平定豫章、庐陵，留下周瑜镇守巴丘。"
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/3/text",
+    "before_sha256": "fc4fe5734c1dbe7f1511a676de60b5a270e913d356c0fe30220d8df21ccf69f9",
+    "value": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。众人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布号令。如今拒绝他，事情在名义上反而更加不顺。而且将军能够抵抗曹操的依仗，只有长江。现在曹操得到荆州，已经占有了这片地方。刘表训练水军，蒙冲、斗舰多达数千艘，曹操把这些船全部用来沿江航行，又加上步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力多少，更是无法相提并论。我们认为，最好的办法不如迎降。”"
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/10/text",
+    "before_sha256": "10c7cb27a4aaa0735eb15af8018dfe1b7800db2031e9b78b32cf6ab466a0db5a",
+    "value": "当时刘璋担任益州牧，外有张鲁侵犯。周瑜于是到京城拜见孙权，说：“如今曹操刚刚遭受挫败，正为心腹之患忧虑，暂时还不能和将军连兵作战。我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。后来孙权下令说：“已故将军周瑜、程普的家人、门客，任何人都不得查问。”"
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/16/text",
+    "before_sha256": "394398c6be51939c9b5ad557dbe5f29a8f1f8f584ae71c9ce2f426855b115751",
+    "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。但正赶上周胤病死。"
+  },
+  {
+    "op": "replace",
+    "path": "/bundle/events/8/time",
+    "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3",
+    "value": null
+  },
+  {
+    "op": "replace",
+    "path": "/bundle/events/9/time",
+    "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3",
+    "value": null
+  },
+  {
+    "op": "replace",
+    "path": "/bundle/events/14/title",
+    "before_sha256": "2a90b88d9b3f614e09f177c6cd8a1eae808ab1570f9870fc86c720fdb4768b5a",
+    "value": "周瑜还江陵治严，途中在巴丘病卒"
+  },
+  {
+    "op": "replace",
+    "path": "/bundle/events/14/places",
+    "before_sha256": "6f3d824739913c9b98b0154c5febd959e28687c6b9312d1bb7fedcc7dfd4caf2",
+    "value": [
+      "ent_050"
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/bundle/claims/12/subject",
+    "before_sha256": "56c85c44363859e92283b28ec77811dc5942506de2c7ac0c55d16a9caa2b92b7",
+    "value": {
+      "ref": "ent_050",
+      "kind": "entity"
+    }
+  },
+  {
+    "op": "replace",
+    "path": "/reading/units/1/event_spans/1/selection/quote",
+    "before_sha256": "491419ede636f2f26e191c682d5eee5d7a5b0897fa428e7b60eb56d98b0eb52a",
+    "value": "周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守"
+  },
+  {
+    "op": "replace",
+    "path": "/reading/units/10/event_spans/1/selection/quote",
+    "before_sha256": "2b9ec6941a92d5ead62af769e0fe6e1acda40d4911d0eabb4d429f3fa9a69a8a",
+    "value": "周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。"
+  },
+  {
+    "op": "replace",
+    "path": "/reading/units/16/event_spans/0/selection/quote",
+    "before_sha256": "409a7ea8245b8cde844d3f93789b23fe70ad7d70b8af62ee9c7bbc257a29e947",
+    "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。"
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "place",
+      "aliases": [
+        "巴陵"
+      ],
+      "temp_id": "ent_050",
+      "mentions": [
+        {
+          "text": "巴丘"
+        },
+        {
+          "text": "巴陵"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "巴丘（病卒处）"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_050",
+      "selections": [
+        {
+          "quote": "道於巴丘病卒",
+          "occurrence": 1,
+          "last_block_id": "b_017",
+          "first_block_id": "b_017"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_051",
+      "mentions": [
+        {
+          "text": "景"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "周景"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_051",
+      "selections": [
+        {
+          "quote": "從祖父景",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_052",
+      "mentions": [
+        {
+          "text": "忠"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "周忠"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_052",
+      "selections": [
+        {
+          "quote": "景子忠",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_053",
+      "mentions": [
+        {
+          "text": "異"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "周異"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_053",
+      "selections": [
+        {
+          "quote": "父異",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_054",
+      "mentions": [
+        {
+          "text": "孫堅"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "孫堅"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_054",
+      "selections": [
+        {
+          "quote": "孫堅與義兵討董卓",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_055",
+      "mentions": [
+        {
+          "text": "尚"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "周尚"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_055",
+      "selections": [
+        {
+          "quote": "瑜從父尚為丹楊太守",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_056",
+      "mentions": [
+        {
+          "text": "袁術"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "袁術"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_056",
+      "selections": [
+        {
+          "quote": "袁術遣從弟胤代尚為太守",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_057",
+      "mentions": [
+        {
+          "text": "胤"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "袁胤"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_057",
+      "selections": [
+        {
+          "quote": "袁術遣從弟胤代尚為太守",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_058",
+      "mentions": [
+        {
+          "text": "橋公"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "橋公"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_058",
+      "selections": [
+        {
+          "quote": "橋公兩女",
+          "occurrence": 1,
+          "last_block_id": "b_003",
+          "first_block_id": "b_003"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_059",
+      "mentions": [
+        {
+          "text": "大橋"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "大橋"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_059",
+      "selections": [
+        {
+          "quote": "大橋",
+          "occurrence": 1,
+          "last_block_id": "b_003",
+          "first_block_id": "b_003"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_060",
+      "mentions": [
+        {
+          "text": "小橋"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "小橋"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_060",
+      "selections": [
+        {
+          "quote": "小橋",
+          "occurrence": 1,
+          "last_block_id": "b_003",
+          "first_block_id": "b_003"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_061",
+      "mentions": [
+        {
+          "text": "孫瑜"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "孫瑜"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_061",
+      "selections": [
+        {
+          "quote": "督孫瑜等",
+          "occurrence": 1,
+          "last_block_id": "b_007",
+          "first_block_id": "b_007"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_062",
+      "mentions": [
+        {
+          "text": "馬超"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "馬超"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_062",
+      "selections": [
+        {
+          "quote": "馬超",
+          "occurrence": 1,
+          "last_block_id": "b_009",
+          "first_block_id": "b_009"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_063",
+      "mentions": [
+        {
+          "text": "韓遂"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "韓遂"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_063",
+      "selections": [
+        {
+          "quote": "韓遂",
+          "occurrence": 1,
+          "last_block_id": "b_009",
+          "first_block_id": "b_009"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_064",
+      "mentions": [
+        {
+          "text": "張昭"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "張昭"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_064",
+      "selections": [
+        {
+          "quote": "張昭",
+          "occurrence": 1,
+          "last_block_id": "b_005",
+          "first_block_id": "b_005"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_065",
+      "mentions": [
+        {
+          "text": "劉表"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "劉表"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_065",
+      "selections": [
+        {
+          "quote": "劉表治水軍",
+          "occurrence": 1,
+          "last_block_id": "b_007",
+          "first_block_id": "b_007"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_066",
+      "mentions": [
+        {
+          "text": "關羽"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "關羽"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_066",
+      "selections": [
+        {
+          "quote": "關羽",
+          "occurrence": 1,
+          "last_block_id": "b_017",
+          "first_block_id": "b_017"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_067",
+      "mentions": [
+        {
+          "text": "張飛"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "張飛"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_067",
+      "selections": [
+        {
+          "quote": "張飛",
+          "occurrence": 1,
+          "last_block_id": "b_017",
+          "first_block_id": "b_017"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_068",
+      "mentions": [
+        {
+          "text": "劉璋"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "劉璋"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_068",
+      "selections": [
+        {
+          "quote": "劉璋為益州牧",
+          "occurrence": 1,
+          "last_block_id": "b_017",
+          "first_block_id": "b_017"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [],
+      "temp_id": "ent_069",
+      "mentions": [
+        {
+          "text": "張魯"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "張魯"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_069",
+      "selections": [
+        {
+          "quote": "張魯寇侵",
+          "occurrence": 1,
+          "last_block_id": "b_017",
+          "first_block_id": "b_017"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/entities/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "entity",
+      "type": "person",
+      "aliases": [
+        "太子"
+      ],
+      "temp_id": "ent_070",
+      "mentions": [
+        {
+          "text": "太子登"
+        }
+      ],
+      "extraction": {
+        "method": "human_gold"
+      },
+      "resolution": {
+        "status": "unresolved"
+      },
+      "canonical_name": "孫登"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "ent_070",
+      "selections": [
+        {
+          "quote": "太子登",
+          "occurrence": 1,
+          "last_block_id": "b_023",
+          "first_block_id": "b_023"
+        }
+      ],
+      "record_kind": "entity"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/bundle/claims/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "kind": "claim",
+      "object": {
+        "ref": "ent_047",
+        "kind": "entity"
+      },
+      "subject": {
+        "ref": "ent_048",
+        "kind": "entity"
+      },
+      "temp_id": "clm_016",
+      "evidence": {
+        "text": "廬江舒人也",
+        "locator": {},
+        "source_ref": "src_001"
+      },
+      "predicate": "part_of",
+      "assessment": {
+        "status": "unassessed"
+      },
+      "extraction": {
+        "method": "human_gold"
+      }
+    }
+  },
+  {
+    "op": "add",
+    "path": "/record_sources/-",
+    "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "value": {
+      "record_ref": "clm_016",
+      "selections": [
+        {
+          "quote": "廬江舒人也",
+          "occurrence": 1,
+          "last_block_id": "b_001",
+          "first_block_id": "b_001"
+        }
+      ],
+      "record_kind": "claim"
+    }
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/0/entity_refs",
+    "before_sha256": "0302de6a9767c4a001910bd1cfd47337a0c18de4111295cfbd4e6ae30f16ce82",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_002",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_026",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_027",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_048",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_047",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_051",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_052",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_053",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_054",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_055",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_056",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_057",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/1/entity_refs",
+    "before_sha256": "fb89ee29d38029c88e59744a5333f67f03a70c5826c3d5ff2c37f0e46b5ca3ca",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_002",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_029",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_034",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_037",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_038",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_039",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_040",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_058",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_059",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_060",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/2/entity_refs",
+    "before_sha256": "fe369f1c77c5b2ee163cc5457f80d5ca1843e0eca5802187b17270dbd8bb336c",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_002",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_027",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_039",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_064",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/3/entity_refs",
+    "before_sha256": "b23fda807c4e2a369bbd7016a46d2d8aa900d546162cc0fe22e2265a0e43a6c4",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_004",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_014",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_015",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_016",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_028",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_029",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_049",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_061",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_065",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/4/entity_refs",
+    "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_004",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_062",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_063",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/5/entity_refs",
+    "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_004",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_056",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_065",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/9/entity_refs",
+    "before_sha256": "f66395b240bb26edc9fe0637a65f7c97e25853c9da85e21ab778d989bdd8ad46",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_004",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_005",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_027",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_031",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_032",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_036",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_042",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_043",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_066",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_067",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/10/entity_refs",
+    "before_sha256": "27bba7d4b6cd99a33c1532d3972ee4d5726e393b7274cf6a3dce754c2e93413e",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_003",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_004",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_025",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_032",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_034",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_035",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_050",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_062",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_068",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_069",
+        "kind": "entity"
+      }
+    ]
+  },
+  {
+    "op": "replace",
+    "path": "/translation/blocks/13/entity_refs",
+    "before_sha256": "5e7474d4eb56a07836c86b828a0fbac65717d66c9136683dd44dfec08628f02b",
+    "value": [
+      {
+        "ref": "ent_001",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_017",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_018",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_021",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_022",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_036",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_044",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_045",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_046",
+        "kind": "entity"
+      },
+      {
+        "ref": "ent_070",
+        "kind": "entity"
+      }
+    ]
+  }
+]

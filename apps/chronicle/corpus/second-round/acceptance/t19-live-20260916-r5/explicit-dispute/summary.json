@@ -1,0 +1,75 @@
+{
+  "acceptance": [
+    {
+      "artifact_type": "chapter-production-acceptance",
+      "output_id": "978643ae-f797-4a79-930c-d7b35c994b58",
+      "output_sha256": "9eac3e29b2efbd459b6385d61d361fea68f40730c313a7c84a55b48f11129554",
+      "production_receipt": {
+        "candidate_sha256": "a7bb20847f9f82edb7747bba892b81200f9298e9bd86a46fd50907c2b2666345",
+        "chapter_id": "ch_2afd4219072f81f6099c151b",
+        "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+        "decision": {
+          "kind": "ai",
+          "review_output_sha256s": [
+            "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+          ]
+        },
+        "draft_sha256": "22c4918021441f7a047064c3fcef80faa86e8e54e40b187183984a7a8edae1e0",
+        "history_sha256": "6769e0b9fca6b974bffcc6420720516cfe9199af93ffe975fb6c1a6d2d8e3986",
+        "pipeline_fingerprint": "b4103413c188f3635a2133dd2801a7a51c902379791197ff6ae1d96153edd5c9",
+        "request_fingerprint": "5f2c0206e297591eb72616d7d68e321813b812cece0d3b90d72ce0e0f0ad4c80",
+        "schema": "chronicle.chapter-acceptance",
+        "status": "accepted",
+        "step_output_sha256s": [
+          "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+          "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+          "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+          "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+          "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+        ],
+        "version": "0.1"
+      }
+    }
+  ],
+  "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+  "fixture_substitution": false,
+  "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+  "label": "explicit-dispute",
+  "open_reviews": 3,
+  "real_provider": true,
+  "reviews": [
+    {
+      "decision": null,
+      "review_id": "a4b55179-de97-4baa-a795-340900ad65ae",
+      "scope": "resolution",
+      "status": "open"
+    },
+    {
+      "decision": null,
+      "review_id": "2b7e64a5-b329-4b71-9b73-57f5a04c4c63",
+      "scope": "resolution",
+      "status": "open"
+    },
+    {
+      "decision": null,
+      "review_id": "7a9c158a-b441-47af-80ff-0c7a0e867fbb",
+      "scope": "resolution",
+      "status": "open"
+    }
+  ],
+  "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+  "routing_outputs": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "output_sha256": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "step": "review"
+    }
+  ],
+  "status": "needs_review",
+  "terminal_validation_error": null
+}

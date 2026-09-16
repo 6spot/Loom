@@ -58,6 +58,7 @@ from common import (  # noqa: E402
 import assembly as chapter_assembly  # noqa: E402
 import chapter_contract as chapter_contract  # noqa: E402
 import chapter_plan as chapter_plan  # noqa: E402
+import chapter_production as chapter_production  # noqa: E402
 import chapter_store as chapter_store  # noqa: E402
 import resolution_store as resolution_store  # noqa: E402
 import resolve_publish as resolve_publish  # noqa: E402
@@ -72,7 +73,7 @@ except ImportError as exc:  # pragma: no cover - deployment always vendors psyco
     ) from exc
 
 #: Version marker recorded on chapter stage checkpoints for audit.
-CHAPTER_STAGE_VERSION = "c2r1t13-v1"
+CHAPTER_STAGE_VERSION = "c2r1t13-v2"
 
 #: Control-plane output type for the frozen chapter review plan. Kept
 #: distinct from the legacy C1 resolution outputs so recovery reuses the
@@ -451,6 +452,7 @@ def execute_chapter_extract(
         raise PersistenceError(
             "chapter extraction requires the staged provider configuration"
         )
+    require_staged_extraction_output_contract(model)
     return _execute_staged_extract(
         database_url,
         job_id=job_id,
@@ -463,6 +465,39 @@ def execute_chapter_extract(
         on_event=on_event,
         halt=halt,
     )
+
+
+def require_staged_extraction_output_contract(model: Any) -> None:
+    """Require the configured extraction provider to use the exact strict schema.
+
+    Local validation remains authoritative, but a generic ``json_object``
+    request leaves the model free to emit the old full-mention shape.  The
+    production entry therefore rejects a provider that does not carry the
+    current extraction projection before it can claim a chapter.  Explicit
+    fixture models used by unit tests expose the same metadata, so this guard
+    exercises the same boundary without giving fixtures production authority.
+    """
+    configured_steps = getattr(model, "steps", None)
+    slots = (configured_steps.get("extraction")
+             if isinstance(configured_steps, dict) else None)
+    if not isinstance(slots, (tuple, list)) or not slots:
+        raise PersistenceError(
+            "chapter extraction provider configuration has no extraction slots"
+        )
+    expected = chapter_production.provider_text_format("extraction")
+    for slot in slots:
+        try:
+            provider = model.model_for("extraction", slot)
+        except Exception as exc:
+            raise PersistenceError(
+                f"chapter extraction provider slot {slot!r} is unavailable"
+            ) from exc
+        actual = getattr(provider, "text_format", None)
+        if actual != expected:
+            raise PersistenceError(
+                "chapter extraction provider must request the strict "
+                "chapter-production extraction JSON Schema"
+            )
 
 
 def _execute_staged_extract(database_url, *, job_id, worker, plan, requests,

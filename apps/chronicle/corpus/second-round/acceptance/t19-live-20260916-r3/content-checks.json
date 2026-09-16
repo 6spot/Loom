@@ -1,0 +1,166 @@
+{
+  "schema": "chronicle.t19-source-content-checks",
+  "version": "0.1",
+  "scope": "one accepted real-data Zhou Yu chapter",
+  "source": {
+    "title": "三國志·吳書·周瑜傳",
+    "sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+    "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+    "chapter_id": "ch_3ce79a5593e0950c54daa93f"
+  },
+  "candidate": {
+    "accepted_sha256": "c0c2eeca3895d86924e9a3b64e21f526fc7e99605707a486aed09c82a1fc151c",
+    "draft_output_sha256": "e946deaf441121a0ed6fcad2fbba108d35a7c720c0772ac329195a880d44da19",
+    "public_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+    "public_artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76"
+  },
+  "method": "Each source quote was checked against the pinned source pack; the listed candidate record, phase, event or translation block was then checked in the accepted candidate and public chapter response. pass_with_uncertainty means the source-attributed qualification was deliberately retained.",
+  "count": 12,
+  "checks": [
+    {
+      "id": "content-01",
+      "topic": "称谓",
+      "source_block_ids": ["b_001"],
+      "source_quotes": ["周瑜字公瑾"],
+      "candidate_records": ["clm_001"],
+      "candidate_translation_block": "tr_001",
+      "public_translation_block": "t_000001",
+      "assertion": "The courtesy-name claim resolves to literal 公瑾 and is present in the first translated block.",
+      "observed": {"claim_object": "公瑾", "translation_contains": "字公瑾"},
+      "status": "pass"
+    },
+    {
+      "id": "content-02",
+      "topic": "籍贯与来源归属",
+      "source_block_ids": ["b_001"],
+      "source_quotes": ["廬江舒人也"],
+      "candidate_records": ["clm_002", "clm_016"],
+      "candidate_translation_block": "tr_001",
+      "public_translation_block": "t_000001",
+      "assertion": "Native place remains linked to 周瑜 through 廬江/舒 and the public block carries the source anchor set.",
+      "observed": {"native_place_ref": "ent_048", "part_of_ref": "ent_047", "translation_contains": "庐江郡舒县"},
+      "status": "pass"
+    },
+    {
+      "id": "content-03",
+      "topic": "家世与早期身份",
+      "source_block_ids": ["b_001"],
+      "source_quotes": ["從祖父景，景子忠，皆為漢太尉", "父異，洛陽令"],
+      "candidate_records": ["ent_051", "ent_052", "ent_053"],
+      "candidate_translation_block": "tr_001",
+      "public_translation_block": "t_000001",
+      "assertion": "The first block preserves 周景、周忠、周異 as separate source-owned entities and renders their stated offices.",
+      "observed": {"entity_refs": ["ent_000051", "ent_000052", "ent_000053"], "translation_contains": "周景、周忠、汉朝太尉、周异、洛阳县令"},
+      "status": "pass"
+    },
+    {
+      "id": "content-04",
+      "topic": "孙策时期职位",
+      "source_block_ids": ["b_003"],
+      "source_quotes": ["策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹"],
+      "candidate_records": ["evt_003", "pf_001", "pf_002", "pf_003", "pf_004"],
+      "candidate_translation_block": "tr_002",
+      "public_translation_block": "t_000002",
+      "assertion": "The early appointment and later offices stay attached to 周瑜 rather than being flattened into an undated person label.",
+      "observed": {"appointment_event": "evt_000003", "office_refs": ["ent_000037", "ent_000038", "ent_000039", "ent_000040"], "translation_contains": "建威中郎将、春谷县长、中护军、江夏太守"},
+      "status": "pass"
+    },
+    {
+      "id": "content-05",
+      "topic": "孙策去世后的连续身份",
+      "source_block_ids": ["b_005"],
+      "source_quotes": ["五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事"],
+      "candidate_records": ["evt_005", "clm_004", "clm_005", "pf_005", "pc_001"],
+      "candidate_translation_block": "tr_003",
+      "public_translation_block": "t_000003",
+      "assertion": "Succession, the mourning visit and the continuing 中護軍 office are represented as a connected phase with 張昭.",
+      "observed": {"succession_year": 200, "continuing_office_ref": "ent_000039", "co_admin_ref": "ent_000064", "translation_contains": "建安五年、孙权接掌、共同掌管军政事务"},
+      "status": "pass"
+    },
+    {
+      "id": "content-06",
+      "topic": "跨时期时间轴",
+      "source_block_ids": ["b_007"],
+      "source_quotes": ["十一年，督孫瑜等討麻、保二屯", "十三年春，權討江夏，瑜為前部大督", "其年九月，曹公入荊州，劉琮舉眾降"],
+      "candidate_records": ["evt_006", "evt_007", "evt_008"],
+      "candidate_translation_block": "tr_004",
+      "public_translation_block": "t_000004",
+      "assertion": "The accepted events retain 206, 208 spring/range and 208 September/month precision; the public time-group pages expose the continuation.",
+      "observed": {"event_years": [206, 208, 208], "precisions": ["year", "range", "month"], "reading_group_ordinals": [2, 3]},
+      "status": "pass"
+    },
+    {
+      "id": "content-07",
+      "topic": "抗曹主张与异说",
+      "source_block_ids": ["b_009", "b_011"],
+      "source_quotes": ["瑜請得精兵三萬人，進住夏口，保為將軍破之", "臣松之以為建計拒曹公，實始魯肅"],
+      "candidate_records": ["clm_006", "clm_014", "evt_009"],
+      "candidate_translation_blocks": ["tr_005", "tr_006"],
+      "public_translation_blocks": ["t_000005", "t_000006"],
+      "assertion": "The main narrative assigns the proposal to 周瑜 while the Pei Songzhi attribution difference remains an explicit source-qualified claim.",
+      "observed": {"main_claim": "拒绝迎降曹操并出兵抗击", "alternate_attribution": "建计拒曹公实始鲁肃", "uncertainty_preserved": true},
+      "status": "pass_with_uncertainty"
+    },
+    {
+      "id": "content-08",
+      "topic": "赤壁因果与矛盾保留",
+      "source_block_ids": ["b_013", "b_019"],
+      "source_quotes": ["時曹公軍眾已有疾病", "然觀操軍船艦，首尾相接，可燒而走也", "赤壁之役，值有疾病，孤燒船自退，橫使周瑜虛獲此名"],
+      "candidate_records": ["clm_007", "clm_008", "clm_015", "evt_010"],
+      "candidate_translation_blocks": ["tr_007", "tr_008", "tr_015"],
+      "public_translation_blocks": ["t_000007", "t_000008", "t_000015"],
+      "assertion": "The accepted bundle retains the illness/fire account and the contrary Cao Cao account as separate source-attributed records.",
+      "observed": {"battle_ref": "evt_000010", "fire_claim": "以火攻焚烧曹军相连船舰", "contrary_account_retained": true},
+      "status": "pass_with_uncertainty"
+    },
+    {
+      "id": "content-09",
+      "topic": "负伤到南郡职位",
+      "source_block_ids": ["b_015", "b_017"],
+      "source_quotes": ["會流矢中右脅，瘡甚，便還", "權拜瑜偏將軍，領南郡太守"],
+      "candidate_records": ["clm_009", "evt_011", "evt_012", "pf_007", "pf_008"],
+      "candidate_translation_blocks": ["tr_009", "tr_010"],
+      "public_translation_blocks": ["t_000009", "t_000010"],
+      "assertion": "The wound and recovery narrative precedes the later appointment as 偏将军/南郡太守, with both events linked to source blocks.",
+      "observed": {"wound_value": "流矢中右胁", "later_office_refs": ["ent_000042", "ent_000043"], "translation_contains": "被流箭射中右胁、偏将军、南郡太守"},
+      "status": "pass"
+    },
+    {
+      "id": "content-10",
+      "topic": "建议与不采纳",
+      "source_block_ids": ["b_017"],
+      "source_quotes": ["權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納"],
+      "candidate_records": ["clm_010", "evt_013"],
+      "candidate_translation_block": "tr_010",
+      "public_translation_block": "t_000010",
+      "assertion": "The proposal to control 刘备 and 孙权's explicit rejection remain distinct event/claim records rather than an asserted outcome.",
+      "observed": {"decision_value": "孙权不采纳周瑜控制刘备的建议", "event_ref": "evt_000013", "translation_contains": "没有采纳这个建议"},
+      "status": "pass"
+    },
+    {
+      "id": "content-11",
+      "topic": "取蜀计划与巴丘异处",
+      "source_block_ids": ["b_017"],
+      "source_quotes": ["權許之。瑜還江陵為行裝，而道於巴丘病卒", "臣松之案，瑜欲取蜀，還江陵治嚴，所卒之處，應在今之巴陵，與前所鎮巴丘，名同處異也"],
+      "candidate_records": ["clm_011", "clm_013", "evt_014", "evt_015", "ent_050"],
+      "candidate_translation_block": "tr_011",
+      "public_translation_block": "t_000011",
+      "assertion": "The plan approval and death are separate events; the annotation's same-name/different-place warning is retained as source uncertainty.",
+      "observed": {"approval_claim": "孙权批准周瑜取蜀计划", "death_place_ref": "ent_050", "warning_retained": true},
+      "status": "pass_with_uncertainty"
+    },
+    {
+      "id": "content-12",
+      "topic": "后代职位与晚期阶段",
+      "source_block_ids": ["b_023", "b_027", "b_029"],
+      "source_quotes": ["男循尚公主，拜騎都尉", "循弟胤，初拜興業都尉", "權乃許之。會胤病死", "瑜兄子峻，亦以瑜元功為偏將軍"],
+      "candidate_records": ["evt_016", "evt_017", "evt_020", "evt_021", "evt_022", "evt_023"],
+      "candidate_translation_blocks": ["tr_014", "tr_017", "tr_018"],
+      "public_translation_blocks": ["t_000014", "t_000017", "t_000018"],
+      "assertion": "The descendant office, petition/death sequence and 周峻/周護 late-stage sequence are preserved with separate event refs and source blocks.",
+      "observed": {"phase_refs": ["ph_007", "ph_008", "ph_011", "ph_012", "ph_013"], "translation_contains": "骑都尉、兴业都尉、周胤病死、偏将军、停止任用"},
+      "status": "pass"
+    }
+  ],
+  "result": {"passed": 9, "passed_with_uncertainty": 3, "failed": 0}
+}

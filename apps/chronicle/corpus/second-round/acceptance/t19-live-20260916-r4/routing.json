@@ -1,0 +1,72 @@
+{
+  "schema": "chronicle.t19-routing-evidence",
+  "version": "0.1",
+  "candidate_commit": "c4b1fd04eb5ae71249894a9ebbd9daa7b7acea40",
+  "fixture_gate": {
+    "evidence": "fixture-gate/manifest.json",
+    "result": "PASS",
+    "fixture_only": true,
+    "automatic_routes": {
+      "resolution": {
+        "observed_reviews": 7,
+        "decision": "same_entity",
+        "route": "resolve_resolution_review",
+        "program_status": "PASS"
+      },
+      "person_state": {
+        "observed_reviews": 7,
+        "candidate_count_per_review": 4,
+        "route": "resolve_person_state_review",
+        "program_status": "PASS"
+      },
+      "publication": {
+        "accepted_receipts": 3,
+        "atomic_publish_status": "PASS"
+      }
+    },
+    "exception_routes": {
+      "chain_failure_no_partial": {
+        "job_status": "failed",
+        "passed": true
+      },
+      "restart_preserves_published": {
+        "passed": true
+      },
+      "source_only_not_history": {
+        "status": 404,
+        "passed": true
+      },
+      "unknown_version_and_paragraph_refused": {
+        "version_status": 404,
+        "paragraph_status": 404,
+        "passed": true
+      }
+    },
+    "scope_note": "Fixture routing is deterministic product-contract coverage, not live translation or identity-quality proof."
+  },
+  "real_data_exception_route": {
+    "evidence": "../t19-live-20260916-r3/t19-live-execution.json",
+    "source": "三國志·吳書·周瑜傳",
+    "content_review": {
+      "status": "resolved",
+      "decision": "accept",
+      "issues_reviewed": 483,
+      "validation_errors": 0
+    },
+    "person_state_review": {
+      "status": "resolved",
+      "candidate_count": 54,
+      "default_assessment": "uncertain",
+      "supported_with_source_quotes": 52,
+      "rejected_unknown_placeholders": 2
+    },
+    "invalid_or_non_candidate_outputs_preserved": 5,
+    "source_qualified_content_checks": {
+      "passed": 9,
+      "passed_with_uncertainty": 3,
+      "failed": 0
+    },
+    "route_note": "Real material reaches human exception review; uncertain source disagreements and unsupported placeholders remain explicit and are not silently promoted."
+  },
+  "result": "PASS_WITH_EXPLICIT_SCOPE"
+}

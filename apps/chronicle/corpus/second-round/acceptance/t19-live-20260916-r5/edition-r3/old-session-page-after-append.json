@@ -1,0 +1,514 @@
+{
+  "edition_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+  "next_start": null,
+  "paragraphs": [
+    {
+      "conclusion_ids": [
+        "hcon_ee49880547e5bad33f395813"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p000-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_988d69e0c8700a2316c51d15",
+      "ordinal": 0,
+      "paragraph_id": "hp_988d69e0c8700a2316c51d15",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_ee49880547e5bad33f395813"
+          ],
+          "event_id": "hevent_e9db7ec02943529001ae5c09",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c000-part-1"
+          ],
+          "source_event_id": "evt_000001",
+          "text": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当时任丹杨太守，周瑜前去探望他。正赶上孙策准备渡江向东，到了历阳，便派快马送信告诉周瑜。周瑜带兵迎接孙策。孙策十分高兴，说：“我得到你，事情就成了。”于是周瑜跟随孙策攻打横江、当利，都攻克了。接着渡江进攻秣陵，击败笮融、薛礼，又转而攻下湖孰、江乘，进军曲阿。刘繇逃走时，孙策的部众已经有几万人了。孙策于是对周瑜说：“凭我们现在的兵力，夺取吴郡、会稽，平定山越，已经足够了。你还是回丹杨镇守吧。”周瑜便回去了。不久，袁术派自己的堂弟袁胤接替周尚担任丹杨太守，周瑜和周尚一同回到寿春。袁术想任用周瑜为将领，周瑜看出袁术最终不会有成就，于是请求担任居巢县长，想借此绕道回到江东，袁术答应了。周瑜便从居巢回到吴地。这一年是建安三年。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p000-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_06287e3af161b4d4",
+        "anc_0dc5d85806a7d265",
+        "anc_1d8b0692f7fe3f09",
+        "anc_1fd439107ae26a19",
+        "anc_2dcb47d55758a839",
+        "anc_46baf6caa3454adf",
+        "anc_51b4e56fdb0218bf",
+        "anc_5719da762139b3b8",
+        "anc_63cc7673cff01167",
+        "anc_74640a1dbc5c5b67",
+        "anc_83ae0e6930c4116a",
+        "anc_8aa17d74af2a3232",
+        "anc_91da84139c25f0d2",
+        "anc_93a679113884c393",
+        "anc_a22a294c48cfe917",
+        "anc_beb3d69c4846abe4",
+        "anc_cd95ee38b5440275",
+        "anc_d70503a41579daa2",
+        "anc_d953941d9e28efdc",
+        "anc_dab589e78274f8a2",
+        "anc_f27ceb972e970363",
+        "anc_fa833fca8b0ad25e"
+      ],
+      "source_block_ids": [
+        "b_001"
+      ],
+      "source_ordinal": 0,
+      "source_paragraph_id": "r3-p000-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_30950b79de43d517ebc349d6"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p001-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_348e0ab0158bf41b6758649c",
+      "ordinal": 1,
+      "paragraph_id": "hp_348e0ab0158bf41b6758649c",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_30950b79de43d517ebc349d6"
+          ],
+          "event_id": "hevent_635d62128b3e5efc5b8cdf88",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c001-part-1"
+          ],
+          "source_event_id": "evt_000003",
+          "text": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。周瑜当时二十四岁，吴地人都称他为周郎。周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守，跟随他攻打皖县，并攻克了那里。当时他们得到桥公的两个女儿，都是国中少见的美人。孙策娶了大桥，周瑜娶了小桥。后来又进逼寻阳，击败刘勋，讨伐江夏，回军平定豫章、庐陵，留下周瑜镇守巴丘。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p001-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_0836feb8db642c92",
+        "anc_0ff0abf8d37570a6",
+        "anc_29603234e935eb6f",
+        "anc_5782969df02fd1a5",
+        "anc_61739edaa7c993c5",
+        "anc_6306e935254ff4d5",
+        "anc_711aad119916df46",
+        "anc_7764f081a5848e67",
+        "anc_778fc93c15e5eece",
+        "anc_79df62d17b7eee5c",
+        "anc_7f7572f3b23541b3",
+        "anc_831f69459e780438",
+        "anc_96d1f2d211cf0724",
+        "anc_98a175ad3a9f0b7a",
+        "anc_9c88313adb1d38be",
+        "anc_a9231dcebd906163",
+        "anc_b44f0aad622c158c",
+        "anc_cd95ee38b5440275",
+        "anc_dc02d6bc3e4a6e0f",
+        "anc_e968e02a62b33ec9",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_003"
+      ],
+      "source_ordinal": 1,
+      "source_paragraph_id": "r3-p001-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_54ec74dc3266cae181783263"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p002-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_a221bfe365253482ab9ee93c",
+      "ordinal": 2,
+      "paragraph_id": "hp_a221bfe365253482ab9ee93c",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_54ec74dc3266cae181783263"
+          ],
+          "event_id": "hevent_0ed3a3e7d1ecabee87f17668",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c002-part-1"
+          ],
+          "source_event_id": "evt_000005",
+          "text": "建安五年，孙策去世。孙权接掌了政务。周瑜带兵前去参加丧事，随后留在吴地，以中护军的身份与长史张昭共同掌管军政事务。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p002-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_202a5f5a7ee5677d",
+        "anc_23d105d656add8f8",
+        "anc_3971cc8cdeef5518",
+        "anc_7076a4b89af6f5f8",
+        "anc_73c3fe34f79fff4c",
+        "anc_96aa96c9545b9d54",
+        "anc_9ef253b864d26d83",
+        "anc_c64bcd128ee3fc01",
+        "anc_e2979f4cfc1d7ca7",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_005"
+      ],
+      "source_ordinal": 2,
+      "source_paragraph_id": "r3-p002-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_7a94c4a5cd267de62a65dd51"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p003-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_3581de218e4eeb39baacaa46",
+      "ordinal": 3,
+      "paragraph_id": "hp_3581de218e4eeb39baacaa46",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_7a94c4a5cd267de62a65dd51"
+          ],
+          "event_id": "hevent_cd62ad4c8daef724321ade3b",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c003-part-1"
+          ],
+          "source_event_id": "evt_000006",
+          "text": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。众人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布号令。如今拒绝他，事情在名义上反而更加不顺。而且将军能够抵抗曹操的依仗，只有长江。现在曹操得到荆州，已经占有了这片地方。刘表训练水军，蒙冲、斗舰多达数千艘，曹操把这些船全部用来沿江航行，又加上步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力多少，更是无法相提并论。我们认为，最好的办法不如迎降。”"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p003-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_06d0f8a1455c3524",
+        "anc_3644e8e1e31f21ee",
+        "anc_40782070f79cf257",
+        "anc_438e1b8b94908f4a",
+        "anc_49dc9989bd208871",
+        "anc_4db97f3e72a78be1",
+        "anc_53c741fdaf197ff0",
+        "anc_5897fad6ea64925d",
+        "anc_613a486a7ced2064",
+        "anc_6cd6a0f4643ee51c",
+        "anc_6fe6bc47100a7516",
+        "anc_710fe9ccee1f5300",
+        "anc_a087c126a2d66a86",
+        "anc_c380ec073eddfcab",
+        "anc_c64bcd128ee3fc01",
+        "anc_c86377a38c71405d"
+      ],
+      "source_block_ids": [
+        "b_007"
+      ],
+      "source_ordinal": 3,
+      "source_paragraph_id": "r3-p003-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_2ed642c0ed269f3cf9cd572b"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p004-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_8c0b1e95e20794b54c9447df",
+      "ordinal": 4,
+      "paragraph_id": "hp_8c0b1e95e20794b54c9447df",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_2ed642c0ed269f3cf9cd572b"
+          ],
+          "event_id": "hevent_c499e5c94ec6c4c737c947e0",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c004-part-1"
+          ],
+          "source_event_id": "evt_000009",
+          "text": "周瑜说：“不是这样。曹操虽然假托汉朝丞相的名义，实际上却是汉朝的贼人。将军凭借神明般的武略和雄才，又依仗父兄留下的功业，占据江东，土地方圆数千里，兵力精锐而且足以使用，英雄豪杰也都乐于在这里建功立业，正应当横行天下，为汉王朝铲除残暴、清除污秽。何况曹操这是自己来送死，怎么能迎接他呢？请允许我替将军筹划一下：假如北方已经安定，曹操没有内忧，能够拖延时日，长久作战，前来和我们争夺战场，他又能在船上与我们较量胜负吗？如今北方还没有平定，马超、韩遂还在关西，是曹操的后患。况且舍弃马匹，依靠船只，与吴越争雄，本来就不是中原军队所擅长的。现在又正值严寒，战马没有蒿草可吃。驱赶中原士兵长途跋涉，来到江湖之间，他们又不习惯这里的水土，必然会生病。这几项都是用兵的大患，而曹操却全都冒险去做。将军擒获曹操，正应该在今天。我请求给我精兵三万人，进驻夏口，保证替将军击破他。”"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p004-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_0034b51dcd6fb4cc",
+        "anc_0997a3f858443999",
+        "anc_0c93738a784be5ab",
+        "anc_417029a7ba34902a",
+        "anc_5e7a28f8804fab23",
+        "anc_e30e77a7b57b6b93"
+      ],
+      "source_block_ids": [
+        "b_009"
+      ],
+      "source_ordinal": 4,
+      "source_paragraph_id": "r3-p004-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_fe8d013e2292abd36526f254"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p005-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_bce459f115b66b1f8a25c3b3",
+      "ordinal": 5,
+      "paragraph_id": "hp_bce459f115b66b1f8a25c3b3",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_fe8d013e2292abd36526f254"
+          ],
+          "event_id": "hevent_c499e5c94ec6c4c737c947e0",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c005-part-1"
+          ],
+          "source_event_id": "evt_000009",
+          "text": "孙权说：“这个老贼想要废掉汉朝、自立为帝，已经很久了。他只是忌惮袁绍、袁术、吕布、刘表和我罢了。如今那些豪强都已经被消灭，只有我还在。我和这个老贼，势必不能两立。你说应当进攻，正与我的想法完全相合，这是上天把你赐给我了。”"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p005-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_3b0a2bb48bdb84c0",
+        "anc_417029a7ba34902a",
+        "anc_b93264e3b9015e95",
+        "anc_f806c5708147c4b6"
+      ],
+      "source_block_ids": [
+        "b_011"
+      ],
+      "source_ordinal": 5,
+      "source_paragraph_id": "r3-p005-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_749caf67c349303272f39b96"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p006-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_0039ed872c8c1f5aa742575d",
+      "ordinal": 6,
+      "paragraph_id": "hp_0039ed872c8c1f5aa742575d",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_749caf67c349303272f39b96"
+          ],
+          "event_id": "hevent_a2f7978a31c6e1d0c8d8ed73",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c006-part-1"
+          ],
+          "source_event_id": "evt_000010",
+          "text": "当时刘备被曹操击败，想带领部众向南渡江。他在当阳遇到了鲁肃，于是两人共同谋划对策，进驻夏口，并派诸葛亮去见孙权。孙权于是派周瑜、程普等人与刘备合兵迎击曹操，在赤壁与曹军相遇。当时曹操的军队已经有很多人染病，第一次交战便败退，退到长江北岸驻扎。周瑜等人驻扎在南岸。周瑜的部将黄盖说：“如今敌军人数多，我们人数少，很难和他们长久相持。不过我观察曹军的船只首尾相连，可以用火烧毁它们，逼他们逃走。”于是选取了几十艘蒙冲、斗舰，在船中装满柴草，浇上油脂，又用帷幕包裹起来，船上竖起牙旗，先写信送给曹操，假装要投降。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p006-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_ordinal": 6,
+      "source_paragraph_id": "r3-p006-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_f1f5a0264fb90949aea44443"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p007-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_fd6341209708f16e54a1800d",
+      "ordinal": 7,
+      "paragraph_id": "hp_fd6341209708f16e54a1800d",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_f1f5a0264fb90949aea44443"
+          ],
+          "event_id": "hevent_a2f7978a31c6e1d0c8d8ed73",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c007-part-1"
+          ],
+          "source_event_id": "evt_000010",
+          "text": "黄盖又预先准备了轻快的小船，分别系在大船后面，便带着这些船依次向前驶去。曹操军中的官吏和士兵都伸长脖子观看，指着船只说黄盖来投降了。黄盖放开那些船，同时点火。当时风势猛烈，火势很快蔓延，把岸上的营寨全都烧着了。不一会儿，烟火遮天蔽日，被烧死、淹死的人马非常多，曹军于是败退，退回去守卫南郡。刘备又和周瑜等人共同追击。曹操留下曹仁等人守卫江陵城，自己直接向北撤回。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p007-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_ordinal": 7,
+      "source_paragraph_id": "r3-p007-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "conclusion_ids": [
+        "hcon_6026229c25edd253368a82bb"
+      ],
+      "content_ref": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p008-part-1"
+      },
+      "entities": [],
+      "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+      "group_id": "hphase_017703b987a14db330ec9123",
+      "id": "hp_b0a3a5ac2726436f01738ed6",
+      "ordinal": 8,
+      "paragraph_id": "hp_b0a3a5ac2726436f01738ed6",
+      "phase_id": "hphase_017703b987a14db330ec9123",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "hcon_6026229c25edd253368a82bb"
+          ],
+          "event_id": "hevent_ad65092e1217f7ef94a3f903",
+          "event_relation": "current",
+          "source_conclusion_ids": [
+            "r3-c008-part-1"
+          ],
+          "source_event_id": "evt_000011",
+          "text": "周瑜和程普又进军南郡，与曹仁隔着长江相对。两军还没有交锋，周瑜便派甘宁抢先占据夷陵。曹仁分出一支骑兵去攻打、包围甘宁。甘宁向周瑜告急。周瑜采用吕蒙的计策，留下凌统守卫后方，自己与吕蒙一起前去救援甘宁。甘宁的包围解除后，周瑜便渡江驻扎在北岸，约定日期与曹仁决战。周瑜亲自骑马冲击敌阵，恰好被流箭射中右胁，伤口很重，只得退回。后来曹仁听说周瑜卧床不起，便率兵逼近战阵。周瑜于是强撑着起身，巡视军营，激励将士，曹仁因此退兵。"
+        }
+      ],
+      "source": {
+        "fragment_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+        "paragraph_id": "r3-p008-part-1"
+      },
+      "source_anchor_ids": [
+        "anc_074bb8d644471332",
+        "anc_151f265278df3d25",
+        "anc_7f56fd30bc980eb2",
+        "anc_86ed3a1261320b8e",
+        "anc_8f6aaaf1c975910d",
+        "anc_8f8c0772e49622b4",
+        "anc_c393444c83eb8720",
+        "anc_ead6e598ecaa3edf",
+        "anc_f33d1fb0e7a16771"
+      ],
+      "source_block_ids": [
+        "b_015"
+      ],
+      "source_ordinal": 8,
+      "source_paragraph_id": "r3-p008-part-1",
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    }
+  ],
+  "previous_start": null,
+  "publication_version": "9c77405abcdde673598b0ded5a20bdf9084ac8c7d0b0ae54c629f52c7548b6b0",
+  "schema": "chronicle.history-page",
+  "start": 0,
+  "total": 9,
+  "version": "0.1"
+}

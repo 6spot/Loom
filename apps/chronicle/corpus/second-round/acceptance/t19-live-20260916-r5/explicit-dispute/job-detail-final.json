@@ -1,0 +1,1400 @@
+{
+  "accepted_results": [
+    {
+      "acceptance_id": null,
+      "acceptance_type": "chapter",
+      "candidate_sha256": "a7bb20847f9f82edb7747bba892b81200f9298e9bd86a46fd50907c2b2666345",
+      "decision": {
+        "kind": "ai",
+        "review_output_sha256s": [
+          "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+        ]
+      },
+      "draft_sha256": "22c4918021441f7a047064c3fcef80faa86e8e54e40b187183984a7a8edae1e0",
+      "history_sha256": "6769e0b9fca6b974bffcc6420720516cfe9199af93ffe975fb6c1a6d2d8e3986",
+      "kind": "chapter",
+      "model_opinion_sha256s": [
+        "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+      ],
+      "model_output_sha256s": [
+        "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+        "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+        "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+        "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+        "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+      ],
+      "pipeline_fingerprint": "b4103413c188f3635a2133dd2801a7a51c902379791197ff6ae1d96153edd5c9",
+      "receipt_sha256": "9eac3e29b2efbd459b6385d61d361fea68f40730c313a7c84a55b48f11129554",
+      "review_id": null,
+      "status": "accepted",
+      "step_output_sha256s": [
+        "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+        "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+        "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+        "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+        "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f"
+      ]
+    }
+  ],
+  "action_reasons": {
+    "cancel": "终态任务不能取消",
+    "new_run": "仅失败或已取消任务可以新建运行",
+    "resume": "仅待审核任务可以继续",
+    "retry": "仅失败任务可以重试"
+  },
+  "action_state": {
+    "action_reasons": {
+      "cancel": "终态任务不能取消",
+      "new_run": "仅失败或已取消任务可以新建运行",
+      "resume": "仅待审核任务可以继续",
+      "retry": "仅失败任务可以重试"
+    },
+    "actions": [
+      {
+        "available": false,
+        "enabled": false,
+        "key": "retry",
+        "reason": "仅失败任务可以重试"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "resume",
+        "reason": "仅待审核任务可以继续"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "cancel",
+        "reason": "终态任务不能取消"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "new_run",
+        "reason": "仅失败或已取消任务可以新建运行"
+      }
+    ],
+    "attempt": 3,
+    "available_actions": [],
+    "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+    "max_attempts": 3,
+    "open_reviews": 0,
+    "status": "completed"
+  },
+  "actions": [
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/retry",
+      "key": "retry",
+      "label": "重试",
+      "method": "POST",
+      "reason": "仅失败任务可以重试"
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/resume",
+      "key": "resume",
+      "label": "继续生产",
+      "method": "POST",
+      "reason": "仅待审核任务可以继续"
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/cancel",
+      "key": "cancel",
+      "label": "取消任务",
+      "method": "POST",
+      "reason": "终态任务不能取消"
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/new-run",
+      "key": "new_run",
+      "label": "新建运行",
+      "method": "POST",
+      "reason": "仅失败或已取消任务可以新建运行"
+    }
+  ],
+  "attempt": 3,
+  "attempts": [
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "attempt_sha256": "c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 8.281,
+      "ended_at": "2026-09-16T15:19:11.412457+00:00",
+      "model": "gpt-5.6-luna",
+      "output_complete": true,
+      "output_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "result_href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "result_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "round": 0,
+      "slot": "executor",
+      "started_at": "2026-09-16T15:19:03.075125+00:00",
+      "status": "completed",
+      "step": "translation",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 1296,
+        "output_tokens": 155,
+        "reasoning_tokens": 108,
+        "total_tokens": 1451
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "attempt_sha256": "d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 79.826,
+      "ended_at": "2026-09-16T15:20:23.074808+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "result_href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "result_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:19:03.198202+00:00",
+      "status": "completed",
+      "step": "extraction",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 8529,
+        "output_tokens": 4196,
+        "reasoning_tokens": 1875,
+        "total_tokens": 12725
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "attempt_sha256": "ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 31.408,
+      "ended_at": "2026-09-16T15:20:54.667435+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": false,
+      "output_sha256": "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "result_href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "result_sha256": "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:20:23.182375+00:00",
+      "status": "invalid",
+      "step": "linking",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 6880,
+        "output_tokens": 1444,
+        "reasoning_tokens": 690,
+        "total_tokens": 8324
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [
+          "base: reading: reading_time: reading.units[0] unknown mode must not carry source_selections"
+        ],
+        "status": "failed"
+      },
+      "validation_status": "failed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "attempt_count": 2,
+      "attempt_id": "bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "attempt_sha256": "bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 19.887,
+      "ended_at": "2026-09-16T15:21:14.709654+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "result_href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "result_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:20:54.743612+00:00",
+      "status": "completed",
+      "step": "linking",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 7818,
+        "output_tokens": 882,
+        "reasoning_tokens": 184,
+        "total_tokens": 8700
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "attempt_sha256": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 15.435,
+      "ended_at": "2026-09-16T15:21:30.406589+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "result_href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "result_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:21:14.912512+00:00",
+      "status": "completed",
+      "step": "review",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 14103,
+        "output_tokens": 532,
+        "reasoning_tokens": 405,
+        "total_tokens": 14635
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    }
+  ],
+  "available_actions": [],
+  "chunks": [
+    {
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "chunk_index": 0,
+      "content_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+      "max_attempts": 3,
+      "production": {
+        "pipeline_fingerprint": "b4103413c188f3635a2133dd2801a7a51c902379791197ff6ae1d96153edd5c9",
+        "status": "accepted",
+        "steps": [
+          {
+            "attempt": 1,
+            "elapsed_seconds": 8.281,
+            "error": null,
+            "model": "gpt-5.6-luna",
+            "output_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+            "round": 0,
+            "slot": "executor",
+            "status": "completed",
+            "step": "translation",
+            "usage": {
+              "input_tokens": 1296,
+              "output_tokens": 155,
+              "reasoning_tokens": 108,
+              "total_tokens": 1451
+            }
+          },
+          {
+            "attempt": 2,
+            "elapsed_seconds": 19.887,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "linking",
+            "usage": {
+              "input_tokens": 7818,
+              "output_tokens": 882,
+              "reasoning_tokens": 184,
+              "total_tokens": 8700
+            }
+          },
+          {
+            "attempt": 1,
+            "elapsed_seconds": 79.826,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "extraction",
+            "usage": {
+              "input_tokens": 8529,
+              "output_tokens": 4196,
+              "reasoning_tokens": 1875,
+              "total_tokens": 12725
+            }
+          },
+          {
+            "attempt": 1,
+            "elapsed_seconds": 15.435,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "review",
+            "usage": {
+              "input_tokens": 14103,
+              "output_tokens": 532,
+              "reasoning_tokens": 405,
+              "total_tokens": 14635
+            }
+          }
+        ]
+      },
+      "runs": [
+        {
+          "attempt": 1,
+          "error": null,
+          "finished_at": "2026-09-16T15:21:30.536153+00:00",
+          "meta": {
+            "accepted": true
+          },
+          "run_id": "6f384e70-0695-4397-896c-765835dc5176",
+          "started_at": "2026-09-16T15:21:30.532649+00:00",
+          "status": "completed",
+          "worker": "chronicle-worker-01"
+        }
+      ],
+      "section_id": "0b90fb2a-322e-4613-add1-adac4af877bc",
+      "source_end": 27,
+      "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+      "source_start": 0,
+      "status": "completed",
+      "title": "chapters"
+    }
+  ],
+  "created_at": "2026-09-16T15:19:01.589814+00:00",
+  "current_stage": "present",
+  "current_step": {
+    "failure_reason": null,
+    "key": "present",
+    "label": "综合呈现",
+    "machine_key": "present",
+    "status": "completed"
+  },
+  "current_step_key": "present",
+  "current_step_label": "综合呈现",
+  "document": {
+    "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+    "filename": "sanguozhi-054-zhou-yu-real-excerpt.txt",
+    "revision_no": 1,
+    "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳"
+  },
+  "error": null,
+  "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+  "job_kind": "chapter",
+  "job_kind_label": "章节生产任务",
+  "lease_expires_at": null,
+  "lease_owner": null,
+  "max_attempts": 3,
+  "narrative_acceptances": [],
+  "open_reviews": 0,
+  "outputs": [
+    {
+      "artifact_sha256": "b408c57a0fd539c749331bf9d324273270add011a807523d2e4eeadb96bae898",
+      "artifact_type": "chapter-production-plan",
+      "created_at": "2026-09-16T15:19:03.025485+00:00",
+      "output_id": "105e9493-b978-45cb-aad1-5ffa288543c0",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625"
+    },
+    {
+      "artifact_sha256": "c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:19:03.071141+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "model": "gpt-5.6-luna",
+      "output_id": "bb4a7ea2-3c87-4d49-8743-e409e69579a0",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "executor",
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_sha256": "d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:19:03.195326+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "model": "gpt-5.6-sol",
+      "output_id": "60d5b6eb-149b-4338-9dfe-7cef1fe2d88e",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "acceptance_links": [
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_output"
+        }
+      ],
+      "artifact_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:19:11.412457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "model": "gpt-5.6-luna",
+      "output_id": "b064d13f-bea5-454f-b9eb-057b5ff8dc74",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "executor",
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "acceptance_links": [
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_output"
+        }
+      ],
+      "artifact_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:20:23.074808+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "model": "gpt-5.6-sol",
+      "output_id": "d08b331e-d23a-4de2-bb92-e610a283f317",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_sha256": "ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:20:23.178122+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "model": "gpt-5.6-sol",
+      "output_id": "e3eeaf7d-f7d2-4c80-9ddd-b73807de16ec",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "acceptance_links": [
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_output"
+        }
+      ],
+      "artifact_sha256": "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:20:54.667435+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "model": "gpt-5.6-sol",
+      "output_id": "36822127-ec79-4fa2-8790-fba065e8f848",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:20:54.738457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "model": "gpt-5.6-sol",
+      "output_id": "d8addc73-03eb-4fd9-bd86-c51a5e4fb1dc",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "acceptance_links": [
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_output"
+        }
+      ],
+      "artifact_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:21:14.709654+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "model": "gpt-5.6-sol",
+      "output_id": "fdf283a0-2317-42a7-9cfe-22d91fa213dd",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "22c4918021441f7a047064c3fcef80faa86e8e54e40b187183984a7a8edae1e0",
+      "artifact_type": "chapter-production-draft",
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:21:14.744095+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/22c4918021441f7a047064c3fcef80faa86e8e54e40b187183984a7a8edae1e0",
+      "output_id": "e33556ff-de18-4688-893e-24a84e392502",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "draft"
+    },
+    {
+      "artifact_sha256": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:21:14.900228+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "model": "gpt-5.6-sol",
+      "output_id": "855dde41-6a8e-4744-ad67-c27a14e01f69",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "acceptance_links": [
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_output"
+        },
+        {
+          "acceptance_id": null,
+          "kind": "chapter",
+          "role": "model_opinion"
+        }
+      ],
+      "artifact_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:21:30.406589+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "model": "gpt-5.6-sol",
+      "output_id": "1ee4c00f-8a92-47a1-8102-8975a63cb832",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "review"
+    },
+    {
+      "artifact_sha256": "9eac3e29b2efbd459b6385d61d361fea68f40730c313a7c84a55b48f11129554",
+      "artifact_type": "chapter-production-acceptance",
+      "chunk_id": "a95e81d5-4024-401b-bf05-628f2a0a2652",
+      "created_at": "2026-09-16T15:21:30.515490+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/9eac3e29b2efbd459b6385d61d361fea68f40730c313a7c84a55b48f11129554",
+      "output_id": "978643ae-f797-4a79-930c-d7b35c994b58",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "status": "accepted"
+    },
+    {
+      "artifact_sha256": "3361f9f4048a6e08db464d0393ec129cdb0ba0d8d8e09178431e1b792ceb173d",
+      "artifact_type": "assembled-source-bundle",
+      "created_at": "2026-09-16T15:21:30.772770+00:00",
+      "output_id": "487a53be-0354-4e54-8477-5981ffc03d2e",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625"
+    },
+    {
+      "artifact_sha256": "34740f1ce2631eb62fba67d23078f381fed0daa00fcd722f79e582faa2fe83f0",
+      "artifact_type": "chapter-review-plan",
+      "created_at": "2026-09-16T15:21:30.926700+00:00",
+      "output_id": "2b626030-7c76-4454-99da-7604852d0334",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625"
+    },
+    {
+      "artifact_sha256": "a348263f80966765292eef21cd888019951e923c95932c55be587041b4a19f39",
+      "artifact_type": "person-state-review-plan",
+      "created_at": "2026-09-16T15:29:18.015986+00:00",
+      "output_id": "4ae25d8d-4820-4202-858a-d71595b7fd8b",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625"
+    },
+    {
+      "artifact_sha256": "1d0b6c4b89517840c9a94827cb5769d1b2ee0b5b8296e3d55adeb7ef222b6ef9",
+      "artifact_type": "canonical-catalog",
+      "created_at": "2026-09-16T15:29:23.609036+00:00",
+      "output_id": "7b647aba-dbf4-4b2f-801a-66cd0f0c8681",
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625"
+    }
+  ],
+  "production_request": null,
+  "raw_results": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:03.071141+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:03.195326+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:11.412457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:23.074808+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:23.178122+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:54.667435+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:20:54.738457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:21:14.709654+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:21:14.900228+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:21:30.406589+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "review"
+    }
+  ],
+  "results": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:03.071141+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "c7e6e79df03058d001e3e62c119ec286cfb87f3c5e050a1c350394a99c49ac59",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:03.195326+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d0efadfccc3d00d7f6a1ee2c9d968297c0ae6eaa38ec627986bcfc76563a4d34",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:19:11.412457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "301f41c91fe8534f5cb8cd7cd2871d83da463b7a4c310b330e3a40f224519134",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:23.074808+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "ab1bf6f2434441c3e68da061c1c83f27a1f7948bbc60f12d0b6d8dea3ab8aa4e",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:23.178122+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "ab5c4ca179a82e3a6cb3da2f52c3ebbc10fa2c0d3877b55caa6049f56be18728",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:20:54.667435+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "292b531d1b1c77bc345f0460c354714c649762cce855780e23cf6757b38f5302",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:20:54.738457+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "bc12533391f969349aa7ee2cd8803c6cc63ac85e1a680614de96edb9ad7bc9cd",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:21:14.709654+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "c0e6f97831a5e2071bdb0f58b7b10574b1649e1babdf4d9fdafa28bf735f1f52",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:21:14.900228+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "edd3bee3de4f7961e13217dbc45eff4e01b976a76bab51dd02b7701f9972371c",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:21:30.406589+00:00",
+      "href": "/api/v1/studio/jobs/28d1cbc8-58e9-4cae-b43d-31e719e3fc9a/outputs/d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d3bc8c98db8993248b42c2965cd43edc2d7aa6a484cfceb363aae9fe1590435f",
+      "readable": true,
+      "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+      "round": 0,
+      "status": "completed",
+      "step": "review"
+    }
+  ],
+  "reviews": [
+    {
+      "chunk_id": null,
+      "created_at": "2026-09-16T15:21:30.942162+00:00",
+      "kind": "stage_gate",
+      "narrative_kind": null,
+      "resolved_at": "2026-09-16T15:29:16.404860+00:00",
+      "review_id": "a4b55179-de97-4baa-a795-340900ad65ae",
+      "scope": "resolution",
+      "scope_label": "来源关系审核",
+      "status": "resolved"
+    },
+    {
+      "chunk_id": null,
+      "created_at": "2026-09-16T15:21:30.942162+00:00",
+      "kind": "stage_gate",
+      "narrative_kind": null,
+      "resolved_at": "2026-09-16T15:28:39.288559+00:00",
+      "review_id": "2b7e64a5-b329-4b71-9b73-57f5a04c4c63",
+      "scope": "resolution",
+      "scope_label": "来源关系审核",
+      "status": "resolved"
+    },
+    {
+      "chunk_id": null,
+      "created_at": "2026-09-16T15:21:30.942162+00:00",
+      "kind": "stage_gate",
+      "narrative_kind": null,
+      "resolved_at": "2026-09-16T15:29:16.377093+00:00",
+      "review_id": "7a9c158a-b441-47af-80ff-0c7a0e867fbb",
+      "scope": "resolution",
+      "scope_label": "来源关系审核",
+      "status": "resolved"
+    },
+    {
+      "chunk_id": null,
+      "created_at": "2026-09-16T15:29:18.032147+00:00",
+      "kind": "stage_gate",
+      "narrative_kind": null,
+      "resolved_at": "2026-09-16T15:29:18.592319+00:00",
+      "review_id": "b22a0236-e676-4483-99a5-2a3be829d149",
+      "scope": "person_state",
+      "scope_label": "阶段依据审核",
+      "status": "resolved"
+    }
+  ],
+  "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+  "source": {
+    "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+    "relationship": "immutable_revision",
+    "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+    "revision_no": 1,
+    "source_count": 1
+  },
+  "source_count": 1,
+  "stages": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.446181+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T15:19:02.208416+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.539678+00:00",
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": "2026-09-16T15:19:02.487083+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.647329+00:00",
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": "2026-09-16T15:19:02.587451+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:21:30.623980+00:00",
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": "2026-09-16T15:19:02.695732+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:21:30.783079+00:00",
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": "2026-09-16T15:21:30.653966+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.522150+00:00",
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": "2026-09-16T15:21:30.824721+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.711383+00:00",
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": "2026-09-16T15:29:23.569070+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.847755+00:00",
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": "2026-09-16T15:29:23.751944+00:00",
+      "status": "completed"
+    }
+  ],
+  "status": "completed",
+  "step_graph": {
+    "current_step": "present",
+    "dependencies": {
+      "assemble": [
+        "extract"
+      ],
+      "extract": [
+        "segment"
+      ],
+      "prepare": [],
+      "present": [
+        "publish"
+      ],
+      "publish": [
+        "resolve"
+      ],
+      "resolve": [
+        "assemble"
+      ],
+      "segment": [
+        "structure"
+      ],
+      "structure": [
+        "prepare"
+      ]
+    },
+    "steps": [
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.446181+00:00",
+        "key": "prepare",
+        "label": "准备",
+        "machine_key": "prepare",
+        "stage": "prepare",
+        "started_at": "2026-09-16T15:19:02.208416+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "prepare"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.539678+00:00",
+        "key": "structure",
+        "label": "结构识别",
+        "machine_key": "structure",
+        "stage": "structure",
+        "started_at": "2026-09-16T15:19:02.487083+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "structure"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:19:02.647329+00:00",
+        "key": "segment",
+        "label": "分段",
+        "machine_key": "segment",
+        "stage": "segment",
+        "started_at": "2026-09-16T15:19:02.587451+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "segment"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.623980+00:00",
+        "key": "extract",
+        "label": "内容抽取",
+        "machine_key": "extract",
+        "stage": "extract",
+        "started_at": "2026-09-16T15:19:02.695732+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "extract"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:21:30.783079+00:00",
+        "key": "assemble",
+        "label": "组装草稿",
+        "machine_key": "assemble",
+        "stage": "assemble",
+        "started_at": "2026-09-16T15:21:30.653966+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "assemble"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:29:23.522150+00:00",
+        "key": "resolve",
+        "label": "来源核对",
+        "machine_key": "resolve",
+        "stage": "resolve",
+        "started_at": "2026-09-16T15:21:30.824721+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "resolve"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:29:23.711383+00:00",
+        "key": "publish",
+        "label": "发布",
+        "machine_key": "publish",
+        "stage": "publish",
+        "started_at": "2026-09-16T15:29:23.569070+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "publish"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T15:29:23.847755+00:00",
+        "key": "present",
+        "label": "综合呈现",
+        "machine_key": "present",
+        "stage": "present",
+        "started_at": "2026-09-16T15:29:23.751944+00:00",
+        "status": "completed"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.446181+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T15:19:02.208416+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.539678+00:00",
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": "2026-09-16T15:19:02.487083+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:19:02.647329+00:00",
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": "2026-09-16T15:19:02.587451+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:21:30.623980+00:00",
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": "2026-09-16T15:19:02.695732+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:21:30.783079+00:00",
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": "2026-09-16T15:21:30.653966+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.522150+00:00",
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": "2026-09-16T15:21:30.824721+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.711383+00:00",
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": "2026-09-16T15:29:23.569070+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T15:29:23.847755+00:00",
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": "2026-09-16T15:29:23.751944+00:00",
+      "status": "completed"
+    }
+  ],
+  "task": {
+    "label": "章节生产任务",
+    "machine_key": "chapter",
+    "source_count": 1,
+    "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳",
+    "type": "chapter"
+  },
+  "title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳",
+  "updated_at": "2026-09-16T15:29:23.898668+00:00"
+}
