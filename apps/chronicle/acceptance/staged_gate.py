@@ -1989,6 +1989,7 @@ def run_fixture(
     run_browser: bool,
     browser_required: bool,
     keep_stack: bool,
+    web_port: int,
 ) -> dict[str, Any]:
     evidence = Evidence(
         evidence_dir,
@@ -2028,14 +2029,14 @@ def run_fixture(
         provider.start()
         endpoint = f"http://host.docker.internal:{provider.port}/v1/responses"
         stack_env = write_stack_env(
-            env_file, evidence_dir / "stack.env", endpoint=endpoint, web_port=18080
+            env_file, evidence_dir / "stack.env", endpoint=endpoint, web_port=web_port
         )
         override = write_compose_override(
             evidence_dir / "compose.gate.yaml", service="chronicle-worker"
         )
         data_dir = evidence_dir / "stack-data"
         data_dir.mkdir(parents=True, exist_ok=True)
-        base_url = "http://127.0.0.1:18080"
+        base_url = f"http://127.0.0.1:{web_port}"
         stack = ComposeStack(
             repo=REPO,
             env_file=stack_env,
@@ -2394,6 +2395,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-browser", action="store_true")
     parser.add_argument("--browser-required", action="store_true")
     parser.add_argument("--keep-stack", action="store_true")
+    parser.add_argument(
+        "--web-port",
+        type=int,
+        default=18080,
+        help="host port for the isolated fixture web service (default: 18080)",
+    )
     parser.add_argument("--allow-dirty", action="store_true")
     parser.add_argument("--auto-decide", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
@@ -2424,6 +2431,7 @@ def main(argv: list[str] | None = None) -> int:
             run_browser=not args.skip_browser,
             browser_required=args.browser_required,
             keep_stack=args.keep_stack,
+            web_port=args.web_port,
         )
         print(f"staged 0.4 gate: PASS: {evidence_dir / 'manifest.json'}")
         return 0
