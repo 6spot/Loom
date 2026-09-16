@@ -41,6 +41,12 @@ Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 
   provider output-contract 修复后同一真实资料流程重跑。真实 gateway 已接受
   strict extraction schema，先主传 fresh child 的 extraction attempt 2 通过
   本地校验；其余步骤仍因语义校验或 1,800 秒超时失败，未声称完成内容验收。
+- [`t19-live-20260916-r3/`](t19-live-20260916-r3/README.md)：当前 PR head 的
+  linking/downstream 修复后同一真实资料流程重跑。周瑜传在新库中经 review、
+  人工异常处理、acceptance、publication 到 public chapter/source 与连续
+  reading-stream readback 全链路完成；保留 strict-schema 重试、失败输出及
+  source-qualified uncertainty。该目录是本次真实链路证据，不把未重跑的背景
+  UI、追加 edition 或 300+ fixture 容量检查写成完成。
 
 ## 最新单章流程结果（2026-09-13）
 

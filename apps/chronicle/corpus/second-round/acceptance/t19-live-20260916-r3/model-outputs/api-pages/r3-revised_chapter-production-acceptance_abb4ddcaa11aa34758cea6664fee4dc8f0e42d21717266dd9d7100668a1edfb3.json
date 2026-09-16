@@ -1,0 +1,39 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "abb4ddcaa11aa34758cea6664fee4dc8f0e42d21717266dd9d7100668a1edfb3",
+  "artifact_type": "chapter-production-acceptance",
+  "total_chars": 1779,
+  "payload": {
+    "schema": "chronicle.chapter-acceptance",
+    "version": "0.1",
+    "status": "accepted",
+    "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+    "chunk_id": "6fd9d57d-f497-41bc-8a28-673ddeed8037",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "candidate_sha256": "c0c2eeca3895d86924e9a3b64e21f526fc7e99605707a486aed09c82a1fc151c",
+    "history_sha256": "d329c6d3fc9db19a485f676275c143045d6213f6fbb54c7175d41bad84328b01",
+    "step_output_sha256s": [
+      "281515752d91178565a48d704f699aad8b95dd119cc06e0cf5a3d1eae173a413",
+      "76fa4ee60d23d9b2a0f7b38a33e98997c2e23533e8b34c6d93f1f8a83d771d55",
+      "8be4185b5038a4273473e1221334c2c9f43bd02d7a9897410ec484c9eb831294",
+      "c4c1778f0ded328a89eab7e6893e789f34b3595757a09e744c9ac6dd5e9a6fe6",
+      "ed29f2338e6a39f339adf8dc712ffb6be7d2192768c4ff80ac3df85ead440b04",
+      "a02410a297430a4f36c00278ea81655344069a4fb203e6f7d8fd622fe93a3733",
+      "08fff306fc0a0e0077b4d9888bc55add3805b71425a172762060afda910ece90",
+      "d5080c4eab198d9099b9227f593813fd43186af6b0ec717328c66b59d7c70ba9",
+      "99f762c8e1ab68cd3dc40c553f41f0806f7fa101dd972e4a0f54178469eec288",
+      "98287073c84a95028dba2f006a26202db3973987260e4ef5885d38cc8b5f4f1a",
+      "86abdadc6fb694e5c33b1dfd4b43ae443457085e7c117172130147f4ea03a95d",
+      "f404fe0e83816fcc692fd5e6892b8f0100b45af1d9532f2b9419252613e7cbb6",
+      "fbca81f0905627440138eb8c7ec9a24fb0ef80e97522fb0814e58e6c73120b09",
+      "6faa35ea1c867514b42b73816e0f79ea66adfa0d2f71bd26b0cf033dc5844da8"
+    ],
+    "decision": {
+      "kind": "human",
+      "review_id": "fefc0e0f-12cc-49f0-ba8c-e1e17202f9e3"
+    },
+    "draft_sha256": "e946deaf441121a0ed6fcad2fbba108d35a7c720c0772ac329195a880d44da19"
+  }
+}

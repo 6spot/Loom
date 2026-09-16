@@ -1,0 +1,1632 @@
+{
+  "schema": "chronicle.review",
+  "version": "0.1",
+  "review": {
+    "review_id": "90012334-d494-4998-8566-a07f874c1f76",
+    "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+    "chunk_id": null,
+    "kind": "stage_gate",
+    "status": "open",
+    "created_at": "2026-09-16T12:48:24.160697+00:00",
+    "resolved_at": null,
+    "job_status": "needs_review",
+    "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+    "document": {
+      "document_id": "c974ac04-a269-43ef-988f-afad49142f92",
+      "title": "三國志·吳書·周瑜傳",
+      "revision_no": 1,
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "language": "zh-CN",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=周瑜 transform=mediawiki-text-v0.2"
+    },
+    "scope": "person_state",
+    "review_mode": "chapter_state_evidence",
+    "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+    "plan_fingerprint": "6b1bc421772b317dd504175854251833002b9fca6514efcb17f33b2e0ed4c0d1",
+    "catalog_sha": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+    "candidate_count": 54,
+    "default_assessment": "uncertain",
+    "allowed_assessments": [
+      "supported",
+      "uncertain",
+      "disputed",
+      "rejected"
+    ],
+    "candidates": [
+      {
+        "candidate_key": "psc_034e3f3c1b3066c761254c3a",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_010",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "process",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_005",
+          "ph_006"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權拜瑜偏將軍，領南郡太守。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_04e3f601df54bccd10783fb4",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_008",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周胤初任興業都尉並屯公安",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_008"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_078c88bd0f1e11c44ca43d9a",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_006",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_008 -> ph_009",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_008",
+          "ph_009"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。黃龍元年，封都鄉侯",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_13c0e455d85b68be5eacbc1d",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_002",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_166e25444f386f384c0a852a",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_014",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "process",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_007",
+          "ph_008",
+          "ph_009",
+          "ph_010",
+          "ph_011"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。黃龍元年，封都鄉侯，後以罪徙廬陵郡。赤烏二年，諸葛瑾、步騭連名上疏曰：",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_2641b24cf33dc4d76ebfd643",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_007",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "偏將軍",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_005"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權拜瑜偏將軍",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_2cb6258fe3cb28705ad36259",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_003",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_003"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_2d32e248acb8971c8b5e1cff",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_015",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_011"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_2d4e52177b80e01d24d26b0d",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_004",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周瑜任前部大督並主張抗曹",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_38e7704e2fe931ac15c093b8",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_005",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_005 -> ph_006",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_005",
+          "ph_006"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。劉備以左將軍領荊州牧",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_3a694bd6e2b490839c01379a",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_017",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_011"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_3eb20a377d5c16b08be06429",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_006",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "君言當擊，甚與孤合，此天以君授孤也。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_3fefd78004db18cb85f3b78b",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_001",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周瑜與孫策結交並參與早期征戰",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_001"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_435273bed865fd96ab546a3a",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_013",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "unknown",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_4786bd3ae7e37762a74d589a",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_013",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周峻去世後周護未獲任用",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_013"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "聞護性行危險，用之適為作禍，故便止之。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_48fc555a1ccccb896d4e59ed",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_012",
+        "person_id": null,
+        "person_name": "周胤",
+        "dimension": "title",
+        "value": "都鄉侯",
+        "relation": null,
+        "target": null,
+        "operation": "end",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_010"
+        ],
+        "predicted_effect": "change",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "後以罪徙廬陵郡",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_49f0e21d2e4813618dae8d84",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_004",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "process",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_003",
+          "ph_004"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_4fbd6d4726fea1eb22338a9c",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_008",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "南郡太守",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_005"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "領南郡太守",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_5934973d20fdf7d83c19b9c3",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_003",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "中護軍",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "以瑜為中護軍",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_5984442da601c49c5c2d9936",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_002",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周瑜受孫策任官並參與攻取諸郡",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_5f312fe257fecc02794af371",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_007",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_64506086754b906d8ec0fb3e",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_002",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "春谷長",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "後領春谷長",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_64d932ff0e94922bc93f8b93",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_009",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_005"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_677ff84226a77a5e159999d0",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_001",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_001"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_725cb17827e9407a58901b5c",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_012",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周峻任偏將軍",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_012"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_741f40df31f021461bb66839",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_012",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "unknown",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_768741673bbc63f4dac3b95a",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_011",
+        "person_id": null,
+        "person_name": "周胤",
+        "dimension": "title",
+        "value": "都鄉侯",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_009"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "封都鄉侯",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_7784c911e859eb8a604d5447",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_009",
+        "person_id": null,
+        "person_name": "周循",
+        "dimension": "office",
+        "value": "騎都尉",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_007"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "拜騎都尉",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_7a21d330f6d535b9a03c0d06",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_008",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_010 -> ph_011",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_010",
+          "ph_011"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "赤烏二年，諸葛瑾、步騭連名上疏曰：\n\n故將軍周瑜子胤",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_7cbcfa41755dfe102cb9ef9b",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_010",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周胤因罪被徙",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_010"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "後以罪徙廬陵郡",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_7e774ec4f7068a1a0a17dc3b",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_011",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_006"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權許之。瑜還江陵為行裝，而道於巴丘病卒",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_836bcdf0fe1fa323681c1465",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_003",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_003 -> ph_004",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_003",
+          "ph_004"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "遂不送質。〉\n\n十一年",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_95a54c150154b176d40ba23f",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_001",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "建威中郎將",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "授建威中郎將",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_963e318e52734ce9592bf6f1",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_008",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_9ab525962ee054d9abd99b12",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_004",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "江夏太守",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_002"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "領導江夏太守",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_9d85bf4e88444fa3c6ab8582",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_004",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_004 -> ph_005",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004",
+          "ph_005"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "曹公留曹仁等守江陵城。逕自北歸。\n\n瑜與程普又進南郡",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_a385510fe5e9535a7d34e4c2",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_009",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_012 -> ph_013",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_012",
+          "ph_013"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。峻卒",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_ab3e47a4f555b8d6aeeebc82",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_016",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_011"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_ae106a9562e7f573d3c84a18",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_005",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周瑜進攻南郡並出任偏將軍、南郡太守",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_005"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權拜瑜偏將軍，領南郡太守。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_b07dc8bce15365ce6b0c7b0d",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_006",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周瑜提出取蜀計畫後病卒",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_006"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "權許之。瑜還江陵為行裝，而道於巴丘病卒",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_b1e72b6dfa537f323d92e9fb",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_006",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "前部大督",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜為前部大督",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_bb90651591b7764f3e8b4ac1",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_007",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_009 -> ph_010",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_009",
+          "ph_010"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "黃龍元年，封都鄉侯，後以罪徙廬陵郡。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_bcbea40647216ffa4520023e",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_011",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "群臣請復周胤兵爵而周胤病死",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_011"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_bdd9e5425b6908d0084ccbd1",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_018",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "process",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_012",
+          "ph_013"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_c391be860c02c8da8fcf2151",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_013",
+        "person_id": null,
+        "person_name": "周峻",
+        "dimension": "office",
+        "value": "偏將軍",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_012"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "亦以瑜元功為偏將軍",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_c94a6e7cdab6323cb11a5813",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_005",
+        "person_id": null,
+        "person_name": "周瑜",
+        "dimension": "office",
+        "value": "中護軍",
+        "relation": null,
+        "target": null,
+        "operation": "attest",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_003"
+        ],
+        "predicted_effect": "prior_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "以中護軍與長史張昭共掌眾事",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_cd9d8c5620a4d6a4299999a3",
+        "kind": "fact",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pf_010",
+        "person_id": null,
+        "person_name": "周胤",
+        "dimension": "office",
+        "value": "興業都尉",
+        "relation": null,
+        "target": null,
+        "operation": "start",
+        "qualification": "ordinary",
+        "phase_refs": [
+          "ph_008"
+        ],
+        "predicted_effect": "current_identity",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "初拜興業都尉",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_e20c3f4294ef7e3b3504d64b",
+        "kind": "unit_phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "tr_005",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "single",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_004"
+        ],
+        "predicted_effect": "bind_unit_phase",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_e28bf4ab64b6034253ba1555",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_003",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "孫權統事後周瑜留吳共掌眾事",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_003"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_e85dea177f43d050aff2712b",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_009",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周胤受封都鄉侯",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_009"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "黃龍元年，封都鄉侯",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_edb58c0a70f18d38821796a9",
+        "kind": "continuity",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "pc_001",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "pf_003",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_002",
+          "ph_003"
+        ],
+        "predicted_effect": "extend_tenure",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "遂留吳，以中護軍與長史張昭共掌眾事",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_ef4cf915570b9e2ecc89f4d3",
+        "kind": "phase",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "ph_007",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "周循任騎都尉",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_007"
+        ],
+        "predicted_effect": "phase_definition",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "男循尚公主，拜騎都尉，有瑜風，早卒。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_f0954e7a8d1dc07f563c5556",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_002",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_002 -> ph_003",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_002",
+          "ph_003"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "留鎮巴丘。〈臣松之案：孫策於時始得豫章、廬陵，尚未能得定江夏。瑜之所鎮，應在今巴丘縣也，與後所（平）巴丘處不同。〉\n\n五年，策薨。權統事。",
+        "attribution": "narrator",
+        "reason_codes": []
+      },
+      {
+        "candidate_key": "psc_f59d849a8f6b6fb76b08eacb",
+        "kind": "phase_order",
+        "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+        "item_ref": "po_001",
+        "person_id": null,
+        "person_name": null,
+        "dimension": null,
+        "value": "ph_001 -> ph_002",
+        "relation": null,
+        "target": null,
+        "operation": null,
+        "qualification": null,
+        "phase_refs": [
+          "ph_001",
+          "ph_002"
+        ],
+        "predicted_effect": "prove_phase_order",
+        "assessment_default": "uncertain",
+        "allowed_assessments": [
+          "supported",
+          "uncertain",
+          "disputed",
+          "rejected"
+        ],
+        "source_label": "sanguozhi-054-zhou-yu",
+        "quote": "是歲，建安三年也。\n\n策親自迎瑜，授建威中郎將",
+        "attribution": "narrator",
+        "reason_codes": []
+      }
+    ],
+    "limit": 20,
+    "cursor": null,
+    "next_cursor": null,
+    "has_more": false,
+    "decision": null,
+    "left_label": "阶段依据审核",
+    "right_label": null,
+    "source_entry": {
+      "contexts_href": "/api/v1/studio/jobs/reviews/90012334-d494-4998-8566-a07f874c1f76/contexts",
+      "source_href_template": "/api/v1/studio/jobs/reviews/90012334-d494-4998-8566-a07f874c1f76/sources/{anchor_id}",
+      "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e"
+    },
+    "candidate_count_fetched": 54
+  }
+}

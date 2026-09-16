@@ -1,0 +1,242 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "86abdadc6fb694e5c33b1dfd4b43ae443457085e7c117172130147f4ea03a95d",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 13194,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "review",
+    "node_key": "b01bc69e447329482199e1b46e6563e7a35b0b6adb437fc7125af1b26e398e4c",
+    "slot": "reviewer",
+    "model": "gpt-5.6-sol",
+    "round": 1,
+    "attempt": 1,
+    "status": "invalid",
+    "attempt_sha256": "2dc308450aa954782b90a1707fe793624b70113d39f23e17a7ace4680a99cafc",
+    "input_sha256": "d343a12b9e9304282b12be4589e90e6a745a14b9e3ab88067c9231ee0b6f79e7",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "raw_text": "{\"candidate_sha256\":\"bff61491a70703799d4b10dae4b3aae07bba5df259c7acd1db7cf589319fd298\",\"history_sha256\":\"e0ff4108eb0ee612df399f46cf99369fee5d23eb8415612a66d4c3f19df870ad\",\"verdict\":\"revise\",\"coverage\":[\"sf_2091662481925fe3228cb3ba\",\"sf_84ed26e312d6ec605fb29155\",\"sf_46ef20ad9b50e33d1521354e\",\"sf_1f70513168fc75c9146a64cd\",\"sf_fa6088592b4ff9e743408d09\",\"sf_f8ee40de144ec36b5b64f6df\",\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_36f986acee18254b00083dff\",\"sf_ee6250b4822d07704d19649f\",\"sf_1686c3523261cb4b913eb305\",\"sf_ffae3863707a37b0bd827786\",\"sf_8d91a5f37ab59930900dd978\",\"sf_fd5817d0318e75e29254b6da\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_2e6ddfa173b471f8d6aecea1\",\"sf_5718169d26e1c28f13b7f502\",\"sf_ecd52fa57fdca5cc2e82348d\",\"sf_5b8aa913e546c43445c5f3d0\",\"sf_5063edd8294ba451a2d79d10\",\"sf_c9b0fa6562e3c99049631c9a\",\"sf_ddb71abcbc6aea626ea904f4\"],\"issues\":[{\"id\":\"iss_current_001\",\"type\":\"processing_error\",\"target\":\"bundle.claims.clm_005\",\"message\":\"当前版本虽已建立张昭实体ent_064并将其链接到译文，但“与张昭共掌众事”这一结构化声明的object仍是字符串字面量“张昭”，没有改为已建立的人物实体，事实主体链接仍不完整。\",\"evidence\":[\"sf_f8ee40de144ec36b5b64f6df\"],\"represented\":false},{\"id\":\"iss_current_002\",\"type\":\"processing_error\",\"target\":\"translation.tr_001\",\"message\":\"原文称周尚为周瑜“从父”，这是明确的父系旁系亲属称谓；译文径称“叔父”，缩窄并改变了亲属关系，未保留“从父”的层级。\",\"evidence\":[\"sf_84ed26e312d6ec605fb29155\"],\"represented\":false},{\"id\":\"iss_current_003\",\"type\":\"processing_error\",\"target\":\"translation.tr_002\",\"message\":\"原文“皆国色也”表示二女姿色冠绝一国或为国中美色，译成“都是举世无双的美人”将范围扩张到全世界并加入“无双”，语义过强。\",\"evidence\":[\"sf_1f70513168fc75c9146a64cd\"],\"represented\":false},{\"id\":\"iss_current_004\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_013\",\"message\":\"裴松之以“应在今之巴陵”推定周瑜病卒处，并明确说它与早年所镇巴丘名同处异。当前版本以独立地点实体承载病卒处，且声明中保留“应为”这一推定限定。\",\"evidence\":[\"sf_b5acfed2ea71d663a35f7951\"],\"represented\":true},{\"id\":\"iss_current_005\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_014\",\"message\":\"正文突出周瑜提出拒曹意见，裴松之则认为拒曹建计实始于鲁肃。当前版本把该判断保留为裴松之的注释性归属声明，并在警告中记录归属差异。\",\"evidence\":[\"sf_7e19d0984a7c33c034703931\"],\"represented\":true},{\"id\":\"iss_current_006\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_015\",\"message\":\"曹操所称赤壁因疾病而自烧船撤退、周瑜虚获其名，是原注所载的曹操自述，与正文战事叙述立场不同；当前版本仍以曹操为陈述主体并标明其为转述说法。\",\"evidence\":[\"sf_f50b3570b10f1cc7934a976d\"],\"represented\":true}],\"dispositions\":[{\"issue_id\":\"opinion_7f529e26a56bc0ad683e6bc0\",\"disposition\":\"resolved\",\"rationale\":\"译文已由“恩威并著”改为“恩信显著”，恢复了原文关于恩德与信誉的词义。\",\"evidence\":[\"sf_1f70513168fc75c9146a64cd\"]},{\"issue_id\":\"opinion_21b6830f83406ed17643823c\",\"disposition\":\"resolved\",\"rationale\":\"译文已删除“全部”这一范围扩张，改为曹操占有荆州的这片地方，与原文“奄有其地”及范围警告一致。\",\"evidence\":[\"sf_922692115ebb87786dbf4532\"]},{\"issue_id\":\"opinion_c88a91771ffeddfba854a2af\",\"disposition\":\"resolved\",\"rationale\":\"事件标题现明确写作周瑜返回江陵整治行装后在途中病卒，不再误称其死于赴江陵途中。\",\"evidence\":[\"sf_c00542c6df0bb2d275df0e53\"]},{\"issue_id\":\"opinion_dbc6ef31182659fa2b8e6a4a\",\"disposition\":\"resolved\",\"rationale\":\"当前版本另建病卒处实体ent_050，事件evt_015不再使用早年镇守地ent_034，并以注释声明保留二地名同处异的辨析。\",\"evidence\":[\"sf_fa6088592b4ff9e743408d09\",\"sf_b7bf900662c60ac18840935b\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_b5acfed2ea71d663a35f7951\"]},{\"issue_id\":\"opinion_f21ace9bd3f39ffd15d46e81\",\"disposition\":\"resolved\",\"rationale\":\"拒曹决策evt_009和赤壁之战evt_010的时间现均为null，九月时间只保留在曹操入荆州、刘琮投降事件evt_008。\",\"evidence\":[\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_36f986acee18254b00083dff\",\"sf_ee6250b4822d07704d19649f\"]},{\"issue_id\":\"opinion_6ff50f66180b8952b527aeed\",\"disposition\":\"resolved\",\"rationale\":\"译文已改为孙权对公瑾的情义如同对诸葛瑾、步骘二人一样，删除了无依据的“两位兄长”关系。\",\"evidence\":[\"sf_c9b0fa6562e3c99049631c9a\"]},{\"issue_id\":\"opinion_5f1ef6af77fe587e7d22738b\",\"disposition\":\"resolved\",\"rationale\":\"当前版本新增clm_016，明确将舒作为主体、庐江作为其上级地点，从而补足籍贯中的郡县归属。\",\"evidence\":[\"sf_2091662481925fe3228cb3ba\"]},{\"issue_id\":\"opinion_d27f3b25ce9e21438aafee51\",\"disposition\":\"resolved\",\"rationale\":\"所列周景、周忠、周异、孙坚、袁术、张昭、刘表、马超、韩遂、关羽、张飞、刘璋、张鲁、孙登等人物均已建立实体并加入相关译文块的实体链接；张昭实体虽已建立，但其既有声明仍使用字面量的问题另列为当前处理错误。\",\"evidence\":[\"sf_2091662481925fe3228cb3ba\",\"sf_84ed26e312d6ec605fb29155\",\"sf_f8ee40de144ec36b5b64f6df\",\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_5b8aa913e546c43445c5f3d0\"]},{\"issue_id\":\"opinion_06c807d5a2c6df35fd8a5ba7\",\"disposition\":\"source_uncertainty\",\"rationale\":\"当前clm_013仍以“应为今巴陵”表达裴松之的推定，并已将病卒处与早年巴丘拆分为不同实体；该限定有原注依据且继续被明确表示。\",\"evidence\":[\"sf_b5acfed2ea71d663a35f7951\"]},{\"issue_id\":\"opinion_6fda8487e80893b046241d0a\",\"disposition\":\"source_uncertainty\",\"rationale\":\"当前clm_014及相应警告继续把拒曹首倡归于裴松之的意见，并未覆盖正文叙述或将少数意见删除。\",\"evidence\":[\"sf_7e19d0984a7c33c034703931\"]},{\"issue_id\":\"opinion_016cf8f03a1ff79451bbbfe8\",\"disposition\":\"source_uncertainty\",\"rationale\":\"当前clm_015继续保留曹操自述的说话主体与转述性质，并以冲突账户警告区别于正文所述赤壁战况。\",\"evidence\":[\"sf_f50b3570b10f1cc7934a976d\"]},{\"issue_id\":\"repair_validation_errors\",\"disposition\":\"resolved\",\"rationale\":\"前次自动修订产生的大量空对象及缺失必填字段错误属于同一无效补丁的派生校验记录；该无效补丁未作为当前版本，现行候选已包含完整实体、事件、声明与来源记录，且当前版本validation_errors为空。\",\"evidence\":[\"sf_2091662481925fe3228cb3ba\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_5b8aa913e546c43445c5f3d0\"]}]}",
+    "parsed": {
+      "issues": [
+        {
+          "id": "iss_current_001",
+          "type": "processing_error",
+          "target": "bundle.claims.clm_005",
+          "message": "当前版本虽已建立张昭实体ent_064并将其链接到译文，但“与张昭共掌众事”这一结构化声明的object仍是字符串字面量“张昭”，没有改为已建立的人物实体，事实主体链接仍不完整。",
+          "evidence": [
+            "sf_f8ee40de144ec36b5b64f6df"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_current_002",
+          "type": "processing_error",
+          "target": "translation.tr_001",
+          "message": "原文称周尚为周瑜“从父”，这是明确的父系旁系亲属称谓；译文径称“叔父”，缩窄并改变了亲属关系，未保留“从父”的层级。",
+          "evidence": [
+            "sf_84ed26e312d6ec605fb29155"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_current_003",
+          "type": "processing_error",
+          "target": "translation.tr_002",
+          "message": "原文“皆国色也”表示二女姿色冠绝一国或为国中美色，译成“都是举世无双的美人”将范围扩张到全世界并加入“无双”，语义过强。",
+          "evidence": [
+            "sf_1f70513168fc75c9146a64cd"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_current_004",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_013",
+          "message": "裴松之以“应在今之巴陵”推定周瑜病卒处，并明确说它与早年所镇巴丘名同处异。当前版本以独立地点实体承载病卒处，且声明中保留“应为”这一推定限定。",
+          "evidence": [
+            "sf_b5acfed2ea71d663a35f7951"
+          ],
+          "represented": true
+        },
+        {
+          "id": "iss_current_005",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_014",
+          "message": "正文突出周瑜提出拒曹意见，裴松之则认为拒曹建计实始于鲁肃。当前版本把该判断保留为裴松之的注释性归属声明，并在警告中记录归属差异。",
+          "evidence": [
+            "sf_7e19d0984a7c33c034703931"
+          ],
+          "represented": true
+        },
+        {
+          "id": "iss_current_006",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_015",
+          "message": "曹操所称赤壁因疾病而自烧船撤退、周瑜虚获其名，是原注所载的曹操自述，与正文战事叙述立场不同；当前版本仍以曹操为陈述主体并标明其为转述说法。",
+          "evidence": [
+            "sf_f50b3570b10f1cc7934a976d"
+          ],
+          "represented": true
+        }
+      ],
+      "verdict": "revise",
+      "coverage": [
+        "sf_2091662481925fe3228cb3ba",
+        "sf_84ed26e312d6ec605fb29155",
+        "sf_46ef20ad9b50e33d1521354e",
+        "sf_1f70513168fc75c9146a64cd",
+        "sf_fa6088592b4ff9e743408d09",
+        "sf_f8ee40de144ec36b5b64f6df",
+        "sf_922692115ebb87786dbf4532",
+        "sf_634b77c2f3f8681c91efbf24",
+        "sf_36f986acee18254b00083dff",
+        "sf_ee6250b4822d07704d19649f",
+        "sf_1686c3523261cb4b913eb305",
+        "sf_ffae3863707a37b0bd827786",
+        "sf_8d91a5f37ab59930900dd978",
+        "sf_fd5817d0318e75e29254b6da",
+        "sf_c00542c6df0bb2d275df0e53",
+        "sf_2e6ddfa173b471f8d6aecea1",
+        "sf_5718169d26e1c28f13b7f502",
+        "sf_ecd52fa57fdca5cc2e82348d",
+        "sf_5b8aa913e546c43445c5f3d0",
+        "sf_5063edd8294ba451a2d79d10",
+        "sf_c9b0fa6562e3c99049631c9a",
+        "sf_ddb71abcbc6aea626ea904f4"
+      ],
+      "dispositions": [
+        {
+          "evidence": [
+            "sf_1f70513168fc75c9146a64cd"
+          ],
+          "issue_id": "opinion_7f529e26a56bc0ad683e6bc0",
+          "rationale": "译文已由“恩威并著”改为“恩信显著”，恢复了原文关于恩德与信誉的词义。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_922692115ebb87786dbf4532"
+          ],
+          "issue_id": "opinion_21b6830f83406ed17643823c",
+          "rationale": "译文已删除“全部”这一范围扩张，改为曹操占有荆州的这片地方，与原文“奄有其地”及范围警告一致。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_c00542c6df0bb2d275df0e53"
+          ],
+          "issue_id": "opinion_c88a91771ffeddfba854a2af",
+          "rationale": "事件标题现明确写作周瑜返回江陵整治行装后在途中病卒，不再误称其死于赴江陵途中。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_fa6088592b4ff9e743408d09",
+            "sf_b7bf900662c60ac18840935b",
+            "sf_c00542c6df0bb2d275df0e53",
+            "sf_b5acfed2ea71d663a35f7951"
+          ],
+          "issue_id": "opinion_dbc6ef31182659fa2b8e6a4a",
+          "rationale": "当前版本另建病卒处实体ent_050，事件evt_015不再使用早年镇守地ent_034，并以注释声明保留二地名同处异的辨析。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_922692115ebb87786dbf4532",
+            "sf_634b77c2f3f8681c91efbf24",
+            "sf_36f986acee18254b00083dff",
+            "sf_ee6250b4822d07704d19649f"
+          ],
+          "issue_id": "opinion_f21ace9bd3f39ffd15d46e81",
+          "rationale": "拒曹决策evt_009和赤壁之战evt_010的时间现均为null，九月时间只保留在曹操入荆州、刘琮投降事件evt_008。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_c9b0fa6562e3c99049631c9a"
+          ],
+          "issue_id": "opinion_6ff50f66180b8952b527aeed",
+          "rationale": "译文已改为孙权对公瑾的情义如同对诸葛瑾、步骘二人一样，删除了无依据的“两位兄长”关系。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_2091662481925fe3228cb3ba"
+          ],
+          "issue_id": "opinion_5f1ef6af77fe587e7d22738b",
+          "rationale": "当前版本新增clm_016，明确将舒作为主体、庐江作为其上级地点，从而补足籍贯中的郡县归属。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_2091662481925fe3228cb3ba",
+            "sf_84ed26e312d6ec605fb29155",
+            "sf_f8ee40de144ec36b5b64f6df",
+            "sf_922692115ebb87786dbf4532",
+            "sf_634b77c2f3f8681c91efbf24",
+            "sf_c00542c6df0bb2d275df0e53",
+            "sf_5b8aa913e546c43445c5f3d0"
+          ],
+          "issue_id": "opinion_d27f3b25ce9e21438aafee51",
+          "rationale": "所列周景、周忠、周异、孙坚、袁术、张昭、刘表、马超、韩遂、关羽、张飞、刘璋、张鲁、孙登等人物均已建立实体并加入相关译文块的实体链接；张昭实体虽已建立，但其既有声明仍使用字面量的问题另列为当前处理错误。",
+          "disposition": "resolved"
+        },
+        {
+          "evidence": [
+            "sf_b5acfed2ea71d663a35f7951"
+          ],
+          "issue_id": "opinion_06c807d5a2c6df35fd8a5ba7",
+          "rationale": "当前clm_013仍以“应为今巴陵”表达裴松之的推定，并已将病卒处与早年巴丘拆分为不同实体；该限定有原注依据且继续被明确表示。",
+          "disposition": "source_uncertainty"
+        },
+        {
+          "evidence": [
+            "sf_7e19d0984a7c33c034703931"
+          ],
+          "issue_id": "opinion_6fda8487e80893b046241d0a",
+          "rationale": "当前clm_014及相应警告继续把拒曹首倡归于裴松之的意见，并未覆盖正文叙述或将少数意见删除。",
+          "disposition": "source_uncertainty"
+        },
+        {
+          "evidence": [
+            "sf_f50b3570b10f1cc7934a976d"
+          ],
+          "issue_id": "opinion_016cf8f03a1ff79451bbbfe8",
+          "rationale": "当前clm_015继续保留曹操自述的说话主体与转述性质，并以冲突账户警告区别于正文所述赤壁战况。",
+          "disposition": "source_uncertainty"
+        },
+        {
+          "evidence": [
+            "sf_2091662481925fe3228cb3ba",
+            "sf_c00542c6df0bb2d275df0e53",
+            "sf_5b8aa913e546c43445c5f3d0"
+          ],
+          "issue_id": "repair_validation_errors",
+          "rationale": "前次自动修订产生的大量空对象及缺失必填字段错误属于同一无效补丁的派生校验记录；该无效补丁未作为当前版本，现行候选已包含完整实体、事件、声明与来源记录，且当前版本validation_errors为空。",
+          "disposition": "resolved"
+        }
+      ],
+      "history_sha256": "e0ff4108eb0ee612df399f46cf99369fee5d23eb8415612a66d4c3f19df870ad",
+      "candidate_sha256": "bff61491a70703799d4b10dae4b3aae07bba5df259c7acd1db7cf589319fd298"
+    },
+    "validation_errors": [
+      "review must dispose of every prior issue exactly once"
+    ],
+    "error": null,
+    "receipt": {
+      "status": "completed",
+      "model": "gpt-5.6-sol",
+      "usage": {
+        "input_tokens": 375872,
+        "output_tokens": 3791,
+        "total_tokens": 379663,
+        "reasoning_tokens": 1314
+      },
+      "elapsed_seconds": 106.29,
+      "http_attempts": 1
+    }
+  }
+}

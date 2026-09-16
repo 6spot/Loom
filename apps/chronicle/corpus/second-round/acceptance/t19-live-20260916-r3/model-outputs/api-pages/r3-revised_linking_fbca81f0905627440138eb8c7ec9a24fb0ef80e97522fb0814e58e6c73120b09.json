@@ -1,0 +1,3949 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "fbca81f0905627440138eb8c7ec9a24fb0ef80e97522fb0814e58e6c73120b09",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 163845,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "linking",
+    "node_key": "a0ba64c0bf2c9ce604bc4ba1eac11a0c231e9f5df2e1bc64af424d77af1aee09",
+    "slot": "reviewer",
+    "model": "gpt-5.6-sol",
+    "round": 2,
+    "attempt": 2,
+    "status": "completed",
+    "attempt_sha256": "cbffebfbc5e40857fe1d28653ca79fd9abf8a2fa771f6de774daaaa6f4fcb1b9",
+    "input_sha256": "3d491586e738904d46f2c0195d642eb1f4be81e472e1476301f33a42d93d1fb1",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "raw_text": "{\"chapter_id\":\"ch_3ce79a5593e0950c54daa93f\",\"translation_links\":[{\"block_id\":\"tr_001\",\"source_block_ids\":[\"b_001\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_002\"},{\"kind\":\"entity\",\"ref\":\"ent_026\"},{\"kind\":\"entity\",\"ref\":\"ent_027\"},{\"kind\":\"entity\",\"ref\":\"ent_047\"},{\"kind\":\"entity\",\"ref\":\"ent_048\"},{\"kind\":\"entity\",\"ref\":\"ent_051\"},{\"kind\":\"entity\",\"ref\":\"ent_052\"},{\"kind\":\"entity\",\"ref\":\"ent_053\"},{\"kind\":\"entity\",\"ref\":\"ent_054\"},{\"kind\":\"entity\",\"ref\":\"ent_055\"},{\"kind\":\"entity\",\"ref\":\"ent_056\"},{\"kind\":\"entity\",\"ref\":\"ent_057\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_001\"},{\"kind\":\"event\",\"ref\":\"evt_002\"}]},{\"block_id\":\"tr_002\",\"source_block_ids\":[\"b_003\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_002\"},{\"kind\":\"entity\",\"ref\":\"ent_029\"},{\"kind\":\"entity\",\"ref\":\"ent_034\"},{\"kind\":\"entity\",\"ref\":\"ent_037\"},{\"kind\":\"entity\",\"ref\":\"ent_038\"},{\"kind\":\"entity\",\"ref\":\"ent_039\"},{\"kind\":\"entity\",\"ref\":\"ent_040\"},{\"kind\":\"entity\",\"ref\":\"ent_058\"},{\"kind\":\"entity\",\"ref\":\"ent_059\"},{\"kind\":\"entity\",\"ref\":\"ent_060\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_003\"},{\"kind\":\"event\",\"ref\":\"evt_004\"}]},{\"block_id\":\"tr_003\",\"source_block_ids\":[\"b_005\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_002\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_027\"},{\"kind\":\"entity\",\"ref\":\"ent_039\"},{\"kind\":\"entity\",\"ref\":\"ent_064\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_005\"}]},{\"block_id\":\"tr_004\",\"source_block_ids\":[\"b_007\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_014\"},{\"kind\":\"entity\",\"ref\":\"ent_015\"},{\"kind\":\"entity\",\"ref\":\"ent_016\"},{\"kind\":\"entity\",\"ref\":\"ent_028\"},{\"kind\":\"entity\",\"ref\":\"ent_029\"},{\"kind\":\"entity\",\"ref\":\"ent_041\"},{\"kind\":\"entity\",\"ref\":\"ent_049\"},{\"kind\":\"entity\",\"ref\":\"ent_061\"},{\"kind\":\"entity\",\"ref\":\"ent_065\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_006\"},{\"kind\":\"event\",\"ref\":\"evt_007\"},{\"kind\":\"event\",\"ref\":\"evt_008\"}]},{\"block_id\":\"tr_005\",\"source_block_ids\":[\"b_009\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_062\"},{\"kind\":\"entity\",\"ref\":\"ent_063\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_009\"}]},{\"block_id\":\"tr_006\",\"source_block_ids\":[\"b_011\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_065\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_009\"}]},{\"block_id\":\"tr_007\",\"source_block_ids\":[\"b_013\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_005\"},{\"kind\":\"entity\",\"ref\":\"ent_006\"},{\"kind\":\"entity\",\"ref\":\"ent_007\"},{\"kind\":\"entity\",\"ref\":\"ent_012\"},{\"kind\":\"entity\",\"ref\":\"ent_013\"},{\"kind\":\"entity\",\"ref\":\"ent_030\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_010\"}]},{\"block_id\":\"tr_008\",\"source_block_ids\":[\"b_013\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_005\"},{\"kind\":\"entity\",\"ref\":\"ent_007\"},{\"kind\":\"entity\",\"ref\":\"ent_008\"},{\"kind\":\"entity\",\"ref\":\"ent_031\"},{\"kind\":\"entity\",\"ref\":\"ent_032\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_010\"}]},{\"block_id\":\"tr_009\",\"source_block_ids\":[\"b_015\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_006\"},{\"kind\":\"entity\",\"ref\":\"ent_008\"},{\"kind\":\"entity\",\"ref\":\"ent_009\"},{\"kind\":\"entity\",\"ref\":\"ent_010\"},{\"kind\":\"entity\",\"ref\":\"ent_011\"},{\"kind\":\"entity\",\"ref\":\"ent_031\"},{\"kind\":\"entity\",\"ref\":\"ent_033\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_011\"}]},{\"block_id\":\"tr_010\",\"source_block_ids\":[\"b_017\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_005\"},{\"kind\":\"entity\",\"ref\":\"ent_032\"},{\"kind\":\"entity\",\"ref\":\"ent_036\"},{\"kind\":\"entity\",\"ref\":\"ent_042\"},{\"kind\":\"entity\",\"ref\":\"ent_043\"},{\"kind\":\"entity\",\"ref\":\"ent_049\"},{\"kind\":\"entity\",\"ref\":\"ent_066\"},{\"kind\":\"entity\",\"ref\":\"ent_067\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_012\"},{\"kind\":\"event\",\"ref\":\"evt_013\"}]},{\"block_id\":\"tr_011\",\"source_block_ids\":[\"b_017\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_025\"},{\"kind\":\"entity\",\"ref\":\"ent_032\"},{\"kind\":\"entity\",\"ref\":\"ent_035\"},{\"kind\":\"entity\",\"ref\":\"ent_050\"},{\"kind\":\"entity\",\"ref\":\"ent_062\"},{\"kind\":\"entity\",\"ref\":\"ent_068\"},{\"kind\":\"entity\",\"ref\":\"ent_069\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_014\"},{\"kind\":\"event\",\"ref\":\"evt_015\"}]},{\"block_id\":\"tr_012\",\"source_block_ids\":[\"b_019\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_002\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_006\"}],\"event_refs\":[]},{\"block_id\":\"tr_013\",\"source_block_ids\":[\"b_021\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"}],\"event_refs\":[]},{\"block_id\":\"tr_014\",\"source_block_ids\":[\"b_023\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_017\"},{\"kind\":\"entity\",\"ref\":\"ent_018\"},{\"kind\":\"entity\",\"ref\":\"ent_021\"},{\"kind\":\"entity\",\"ref\":\"ent_022\"},{\"kind\":\"entity\",\"ref\":\"ent_036\"},{\"kind\":\"entity\",\"ref\":\"ent_044\"},{\"kind\":\"entity\",\"ref\":\"ent_045\"},{\"kind\":\"entity\",\"ref\":\"ent_046\"},{\"kind\":\"entity\",\"ref\":\"ent_070\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_016\"},{\"kind\":\"event\",\"ref\":\"evt_017\"},{\"kind\":\"event\",\"ref\":\"evt_018\"},{\"kind\":\"event\",\"ref\":\"evt_019\"},{\"kind\":\"event\",\"ref\":\"evt_020\"}]},{\"block_id\":\"tr_015\",\"source_block_ids\":[\"b_025\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_008\"},{\"kind\":\"entity\",\"ref\":\"ent_017\"},{\"kind\":\"entity\",\"ref\":\"ent_021\"},{\"kind\":\"entity\",\"ref\":\"ent_022\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_010\"},{\"kind\":\"event\",\"ref\":\"evt_011\"},{\"kind\":\"event\",\"ref\":\"evt_020\"}]},{\"block_id\":\"tr_016\",\"source_block_ids\":[\"b_025\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_017\"},{\"kind\":\"entity\",\"ref\":\"ent_021\"},{\"kind\":\"entity\",\"ref\":\"ent_022\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_020\"}]},{\"block_id\":\"tr_017\",\"source_block_ids\":[\"b_027\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_017\"},{\"kind\":\"entity\",\"ref\":\"ent_021\"},{\"kind\":\"entity\",\"ref\":\"ent_022\"},{\"kind\":\"entity\",\"ref\":\"ent_023\"},{\"kind\":\"entity\",\"ref\":\"ent_024\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_020\"},{\"kind\":\"event\",\"ref\":\"evt_021\"}]},{\"block_id\":\"tr_018\",\"source_block_ids\":[\"b_029\"],\"entity_refs\":[{\"kind\":\"entity\",\"ref\":\"ent_001\"},{\"kind\":\"entity\",\"ref\":\"ent_003\"},{\"kind\":\"entity\",\"ref\":\"ent_004\"},{\"kind\":\"entity\",\"ref\":\"ent_019\"},{\"kind\":\"entity\",\"ref\":\"ent_020\"},{\"kind\":\"entity\",\"ref\":\"ent_024\"},{\"kind\":\"entity\",\"ref\":\"ent_042\"},{\"kind\":\"entity\",\"ref\":\"ent_049\"}],\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_010\"},{\"kind\":\"event\",\"ref\":\"evt_022\"},{\"kind\":\"event\",\"ref\":\"evt_023\"}]}],\"reading\":{\"units\":[{\"block_id\":\"tr_001\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_001\",\"evt_002\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"瑜將兵迎策。策大喜曰：「吾得卿。諧也。」遂從攻橫江、當利，皆拔之。乃渡江擊秣陵，破笮融、薛禮。轉下湖孰、江乘，進入曲阿。\",\"occurrence\":1},{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"遂自居巢還吳。是歲，建安三年也。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_001\",\"evt_002\"],\"event_spans\":[{\"span_id\":\"es_001\",\"selection\":{\"quote\":\"周瑜带兵迎接孙策。孙策十分高兴，说：“我得到你，事情就成了。”于是周瑜跟随孙策攻打横江、当利，都攻克了。接着渡江进攻秣陵，击败笮融、薛礼，又转而攻下湖孰、江乘，进军曲阿。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_001\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"瑜將兵迎策。策大喜曰：「吾得卿。諧也。」遂從攻橫江、當利，皆拔之。乃渡江擊秣陵，破笮融、薛禮。轉下湖孰、江乘，進入曲阿。\",\"occurrence\":1}]},{\"span_id\":\"es_002\",\"selection\":{\"quote\":\"周瑜便从居巢回到吴地。这一年是建安三年。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_002\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"遂自居巢還吳。是歲，建安三年也。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"周瑜字公瑾\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":0},{\"event_ref\":\"evt_002\",\"participant_index\":0}]},{\"entity_ref\":\"ent_002\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"堅子策與瑜同年\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_001\",\"participant_index\":1}]},{\"entity_ref\":\"ent_027\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"還吳\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_048\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"廬江舒人也\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_002\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_003\",\"evt_004\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1},{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_003\",\"evt_004\"],\"event_spans\":[{\"span_id\":\"es_003\",\"selection\":{\"quote\":\"孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_003\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1}]},{\"span_id\":\"es_004\",\"selection\":{\"quote\":\"周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_004\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"以瑜恩信著於廬江，出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"瑜時年二十四\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_003\",\"participant_index\":1},{\"event_ref\":\"evt_004\",\"participant_index\":0}]},{\"entity_ref\":\"ent_002\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_003\",\"participant_index\":0},{\"event_ref\":\"evt_004\",\"participant_index\":1}]},{\"entity_ref\":\"ent_029\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"江夏\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_060\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"小橋\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_003\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_005\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_005\"],\"event_spans\":[{\"span_id\":\"es_005\",\"selection\":{\"quote\":\"建安五年，孙策去世。孙权接掌了政务。周瑜带兵前去参加丧事，随后留在吴地，以中护军的身份与长史张昭共同掌管军政事务。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_005\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"瑜將兵赴喪\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_005\",\"participant_index\":2}]},{\"entity_ref\":\"ent_002\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"策薨\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_005\",\"participant_index\":0}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"權統事\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_005\",\"participant_index\":1}]},{\"entity_ref\":\"ent_064\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"長史張昭\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_004\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_006\",\"evt_007\",\"evt_008\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。\",\"occurrence\":1},{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十三年春，權討江夏，瑜為前部大督。\",\"occurrence\":1},{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"其年九月，曹公入荊州，劉琮舉眾降，曹公得其水軍，船步兵數十萬\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_006\",\"evt_007\",\"evt_008\"],\"event_spans\":[{\"span_id\":\"es_006\",\"selection\":{\"quote\":\"建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_006\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。\",\"occurrence\":1}]},{\"span_id\":\"es_007\",\"selection\":{\"quote\":\"建安十三年春，孙权进攻江夏，周瑜担任前部大督。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_007\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十三年春，權討江夏，瑜為前部大督。\",\"occurrence\":1}]},{\"span_id\":\"es_008\",\"selection\":{\"quote\":\"这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_008\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"其年九月，曹公入荊州，劉琮舉眾降，曹公得其水軍，船步兵數十萬\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"瑜追討擊\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_006\",\"participant_index\":0},{\"event_ref\":\"evt_007\",\"participant_index\":1}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"權討江夏\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_007\",\"participant_index\":0}]},{\"entity_ref\":\"ent_004\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"曹公入荊州\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_008\",\"participant_index\":0}]},{\"entity_ref\":\"ent_015\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"鄧龍\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_006\",\"participant_index\":2}]},{\"entity_ref\":\"ent_016\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"劉琮\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_008\",\"participant_index\":1}]},{\"entity_ref\":\"ent_049\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"荊州\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_005\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_009\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_009\"],\"event_spans\":[{\"span_id\":\"es_009\",\"selection\":{\"quote\":\"将军擒获曹操，正应该在今天。我请求给我精兵三万人，进驻夏口，保证替将军击破他。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_009\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"瑜請得精兵三萬人\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":0}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"將軍擒操\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":1}]},{\"entity_ref\":\"ent_004\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"操雖託名漢相\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":2}]},{\"entity_ref\":\"ent_062\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"馬超\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_063\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"韓遂\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_006\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_009\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"權曰：「老賊欲廢漢自立久矣，陡忌二袁、呂布、劉表與孤耳。今數雄已滅，惟孤尚存，孤與老賊，勢不兩立。君言當擊，甚與孤合，此天以君授孤也。」\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_009\"],\"event_spans\":[{\"span_id\":\"es_010\",\"selection\":{\"quote\":\"我和这个老贼，势必不能两立。你说应当进攻，正与我的想法完全相合，这是上天把你赐给我了。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_009\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"孤與老賊，勢不兩立。君言當擊，甚與孤合，此天以君授孤也。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"權曰\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":1}]},{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"君言當擊\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":0}]},{\"entity_ref\":\"ent_004\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"老賊\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_009\",\"participant_index\":2}]}]},{\"block_id\":\"tr_007\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_010\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_010\"],\"event_spans\":[{\"span_id\":\"es_011\",\"selection\":{\"quote\":\"孙权于是派周瑜、程普等人与刘备合兵迎击曹操，在赤壁与曹军相遇。当时曹操的军队已经有很多人染病，第一次交战便败退，退到长江北岸驻扎。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_010\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。\",\"occurrence\":1}]},{\"span_id\":\"es_012\",\"selection\":{\"quote\":\"不过我观察曹军的船只首尾相连，可以用火烧毁它们，逼他们逃走。\",\"occurrence\":1},\"status\":\"unresolved\",\"target_ref\":null,\"candidate_refs\":[],\"relation\":\"foreshadow\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"然觀操軍船艦，首尾相接，可燒而走也\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"遣瑜\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":0}]},{\"entity_ref\":\"ent_006\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"程普\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":1}]},{\"entity_ref\":\"ent_005\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"與備並力逆曹公\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":2}]},{\"entity_ref\":\"ent_007\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"瑜部將黃蓋\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":3}]},{\"entity_ref\":\"ent_004\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"曹公\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":4}]},{\"entity_ref\":\"ent_030\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"赤壁\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_008\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_010\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"又豫備走舸，各系大船後，因引次俱前。曹公軍吏士皆延頸觀望，指言蓋降。蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。\",\"occurrence\":1},{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_010\"],\"event_spans\":[{\"span_id\":\"es_013\",\"selection\":{\"quote\":\"黄盖放开那些船，同时点火。当时风势猛烈，火势很快蔓延，把岸上的营寨全都烧着了。不一会儿，烟火遮天蔽日，被烧死、淹死的人马非常多，曹军于是败退，退回去守卫南郡。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_010\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。\",\"occurrence\":1}]},{\"span_id\":\"es_014\",\"selection\":{\"quote\":\"刘备又和周瑜等人共同追击。曹操留下曹仁等人守卫江陵城，自己直接向北撤回。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_010\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_007\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"蓋放諸船\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":3}]},{\"entity_ref\":\"ent_004\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"曹公軍吏士\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":4}]},{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"瑜等\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":0}]},{\"entity_ref\":\"ent_005\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"備與瑜等復共追\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_010\",\"participant_index\":2}]},{\"entity_ref\":\"ent_008\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"曹仁\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_032\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"江陵城\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_009\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_011\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。\",\"occurrence\":1},{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"寧圍既解，乃渡屯北岸，剋期大戰。瑜親跨馬擽陳，會流矢中右脅，瘡甚，便還。後仁聞瑜臥未起，勒兵就陳。瑜乃自興，案行軍營，激揚吏士，仁由是遂退。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_011\"],\"event_spans\":[{\"span_id\":\"es_015\",\"selection\":{\"quote\":\"周瑜便派甘宁抢先占据夷陵。曹仁分出一支骑兵去攻打、包围甘宁。甘宁向周瑜告急。周瑜采用吕蒙的计策，留下凌统守卫后方，自己与吕蒙一起前去救援甘宁。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_011\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。\",\"occurrence\":1}]},{\"span_id\":\"es_016\",\"selection\":{\"quote\":\"周瑜亲自骑马冲击敌阵，恰好被流箭射中右胁，伤口很重，只得退回。后来曹仁听说周瑜卧床不起，便率兵逼近战阵。周瑜于是强撑着起身，巡视军营，激励将士，曹仁因此退兵。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_011\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜親跨馬擽陳，會流矢中右脅，瘡甚，便還。後仁聞瑜臥未起，勒兵就陳。瑜乃自興，案行軍營，激揚吏士，仁由是遂退。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜與程普又進南郡\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":0}]},{\"entity_ref\":\"ent_006\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"程普\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":1}]},{\"entity_ref\":\"ent_008\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"與仁相對\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":2}]},{\"entity_ref\":\"ent_009\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"甘寧\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":3}]},{\"entity_ref\":\"ent_010\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"呂蒙\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":4}]},{\"entity_ref\":\"ent_011\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"淩統\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_011\",\"participant_index\":5}]},{\"entity_ref\":\"ent_033\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"夷陵\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_010\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_012\",\"evt_013\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_012\",\"evt_013\"],\"event_spans\":[{\"span_id\":\"es_017\",\"selection\":{\"quote\":\"孙权任命周瑜为偏将军，兼任南郡太守，把下隽、汉昌、刘阳、州陵划为他的奉邑，驻军占据江陵。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_012\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。\",\"occurrence\":1}]},{\"span_id\":\"es_018\",\"selection\":{\"quote\":\"孙权考虑到曹操正在北方，应当广泛招揽英雄，又担心一时难以控制刘备，所以没有采纳这个建议。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_013\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_012\",\"participant_index\":1},{\"event_ref\":\"evt_013\",\"participant_index\":0}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_012\",\"participant_index\":0},{\"event_ref\":\"evt_013\",\"participant_index\":1}]},{\"entity_ref\":\"ent_005\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"劉備以梟雄之姿\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_013\",\"participant_index\":2}]},{\"entity_ref\":\"ent_004\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"曹公在北方\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_032\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"江陵\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_066\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"關羽\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_067\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"張飛\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_011\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_014\",\"evt_015\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_014\",\"evt_015\"],\"event_spans\":[{\"span_id\":\"es_019\",\"selection\":{\"quote\":\"我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_014\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。\",\"occurrence\":1}]},{\"span_id\":\"es_020\",\"selection\":{\"quote\":\"周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_015\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"時年三十六。權素服舉哀。感動左右。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜乃詣京見權\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_014\",\"participant_index\":0},{\"event_ref\":\"evt_015\",\"participant_index\":0}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權許之\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_014\",\"participant_index\":1},{\"event_ref\":\"evt_015\",\"participant_index\":1}]},{\"entity_ref\":\"ent_025\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"取蜀\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_050\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"道於巴丘病卒\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_062\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"馬超\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_068\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"劉璋為益州牧\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_069\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"張魯寇侵\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_012\",\"narrative_time\":{\"mode\":\"unknown\",\"event_refs\":[],\"from_block_id\":null,\"source_selections\":[]},\"current_event_refs\":[],\"event_spans\":[],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"瑜獨先盡敬，便執臣節\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_002\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"瑜見友於策\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_003\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"使權以兄奉之\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_006\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"程普\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_013\",\"narrative_time\":{\"mode\":\"unknown\",\"event_refs\":[],\"from_block_id\":null,\"source_selections\":[]},\"current_event_refs\":[],\"event_spans\":[],\"context_entities\":[{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_021\",\"last_block_id\":\"b_021\",\"quote\":\"瑜少精意於音樂\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_014\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_016\",\"evt_017\",\"evt_018\",\"evt_019\",\"evt_020\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"男循尚公主，拜騎都尉，有瑜風，早卒。\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"黃龍元年，封都鄉侯\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"後以罪徙廬陵郡\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"赤烏二年，諸葛瑾、步騭連名上疏曰：\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_016\",\"evt_017\",\"evt_018\",\"evt_019\",\"evt_020\"],\"event_spans\":[{\"span_id\":\"es_021\",\"selection\":{\"quote\":\"长子周循娶了公主，被任命为骑都尉，很有周瑜的风采，但早早去世。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_016\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"男循尚公主，拜騎都尉，有瑜風，早卒。\",\"occurrence\":1}]},{\"span_id\":\"es_022\",\"selection\":{\"quote\":\"周循的弟弟周胤起初被任命为兴业都尉，娶宗室女子为妻，统领一千名士兵，驻守公安。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_017\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。\",\"occurrence\":1}]},{\"span_id\":\"es_023\",\"selection\":{\"quote\":\"黄龙元年，周胤被封为都乡侯\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_018\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"黃龍元年，封都鄉侯\",\"occurrence\":1}]},{\"span_id\":\"es_024\",\"selection\":{\"quote\":\"后来因犯罪被迁徙到庐陵郡。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_019\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"後以罪徙廬陵郡\",\"occurrence\":1}]},{\"span_id\":\"es_025\",\"selection\":{\"quote\":\"赤乌二年，诸葛瑾、步骘联名上疏说：\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_020\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"赤烏二年，諸葛瑾、步騭連名上疏曰：\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_018\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"男循\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_016\",\"participant_index\":0}]},{\"entity_ref\":\"ent_017\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_017\",\"participant_index\":0},{\"event_ref\":\"evt_018\",\"participant_index\":0},{\"event_ref\":\"evt_019\",\"participant_index\":0},{\"event_ref\":\"evt_020\",\"participant_index\":5}]},{\"entity_ref\":\"ent_021\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"諸葛瑾\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":0}]},{\"entity_ref\":\"ent_022\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"步騭\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":1}]},{\"entity_ref\":\"ent_036\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"公安\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_070\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"太子登\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_015\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_020\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_020\"],\"event_spans\":[{\"span_id\":\"es_026\",\"selection\":{\"quote\":\"已故将军周瑜的儿子周胤，过去曾蒙受恩宠，被封爵任将，却不能以福德自我约束，想着建立功勋，后来竟放纵情欲，招致罪罚。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_020\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。\",\"occurrence\":1}]},{\"span_id\":\"es_027\",\"selection\":{\"quote\":\"他才能在乌林击溃曹操\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_010\",\"candidate_refs\":[],\"relation\":\"retrospective\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"摧曹操於烏林\",\"occurrence\":1}]},{\"span_id\":\"es_028\",\"selection\":{\"quote\":\"在郢都击退曹仁\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_011\",\"candidate_refs\":[],\"relation\":\"retrospective\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"走曹仁於郢都\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_017\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"周瑜子胤\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":5}]},{\"entity_ref\":\"ent_021\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"諸葛瑾\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":0}]},{\"entity_ref\":\"ent_022\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"步騭\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":1}]},{\"entity_ref\":\"ent_001\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"故將軍周瑜\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_004\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"曹操\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_008\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"曹仁\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_016\",\"narrative_time\":{\"mode\":\"inherit\",\"event_refs\":[],\"from_block_id\":\"tr_015\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。\",\"occurrence\":1}]},\"current_event_refs\":[],\"event_spans\":[{\"span_id\":\"es_029\",\"selection\":{\"quote\":\"何况周瑜去世还没有多久，他的儿子周胤却已经降为平民，更加令人悲痛。臣私下认为，陛下圣明而尊重古制，重视功臣事业的兴盛和延续，应当替周胤申诉，请求赦免他余下的罪过，恢复他的兵权和爵位\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_020\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_017\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"其子胤降為匹夫\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_021\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"諸葛瑾\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_022\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"步騭\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_001\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"瑜身沒未久\",\"occurrence\":1}],\"event_roles\":[]}]},{\"block_id\":\"tr_017\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_020\",\"evt_021\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。\",\"occurrence\":1},{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"會胤病死。\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_020\",\"evt_021\"],\"event_spans\":[{\"span_id\":\"es_030\",\"selection\":{\"quote\":\"诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_020\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。\",\"occurrence\":1}]},{\"span_id\":\"es_031\",\"selection\":{\"quote\":\"但正赶上周胤病死。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_021\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"會胤病死。\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"權乃許之\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":4}]},{\"entity_ref\":\"ent_017\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"胤病死\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":5},{\"event_ref\":\"evt_021\",\"participant_index\":0}]},{\"entity_ref\":\"ent_021\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"瑾\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":0}]},{\"entity_ref\":\"ent_022\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"騭\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":1}]},{\"entity_ref\":\"ent_023\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"朱然\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":2}]},{\"entity_ref\":\"ent_024\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"全琮\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_020\",\"participant_index\":3}]}]},{\"block_id\":\"tr_018\",\"narrative_time\":{\"mode\":\"events\",\"event_refs\":[\"evt_022\",\"evt_023\"],\"from_block_id\":null,\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。\",\"occurrence\":1},{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻卒，全琮表峻子護為將。權曰：「昔走曹操，拓有荊州，皆是公瑾，常不忘之。初聞峻亡，仍欲用護，聞護性行危險，用之適為作禍，故便止之。孤念公瑾，豈有已乎？」\",\"occurrence\":1}]},\"current_event_refs\":[\"evt_022\",\"evt_023\"],\"event_spans\":[{\"span_id\":\"es_032\",\"selection\":{\"quote\":\"周瑜哥哥的儿子周峻，也因为周瑜建立的功勋，被任命为偏将军，统领一千名官兵。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_022\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。\",\"occurrence\":1}]},{\"span_id\":\"es_033\",\"selection\":{\"quote\":\"周峻去世后，全琮上表推荐周峻的儿子周护担任将领。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_023\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻卒，全琮表峻子護為將。\",\"occurrence\":1}]},{\"span_id\":\"es_034\",\"selection\":{\"quote\":\"后来听说周护性情行为危险，用他反而会造成祸患，所以就停止了任用。\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_023\",\"candidate_refs\":[],\"relation\":\"current\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"聞護性行危險，用之適為作禍，故便止之。\",\"occurrence\":1}]},{\"span_id\":\"es_035\",\"selection\":{\"quote\":\"当年击退曹操\",\"occurrence\":1},\"status\":\"resolved\",\"target_ref\":\"evt_010\",\"candidate_refs\":[],\"relation\":\"retrospective\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"昔走曹操\",\"occurrence\":1}]}],\"context_entities\":[{\"entity_ref\":\"ent_019\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"瑜兄子峻\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_022\",\"participant_index\":0}]},{\"entity_ref\":\"ent_020\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻子護\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_023\",\"participant_index\":1}]},{\"entity_ref\":\"ent_024\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"全琮\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_023\",\"participant_index\":2}]},{\"entity_ref\":\"ent_003\",\"importance\":\"primary\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"權曰\",\"occurrence\":1}],\"event_roles\":[{\"event_ref\":\"evt_023\",\"participant_index\":0}]},{\"entity_ref\":\"ent_001\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"公瑾\",\"occurrence\":1}],\"event_roles\":[]},{\"entity_ref\":\"ent_004\",\"importance\":\"other\",\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"曹操\",\"occurrence\":1}],\"event_roles\":[]}]}],\"warnings\":[{\"type\":\"annotation_location_distinction\",\"severity\":\"warning\",\"message\":\"裴松之注明周瑜早年镇守的巴丘与病卒处所称巴丘名同处异；译文未续入原注，病卒地点按已提取实体ent_050关联。\"},{\"type\":\"annotation_attribution_difference\",\"severity\":\"info\",\"message\":\"裴松之认为最初提出拒曹之计者是鲁肃；该说法仅见原注，未作为正文译文段的事件覆盖。\"},{\"type\":\"reported_conflicting_account\",\"severity\":\"info\",\"message\":\"曹操关于赤壁因疾病自行烧船撤退的说法仅见原注，未作为正文译文段的当前事件。\"},{\"type\":\"time_inheritance\",\"severity\":\"info\",\"message\":\"原文“建安五年”“十一年”“十三年”依章节纪年脉络理解；季节、月份未扩张换算为具体公历日期。\"},{\"type\":\"unknown_death_year\",\"severity\":\"info\",\"message\":\"周瑜病卒句未明载纪年，evt_015未补造具体年份。\"},{\"type\":\"foreshadow_without_distinct_event\",\"severity\":\"info\",\"message\":\"tr_007中黄盖所说火攻尚属预议，实际放火发生于tr_008；因现有事件evt_010覆盖整场赤壁之战而无独立火攻事件，该预叙保持未解析，不将其误作已经发生。\"}]},\"unit_phases\":[{\"block_id\":\"tr_001\",\"mode\":\"single\",\"phase_refs\":[\"ph_001\"],\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。\",\"occurrence\":1},{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"瑜將兵迎策\",\"occurrence\":1}]},{\"block_id\":\"tr_002\",\"mode\":\"single\",\"phase_refs\":[\"ph_002\"],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1},{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守\",\"occurrence\":1}]},{\"block_id\":\"tr_003\",\"mode\":\"single\",\"phase_refs\":[\"ph_003\"],\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。\",\"occurrence\":1}]},{\"block_id\":\"tr_004\",\"mode\":\"process\",\"phase_refs\":[\"ph_003\",\"ph_004\"],\"source_selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。\",\"occurrence\":1},{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十三年春，權討江夏，瑜為前部大督。\",\"occurrence\":1}]},{\"block_id\":\"tr_005\",\"mode\":\"single\",\"phase_refs\":[\"ph_004\"],\"source_selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"occurrence\":1}]},{\"block_id\":\"tr_006\",\"mode\":\"single\",\"phase_refs\":[\"ph_004\"],\"source_selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"君言當擊，甚與孤合，此天以君授孤也。\",\"occurrence\":1}]},{\"block_id\":\"tr_007\",\"mode\":\"single\",\"phase_refs\":[\"ph_004\"],\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。\",\"occurrence\":1}]},{\"block_id\":\"tr_008\",\"mode\":\"single\",\"phase_refs\":[\"ph_004\"],\"source_selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。\",\"occurrence\":1}]},{\"block_id\":\"tr_009\",\"mode\":\"single\",\"phase_refs\":[\"ph_005\"],\"source_selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜與程普又進南郡，與仁相對，各隔大江。\",\"occurrence\":1},{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。\",\"occurrence\":1}]},{\"block_id\":\"tr_010\",\"mode\":\"process\",\"phase_refs\":[\"ph_005\",\"ph_006\"],\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍，領南郡太守。\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。\",\"occurrence\":1}]},{\"block_id\":\"tr_011\",\"mode\":\"single\",\"phase_refs\":[\"ph_006\"],\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權許之。瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1}]},{\"block_id\":\"tr_012\",\"mode\":\"unknown\",\"phase_refs\":[],\"source_selections\":[]},{\"block_id\":\"tr_013\",\"mode\":\"unknown\",\"phase_refs\":[],\"source_selections\":[]},{\"block_id\":\"tr_014\",\"mode\":\"process\",\"phase_refs\":[\"ph_007\",\"ph_008\",\"ph_009\",\"ph_010\",\"ph_011\"],\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"男循尚公主，拜騎都尉，有瑜風，早卒。\",\"occurrence\":1},{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。黃龍元年，封都鄉侯，後以罪徙廬陵郡。赤烏二年，諸葛瑾、步騭連名上疏曰：\",\"occurrence\":1}]},{\"block_id\":\"tr_015\",\"mode\":\"single\",\"phase_refs\":[\"ph_011\"],\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。\",\"occurrence\":1}]},{\"block_id\":\"tr_016\",\"mode\":\"single\",\"phase_refs\":[\"ph_011\"],\"source_selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。\",\"occurrence\":1}]},{\"block_id\":\"tr_017\",\"mode\":\"single\",\"phase_refs\":[\"ph_011\"],\"source_selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。\",\"occurrence\":1}]},{\"block_id\":\"tr_018\",\"mode\":\"process\",\"phase_refs\":[\"ph_012\",\"ph_013\"],\"source_selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。\",\"occurrence\":1},{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻卒，全琮表峻子護為將。\",\"occurrence\":1},{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"聞護性行危險，用之適為作禍，故便止之。\",\"occurrence\":1}]}]}",
+    "parsed": {
+      "reading": {
+        "units": [
+          {
+            "block_id": "tr_001",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_001",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜带兵迎接孙策。孙策十分高兴，说：“我得到你，事情就成了。”于是周瑜跟随孙策攻打横江、当利，都攻克了。接着渡江进攻秣陵，击败笮融、薛礼，又转而攻下湖孰、江乘，进军曲阿。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_001",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜將兵迎策。策大喜曰：「吾得卿。諧也。」遂從攻橫江、當利，皆拔之。乃渡江擊秣陵，破笮融、薛禮。轉下湖孰、江乘，進入曲阿。",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_002",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜便从居巢回到吴地。这一年是建安三年。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_002",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "遂自居巢還吳。是歲，建安三年也。",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_001",
+                "evt_002"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "瑜將兵迎策。策大喜曰：「吾得卿。諧也。」遂從攻橫江、當利，皆拔之。乃渡江擊秣陵，破笮融、薛禮。轉下湖孰、江乘，進入曲阿。",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                },
+                {
+                  "quote": "遂自居巢還吳。是歲，建安三年也。",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_001",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_002",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "周瑜字公瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_002",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_001",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "堅子策與瑜同年",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_027",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "還吳",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_048",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "廬江舒人也",
+                    "occurrence": 1,
+                    "last_block_id": "b_001",
+                    "first_block_id": "b_001"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_001",
+              "evt_002"
+            ]
+          },
+          {
+            "block_id": "tr_002",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_003",
+                "relation": "current",
+                "selection": {
+                  "quote": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_003",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_004",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_004",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "以瑜恩信著於廬江，出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_003",
+                "evt_004"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+                  "occurrence": 1,
+                  "last_block_id": "b_003",
+                  "first_block_id": "b_003"
+                },
+                {
+                  "quote": "出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守",
+                  "occurrence": 1,
+                  "last_block_id": "b_003",
+                  "first_block_id": "b_003"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_003",
+                    "participant_index": 1
+                  },
+                  {
+                    "event_ref": "evt_004",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜時年二十四",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_002",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_003",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_004",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "策親自迎瑜",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_029",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "江夏",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_060",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "小橋",
+                    "occurrence": 1,
+                    "last_block_id": "b_003",
+                    "first_block_id": "b_003"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_003",
+              "evt_004"
+            ]
+          },
+          {
+            "block_id": "tr_003",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_005",
+                "relation": "current",
+                "selection": {
+                  "quote": "建安五年，孙策去世。孙权接掌了政务。周瑜带兵前去参加丧事，随后留在吴地，以中护军的身份与长史张昭共同掌管军政事务。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_005",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+                    "occurrence": 1,
+                    "last_block_id": "b_005",
+                    "first_block_id": "b_005"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_005"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+                  "occurrence": 1,
+                  "last_block_id": "b_005",
+                  "first_block_id": "b_005"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_005",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜將兵赴喪",
+                    "occurrence": 1,
+                    "last_block_id": "b_005",
+                    "first_block_id": "b_005"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_002",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_005",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "策薨",
+                    "occurrence": 1,
+                    "last_block_id": "b_005",
+                    "first_block_id": "b_005"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_005",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權統事",
+                    "occurrence": 1,
+                    "last_block_id": "b_005",
+                    "first_block_id": "b_005"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_064",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "長史張昭",
+                    "occurrence": 1,
+                    "last_block_id": "b_005",
+                    "first_block_id": "b_005"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_005"
+            ]
+          },
+          {
+            "block_id": "tr_004",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_006",
+                "relation": "current",
+                "selection": {
+                  "quote": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_006",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_007",
+                "relation": "current",
+                "selection": {
+                  "quote": "建安十三年春，孙权进攻江夏，周瑜担任前部大督。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_007",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "十三年春，權討江夏，瑜為前部大督。",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_008",
+                "relation": "current",
+                "selection": {
+                  "quote": "这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_008",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "其年九月，曹公入荊州，劉琮舉眾降，曹公得其水軍，船步兵數十萬",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_006",
+                "evt_007",
+                "evt_008"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。",
+                  "occurrence": 1,
+                  "last_block_id": "b_007",
+                  "first_block_id": "b_007"
+                },
+                {
+                  "quote": "十三年春，權討江夏，瑜為前部大督。",
+                  "occurrence": 1,
+                  "last_block_id": "b_007",
+                  "first_block_id": "b_007"
+                },
+                {
+                  "quote": "其年九月，曹公入荊州，劉琮舉眾降，曹公得其水軍，船步兵數十萬",
+                  "occurrence": 1,
+                  "last_block_id": "b_007",
+                  "first_block_id": "b_007"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_006",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_007",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜追討擊",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_007",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權討江夏",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_008",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "曹公入荊州",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_015",
+                "importance": "other",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_006",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "鄧龍",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_016",
+                "importance": "other",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_008",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "劉琮",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_049",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "荊州",
+                    "occurrence": 1,
+                    "last_block_id": "b_007",
+                    "first_block_id": "b_007"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_006",
+              "evt_007",
+              "evt_008"
+            ]
+          },
+          {
+            "block_id": "tr_005",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_009",
+                "relation": "current",
+                "selection": {
+                  "quote": "将军擒获曹操，正应该在今天。我请求给我精兵三万人，进驻夏口，保证替将军击破他。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_009",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_009"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+                  "occurrence": 1,
+                  "last_block_id": "b_009",
+                  "first_block_id": "b_009"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜請得精兵三萬人",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "將軍擒操",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "操雖託名漢相",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_062",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "馬超",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_063",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "韓遂",
+                    "occurrence": 1,
+                    "last_block_id": "b_009",
+                    "first_block_id": "b_009"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_009"
+            ]
+          },
+          {
+            "block_id": "tr_006",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_010",
+                "relation": "current",
+                "selection": {
+                  "quote": "我和这个老贼，势必不能两立。你说应当进攻，正与我的想法完全相合，这是上天把你赐给我了。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_009",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "孤與老賊，勢不兩立。君言當擊，甚與孤合，此天以君授孤也。",
+                    "occurrence": 1,
+                    "last_block_id": "b_011",
+                    "first_block_id": "b_011"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_009"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "權曰：「老賊欲廢漢自立久矣，陡忌二袁、呂布、劉表與孤耳。今數雄已滅，惟孤尚存，孤與老賊，勢不兩立。君言當擊，甚與孤合，此天以君授孤也。」",
+                  "occurrence": 1,
+                  "last_block_id": "b_011",
+                  "first_block_id": "b_011"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權曰",
+                    "occurrence": 1,
+                    "last_block_id": "b_011",
+                    "first_block_id": "b_011"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "君言當擊",
+                    "occurrence": 1,
+                    "last_block_id": "b_011",
+                    "first_block_id": "b_011"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_009",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "老賊",
+                    "occurrence": 1,
+                    "last_block_id": "b_011",
+                    "first_block_id": "b_011"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_009"
+            ]
+          },
+          {
+            "block_id": "tr_007",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_011",
+                "relation": "current",
+                "selection": {
+                  "quote": "孙权于是派周瑜、程普等人与刘备合兵迎击曹操，在赤壁与曹军相遇。当时曹操的军队已经有很多人染病，第一次交战便败退，退到长江北岸驻扎。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_010",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "status": "unresolved",
+                "span_id": "es_012",
+                "relation": "foreshadow",
+                "selection": {
+                  "quote": "不过我观察曹军的船只首尾相连，可以用火烧毁它们，逼他们逃走。",
+                  "occurrence": 1
+                },
+                "target_ref": null,
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "然觀操軍船艦，首尾相接，可燒而走也",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_010"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。",
+                  "occurrence": 1,
+                  "last_block_id": "b_013",
+                  "first_block_id": "b_013"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "遣瑜",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_006",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "程普",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_005",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "與備並力逆曹公",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_007",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 3
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜部將黃蓋",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 4
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "曹公",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_030",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "赤壁",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_010"
+            ]
+          },
+          {
+            "block_id": "tr_008",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_013",
+                "relation": "current",
+                "selection": {
+                  "quote": "黄盖放开那些船，同时点火。当时风势猛烈，火势很快蔓延，把岸上的营寨全都烧着了。不一会儿，烟火遮天蔽日，被烧死、淹死的人马非常多，曹军于是败退，退回去守卫南郡。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_010",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_014",
+                "relation": "current",
+                "selection": {
+                  "quote": "刘备又和周瑜等人共同追击。曹操留下曹仁等人守卫江陵城，自己直接向北撤回。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_010",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_010"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "又豫備走舸，各系大船後，因引次俱前。曹公軍吏士皆延頸觀望，指言蓋降。蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。",
+                  "occurrence": 1,
+                  "last_block_id": "b_013",
+                  "first_block_id": "b_013"
+                },
+                {
+                  "quote": "備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。",
+                  "occurrence": 1,
+                  "last_block_id": "b_013",
+                  "first_block_id": "b_013"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_007",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 3
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "蓋放諸船",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 4
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "曹公軍吏士",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜等",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_005",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_010",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "備與瑜等復共追",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_008",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "曹仁",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_032",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "江陵城",
+                    "occurrence": 1,
+                    "last_block_id": "b_013",
+                    "first_block_id": "b_013"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_010"
+            ]
+          },
+          {
+            "block_id": "tr_009",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_015",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜便派甘宁抢先占据夷陵。曹仁分出一支骑兵去攻打、包围甘宁。甘宁向周瑜告急。周瑜采用吕蒙的计策，留下凌统守卫后方，自己与吕蒙一起前去救援甘宁。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_011",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_016",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜亲自骑马冲击敌阵，恰好被流箭射中右胁，伤口很重，只得退回。后来曹仁听说周瑜卧床不起，便率兵逼近战阵。周瑜于是强撑着起身，巡视军营，激励将士，曹仁因此退兵。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_011",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜親跨馬擽陳，會流矢中右脅，瘡甚，便還。後仁聞瑜臥未起，勒兵就陳。瑜乃自興，案行軍營，激揚吏士，仁由是遂退。",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_011"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。",
+                  "occurrence": 1,
+                  "last_block_id": "b_015",
+                  "first_block_id": "b_015"
+                },
+                {
+                  "quote": "寧圍既解，乃渡屯北岸，剋期大戰。瑜親跨馬擽陳，會流矢中右脅，瘡甚，便還。後仁聞瑜臥未起，勒兵就陳。瑜乃自興，案行軍營，激揚吏士，仁由是遂退。",
+                  "occurrence": 1,
+                  "last_block_id": "b_015",
+                  "first_block_id": "b_015"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜與程普又進南郡",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_006",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "程普",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_008",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "與仁相對",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_009",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 3
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "甘寧",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_010",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 4
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "呂蒙",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_011",
+                "importance": "other",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_011",
+                    "participant_index": 5
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "淩統",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_033",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "夷陵",
+                    "occurrence": 1,
+                    "last_block_id": "b_015",
+                    "first_block_id": "b_015"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_011"
+            ]
+          },
+          {
+            "block_id": "tr_010",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_017",
+                "relation": "current",
+                "selection": {
+                  "quote": "孙权任命周瑜为偏将军，兼任南郡太守，把下隽、汉昌、刘阳、州陵划为他的奉邑，驻军占据江陵。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_012",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_018",
+                "relation": "current",
+                "selection": {
+                  "quote": "孙权考虑到曹操正在北方，应当广泛招揽英雄，又担心一时难以控制刘备，所以没有采纳这个建议。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_013",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_012",
+                "evt_013"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                },
+                {
+                  "quote": "權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_012",
+                    "participant_index": 1
+                  },
+                  {
+                    "event_ref": "evt_013",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權拜瑜偏將軍",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_012",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_013",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權拜瑜偏將軍",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_005",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_013",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "劉備以梟雄之姿",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "曹公在北方",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_032",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "江陵",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_066",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "關羽",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_067",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "張飛",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_012",
+              "evt_013"
+            ]
+          },
+          {
+            "block_id": "tr_011",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_019",
+                "relation": "current",
+                "selection": {
+                  "quote": "我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_014",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_020",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_015",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜還江陵為行裝，而道於巴丘病卒",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  },
+                  {
+                    "quote": "時年三十六。權素服舉哀。感動左右。",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_014",
+                "evt_015"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                },
+                {
+                  "quote": "瑜還江陵為行裝，而道於巴丘病卒",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_014",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_015",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜乃詣京見權",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_014",
+                    "participant_index": 1
+                  },
+                  {
+                    "event_ref": "evt_015",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權許之",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_025",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "取蜀",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_050",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "道於巴丘病卒",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_062",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "馬超",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_068",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "劉璋為益州牧",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_069",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "張魯寇侵",
+                    "occurrence": 1,
+                    "last_block_id": "b_017",
+                    "first_block_id": "b_017"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_014",
+              "evt_015"
+            ]
+          },
+          {
+            "block_id": "tr_012",
+            "event_spans": [],
+            "narrative_time": {
+              "mode": "unknown",
+              "event_refs": [],
+              "from_block_id": null,
+              "source_selections": []
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜獨先盡敬，便執臣節",
+                    "occurrence": 1,
+                    "last_block_id": "b_019",
+                    "first_block_id": "b_019"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_002",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜見友於策",
+                    "occurrence": 1,
+                    "last_block_id": "b_019",
+                    "first_block_id": "b_019"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "使權以兄奉之",
+                    "occurrence": 1,
+                    "last_block_id": "b_019",
+                    "first_block_id": "b_019"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_006",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "程普",
+                    "occurrence": 1,
+                    "last_block_id": "b_019",
+                    "first_block_id": "b_019"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": []
+          },
+          {
+            "block_id": "tr_013",
+            "event_spans": [],
+            "narrative_time": {
+              "mode": "unknown",
+              "event_refs": [],
+              "from_block_id": null,
+              "source_selections": []
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜少精意於音樂",
+                    "occurrence": 1,
+                    "last_block_id": "b_021",
+                    "first_block_id": "b_021"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": []
+          },
+          {
+            "block_id": "tr_014",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_021",
+                "relation": "current",
+                "selection": {
+                  "quote": "长子周循娶了公主，被任命为骑都尉，很有周瑜的风采，但早早去世。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_016",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "男循尚公主，拜騎都尉，有瑜風，早卒。",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_022",
+                "relation": "current",
+                "selection": {
+                  "quote": "周循的弟弟周胤起初被任命为兴业都尉，娶宗室女子为妻，统领一千名士兵，驻守公安。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_017",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_023",
+                "relation": "current",
+                "selection": {
+                  "quote": "黄龙元年，周胤被封为都乡侯",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_018",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "黃龍元年，封都鄉侯",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_024",
+                "relation": "current",
+                "selection": {
+                  "quote": "后来因犯罪被迁徙到庐陵郡。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_019",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "後以罪徙廬陵郡",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_025",
+                "relation": "current",
+                "selection": {
+                  "quote": "赤乌二年，诸葛瑾、步骘联名上疏说：",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_020",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "赤烏二年，諸葛瑾、步騭連名上疏曰：",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_016",
+                "evt_017",
+                "evt_018",
+                "evt_019",
+                "evt_020"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "男循尚公主，拜騎都尉，有瑜風，早卒。",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                },
+                {
+                  "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                },
+                {
+                  "quote": "黃龍元年，封都鄉侯",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                },
+                {
+                  "quote": "後以罪徙廬陵郡",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                },
+                {
+                  "quote": "赤烏二年，諸葛瑾、步騭連名上疏曰：",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_018",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_016",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "男循",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_017",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_017",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_018",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_019",
+                    "participant_index": 0
+                  },
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 5
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "循弟胤",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_021",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "諸葛瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_022",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "步騭",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_036",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "公安",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_070",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "太子登",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_016",
+              "evt_017",
+              "evt_018",
+              "evt_019",
+              "evt_020"
+            ]
+          },
+          {
+            "block_id": "tr_015",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_026",
+                "relation": "current",
+                "selection": {
+                  "quote": "已故将军周瑜的儿子周胤，过去曾蒙受恩宠，被封爵任将，却不能以福德自我约束，想着建立功勋，后来竟放纵情欲，招致罪罚。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_020",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_027",
+                "relation": "retrospective",
+                "selection": {
+                  "quote": "他才能在乌林击溃曹操",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_010",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "摧曹操於烏林",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_028",
+                "relation": "retrospective",
+                "selection": {
+                  "quote": "在郢都击退曹仁",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_011",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "走曹仁於郢都",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_020"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。",
+                  "occurrence": 1,
+                  "last_block_id": "b_025",
+                  "first_block_id": "b_025"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_017",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 5
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "周瑜子胤",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_021",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "諸葛瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_022",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "步騭",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_001",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "故將軍周瑜",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "曹操",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_008",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "曹仁",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_020"
+            ]
+          },
+          {
+            "block_id": "tr_016",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_029",
+                "relation": "current",
+                "selection": {
+                  "quote": "何况周瑜去世还没有多久，他的儿子周胤却已经降为平民，更加令人悲痛。臣私下认为，陛下圣明而尊重古制，重视功臣事业的兴盛和延续，应当替周胤申诉，请求赦免他余下的罪过，恢复他的兵权和爵位",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_020",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "inherit",
+              "event_refs": [],
+              "from_block_id": "tr_015",
+              "source_selections": [
+                {
+                  "quote": "況於瑜身沒未久，而其子胤降為匹夫，益可悼傷。竊惟陛下欽明稽古，隆於興繼，為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。",
+                  "occurrence": 1,
+                  "last_block_id": "b_025",
+                  "first_block_id": "b_025"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_017",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "其子胤降為匹夫",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_021",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "諸葛瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_022",
+                "importance": "primary",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "步騭",
+                    "occurrence": 1,
+                    "last_block_id": "b_023",
+                    "first_block_id": "b_023"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_001",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜身沒未久",
+                    "occurrence": 1,
+                    "last_block_id": "b_025",
+                    "first_block_id": "b_025"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": []
+          },
+          {
+            "block_id": "tr_017",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_030",
+                "relation": "current",
+                "selection": {
+                  "quote": "诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_020",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_031",
+                "relation": "current",
+                "selection": {
+                  "quote": "但正赶上周胤病死。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_021",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "會胤病死。",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_020",
+                "evt_021"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。",
+                  "occurrence": 1,
+                  "last_block_id": "b_027",
+                  "first_block_id": "b_027"
+                },
+                {
+                  "quote": "會胤病死。",
+                  "occurrence": 1,
+                  "last_block_id": "b_027",
+                  "first_block_id": "b_027"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 4
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權乃許之",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_017",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 5
+                  },
+                  {
+                    "event_ref": "evt_021",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "胤病死",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_021",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_022",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "騭",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_023",
+                "importance": "other",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "朱然",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_024",
+                "importance": "other",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_020",
+                    "participant_index": 3
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "全琮",
+                    "occurrence": 1,
+                    "last_block_id": "b_027",
+                    "first_block_id": "b_027"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_020",
+              "evt_021"
+            ]
+          },
+          {
+            "block_id": "tr_018",
+            "event_spans": [
+              {
+                "status": "resolved",
+                "span_id": "es_032",
+                "relation": "current",
+                "selection": {
+                  "quote": "周瑜哥哥的儿子周峻，也因为周瑜建立的功勋，被任命为偏将军，统领一千名官兵。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_022",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_033",
+                "relation": "current",
+                "selection": {
+                  "quote": "周峻去世后，全琮上表推荐周峻的儿子周护担任将领。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_023",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "峻卒，全琮表峻子護為將。",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_034",
+                "relation": "current",
+                "selection": {
+                  "quote": "后来听说周护性情行为危险，用他反而会造成祸患，所以就停止了任用。",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_023",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "聞護性行危險，用之適為作禍，故便止之。",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "status": "resolved",
+                "span_id": "es_035",
+                "relation": "retrospective",
+                "selection": {
+                  "quote": "当年击退曹操",
+                  "occurrence": 1
+                },
+                "target_ref": "evt_010",
+                "candidate_refs": [],
+                "source_selections": [
+                  {
+                    "quote": "昔走曹操",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              }
+            ],
+            "narrative_time": {
+              "mode": "events",
+              "event_refs": [
+                "evt_022",
+                "evt_023"
+              ],
+              "from_block_id": null,
+              "source_selections": [
+                {
+                  "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。",
+                  "occurrence": 1,
+                  "last_block_id": "b_029",
+                  "first_block_id": "b_029"
+                },
+                {
+                  "quote": "峻卒，全琮表峻子護為將。權曰：「昔走曹操，拓有荊州，皆是公瑾，常不忘之。初聞峻亡，仍欲用護，聞護性行危險，用之適為作禍，故便止之。孤念公瑾，豈有已乎？」",
+                  "occurrence": 1,
+                  "last_block_id": "b_029",
+                  "first_block_id": "b_029"
+                }
+              ]
+            },
+            "context_entities": [
+              {
+                "entity_ref": "ent_019",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_022",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "瑜兄子峻",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_020",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_023",
+                    "participant_index": 1
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "峻子護",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_024",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_023",
+                    "participant_index": 2
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "全琮",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_003",
+                "importance": "primary",
+                "event_roles": [
+                  {
+                    "event_ref": "evt_023",
+                    "participant_index": 0
+                  }
+                ],
+                "source_selections": [
+                  {
+                    "quote": "權曰",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_001",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "公瑾",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              },
+              {
+                "entity_ref": "ent_004",
+                "importance": "other",
+                "event_roles": [],
+                "source_selections": [
+                  {
+                    "quote": "曹操",
+                    "occurrence": 1,
+                    "last_block_id": "b_029",
+                    "first_block_id": "b_029"
+                  }
+                ]
+              }
+            ],
+            "current_event_refs": [
+              "evt_022",
+              "evt_023"
+            ]
+          }
+        ],
+        "warnings": [
+          {
+            "type": "annotation_location_distinction",
+            "message": "裴松之注明周瑜早年镇守的巴丘与病卒处所称巴丘名同处异；译文未续入原注，病卒地点按已提取实体ent_050关联。",
+            "severity": "warning"
+          },
+          {
+            "type": "annotation_attribution_difference",
+            "message": "裴松之认为最初提出拒曹之计者是鲁肃；该说法仅见原注，未作为正文译文段的事件覆盖。",
+            "severity": "info"
+          },
+          {
+            "type": "reported_conflicting_account",
+            "message": "曹操关于赤壁因疾病自行烧船撤退的说法仅见原注，未作为正文译文段的当前事件。",
+            "severity": "info"
+          },
+          {
+            "type": "time_inheritance",
+            "message": "原文“建安五年”“十一年”“十三年”依章节纪年脉络理解；季节、月份未扩张换算为具体公历日期。",
+            "severity": "info"
+          },
+          {
+            "type": "unknown_death_year",
+            "message": "周瑜病卒句未明载纪年，evt_015未补造具体年份。",
+            "severity": "info"
+          },
+          {
+            "type": "foreshadow_without_distinct_event",
+            "message": "tr_007中黄盖所说火攻尚属预议，实际放火发生于tr_008；因现有事件evt_010覆盖整场赤壁之战而无独立火攻事件，该预叙保持未解析，不将其误作已经发生。",
+            "severity": "info"
+          }
+        ]
+      },
+      "chapter_id": "ch_3ce79a5593e0950c54daa93f",
+      "unit_phases": [
+        {
+          "mode": "single",
+          "block_id": "tr_001",
+          "phase_refs": [
+            "ph_001"
+          ],
+          "source_selections": [
+            {
+              "quote": "堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            },
+            {
+              "quote": "瑜將兵迎策",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_002",
+          "phase_refs": [
+            "ph_002"
+          ],
+          "source_selections": [
+            {
+              "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            },
+            {
+              "quote": "出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_003",
+          "phase_refs": [
+            "ph_003"
+          ],
+          "source_selections": [
+            {
+              "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ]
+        },
+        {
+          "mode": "process",
+          "block_id": "tr_004",
+          "phase_refs": [
+            "ph_003",
+            "ph_004"
+          ],
+          "source_selections": [
+            {
+              "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            },
+            {
+              "quote": "十三年春，權討江夏，瑜為前部大督。",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_005",
+          "phase_refs": [
+            "ph_004"
+          ],
+          "source_selections": [
+            {
+              "quote": "瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_006",
+          "phase_refs": [
+            "ph_004"
+          ],
+          "source_selections": [
+            {
+              "quote": "君言當擊，甚與孤合，此天以君授孤也。",
+              "occurrence": 1,
+              "last_block_id": "b_011",
+              "first_block_id": "b_011"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_007",
+          "phase_refs": [
+            "ph_004"
+          ],
+          "source_selections": [
+            {
+              "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_008",
+          "phase_refs": [
+            "ph_004"
+          ],
+          "source_selections": [
+            {
+              "quote": "蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_009",
+          "phase_refs": [
+            "ph_005"
+          ],
+          "source_selections": [
+            {
+              "quote": "瑜與程普又進南郡，與仁相對，各隔大江。",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            },
+            {
+              "quote": "瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ]
+        },
+        {
+          "mode": "process",
+          "block_id": "tr_010",
+          "phase_refs": [
+            "ph_005",
+            "ph_006"
+          ],
+          "source_selections": [
+            {
+              "quote": "權拜瑜偏將軍，領南郡太守。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            },
+            {
+              "quote": "權以曹公在北方，當廣攬英雄，又恐備難卒制，故不納。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_011",
+          "phase_refs": [
+            "ph_006"
+          ],
+          "source_selections": [
+            {
+              "quote": "權許之。瑜還江陵為行裝，而道於巴丘病卒",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ]
+        },
+        {
+          "mode": "unknown",
+          "block_id": "tr_012",
+          "phase_refs": [],
+          "source_selections": []
+        },
+        {
+          "mode": "unknown",
+          "block_id": "tr_013",
+          "phase_refs": [],
+          "source_selections": []
+        },
+        {
+          "mode": "process",
+          "block_id": "tr_014",
+          "phase_refs": [
+            "ph_007",
+            "ph_008",
+            "ph_009",
+            "ph_010",
+            "ph_011"
+          ],
+          "source_selections": [
+            {
+              "quote": "男循尚公主，拜騎都尉，有瑜風，早卒。",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            },
+            {
+              "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。黃龍元年，封都鄉侯，後以罪徙廬陵郡。赤烏二年，諸葛瑾、步騭連名上疏曰：",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_015",
+          "phase_refs": [
+            "ph_011"
+          ],
+          "source_selections": [
+            {
+              "quote": "故將軍周瑜子胤，昔蒙粉飾，受封為將，不能養之以福，思立功效，至縱情慾，招速罪辟。",
+              "occurrence": 1,
+              "last_block_id": "b_025",
+              "first_block_id": "b_025"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_016",
+          "phase_refs": [
+            "ph_011"
+          ],
+          "source_selections": [
+            {
+              "quote": "為胤歸訴，乞丐餘罪，還兵復爵，使失旦之雞，復得鳴。抱罪之臣，展其後效。",
+              "occurrence": 1,
+              "last_block_id": "b_025",
+              "first_block_id": "b_025"
+            }
+          ]
+        },
+        {
+          "mode": "single",
+          "block_id": "tr_017",
+          "phase_refs": [
+            "ph_011"
+          ],
+          "source_selections": [
+            {
+              "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。",
+              "occurrence": 1,
+              "last_block_id": "b_027",
+              "first_block_id": "b_027"
+            }
+          ]
+        },
+        {
+          "mode": "process",
+          "block_id": "tr_018",
+          "phase_refs": [
+            "ph_012",
+            "ph_013"
+          ],
+          "source_selections": [
+            {
+              "quote": "瑜兄子峻，亦以瑜元功為偏將軍，領吏士千人。",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            },
+            {
+              "quote": "峻卒，全琮表峻子護為將。",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            },
+            {
+              "quote": "聞護性行危險，用之適為作禍，故便止之。",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            }
+          ]
+        }
+      ],
+      "translation_links": [
+        {
+          "block_id": "tr_001",
+          "event_refs": [
+            {
+              "ref": "evt_001",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_002",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_026",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_027",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_047",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_048",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_051",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_052",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_053",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_054",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_055",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_056",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_057",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_001"
+          ]
+        },
+        {
+          "block_id": "tr_002",
+          "event_refs": [
+            {
+              "ref": "evt_003",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_004",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_029",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_034",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_037",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_038",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_039",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_040",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_058",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_059",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_060",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_003"
+          ]
+        },
+        {
+          "block_id": "tr_003",
+          "event_refs": [
+            {
+              "ref": "evt_005",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_027",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_039",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_064",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_005"
+          ]
+        },
+        {
+          "block_id": "tr_004",
+          "event_refs": [
+            {
+              "ref": "evt_006",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_007",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_008",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_014",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_015",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_016",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_028",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_029",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_041",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_049",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_061",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_065",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_007"
+          ]
+        },
+        {
+          "block_id": "tr_005",
+          "event_refs": [
+            {
+              "ref": "evt_009",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_062",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_063",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_009"
+          ]
+        },
+        {
+          "block_id": "tr_006",
+          "event_refs": [
+            {
+              "ref": "evt_009",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_065",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_011"
+          ]
+        },
+        {
+          "block_id": "tr_007",
+          "event_refs": [
+            {
+              "ref": "evt_010",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_005",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_006",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_007",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_012",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_013",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_030",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_013"
+          ]
+        },
+        {
+          "block_id": "tr_008",
+          "event_refs": [
+            {
+              "ref": "evt_010",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_005",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_007",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_008",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_031",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_032",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_013"
+          ]
+        },
+        {
+          "block_id": "tr_009",
+          "event_refs": [
+            {
+              "ref": "evt_011",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_006",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_008",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_009",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_010",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_011",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_031",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_033",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_015"
+          ]
+        },
+        {
+          "block_id": "tr_010",
+          "event_refs": [
+            {
+              "ref": "evt_012",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_013",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_005",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_036",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_042",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_043",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_049",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_066",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_067",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_017"
+          ]
+        },
+        {
+          "block_id": "tr_011",
+          "event_refs": [
+            {
+              "ref": "evt_014",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_015",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_025",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_035",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_050",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_062",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_068",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_069",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_017"
+          ]
+        },
+        {
+          "block_id": "tr_012",
+          "event_refs": [],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_006",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_019"
+          ]
+        },
+        {
+          "block_id": "tr_013",
+          "event_refs": [],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_021"
+          ]
+        },
+        {
+          "block_id": "tr_014",
+          "event_refs": [
+            {
+              "ref": "evt_016",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_017",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_018",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_019",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_020",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_017",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_018",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_021",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_022",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_036",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_044",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_045",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_046",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_070",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_023"
+          ]
+        },
+        {
+          "block_id": "tr_015",
+          "event_refs": [
+            {
+              "ref": "evt_010",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_011",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_020",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_008",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_017",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_021",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_022",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_025"
+          ]
+        },
+        {
+          "block_id": "tr_016",
+          "event_refs": [
+            {
+              "ref": "evt_020",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_017",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_021",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_022",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_025"
+          ]
+        },
+        {
+          "block_id": "tr_017",
+          "event_refs": [
+            {
+              "ref": "evt_020",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_021",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_017",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_021",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_022",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_023",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_024",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_027"
+          ]
+        },
+        {
+          "block_id": "tr_018",
+          "event_refs": [
+            {
+              "ref": "evt_010",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_022",
+              "kind": "event"
+            },
+            {
+              "ref": "evt_023",
+              "kind": "event"
+            }
+          ],
+          "entity_refs": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_019",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_020",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_024",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_042",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_049",
+              "kind": "entity"
+            }
+          ],
+          "source_block_ids": [
+            "b_029"
+          ]
+        }
+      ]
+    },
+    "validation_errors": [],
+    "error": null,
+    "receipt": {
+      "status": "completed",
+      "model": "gpt-5.6-sol",
+      "usage": {
+        "input_tokens": 68426,
+        "output_tokens": 18594,
+        "total_tokens": 87020,
+        "reasoning_tokens": 963
+      },
+      "elapsed_seconds": 341.586,
+      "http_attempts": 1
+    }
+  }
+}

@@ -1,0 +1,5019 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "98287073c84a95028dba2f006a26202db3973987260e4ef5885d38cc8b5f4f1a",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 183095,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "human_repair",
+    "model": "human",
+    "round": 1,
+    "status": "completed",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "raw_text": null,
+    "parsed": {
+      "patches": [
+        {
+          "op": "replace",
+          "value": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。周瑜当时二十四岁，吴地人都称他为周郎。周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守，跟随他攻打皖县，并攻克了那里。当时他们得到桥公的两个女儿，都是举世无双的美人。孙策娶了大桥，周瑜娶了小桥。后来又进逼寻阳，击败刘勋，讨伐江夏，回军平定豫章、庐陵，留下周瑜镇守巴丘。",
+          "before_sha256": "3f2d3d91a8cfd9a53a10d7bd405b9860f690d736f3db669957b7eb8847892015"
+        },
+        {
+          "op": "replace",
+          "value": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。众人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布号令。如今拒绝他，事情在名义上反而更加不顺。而且将军能够抵抗曹操的依仗，只有长江。现在曹操得到荆州，已经占有了这片地方。刘表训练水军，蒙冲、斗舰多达数千艘，曹操把这些船全部用来沿江航行，又加上步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力多少，更是无法相提并论。我们认为，最好的办法不如迎降。”",
+          "before_sha256": "fc4fe5734c1dbe7f1511a676de60b5a270e913d356c0fe30220d8df21ccf69f9"
+        },
+        {
+          "op": "replace",
+          "value": "当时刘璋担任益州牧，外有张鲁侵犯。周瑜于是到京城拜见孙权，说：“如今曹操刚刚遭受挫败，正为心腹之患忧虑，暂时还不能和将军连兵作战。我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。后来孙权下令说：“已故将军周瑜、程普的家人、门客，任何人都不得查问。”",
+          "before_sha256": "10c7cb27a4aaa0735eb15af8018dfe1b7800db2031e9b78b32cf6ab466a0db5a"
+        },
+        {
+          "op": "replace",
+          "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。但正赶上周胤病死。",
+          "before_sha256": "394398c6be51939c9b5ad557dbe5f29a8f1f8f584ae71c9ce2f426855b115751"
+        },
+        {
+          "op": "replace",
+          "value": null,
+          "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3"
+        },
+        {
+          "op": "replace",
+          "value": null,
+          "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3"
+        },
+        {
+          "op": "replace",
+          "value": "周瑜还江陵治严，途中在巴丘病卒",
+          "before_sha256": "2a90b88d9b3f614e09f177c6cd8a1eae808ab1570f9870fc86c720fdb4768b5a"
+        },
+        {
+          "op": "replace",
+          "value": [
+            "ent_050"
+          ],
+          "before_sha256": "6f3d824739913c9b98b0154c5febd959e28687c6b9312d1bb7fedcc7dfd4caf2"
+        },
+        {
+          "op": "replace",
+          "value": {
+            "ref": "ent_050",
+            "kind": "entity"
+          },
+          "before_sha256": "56c85c44363859e92283b28ec77811dc5942506de2c7ac0c55d16a9caa2b92b7"
+        },
+        {
+          "op": "replace",
+          "value": "周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守",
+          "before_sha256": "491419ede636f2f26e191c682d5eee5d7a5b0897fa428e7b60eb56d98b0eb52a"
+        },
+        {
+          "op": "replace",
+          "value": "周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。",
+          "before_sha256": "2b9ec6941a92d5ead62af769e0fe6e1acda40d4911d0eabb4d429f3fa9a69a8a"
+        },
+        {
+          "op": "replace",
+          "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。",
+          "before_sha256": "409a7ea8245b8cde844d3f93789b23fe70ad7d70b8af62ee9c7bbc257a29e947"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [
+              "巴陵"
+            ],
+            "temp_id": "ent_050",
+            "mentions": [
+              {
+                "text": "巴丘"
+              },
+              {
+                "text": "巴陵"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "巴丘（病卒处）"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_050",
+            "selections": [
+              {
+                "quote": "道於巴丘病卒",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_051",
+            "mentions": [
+              {
+                "text": "景"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周景"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_051",
+            "selections": [
+              {
+                "quote": "從祖父景",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_052",
+            "mentions": [
+              {
+                "text": "忠"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周忠"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_052",
+            "selections": [
+              {
+                "quote": "景子忠",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_053",
+            "mentions": [
+              {
+                "text": "異"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周異"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_053",
+            "selections": [
+              {
+                "quote": "父異",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_054",
+            "mentions": [
+              {
+                "text": "孫堅"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫堅"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_054",
+            "selections": [
+              {
+                "quote": "孫堅與義兵討董卓",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_055",
+            "mentions": [
+              {
+                "text": "尚"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周尚"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_055",
+            "selections": [
+              {
+                "quote": "瑜從父尚為丹楊太守",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_056",
+            "mentions": [
+              {
+                "text": "袁術"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "袁術"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_056",
+            "selections": [
+              {
+                "quote": "袁術遣從弟胤代尚為太守",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_057",
+            "mentions": [
+              {
+                "text": "胤"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "袁胤"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_057",
+            "selections": [
+              {
+                "quote": "袁術遣從弟胤代尚為太守",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_058",
+            "mentions": [
+              {
+                "text": "橋公"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "橋公"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_058",
+            "selections": [
+              {
+                "quote": "橋公兩女",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_059",
+            "mentions": [
+              {
+                "text": "大橋"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "大橋"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_059",
+            "selections": [
+              {
+                "quote": "大橋",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_060",
+            "mentions": [
+              {
+                "text": "小橋"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "小橋"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_060",
+            "selections": [
+              {
+                "quote": "小橋",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_061",
+            "mentions": [
+              {
+                "text": "孫瑜"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫瑜"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_061",
+            "selections": [
+              {
+                "quote": "督孫瑜等",
+                "occurrence": 1,
+                "last_block_id": "b_007",
+                "first_block_id": "b_007"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_062",
+            "mentions": [
+              {
+                "text": "馬超"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "馬超"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_062",
+            "selections": [
+              {
+                "quote": "馬超",
+                "occurrence": 1,
+                "last_block_id": "b_009",
+                "first_block_id": "b_009"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_063",
+            "mentions": [
+              {
+                "text": "韓遂"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "韓遂"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_063",
+            "selections": [
+              {
+                "quote": "韓遂",
+                "occurrence": 1,
+                "last_block_id": "b_009",
+                "first_block_id": "b_009"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_064",
+            "mentions": [
+              {
+                "text": "張昭"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "張昭"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_064",
+            "selections": [
+              {
+                "quote": "張昭",
+                "occurrence": 1,
+                "last_block_id": "b_005",
+                "first_block_id": "b_005"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_065",
+            "mentions": [
+              {
+                "text": "劉表"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉表"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_065",
+            "selections": [
+              {
+                "quote": "劉表治水軍",
+                "occurrence": 1,
+                "last_block_id": "b_007",
+                "first_block_id": "b_007"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_066",
+            "mentions": [
+              {
+                "text": "關羽"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "關羽"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_066",
+            "selections": [
+              {
+                "quote": "關羽",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_067",
+            "mentions": [
+              {
+                "text": "張飛"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "張飛"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_067",
+            "selections": [
+              {
+                "quote": "張飛",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_068",
+            "mentions": [
+              {
+                "text": "劉璋"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉璋"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_068",
+            "selections": [
+              {
+                "quote": "劉璋為益州牧",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_069",
+            "mentions": [
+              {
+                "text": "張魯"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "張魯"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_069",
+            "selections": [
+              {
+                "quote": "張魯寇侵",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "太子"
+            ],
+            "temp_id": "ent_070",
+            "mentions": [
+              {
+                "text": "太子登"
+              }
+            ],
+            "extraction": {
+              "method": "human_gold"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫登"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "ent_070",
+            "selections": [
+              {
+                "quote": "太子登",
+                "occurrence": 1,
+                "last_block_id": "b_023",
+                "first_block_id": "b_023"
+              }
+            ],
+            "record_kind": "entity"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "kind": "claim",
+            "object": {
+              "ref": "ent_047",
+              "kind": "entity"
+            },
+            "subject": {
+              "ref": "ent_048",
+              "kind": "entity"
+            },
+            "temp_id": "clm_016",
+            "evidence": {
+              "text": "廬江舒人也",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "part_of",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "human_gold"
+            }
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "add",
+          "value": {
+            "record_ref": "clm_016",
+            "selections": [
+              {
+                "quote": "廬江舒人也",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ],
+            "record_kind": "claim"
+          },
+          "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_026",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_027",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_048",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_047",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_051",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_052",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_053",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_054",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_055",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_056",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_057",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "0302de6a9767c4a001910bd1cfd47337a0c18de4111295cfbd4e6ae30f16ce82"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_029",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_034",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_037",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_038",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_039",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_040",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_058",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_059",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_060",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "fb89ee29d38029c88e59744a5333f67f03a70c5826c3d5ff2c37f0e46b5ca3ca"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_002",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_027",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_039",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_064",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "fe369f1c77c5b2ee163cc5457f80d5ca1843e0eca5802187b17270dbd8bb336c"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_014",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_015",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_016",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_028",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_029",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_049",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_061",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_065",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "b23fda807c4e2a369bbd7016a46d2d8aa900d546162cc0fe22e2265a0e43a6c4"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_062",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_063",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_056",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_065",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_005",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_027",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_031",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_036",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_042",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_043",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_066",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_067",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "f66395b240bb26edc9fe0637a65f7c97e25853c9da85e21ab778d989bdd8ad46"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_003",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_004",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_025",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_034",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_035",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_050",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_062",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_068",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_069",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "27bba7d4b6cd99a33c1532d3972ee4d5726e393b7274cf6a3dce754c2e93413e"
+        },
+        {
+          "op": "replace",
+          "value": [
+            {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_017",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_018",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_021",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_022",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_036",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_044",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_045",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_046",
+              "kind": "entity"
+            },
+            {
+              "ref": "ent_070",
+              "kind": "entity"
+            }
+          ],
+          "before_sha256": "5e7474d4eb56a07836c86b828a0fbac65717d66c9136683dd44dfec08628f02b"
+        }
+      ],
+      "decision": {
+        "patches": [
+          {
+            "op": "replace",
+            "value": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。周瑜当时二十四岁，吴地人都称他为周郎。周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守，跟随他攻打皖县，并攻克了那里。当时他们得到桥公的两个女儿，都是举世无双的美人。孙策娶了大桥，周瑜娶了小桥。后来又进逼寻阳，击败刘勋，讨伐江夏，回军平定豫章、庐陵，留下周瑜镇守巴丘。",
+            "before_sha256": "3f2d3d91a8cfd9a53a10d7bd405b9860f690d736f3db669957b7eb8847892015"
+          },
+          {
+            "op": "replace",
+            "value": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。众人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布号令。如今拒绝他，事情在名义上反而更加不顺。而且将军能够抵抗曹操的依仗，只有长江。现在曹操得到荆州，已经占有了这片地方。刘表训练水军，蒙冲、斗舰多达数千艘，曹操把这些船全部用来沿江航行，又加上步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力多少，更是无法相提并论。我们认为，最好的办法不如迎降。”",
+            "before_sha256": "fc4fe5734c1dbe7f1511a676de60b5a270e913d356c0fe30220d8df21ccf69f9"
+          },
+          {
+            "op": "replace",
+            "value": "当时刘璋担任益州牧，外有张鲁侵犯。周瑜于是到京城拜见孙权，说：“如今曹操刚刚遭受挫败，正为心腹之患忧虑，暂时还不能和将军连兵作战。我请求与奋威将军一同进军夺取蜀地，取得蜀地后再兼并张鲁，随后留下奋威将军坚守那里，并设法与马超结成援助关系。我再回军与将军占据襄阳，进而压迫曹操，这样北方就可以图谋了。”孙权答应了他。周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。后来孙权下令说：“已故将军周瑜、程普的家人、门客，任何人都不得查问。”",
+            "before_sha256": "10c7cb27a4aaa0735eb15af8018dfe1b7800db2031e9b78b32cf6ab466a0db5a"
+          },
+          {
+            "op": "replace",
+            "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。但正赶上周胤病死。",
+            "before_sha256": "394398c6be51939c9b5ad557dbe5f29a8f1f8f584ae71c9ce2f426855b115751"
+          },
+          {
+            "op": "replace",
+            "value": null,
+            "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3"
+          },
+          {
+            "op": "replace",
+            "value": null,
+            "before_sha256": "b3a773faa016c18a7c469e72926d45008b4ff1f82d2a885c723d5dc11bda8af3"
+          },
+          {
+            "op": "replace",
+            "value": "周瑜还江陵治严，途中在巴丘病卒",
+            "before_sha256": "2a90b88d9b3f614e09f177c6cd8a1eae808ab1570f9870fc86c720fdb4768b5a"
+          },
+          {
+            "op": "replace",
+            "value": [
+              "ent_050"
+            ],
+            "before_sha256": "6f3d824739913c9b98b0154c5febd959e28687c6b9312d1bb7fedcc7dfd4caf2"
+          },
+          {
+            "op": "replace",
+            "value": {
+              "ref": "ent_050",
+              "kind": "entity"
+            },
+            "before_sha256": "56c85c44363859e92283b28ec77811dc5942506de2c7ac0c55d16a9caa2b92b7"
+          },
+          {
+            "op": "replace",
+            "value": "周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守",
+            "before_sha256": "491419ede636f2f26e191c682d5eee5d7a5b0897fa428e7b60eb56d98b0eb52a"
+          },
+          {
+            "op": "replace",
+            "value": "周瑜回到江陵准备行装，随后在途中经过巴丘时病逝，时年三十六岁。孙权穿着素服为他举哀，悲痛之情感动了身边的人。灵柩将要运回吴地时，孙权又到芜湖迎接，并对各项事务和费用一概供给。",
+            "before_sha256": "2b9ec6941a92d5ead62af769e0fe6e1acda40d4911d0eabb4d429f3fa9a69a8a"
+          },
+          {
+            "op": "replace",
+            "value": "孙权答复说：“周公瑾是我的心腹旧臣，曾与我共同谋划大事，这一点我确实从未忘记。过去周胤年少，起初并没有功劳，却平白得到精兵，凭侯爵的身份担任将领，这都是因为我念及周公瑾，才恩及他的儿子周胤。可是周胤倚仗这些，酗酒纵欲，任意妄为，我前后多次告诫他，他却从来没有改过。我对公瑾的情义，就如同对你们两位一样，难道不希望周胤成就功业吗？只是周胤罪恶深重，不宜马上恢复他的待遇，我暂且想让他吃些苦头，使他自己明白罢了。如今你们二人一再引用汉高祖关于山河的誓言，使我感到惭愧。我的德行虽然比不上汉高祖那样的人，还是希望能够接近他们；事情也正如你们所说，所以我没有立即答应你们的请求。周胤是公瑾的儿子，又有你们二位从中劝说，只要他能够改过，又有什么可忧虑的呢？”诸葛瑾、步骘接连上表请求，朱然和全琮也一同陈情求赦，孙权于是答应了。",
+            "before_sha256": "409a7ea8245b8cde844d3f93789b23fe70ad7d70b8af62ee9c7bbc257a29e947"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "place",
+              "aliases": [
+                "巴陵"
+              ],
+              "temp_id": "ent_050",
+              "mentions": [
+                {
+                  "text": "巴丘"
+                },
+                {
+                  "text": "巴陵"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "巴丘（病卒处）"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_050",
+              "selections": [
+                {
+                  "quote": "道於巴丘病卒",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_051",
+              "mentions": [
+                {
+                  "text": "景"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "周景"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_051",
+              "selections": [
+                {
+                  "quote": "從祖父景",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_052",
+              "mentions": [
+                {
+                  "text": "忠"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "周忠"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_052",
+              "selections": [
+                {
+                  "quote": "景子忠",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_053",
+              "mentions": [
+                {
+                  "text": "異"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "周異"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_053",
+              "selections": [
+                {
+                  "quote": "父異",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_054",
+              "mentions": [
+                {
+                  "text": "孫堅"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "孫堅"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_054",
+              "selections": [
+                {
+                  "quote": "孫堅與義兵討董卓",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_055",
+              "mentions": [
+                {
+                  "text": "尚"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "周尚"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_055",
+              "selections": [
+                {
+                  "quote": "瑜從父尚為丹楊太守",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_056",
+              "mentions": [
+                {
+                  "text": "袁術"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "袁術"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_056",
+              "selections": [
+                {
+                  "quote": "袁術遣從弟胤代尚為太守",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_057",
+              "mentions": [
+                {
+                  "text": "胤"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "袁胤"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_057",
+              "selections": [
+                {
+                  "quote": "袁術遣從弟胤代尚為太守",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_058",
+              "mentions": [
+                {
+                  "text": "橋公"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "橋公"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_058",
+              "selections": [
+                {
+                  "quote": "橋公兩女",
+                  "occurrence": 1,
+                  "last_block_id": "b_003",
+                  "first_block_id": "b_003"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_059",
+              "mentions": [
+                {
+                  "text": "大橋"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "大橋"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_059",
+              "selections": [
+                {
+                  "quote": "大橋",
+                  "occurrence": 1,
+                  "last_block_id": "b_003",
+                  "first_block_id": "b_003"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_060",
+              "mentions": [
+                {
+                  "text": "小橋"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "小橋"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_060",
+              "selections": [
+                {
+                  "quote": "小橋",
+                  "occurrence": 1,
+                  "last_block_id": "b_003",
+                  "first_block_id": "b_003"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_061",
+              "mentions": [
+                {
+                  "text": "孫瑜"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "孫瑜"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_061",
+              "selections": [
+                {
+                  "quote": "督孫瑜等",
+                  "occurrence": 1,
+                  "last_block_id": "b_007",
+                  "first_block_id": "b_007"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_062",
+              "mentions": [
+                {
+                  "text": "馬超"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "馬超"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_062",
+              "selections": [
+                {
+                  "quote": "馬超",
+                  "occurrence": 1,
+                  "last_block_id": "b_009",
+                  "first_block_id": "b_009"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_063",
+              "mentions": [
+                {
+                  "text": "韓遂"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "韓遂"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_063",
+              "selections": [
+                {
+                  "quote": "韓遂",
+                  "occurrence": 1,
+                  "last_block_id": "b_009",
+                  "first_block_id": "b_009"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_064",
+              "mentions": [
+                {
+                  "text": "張昭"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "張昭"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_064",
+              "selections": [
+                {
+                  "quote": "張昭",
+                  "occurrence": 1,
+                  "last_block_id": "b_005",
+                  "first_block_id": "b_005"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_065",
+              "mentions": [
+                {
+                  "text": "劉表"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "劉表"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_065",
+              "selections": [
+                {
+                  "quote": "劉表治水軍",
+                  "occurrence": 1,
+                  "last_block_id": "b_007",
+                  "first_block_id": "b_007"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_066",
+              "mentions": [
+                {
+                  "text": "關羽"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "關羽"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_066",
+              "selections": [
+                {
+                  "quote": "關羽",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_067",
+              "mentions": [
+                {
+                  "text": "張飛"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "張飛"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_067",
+              "selections": [
+                {
+                  "quote": "張飛",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_068",
+              "mentions": [
+                {
+                  "text": "劉璋"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "劉璋"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_068",
+              "selections": [
+                {
+                  "quote": "劉璋為益州牧",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [],
+              "temp_id": "ent_069",
+              "mentions": [
+                {
+                  "text": "張魯"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "張魯"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_069",
+              "selections": [
+                {
+                  "quote": "張魯寇侵",
+                  "occurrence": 1,
+                  "last_block_id": "b_017",
+                  "first_block_id": "b_017"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "entity",
+              "type": "person",
+              "aliases": [
+                "太子"
+              ],
+              "temp_id": "ent_070",
+              "mentions": [
+                {
+                  "text": "太子登"
+                }
+              ],
+              "extraction": {
+                "method": "human_gold"
+              },
+              "resolution": {
+                "status": "unresolved"
+              },
+              "canonical_name": "孫登"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "ent_070",
+              "selections": [
+                {
+                  "quote": "太子登",
+                  "occurrence": 1,
+                  "last_block_id": "b_023",
+                  "first_block_id": "b_023"
+                }
+              ],
+              "record_kind": "entity"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "kind": "claim",
+              "object": {
+                "ref": "ent_047",
+                "kind": "entity"
+              },
+              "subject": {
+                "ref": "ent_048",
+                "kind": "entity"
+              },
+              "temp_id": "clm_016",
+              "evidence": {
+                "text": "廬江舒人也",
+                "locator": {},
+                "source_ref": "src_001"
+              },
+              "predicate": "part_of",
+              "assessment": {
+                "status": "unassessed"
+              },
+              "extraction": {
+                "method": "human_gold"
+              }
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "add",
+            "value": {
+              "record_ref": "clm_016",
+              "selections": [
+                {
+                  "quote": "廬江舒人也",
+                  "occurrence": 1,
+                  "last_block_id": "b_001",
+                  "first_block_id": "b_001"
+                }
+              ],
+              "record_kind": "claim"
+            },
+            "before_sha256": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_002",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_026",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_027",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_048",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_047",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_051",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_052",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_053",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_054",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_055",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_056",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_057",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "0302de6a9767c4a001910bd1cfd47337a0c18de4111295cfbd4e6ae30f16ce82"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_002",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_029",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_034",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_037",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_038",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_039",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_040",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_058",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_059",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_060",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "fb89ee29d38029c88e59744a5333f67f03a70c5826c3d5ff2c37f0e46b5ca3ca"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_002",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_027",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_039",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_064",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "fe369f1c77c5b2ee163cc5457f80d5ca1843e0eca5802187b17270dbd8bb336c"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_004",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_014",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_015",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_016",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_028",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_029",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_049",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_061",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_065",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "b23fda807c4e2a369bbd7016a46d2d8aa900d546162cc0fe22e2265a0e43a6c4"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_004",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_062",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_063",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_004",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_056",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_065",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "9a431a42d9b3b10b0baa47de0ad4d2ec9c2c2248c6c56887f49e824602277ae7"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_004",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_005",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_027",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_031",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_032",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_036",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_042",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_043",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_066",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_067",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "f66395b240bb26edc9fe0637a65f7c97e25853c9da85e21ab778d989bdd8ad46"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_003",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_004",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_025",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_032",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_034",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_035",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_050",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_062",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_068",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_069",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "27bba7d4b6cd99a33c1532d3972ee4d5726e393b7274cf6a3dce754c2e93413e"
+          },
+          {
+            "op": "replace",
+            "value": [
+              {
+                "ref": "ent_001",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_017",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_018",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_021",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_022",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_036",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_044",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_045",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_046",
+                "kind": "entity"
+              },
+              {
+                "ref": "ent_070",
+                "kind": "entity"
+              }
+            ],
+            "before_sha256": "5e7474d4eb56a07836c86b828a0fbac65717d66c9136683dd44dfec08628f02b"
+          }
+        ],
+        "decision": "revise",
+        "rationale": "Apply source-grounded corrections to translation, event chronology/location, and missing entity links; retain explicit source uncertainty and reject the invalid repair proposal.",
+        "history_sha256": "e7bdd4ae0e25afecb86a5c87a0608d48a3fb3dc98fb315efb4854f62a51d171b",
+        "decision_sha256": "95841c9a0745df9d52032becf22664387b7dc36efccbb190840702dd1a54311f",
+        "candidate_sha256": "cf29e8be8b69c2093355de14d204547b5fc52913f0036b27f94ae212aebf4f01",
+        "plan_fingerprint": "30123461aba63eb78573a23f4c3cd9990c615078fa3ec881bd0aa7baadad25e9",
+        "issue_dispositions": [
+          {
+            "issue_id": "opinion_7f529e26a56bc0ad683e6bc0",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_21b6830f83406ed17643823c",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_c88a91771ffeddfba854a2af",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_dbc6ef31182659fa2b8e6a4a",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_f21ace9bd3f39ffd15d46e81",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_6ff50f66180b8952b527aeed",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_5f1ef6af77fe587e7d22738b",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_d27f3b25ce9e21438aafee51",
+            "rationale": "The source-grounded operator revision directly addresses this finding.",
+            "disposition": "resolved"
+          },
+          {
+            "issue_id": "opinion_06c807d5a2c6df35fd8a5ba7",
+            "rationale": "Source-attributed uncertainty is retained and represented explicitly.",
+            "disposition": "source_uncertainty"
+          },
+          {
+            "issue_id": "opinion_6fda8487e80893b046241d0a",
+            "rationale": "Source-attributed uncertainty is retained and represented explicitly.",
+            "disposition": "source_uncertainty"
+          },
+          {
+            "issue_id": "opinion_016cf8f03a1ff79451bbbfe8",
+            "rationale": "Source-attributed uncertainty is retained and represented explicitly.",
+            "disposition": "source_uncertainty"
+          },
+          {
+            "issue_id": "issue_5993c2253d5ffcc78cc067fe",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f8ea1c143388e5138b6bacc8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0a5b8cec4df4c73054478e7c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6c31284303f42ae955c7b2fe",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cb41151d3a5f0bb84c704b27",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_82a859da343463279c100c0f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_42b334fed94ccdf39f699caa",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1c8aa78a4c991586aa72c141",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_173718e5877ca8079af32a18",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_284ff6f275b4207c0108980d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7e7925fca98b20f4907caa8d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ed240b80acdb05c15f0c295f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b8802a6ad9be747eee4f58aa",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b509cad48eec6f9a5870be47",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c00b7f419971be5975502517",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_40207a66e310e289a6b1db9b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1172b1d73ba595389b3d6236",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_65c90ce4119927c1b2501c93",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a10f1287a577f542161c8de3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1fc62dfb503055c35b70c1c4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7c925b8218440589ff2a127b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dc1038da17b7854ee9617dd3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_31b980524ea6ab993924708f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_39c2c7e094ac55c7956e1367",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5d21b87e09425671b5cdce15",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_11bb35042d7e26088fab8590",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4ca647d4d727f4279707cfba",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_71a6de5624f889c33039f584",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_037824af3417d067731cc8b4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_96e88ecfef1a0ac1bb16c79a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bd37aff4c7c3cf8915bf1f08",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d939c2de3e7771af7c9e2b93",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dcb6fb0de573c1bdd30fa453",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e439ad17bc8e3f76c1b90e83",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e004d125c4bd5a4b7046eefd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2816525eb61ca83da21257e2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7f65e6e37133bdbd13ba173f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c66f3350a5d13e534e980933",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d1e8cb19551e9d360faeb704",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1cd5f79bfb1e146b3f05c6ca",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2b6d7061635e9c03384f1ae4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_de3d86ba72000b6cdde062b1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_abb072d9d2d30a4a540c7d06",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f74765ecec33809f3dd4950c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_93b0d892a65f94bb8d41dff9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_83265e663d81f40333a8b956",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2b36af1c3dd43eeaee484b28",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dcd84e9ddcf6bc25b12e22b9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e7f0abfbb2e303ae79e672ce",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7443ac72217b526f325f8c4c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_be81fc7c2ecc468c5e4ac03e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b8b9debd6af1d8023d2d3802",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5a51c451b2dfa4ef423febfc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5385106b8d754a7b40fe1dfc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fbf7ece14b56180d501504a7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f9fa14cccff52eb06264535a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_64983051342b4eae76073584",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9255e7b9095b686d2a897cc2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_aabaace5baa4a8f657bd3983",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_19b3d94f9ee68ca2fc7c3e31",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a4b213f8913e4e549d22f969",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bfa7fb544a175876b2341e38",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9812f2173d04fdb6f04fd9a7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ca075e952062f96a20893059",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0263079612170a7f9ad68da7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9db83699c98948f738e0b172",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b0458c94c4edc467b1217f3c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7941b8a3efe12228b05ed82e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_35092339daba5318507f0ce2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_be23aea48d3f13ba6994344f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_56fe9b3af8256f102593ad9d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9a230ab7df37d2ca13f2b79e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6861dc7477e56ecc4d4b9503",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2179927f80e6c9d13f9eeec0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1422353118ea51d20e6d58f1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c24b053d06eb08c54ae4324a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1841a4d4491769375d9c8ddf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ef54121b47d0847939fff554",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_30882587ad8eae545f2d7600",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_163add5a879b9b0e35ae70cc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_78c91071d7b243a3150f455b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5edfd87258fe7fd121852d3c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_66bd588f4ad629cd6491510e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f31147a87395bf7041c08f4b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1764e1afe83706898daa4b1e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8ea7a6f53d7976165ff64644",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bdadb2eaf5e0938dfe671079",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d434659cd11bd97f8f80b6b9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_64d37d880ae133e112c17e5a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b44c950c967bffaa668c0a48",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_71be373e5432a03d61e350f0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_022ec1a15830a5d4a38878af",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d762d6024dc29fd1c649d1e9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f42e12125cba9a31103d2076",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_97e71e3d09751e4757f44e1a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b6de88495edbb73282eaf727",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ad965e429b98bf69243d7ac2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6c9ced214f4d510f1edebc91",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_739b30c987dbe970e05fccb5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bcf83b153dfd493631a4f14d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0081a8a11f25e96df92a54c9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_076334df30dc4924555e348d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3cf98ba9372dcdd142da24e8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dc608dc1de4df88237335ac7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7b147fc94fab5c0ba5e95932",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c74768b8511308e4ac646710",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d7bb352e0b523f28ead05498",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_92456c04b3c96b27c442f409",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_954e4caeb8fcd1858e7412d3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_90bdd7e245da414639e4b5fd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e928d2e726f5cbeb80fd6988",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0b87c648d94f2d4aa75b26b5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ba02e1fe31579188b2ff4e2d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_30d9bc7a4001a9eb0f0ba1c6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6bb119816a0067591b089243",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d5722e7784ffe2c1d44b26ea",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_04e3bad4a891c277266b2ac2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_195d66c49672760e6dd436a9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2fcfd46d2af6f23488919e65",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8e65a486924f22b609a84de5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_08bbb8c2d21f3f1c96b947f8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d0d33d4b4802697daac54178",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b92ed2a2c2e5c3b17c8b315e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a2b3fdab1cc18fb08675322f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bcc5a6454a1b680ffccb180d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4d3b1a986af2d3386b323a04",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c1d2ea137d61109c062cbec9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_28836f30ca06aa99eea5f96f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2ae2fa6a1a91993ce2770c0f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2bb7981793fc3fe734d891b1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d6951ae135bb302b656bdca4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a3343f4f444dff99bbd6df28",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a5077352b7e237d4392e24fc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e76c1fb2c0ffce0a58b30dee",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1a61862eb101fd04d385fa07",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_be27361d5a116fe8261c93a2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fe8bacaebd6da3a34b412672",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_073760f83006a5efd68c5854",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_311858fcb0021366aa8a8fc7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cee14b31e46074a7e4770a03",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7c328733f1cd6b21abe6e500",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bb807089ba10278559ef2c22",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d0ec8029ce30e05e3bc607d2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_40bf1ea3085b4caf0e357dad",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fa6f251aab64ef5e2e611513",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6e0fdbb9c39eb374955d6059",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a1baec32ea441be698b8ec63",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f21c59e0bf34e6db875b071e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e39ec99405c131a58f1996bd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5fd5cf06671d23f029c6a04a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3d4c2bb2692976510b14e018",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7b88fd68cff508b00ebf4ed5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_25fad22ccc5803ea795b3393",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_eb0dcf1ebf4e9e234d1661b2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9a0cca912a51f47902c749e6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a04716fab426140cb1781508",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e28d28a410f07fccef8115bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_79f5b4eb8460fa1d5c75a1ed",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c80d54f34ba0ce7ef28e9d2d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0dfdce3905ea20f84e2965d0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_77cbe5913abdd01fceb73418",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ead85dd84929753c92933aea",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4e20a7c9ba3f1cf6eff94a26",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2d5cd76e7acf1f3de815f7cd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_09e96f09857f0e93ddb5b51e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6cc6087d60c1333db6c3339b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d0d26b1639dfdf38345e1a4b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_18e14aadf96fdea400a1d352",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a433ab19533d5800e69ca708",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_73bb17ee4bbd03efb2cd1e55",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_30ae9e3e9821c475a641b6a6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1e37b7524e5c3955089e7652",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e26b8b72af7166bc72fafd8e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_98604442870375bfc551bd8d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3bf6a34a98fb9fb79b481657",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6dbf349e7d6fd3c8a3c25836",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0250b3ea2af67fae696c36df",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0d3b11772b498bad2fc1d053",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4671c56ba66fc2156e5465b4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_28826c1aaecafef2cf48bcdf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_df8cadab185fcf55157e8894",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a2d21eddc70c515c13492953",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d02a60e07b6f0d92c651f00f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_981f7333ff254e1852d8d3ef",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9cbc9c473c246441e2a92a5e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d661c7d25bc124fb38c36356",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_da989c1dbcd67666b324ab1d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e3fb2691c7f1a5838fcfb724",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bd69bc17767d180fdff2b0bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c4d436951030ebec38978272",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f946a9e5cad920fa1fe6e63e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ed885bf5eb170474b2acd0e5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7597ba552cdb4bde876817eb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e318352e3dff900b1bc6ac34",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fef73251ce1e626480d2de39",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f0862ea25e57280f441cc7d3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0d61670f603f8d6849156d6a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_05f57910ac7ee1cf355b0435",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e2801077eb0ad4fbe80463a0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9a6a8f63a2fb216fb8a5c0fe",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_26f5b29ee96e4826519c77a3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_00ed34841f0e99145b97b64b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b5097a1e952d85532f64b712",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2be0c76c4be12f0164b53c09",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d1be8fb3ca77d0aee690f968",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_551ade291960f752453d4748",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fb163561932aed187fb82bc9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_acab67e3cda1a2c94a879679",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c7fe1a46b010ea8e6dabeb53",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a160a50438aa594c4933f9f4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c5f1e0a5ec73f63fa49c0e22",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cd7ca1560126553200876b14",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8f61075ce4bf997d6d8967f5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f13151395b138e095f49f967",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_81a86a0fe60b71830d3a130a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a0af22a9589e75f10a986653",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ac1044e51087534220672eff",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cc86f265f0801a5c5e26acde",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dd0c905623fbe0f1d13f114c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f91f0fe6d330d36b030e8fc0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_643cf080da2f9c24694c4394",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_50d2b7ecf6eaae710b965516",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_eaf111137f396561dc99ac7b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8acfc367edd08fa710142b6f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9409e82b576977bb866fe7b5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_455099d36530dfc0cca0cfc6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9d6109aeccc224d7f76d0fa9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_58569850e769ec6d933aff3b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_094b7983d2c5c64edfb09c3b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b3c028b3d9d698604fe5d8bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0aa941b0ef12ea2c9f65fbf8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8d0ceeb9b0826da16fb78120",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9cc2a7c12d4da1a92a16af64",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bd1df77a2a895dd068826dc5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e883d1b39da15bfb7a4d84e9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_756c6a5c51098dcafb2a61cf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_81b46670f55812a4e1f3eb97",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cc7902658eb7529e23ee36c3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_073395bf50ef713172982c9b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_56503d93343c3fdcecdd896a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_842537fb26c39273585118aa",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fea71b2502d0433892b79196",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_afbb42dee2d8fbc7039abf1e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3d0a30dbb43dcce36241ea1e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_32747a6025604bbe68103894",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_20f0e3f4fd0efcd43a1a86e1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6e8d309085f18d148fc94dfb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c6ebe17a15e21e50eeabde02",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e9f7dd003abc1d3bc5a65ed3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8795b4e53dd08518fd674c93",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5d4284600a5835f58d100d07",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_97964234a56a517782d9fe4d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c7c6c3212cd02c43de1329ed",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_724078db9e9400ce458f6f02",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d07a07dd29a31df60513eb95",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_23060bbba1a3179bab63304f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_23df5b25377862a9e9217399",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b3f12d02558c6d71585942e2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_111d6e8d1d6bdd86cdf731f2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_13630d88bad7c7c8001feeac",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8c01e55fc9562fb35c12fe9f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b05de692a48c38904e6cad40",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_800d428a1e922dc3d9d013db",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_016015e9ffcc82dfc40ae813",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_23cb37d413e7f46aecddcae3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d6dd4d50a868027c33d98ce3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c72630d453dfab8a3dde4aea",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_778c0c5b40863bbc0fef4af4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d96b03d0bebcbb94b8ac0c14",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c3c66e45f6b1f9b7fd17e080",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_362c14108395926d050a989e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_075b66a7b7f1d1a317dadbc5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_55b4ecde13b212031273b9f7",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bd3090e385f30372fd0721da",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_132acc4b7804e59cfdc21ada",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c8efe2446f0a5f2665fe6517",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_77a65619672a43a8206c906a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c25edea8a3a946c068f7abbf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_85b01b682b7056a2dd5e098c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5423f301550379b92e95027a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7eabccec9bfb992ced8faa27",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_75189a7588edc6b247515660",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_71337a30447730f58743bace",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_797a7d753a44d011611d1a00",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_18f2dd79ab1a8c4731c53b5e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3bff931301eafb6eeb76f4a3",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f82e9719ca4684322b0bcfe2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4fdcc79f4453335178555d9a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8b0708c957f0927353646c27",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ae7971bcab090709863581f2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_495679cbcdbde8dd9954b839",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6c76ecd07d472e43736e83d1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a5d9dac5aef15ab0cecffb96",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2eb42b23548f8eaf5a3763a4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_75d2c314d62e3fcc821662c2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b3b50bf92ef365aadc4f6170",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_85b6591d9092c475021a2f79",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_981bde9ae824ec933ea6469b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1b8c4588300f0df0d3ae72f1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_78aaaf16430652d9461f3ae0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2a8375ce3f52b7af61c472be",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6eb10f1195615ee784f24d6a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5e070e6443b2af8d2bafa317",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5dd42240d8d606eafd517203",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_aaef64ad587bcfa206ac6041",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5efae7af905c347e782df545",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b1d341ab5125e60c42675387",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d53ac282169b4010c6c81902",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cbd70ad52846a13cfdd61602",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c11f579b8b69a6f691a5bb9d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_561832909585f4a7cd35f527",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ed950b61dee465d402f7f159",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d5aa3b3303ddd887294d9e43",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b642ec7862adeb5431ac3993",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_436f7dbdc55063d4f1f0c9b9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a424fec43172b5010417d8c9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_05ac185b464f57a214bf2f96",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ce08ac24829131483de0668d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_82ca6c40e75748c09bad161e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3e9baa46aab1e08362533c05",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e574cb7d77f207e2b94f0746",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c530ed39d00f1b9995722820",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_339499caa9be928d9e51b41f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0326cc1dbc7681e354a3ee85",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6782446aafaf1e24dccca5bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9e842bc68dd3ea662b8a9ffe",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4bdecd52474587be3dc9772a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_84e8d87286ccdbfc98f534e6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_786c75923b3ff7ff7797decf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2b04fbca5fc2a7ead0eb29a1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ad1f4579e0a35f20258b22db",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a574258308f167bbfa4c4f9b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a10494db68c36554b5017ba4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d17ab3025f51f4e8d70ad236",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d88955e732666bf39e416e2a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a6e429e6844fe42cfb6e1a9b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_eaffb1dde7042175b119f551",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2c865cefedd77c4a4bfca9b0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5db90da957f363f26dd09b17",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7a6e1dda807de86d8f5112fd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9e3cc143146955e5b9a61ec1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7cd939922088144cb4231735",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cb55a32e0b7b763f0a5665ba",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_653662d72f6ce78400d13fa0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a339afce7c534d34b0a41642",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_abaf93d00e82707a3d1e504e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_112d61047a1f2a54eadcd072",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_031ce0a3dac4ef9d48ac1b73",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c5eb15dcab65a5ea221b4472",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_501dce8cbe7d0e0b23d1f9b2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0043b93590c5efe1f310cf46",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_25e57b6f53f36e1da21c2c60",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3b3adf969b9b29b064db2ffc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_758171cb634f1a05708692b0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_21d240c17763fae50e7bd36c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9ed6e2b30bdf4eac81bbbddb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e929dbe7e2e2aef1b91c0746",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_97004e3ece65e87a322b90bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3930dbea7a8b001a1316c3cf",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0ccf0abb105e6568c1669825",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7c04dfac348a85bcd1d4584d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2a415bd1c60a7569ad109372",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bb5448de81ba362cc9d4dc5e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2f9e7d14ad40858415e45fbb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_133f2cc9059b41939a6d7886",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c68ccb36e6bc348887cf740d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8620dc8229fabd3a2c93b27f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_43a5fed53d5c446ea2831e74",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_17835b1fa2c99a5ac4b2cca9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1807f1b8790eb40236ca2e8a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c3a653f56ea42d4abe819f78",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_11803246c2cee89a7a1e98de",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ef3f1f9b829d9e0eb55f04a5",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_622d41b14cad3257dfe3d14e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6ebf1475ba780afa3ba26138",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7180bf771144dad2ca6fcc37",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4a9b6f3faed82715bbb0d462",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4a5bec84899309c4c02857df",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_381198c72e48e2d6fc993a0c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bf6e69d54090b7f679197251",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1cfe9ca74cb8cfb276bd7f4d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_de9993fe6d96a9a54f373936",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3c27d03402b40a8669675ef6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1d7f8f231af597b83f509d34",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_876c3b154837a6ad1bce6ed1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_fec385b71bfa97be6f4c3d91",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_da61a1a7b9d186d9ae5a7f48",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_33aece33e64fa017df92337c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e4e904a314bc378aaed3bb80",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_0780309f6d249d68c74aa494",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_20bbcde06df9c29ffe8a7079",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_37743acce8efa6d01000e468",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1a664f2c3965ea2c701d0dd0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ab82200bcbbd309254a9b9f0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c338ec11535077e30e3f1c7a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_caa3424d86bfd9ce1e64292e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2487a1da202593e06817ce03",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b958df901ae3344df32a92e4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_e908fd74d9a77a36d26a6c42",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_57a93614e242ff66370cf3dd",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_b1a2d824b4258d439d50ece8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3aac0aa75c679398af7a0ed9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_bf610cce75c7ef4afc452d43",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_614eeb24cb90f1fe47dd0e57",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4f15937df975dbf96a8811f2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4b04d0c423f48ad1d7584a1c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9f3c1b7f5c6e2d3da47f6a3d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ba3333ebe5a8da301bc3d139",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_13337107e352bfc54f6edbb6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_7e5a260368bb5773483e414e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d3c9f6265baf2e542f980ce6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_49219a12b5198aaf43baf7d6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_09922f8a4e8343f0c800d3b1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2ce25bfab9d3daff2400b1eb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9192e17735363eceae31e5a9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f4293dc047f6ad277dfde28f",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_77caf371336f0f3fdecfc51a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_88a9d347b713e6dd4d98c223",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_edf1b41e039aca3ed4038cba",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_940e42b52c052dab92352481",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5f801c4495025b3c223b2944",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_23530092a08fae39df76a734",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1046e632cd782d1d581d8961",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f4e73a223df5fd960b3a01bb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_dd91f4134f2ec540854cf863",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6d8bd46f99dcfe60568feca2",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9ae7af624ba5feb4e88b8927",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_3edbaed3b17443d286d8dc25",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9436321babc340330695f7f1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_36f1f82e449c2c2df9e79239",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8c1145fdd425deebff41bd00",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_09c79536909ec06b24af1464",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c9f784b04aafe3b3c9cae66b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2a59f3500c17757f50b88075",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4d96b1dc8352268f22a11902",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_334e910c7c0f19166c43bcad",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a9d56d880666bb3d7d1d5e61",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_01f0483921472daf1bf7a13b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8cae321da0926b5f46dd07b1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_4faf5bbfe81043af51f7606c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_6a9fb54d274990c5867170aa",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_698a33099a54410dd5acfff8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_c09330077e86f73a239f5cf6",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_128ee7cebe873361fbf03cc4",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5b07bbf1a2edabc80037adf9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_46b08b9f8d4485fc105a747a",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_116548af7130f0aad0a8b34d",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_93d5160313fdaf8a184b5065",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_82320fa2ba5e90759198280b",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_06f32e0a9bcde1e4fa2af5e1",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1d15a7142cdcd77326eee8c9",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_863425a25b3c7c28008d5d0e",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_9a3d87a6b6da7dd40257fddb",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_a8ee9b8f3689993fd5342bec",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_ff2f56419c97053e9bba9956",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_8059b0419a93b59972bc80a8",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_5e0a9ca647719629acd4f205",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_410071bc644745949b888355",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_f6d3b86d80e8632b9d3a3524",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_d619979ee68cdbc5758eb0d0",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_21f7f9a5039ada37b0fbe127",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_1d41b10ca80b956c23d303bc",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_cf2529a0f8ca68790407034c",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          },
+          {
+            "issue_id": "issue_2246d44a4b7c25e881293d18",
+            "rationale": "The malformed repair proposal was not applied; the mechanically valid candidate remains bound.",
+            "disposition": "rejected"
+          }
+        ],
+        "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+        "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2"
+      }
+    },
+    "validation_errors": []
+  }
+}

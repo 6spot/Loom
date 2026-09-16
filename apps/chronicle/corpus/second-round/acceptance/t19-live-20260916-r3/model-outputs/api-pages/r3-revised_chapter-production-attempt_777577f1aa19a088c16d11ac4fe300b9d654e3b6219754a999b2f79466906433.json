@@ -1,0 +1,23 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "777577f1aa19a088c16d11ac4fe300b9d654e3b6219754a999b2f79466906433",
+  "artifact_type": "chapter-production-attempt",
+  "total_chars": 617,
+  "payload": {
+    "schema": "chronicle.chapter-step-attempt",
+    "version": "0.1",
+    "step": "linking",
+    "node_key": "2cf9fa2147832c8b5ce871cd3a1e9cbd9bb81b190bacc2b07ab7701d21c3d569",
+    "slot": "reviewer",
+    "model": "gpt-5.6-sol",
+    "round": 1,
+    "attempt": 1,
+    "status": "started",
+    "started_at": "2026-09-16T10:42:36.261907+00:00",
+    "input_sha256": "cce1293475356078ea0106e54dd3d58205288dd3ad2f419ad3c2717cf702fbfc",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "retry_of": null
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "output_sha256": "a02410a297430a4f36c00278ea81655344069a4fb203e6f7d8fd622fe93a3733",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 10403,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "review",
+    "node_key": "bac2f63b0afec7ac727299bfcdc23294ef92a0d9ab7d5f3e9330bef13639d0d4",
+    "slot": "reviewer",
+    "model": "gpt-5.6-sol",
+    "round": 0,
+    "attempt": 1,
+    "status": "completed",
+    "attempt_sha256": "e37049866ea8788ce5e41d960d9694ec16042bb7abaac44adadca740bd182e74",
+    "input_sha256": "9feae5748c0f91e86c5f8fa7eb7c661052cb110d7cf105713e647fe7f678338b",
+    "pipeline_fingerprint": "ea3014a38482d1549aa239416e8f50cd869744b782cebe4509c63b1b74c6eaa2",
+    "request_fingerprint": "6a5f8bb011d0328abc4f2ad34c2426b13b3b390d7aef02b71e8b6641aaabe38d",
+    "raw_text": "{\"candidate_sha256\":\"cf29e8be8b69c2093355de14d204547b5fc52913f0036b27f94ae212aebf4f01\",\"history_sha256\":\"e0e182b2d804afe4f22a878334498851fce4f16fe974dfd799a24ce419dc842d\",\"verdict\":\"revise\",\"coverage\":[\"sf_2091662481925fe3228cb3ba\",\"sf_84ed26e312d6ec605fb29155\",\"sf_46ef20ad9b50e33d1521354e\",\"sf_1f70513168fc75c9146a64cd\",\"sf_fa6088592b4ff9e743408d09\",\"sf_f8ee40de144ec36b5b64f6df\",\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_36f986acee18254b00083dff\",\"sf_ee6250b4822d07704d19649f\",\"sf_1686c3523261cb4b913eb305\",\"sf_ffae3863707a37b0bd827786\",\"sf_8d91a5f37ab59930900dd978\",\"sf_fd5817d0318e75e29254b6da\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_2e6ddfa173b471f8d6aecea1\",\"sf_5718169d26e1c28f13b7f502\",\"sf_ecd52fa57fdca5cc2e82348d\",\"sf_5b8aa913e546c43445c5f3d0\",\"sf_5063edd8294ba451a2d79d10\",\"sf_c9b0fa6562e3c99049631c9a\",\"sf_ddb71abcbc6aea626ea904f4\"],\"issues\":[{\"id\":\"iss_001\",\"type\":\"processing_error\",\"target\":\"translation.tr_002\",\"message\":\"将“恩信著于庐江”译成“恩威并著”，把“信”改成了“威”，改变了原文所述品德与信誉的词义。\",\"evidence\":[\"sf_1f70513168fc75c9146a64cd\"],\"represented\":false},{\"id\":\"iss_002\",\"type\":\"processing_error\",\"target\":\"translation.tr_004\",\"message\":\"译文称曹操“已经把荆州全部占有了”，把“奄有其地”扩张为对整个荆州的全面占有；这也与候选自身所列“不扩张为对整个荆州的全面控制”的范围警告冲突。\",\"evidence\":[\"sf_922692115ebb87786dbf4532\"],\"represented\":false},{\"id\":\"iss_003\",\"type\":\"processing_error\",\"target\":\"bundle.events.evt_015.title\",\"message\":\"事件标题写成“周瑜在赴江陵途中病卒”，但正文先说周瑜已经返回江陵准备行装，随后才在途中于巴丘病卒；“赴江陵途中”倒置了行程关系。\",\"evidence\":[\"sf_c00542c6df0bb2d275df0e53\"],\"represented\":false},{\"id\":\"iss_004\",\"type\":\"processing_error\",\"target\":\"bundle.entities.ent_034 and bundle.events.evt_015.places\",\"message\":\"同一巴丘实体同时承载早先镇守地与病卒地，未在结构化地点关系中落实原注所说二者“名同处异”。虽然另有警告和注释性声明，但事件地点仍实际指向早先巴丘实体。\",\"evidence\":[\"sf_fa6088592b4ff9e743408d09\",\"sf_b7bf900662c60ac18840935b\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_b5acfed2ea71d663a35f7951\"],\"represented\":false},{\"id\":\"iss_005\",\"type\":\"processing_error\",\"target\":\"bundle.events.evt_009.time and bundle.events.evt_010.time\",\"message\":\"“其年九月”直接修饰曹操入荆州、刘琮投降的叙述；候选却把同一九月时间精度继续赋给拒曹决策和赤壁之战，正文没有明确说明后续两事件均发生于九月，属于过度时间继承。\",\"evidence\":[\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_36f986acee18254b00083dff\",\"sf_ee6250b4822d07704d19649f\"],\"represented\":false},{\"id\":\"iss_006\",\"type\":\"processing_error\",\"target\":\"translation.tr_017\",\"message\":\"“孤于公瑾，义犹二君”中的“二君”承接孙权对诸葛瑾、步骘二人的称呼，译文却写成“情义如同对待两位兄长一样”，无依据地加入“兄长”关系并改变比较对象。\",\"evidence\":[\"sf_c9b0fa6562e3c99049631c9a\"],\"represented\":false},{\"id\":\"iss_007\",\"type\":\"processing_error\",\"target\":\"bundle.claims.clm_002\",\"message\":\"籍贯声明的对象仅链接到“舒”，未表达“舒”隶属“庐江”的地点层级；候选虽另建“庐江”实体，但该实体没有进入本条籍贯事实，结构化事实遗漏郡县归属。\",\"evidence\":[\"sf_2091662481925fe3228cb3ba\"],\"represented\":false},{\"id\":\"iss_008\",\"type\":\"processing_error\",\"target\":\"bundle.entities and translation.blocks.entity_refs\",\"message\":\"正文中多名具有明确事实作用的人物未建立实体或未链接，包括周景、周忠、周异、孙坚、袁术、张昭、刘表、马超、韩遂、关羽、张飞、刘璋、张鲁、孙登等；这些人物分别承担亲属、任官、军事、议论或婚配事实，遗漏使事实主体与段落关联不完整。\",\"evidence\":[\"sf_2091662481925fe3228cb3ba\",\"sf_84ed26e312d6ec605fb29155\",\"sf_f8ee40de144ec36b5b64f6df\",\"sf_922692115ebb87786dbf4532\",\"sf_634b77c2f3f8681c91efbf24\",\"sf_c00542c6df0bb2d275df0e53\",\"sf_5b8aa913e546c43445c5f3d0\"],\"represented\":false},{\"id\":\"iss_009\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_013\",\"message\":\"裴松之以“应在今之巴陵”辨析周瑜病卒处，属于带推定语气的地点考证。当前声明使用“应为”并在警告中保留名同处异的限定，因此史料不确定性已有文字表达；但结构化地点合并问题另见处理错误记录。\",\"evidence\":[\"sf_b5acfed2ea71d663a35f7951\"],\"represented\":true},{\"id\":\"iss_010\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_014\",\"message\":\"正文突出周瑜提出拒曹意见，而裴松之原注明确提出拒曹建计实始于鲁肃。候选以注释性声明和归属差异警告保留了这一不同意见，没有把它改写成正文叙事的无条件结论。\",\"evidence\":[\"sf_7e19d0984a7c33c034703931\"],\"represented\":true},{\"id\":\"iss_011\",\"type\":\"source_uncertainty\",\"target\":\"bundle.claims.clm_015\",\"message\":\"曹操关于赤壁因疾病、自烧船而退并称周瑜虚获其名的说法，是原注所载曹操自述，与正文战事叙述存在立场差异。候选将其标为曹操的转述说法并附冲突账户警告，归属限定已保留。\",\"evidence\":[\"sf_f50b3570b10f1cc7934a976d\"],\"represented\":true}],\"dispositions\":[]}",
+    "parsed": {
+      "issues": [
+        {
+          "id": "iss_001",
+          "type": "processing_error",
+          "target": "translation.tr_002",
+          "message": "将“恩信著于庐江”译成“恩威并著”，把“信”改成了“威”，改变了原文所述品德与信誉的词义。",
+          "evidence": [
+            "sf_1f70513168fc75c9146a64cd"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_002",
+          "type": "processing_error",
+          "target": "translation.tr_004",
+          "message": "译文称曹操“已经把荆州全部占有了”，把“奄有其地”扩张为对整个荆州的全面占有；这也与候选自身所列“不扩张为对整个荆州的全面控制”的范围警告冲突。",
+          "evidence": [
+            "sf_922692115ebb87786dbf4532"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_003",
+          "type": "processing_error",
+          "target": "bundle.events.evt_015.title",
+          "message": "事件标题写成“周瑜在赴江陵途中病卒”，但正文先说周瑜已经返回江陵准备行装，随后才在途中于巴丘病卒；“赴江陵途中”倒置了行程关系。",
+          "evidence": [
+            "sf_c00542c6df0bb2d275df0e53"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_004",
+          "type": "processing_error",
+          "target": "bundle.entities.ent_034 and bundle.events.evt_015.places",
+          "message": "同一巴丘实体同时承载早先镇守地与病卒地，未在结构化地点关系中落实原注所说二者“名同处异”。虽然另有警告和注释性声明，但事件地点仍实际指向早先巴丘实体。",
+          "evidence": [
+            "sf_fa6088592b4ff9e743408d09",
+            "sf_b7bf900662c60ac18840935b",
+            "sf_c00542c6df0bb2d275df0e53",
+            "sf_b5acfed2ea71d663a35f7951"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_005",
+          "type": "processing_error",
+          "target": "bundle.events.evt_009.time and bundle.events.evt_010.time",
+          "message": "“其年九月”直接修饰曹操入荆州、刘琮投降的叙述；候选却把同一九月时间精度继续赋给拒曹决策和赤壁之战，正文没有明确说明后续两事件均发生于九月，属于过度时间继承。",
+          "evidence": [
+            "sf_922692115ebb87786dbf4532",
+            "sf_634b77c2f3f8681c91efbf24",
+            "sf_36f986acee18254b00083dff",
+            "sf_ee6250b4822d07704d19649f"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_006",
+          "type": "processing_error",
+          "target": "translation.tr_017",
+          "message": "“孤于公瑾，义犹二君”中的“二君”承接孙权对诸葛瑾、步骘二人的称呼，译文却写成“情义如同对待两位兄长一样”，无依据地加入“兄长”关系并改变比较对象。",
+          "evidence": [
+            "sf_c9b0fa6562e3c99049631c9a"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_007",
+          "type": "processing_error",
+          "target": "bundle.claims.clm_002",
+          "message": "籍贯声明的对象仅链接到“舒”，未表达“舒”隶属“庐江”的地点层级；候选虽另建“庐江”实体，但该实体没有进入本条籍贯事实，结构化事实遗漏郡县归属。",
+          "evidence": [
+            "sf_2091662481925fe3228cb3ba"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_008",
+          "type": "processing_error",
+          "target": "bundle.entities and translation.blocks.entity_refs",
+          "message": "正文中多名具有明确事实作用的人物未建立实体或未链接，包括周景、周忠、周异、孙坚、袁术、张昭、刘表、马超、韩遂、关羽、张飞、刘璋、张鲁、孙登等；这些人物分别承担亲属、任官、军事、议论或婚配事实，遗漏使事实主体与段落关联不完整。",
+          "evidence": [
+            "sf_2091662481925fe3228cb3ba",
+            "sf_84ed26e312d6ec605fb29155",
+            "sf_f8ee40de144ec36b5b64f6df",
+            "sf_922692115ebb87786dbf4532",
+            "sf_634b77c2f3f8681c91efbf24",
+            "sf_c00542c6df0bb2d275df0e53",
+            "sf_5b8aa913e546c43445c5f3d0"
+          ],
+          "represented": false
+        },
+        {
+          "id": "iss_009",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_013",
+          "message": "裴松之以“应在今之巴陵”辨析周瑜病卒处，属于带推定语气的地点考证。当前声明使用“应为”并在警告中保留名同处异的限定，因此史料不确定性已有文字表达；但结构化地点合并问题另见处理错误记录。",
+          "evidence": [
+            "sf_b5acfed2ea71d663a35f7951"
+          ],
+          "represented": true
+        },
+        {
+          "id": "iss_010",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_014",
+          "message": "正文突出周瑜提出拒曹意见，而裴松之原注明确提出拒曹建计实始于鲁肃。候选以注释性声明和归属差异警告保留了这一不同意见，没有把它改写成正文叙事的无条件结论。",
+          "evidence": [
+            "sf_7e19d0984a7c33c034703931"
+          ],
+          "represented": true
+        },
+        {
+          "id": "iss_011",
+          "type": "source_uncertainty",
+          "target": "bundle.claims.clm_015",
+          "message": "曹操关于赤壁因疾病、自烧船而退并称周瑜虚获其名的说法，是原注所载曹操自述，与正文战事叙述存在立场差异。候选将其标为曹操的转述说法并附冲突账户警告，归属限定已保留。",
+          "evidence": [
+            "sf_f50b3570b10f1cc7934a976d"
+          ],
+          "represented": true
+        }
+      ],
+      "verdict": "revise",
+      "coverage": [
+        "sf_2091662481925fe3228cb3ba",
+        "sf_84ed26e312d6ec605fb29155",
+        "sf_46ef20ad9b50e33d1521354e",
+        "sf_1f70513168fc75c9146a64cd",
+        "sf_fa6088592b4ff9e743408d09",
+        "sf_f8ee40de144ec36b5b64f6df",
+        "sf_922692115ebb87786dbf4532",
+        "sf_634b77c2f3f8681c91efbf24",
+        "sf_36f986acee18254b00083dff",
+        "sf_ee6250b4822d07704d19649f",
+        "sf_1686c3523261cb4b913eb305",
+        "sf_ffae3863707a37b0bd827786",
+        "sf_8d91a5f37ab59930900dd978",
+        "sf_fd5817d0318e75e29254b6da",
+        "sf_c00542c6df0bb2d275df0e53",
+        "sf_2e6ddfa173b471f8d6aecea1",
+        "sf_5718169d26e1c28f13b7f502",
+        "sf_ecd52fa57fdca5cc2e82348d",
+        "sf_5b8aa913e546c43445c5f3d0",
+        "sf_5063edd8294ba451a2d79d10",
+        "sf_c9b0fa6562e3c99049631c9a",
+        "sf_ddb71abcbc6aea626ea904f4"
+      ],
+      "dispositions": [],
+      "history_sha256": "e0e182b2d804afe4f22a878334498851fce4f16fe974dfd799a24ce419dc842d",
+      "candidate_sha256": "cf29e8be8b69c2093355de14d204547b5fc52913f0036b27f94ae212aebf4f01"
+    },
+    "validation_errors": [],
+    "error": null,
+    "receipt": {
+      "status": "completed",
+      "model": "gpt-5.6-sol",
+      "usage": {
+        "input_tokens": 196561,
+        "output_tokens": 5141,
+        "total_tokens": 201702,
+        "reasoning_tokens": 3217
+      },
+      "elapsed_seconds": 115.864,
+      "http_attempts": 1
+    }
+  }
+}
