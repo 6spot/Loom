@@ -53,6 +53,10 @@ class ChapterModels:
                 "max_repair_rounds": self.max_repair_rounds,
                 "format_retry_steps": list(protocol.FORMAT_RETRY_STEPS),
                 "schemas": {step: sha256_json(protocol.step_schema(step)) for step in protocol.STEPS},
+                "provider_schemas": {
+                    step: sha256_json(protocol.provider_schema(step))
+                    for step in protocol.STEPS
+                },
                 # Render the actual template with empty, deterministic data:
                 # prompt wording/wrapper changes must also freeze the whole
                 # job, even when its output schema and model names are equal.
@@ -63,7 +67,8 @@ class ChapterModels:
     def config_for(self, step: str, slot: str) -> dict:
         return {**self.profiles[slot], "response_format": "text" if step == "translation"
                 else self.profiles[slot]["response_format"],
-                "schema_sha256": sha256_json(protocol.step_schema(step))}
+                "schema_sha256": sha256_json(protocol.step_schema(step)),
+                "provider_schema_sha256": sha256_json(protocol.provider_schema(step))}
 
     def for_selection(self, selection):
         if not isinstance(selection, dict) or selection.get("config_sha256") != self.selection_key:
@@ -142,7 +147,7 @@ def from_env(env, *, limits) -> ChapterModels:
                 timeout_seconds=timeout, max_output_tokens=profile["max_output_tokens"],
                 max_response_bytes=profile["max_response_bytes"], max_attempts=1,
                 text_format=None if step == "translation" or profile["response_format"] == "text"
-                else {"type": "json_object"}, candidate_version="0.4")
+                else protocol.provider_text_format(step), candidate_version="0.4")
     return ChapterModels(
         name=primary or safe[next(iter(profiles))]["model"], profiles=safe, steps=selected,
         selection_key=settings.config_key(config, env),

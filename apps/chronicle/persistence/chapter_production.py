@@ -196,6 +196,171 @@ def step_schema(step: str) -> dict[str, Any] | None:
     raise PersistenceError(f"unknown chapter production step {step!r}")
 
 
+def _strict_provider_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Project a step schema into the provider's strict JSON-Schema subset.
+
+    The local validator intentionally keeps the complete product schema,
+    including optional fields and conditional constraints.  Responses-style
+    structured output has a smaller contract: object properties must be
+    explicitly closed and required, and composition-heavy ``allOf``/``oneOf``
+    schemas are not portable across the configured gateways.  The projection
+    therefore resolves local references, merges object ``allOf`` branches,
+    turns unions into ``anyOf`` and keeps only each object's local required
+    properties.  It constrains generation without changing the local parser
+    or the semantic acceptance validators.
+
+    Omitting optional fields is deliberate.  Their absence is accepted by the
+    product schema, while forcing a fabricated nullable value would change
+    the meaning of an extraction.  Conditional rules and source grounding
+    remain local validation responsibilities.
+    """
+    definitions = schema.get("$defs", {})
+    resolving: list[str] = []
+
+    scalar_keys = (
+        "type", "enum", "const", "pattern", "minLength", "maxLength",
+        "minimum", "maximum", "minItems", "maxItems", "uniqueItems",
+    )
+
+    def merge_objects(parts: list[dict[str, Any]]) -> dict[str, Any]:
+        properties: dict[str, Any] = {}
+        required: list[str] = []
+        for part in parts:
+            for name, value in part.get("properties", {}).items():
+                previous = properties.get(name)
+                if isinstance(previous, dict) and isinstance(value, dict):
+                    # ``temp_identity`` and each staged record both declare
+                    # temp_id. Keep the more restrictive constraints from
+                    # the identity branch when the record branch only adds a
+                    # broad string type.
+                    merged = copy.deepcopy(value)
+                    for key in (
+                        "type", "pattern", "minLength", "maxLength",
+                        "minimum", "maximum", "enum", "const",
+                    ):
+                        if key in previous and key not in merged:
+                            merged[key] = copy.deepcopy(previous[key])
+                    properties[name] = merged
+                else:
+                    properties[name] = value
+            for name in part.get("required", []):
+                if name not in required:
+                    required.append(name)
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                name: value for name, value in properties.items()
+                if name in required
+            },
+            "required": required,
+        }
+
+    def project(value: Any) -> Any:
+        if not isinstance(value, dict):
+            return copy.deepcopy(value)
+
+        reference = value.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            name = reference.removeprefix("#/$defs/")
+            if name not in definitions:
+                raise PersistenceError(
+                    f"provider schema references unknown local definition {name!r}"
+                )
+            # Current chapter definitions are acyclic, but keep a bounded
+            # fallback so a future schema cannot recurse while constructing a
+            # startup/provider payload.
+            if name in resolving:
+                return {
+                    "type": "object", "additionalProperties": False,
+                    "properties": {}, "required": [],
+                }
+            resolving.append(name)
+            result = project(definitions[name])
+            resolving.pop()
+            return result
+
+        if "allOf" in value:
+            branches = []
+            base = {
+                key: child for key, child in value.items()
+                if key not in {
+                    "allOf", "$defs", "$id", "$schema", "title",
+                    "description", "not", "if", "then",
+                }
+            }
+            if base:
+                branches.append(project(base))
+            branches.extend(project(branch) for branch in value["allOf"])
+            # ``if``/``then`` branches carry semantic conditions that remain
+            # local-only. They do not contribute provider object fields.
+            branches = [branch for branch in branches if branch != {}]
+            if branches and all(
+                isinstance(branch, dict)
+                and (branch.get("type") == "object" or "properties" in branch)
+                for branch in branches
+            ):
+                return merge_objects(branches)
+            if not branches:
+                return {}
+            return {"anyOf": branches}
+
+        if "anyOf" in value or "oneOf" in value:
+            union = value.get("anyOf", value.get("oneOf"))
+            result: dict[str, Any] = {
+                "anyOf": [project(branch) for branch in union]
+            }
+            # A composition node in the current shared schema does not carry
+            # sibling constraints, but retain these if a future one does.
+            for key in scalar_keys:
+                if key in value:
+                    result[key] = copy.deepcopy(value[key])
+            return result
+
+        result = {
+            key: copy.deepcopy(value[key])
+            for key in scalar_keys if key in value
+        }
+        properties = value.get("properties")
+        if isinstance(properties, dict) or value.get("type") == "object":
+            required = list(value.get("required", []))
+            result["type"] = "object"
+            result["additionalProperties"] = False
+            result["properties"] = {
+                name: project(child) for name, child in (properties or {}).items()
+                if name in required
+            }
+            result["required"] = required
+        if "items" in value:
+            result["items"] = project(value["items"])
+        return result
+
+    projected = project(schema)
+    if not isinstance(projected, dict):
+        raise PersistenceError("provider schema projection must be an object")
+    Draft202012Validator.check_schema(projected)
+    return projected
+
+
+def provider_schema(step: str) -> dict[str, Any] | None:
+    """Return the strict provider generation schema for a structured step."""
+    schema = step_schema(step)
+    return None if schema is None else _strict_provider_schema(schema)
+
+
+def provider_text_format(step: str) -> dict[str, Any] | None:
+    """Return the Responses ``text.format`` bound to the current step schema."""
+    schema = provider_schema(step)
+    if schema is None:
+        return None
+    return {
+        "type": "json_schema",
+        "name": f"chronicle_chapter_{step}_v01",
+        "schema": schema,
+        "strict": True,
+    }
+
+
 def translation_document(raw: str) -> dict[str, Any]:
     if not isinstance(raw, str) or not raw.strip():
         raise PersistenceError("translation must contain complete plain text")
@@ -480,7 +645,7 @@ def _source_for_model(request: dict) -> dict:
 def build_prompt(step: str, request: dict, data: dict, *, max_chars: int) -> str:
     instructions = {
         "translation": "将完整章的正文连贯翻译为简体中文的现代白话。只输出纯正文自然段，不要JSON、标题、序号、引用编号、注释或解释。source_scope中annotation仅用于理解，不另译成正文。正文引文、史料传闻及未知主语保留限定，不删减正文，不概括代替翻译。",
-        "extraction": "从完整原文独立提取实体、事件、Claim与人物阶段事实。不输出译文或unit_phases。每条职位事实仅一个实际持有者，任命者不是被任命者；亲属关系不是政治效力。保留原注/转述归属。到访不等于控制，四郡不等于全荆州。一般状态事实不必制造重大事件。年/月承接须有据，传统月份不得当公历月份，未知保留null。章内明确的别称共用一个temp_id，不能仅凭名字推断跨来源身份。实体记录的kind固定为entity，人物/地点/政权等分类写入type，不能把place写入kind。事件记录kind固定为event，bundle.events记录不能额外放source_selections；章级来源在record_sources中通过record_ref关联。来源selection必须包含first_block_id、last_block_id、quote、occurrence，不能用fragment_id代替；fragment id用于复核覆盖。临时ID使用ent_001、evt_001、clm_001这样的序号格式，不能以人名拼ID。模型提取的extraction.method使用model。严格按SCHEMA列出的字段输出，不自行添加字段。",
+        "extraction": "从完整原文独立提取实体、事件、Claim与人物阶段事实。不输出译文或unit_phases。每条职位事实仅一个实际持有者，任命者不是被任命者；亲属关系不是政治效力。保留原注/转述归属。到访不等于控制，四郡不等于全荆州。一般状态事实不必制造重大事件。年/月承接须有据，传统月份不得当公历月份，未知保留null。章内明确的别称共用一个temp_id，不能仅凭名字推断跨来源身份。实体记录的kind固定为entity，人物/地点/政权等分类写入type，不能把place写入kind。事件记录kind固定为event，bundle.events记录不能额外放source_selections；章级来源在record_sources中通过record_ref关联。来源selection必须包含first_block_id、last_block_id、quote、occurrence，不能用fragment_id代替；fragment id用于复核覆盖。临时ID使用ent_001、evt_001、clm_001这样的序号格式，不能以人名拼ID。模型提取的extraction.method使用model。严格按SCHEMA列出的字段输出，不自行添加字段。字段所有权必须区分：bundle.entities[*].mentions只允许text（可选contextual），不能放mention_id、surface、selection、status、target_ref或candidate_refs；完整mention对象只能放顶层mentions。bundle.events[*].participants[].entity_ref与places[]只能填写已经定义的ent_NNN，不得填写地名字符串；person_states中的person_ref/value_ref/target_ref也必须使用SCHEMA要求的typed ref对象。",
         "comparison": "比较固定候选全集，逐稿解释差异并选择一个版本。回看完整原文，不能投票或把多个模型当独立史料；实质分歧无法解决标为disputed。selected_sha256必须来自提供的candidate_sha256，逐稿differences不能遗漏少数意见。只比较，不编造新稿。",
         "linking": "为已经保存的每个译文段补充来源、实体/事件、叙事时间和阶段关联。不得重译、改字、删段或重排。translation_links必须逐一保留全部block_id及顺序。只引用真正支持该段的正文来源块，不把原注-only块充作翻译覆盖。回顾/预叙须区分实际发生；unit_phases只能引用已经提取的阶段。顶层仅有chapter_id、translation_links、reading、unit_phases，warnings放在reading.warnings。每个reading.units条目均须按SCHEMA完整返回narrative_time、current_event_refs、event_spans、context_entities等必需字段，不能在后半章换用translation_links的字段。narrative_time.mode仅为events、inherit、mixed、unknown，不能使用process或自行添加其他值；这些模式的依据、引用与继承仍须符合原文。",
         "review": "你仅复核当前精确版本，不能修改或附补丁。先检查正文范围，再逐一核验正文主语、词义、事实主体、职位、年月、地点归属、引用支持、段落关联及遗漏。coverage列全部正文fragment id。完整history包含所有前序候选和意见，dispositions逐项处理previous_issues，不得隐去反转或少数意见。只有当前版本已正确且所有处理错误已解决才能pass；若仍需修改则revise，无法裁定则needs_review。source_uncertainty表示史料不确定，只有正文/事实已明确保留该限定时represented才为true，并须提供非空来源evidence。旧source_uncertainty处置为resolved或source_uncertainty时，issues中必须有同target、represented=true且有来源依据的当前表达记录；未落实则unresolved，不能只改分类后略去。程序错误不能改名成史料不确定。",
@@ -490,11 +655,13 @@ def build_prompt(step: str, request: dict, data: dict, *, max_chars: int) -> str
         raise PersistenceError(f"unknown step {step}")
     if step == "extraction":
         instructions[step] += (
-            "所有实体的resolution必须为status=unresolved、canonical_id=null、candidate_ids=[]；"
+            "所有实体的resolution只能为status=unresolved；不要输出canonical_id或candidate_ids（身份由程序后续审核决定）；"
             "每个Entity/Event/Claim恰好一条record_sources，Claim.evidence.text等于该条第一段selection.quote。"
             "mentions.surface必须等于其selection.quote，缩称绑定实际表面词，不把整句当作surface；"
             "没有本章依据的别名不添加。不同时间的授任和转投须分阶段，不能让后来的职位覆盖此前叙事；"
             "连续任职须有专门证据，不能以未写罢官推定持续，不能以同一阶段作为持续区间的起止。"
+            "每个record_sources与source_selections的quote必须逐字出现在其first_block_id到last_block_id窗口内；"
+            "time.original_text也必须是SOURCE正文中的连续原文，无法确认时使用SCHEMA允许的unknown/null，不要改写或补造日期。"
         )
     if step == "linking":
         instructions[step] += (

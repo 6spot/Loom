@@ -247,6 +247,9 @@ class _StepModel:
     def __init__(self, script, step, slot):
         self.script, self.step, self.slot = script, step, slot
         self.name = "staged-fixture-" + slot
+        self.text_format = (
+            None if step == "translation" else protocol.provider_text_format(step)
+        )
 
     def complete(self, prompt):
         return self.script.complete(self.step, self.slot, prompt)

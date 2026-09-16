@@ -21,6 +21,7 @@ for path in (HERE, HERE.parent / "persistence"):
 
 from model_provider import ModelProviderError, ResponsesHTTPModel
 from chapter_stage import chapter_model_from_env
+import chapter_production
 
 
 @contextmanager
@@ -97,6 +98,25 @@ class StagedModelProviderTests(unittest.TestCase):
                     self.assertEqual(client.call_args.kwargs["timeout"], 900)
                     self.assertEqual(receipt["timeout_seconds"], 900)
             self.assertEqual(len(calls), len(models.steps))
+
+    def test_structured_steps_send_their_strict_provider_contract(self):
+        with endpoint(respond({"status": "completed", "output_text": "结果"})) as (url, calls, _):
+            models = chapter_model_from_env({
+                "CHRONICLE_CHAPTER_MODEL": "contract-model",
+                "CHRONICLE_MODEL_ENDPOINT": url,
+            })
+            for step, slots in models.steps.items():
+                models.model_for(step, slots[0]).complete_with_receipt("完整原文")
+
+        self.assertEqual(len(calls), len(models.steps))
+        for call, step in zip(calls, models.steps):
+            if step == "translation":
+                self.assertNotIn("text", call)
+            else:
+                self.assertEqual(
+                    call["text"]["format"],
+                    chapter_production.provider_text_format(step),
+                )
 
     def test_unknown_usage_stays_null(self):
         with endpoint(respond({"status": "completed", "output_text": "译文"})) as (url, _, _):

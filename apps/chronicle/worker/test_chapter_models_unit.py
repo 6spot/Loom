@@ -42,7 +42,10 @@ class ChapterModelsTests(unittest.TestCase):
         model = chapter_models.from_env(self.env(), limits=ChapterLimits())
         self.assertEqual(model.candidate_version, "0.4")
         self.assertIsNone(model.model_for("translation", "executor").text_format)
-        self.assertEqual(model.model_for("extraction", "executor").text_format, {"type": "json_object"})
+        extraction_format = model.model_for("extraction", "executor").text_format
+        self.assertEqual(extraction_format, chapter_production.provider_text_format("extraction"))
+        self.assertEqual("json_schema", extraction_format["type"])
+        self.assertTrue(extraction_format["strict"])
         self.assertEqual(model.config_for("translation", "executor")["response_format"], "text")
         self.assertEqual(model.max_parallel, 2)
         self.assertEqual(model.max_step_attempts, 2)

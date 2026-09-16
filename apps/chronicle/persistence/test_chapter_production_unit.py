@@ -122,6 +122,49 @@ class ChapterPatchTests(unittest.TestCase):
                     del broken["translation_links"][0]["entity_refs"][0]["ref"]
                 self.assertTrue(list(validator.iter_errors(broken)))
 
+    def test_provider_output_contract_is_strict_and_keeps_mention_ownership(self):
+        """The HTTP provider must receive the same current step contract."""
+        for step in ("extraction", "comparison", "linking", "review", "repair"):
+            with self.subTest(step=step):
+                schema = production.provider_schema(step)
+                self.assertIsNotNone(schema)
+                Draft202012Validator.check_schema(schema)
+                def assert_no_composition(node):
+                    if isinstance(node, dict):
+                        for forbidden in ("$ref", "$defs", "allOf", "oneOf", "if", "then", "not"):
+                            self.assertNotIn(forbidden, node)
+                        for child in node.values():
+                            assert_no_composition(child)
+                    elif isinstance(node, list):
+                        for child in node:
+                            assert_no_composition(child)
+
+                assert_no_composition(schema)
+
+                def assert_closed(node):
+                    if isinstance(node, dict):
+                        if node.get("type") == "object":
+                            self.assertFalse(node.get("additionalProperties", True))
+                            self.assertEqual(
+                                set(node.get("properties", {})),
+                                set(node.get("required", [])),
+                            )
+                        for child in node.values():
+                            assert_closed(child)
+                    elif isinstance(node, list):
+                        for child in node:
+                            assert_closed(child)
+
+                assert_closed(schema)
+
+        extraction = production.provider_schema("extraction")
+        bundle = extraction["properties"]["bundle"]["properties"]
+        nested_mention = bundle["entities"]["items"]["properties"]["mentions"]["items"]
+        self.assertEqual({"text"}, set(nested_mention["properties"]))
+        top_mention = extraction["properties"]["mentions"]["items"]
+        self.assertIn("selection", top_mention["properties"])
+        self.assertIn("surface", top_mention["properties"])
+
     def test_prompt_is_stable_when_jsonb_changes_object_key_order(self):
         first = {"candidate": self.candidate, "history": [], "candidate_sha256": sha256_json(self.candidate)}
         def reorder(value):
