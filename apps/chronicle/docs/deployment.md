@@ -204,10 +204,10 @@ Health check on the server:
 curl http://127.0.0.1:8080/healthz
 ```
 
-Timeline:
+Published history:
 
 ```text
-http://127.0.0.1:8080/timeline
+http://127.0.0.1:8080/history
 ```
 
 Search:

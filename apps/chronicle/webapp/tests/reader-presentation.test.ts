@@ -10,11 +10,10 @@ describe("Reader Presentation public surface", () => {
 
   it("keeps Reader Presentation behind the entity evidence disclosure", () => {
     const reader = "<ReaderPresentation presentation={readerPresentation} />";
-    expect(eventPage).toContain(reader);
+    expect(eventPage).not.toContain(reader);
     expect(entityPage).toContain(reader);
     expect(entityPage).toContain('<details className="entity-evidence"');
     expect(entityPage.indexOf("<details className=\"entity-evidence\"")).toBeLessThan(entityPage.indexOf(reader));
-    expect(eventPage.indexOf(reader)).toBeLessThan(eventPage.indexOf("<h2>史料与证据</h2>"));
   });
 
   it("keeps Claim/evidence provenance expandable instead of presenting prose as authority", () => {
@@ -26,7 +25,8 @@ describe("Reader Presentation public surface", () => {
   });
 
   it("does not request or synthesize a fallback narrative in the browser", () => {
-    expect(eventPage).toContain("暂未生成经过 grounding 校验的现代中文 Reader Presentation");
+    expect(eventPage).toContain("没有经过核对的正文映射时，不会补写百科式事件叙事");
+    expect(eventPage).toContain("暂无对应历史正文");
     expect(entityPage).toContain("目前没有单独的资料摘要");
     expect(personReader).toContain("这里不把主历史片段拼成简介");
     expect(personReader).toContain("不把它们拼成未经发布的传记");

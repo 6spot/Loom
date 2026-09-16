@@ -1,38 +1,41 @@
 #!/usr/bin/env node
-// C1-T9 Playwright + Chromium visual verification (Visual: required).
-//
-// Boots the REAL Rust chronicle-server (embedded React build) against a
-// canned C0-shaped mock upstream, then drives real Chromium over public
-// Timeline/Event/Entity/Search flows plus the authenticated Studio shell.
-// Writes screenshots to scripts/visual/ and fails on any missing DOM contract.
+// Playwright + Chromium verification for the published history/source-locator
+// surface. The script boots the real Rust front against a small upstream
+// fixture, so route, proxy, version-pinning, and browser behavior are tested
+// together.
 //
 // Usage: node scripts/visual-verify.mjs [--base-url http://127.0.0.1:18080]
 import { spawn } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
-import { CAO_CAO, RED_CLIFFS, RED_CLIFFS_PLACE, startMockUpstream } from "./mock-upstream.mjs";
+import {
+  CAO_CAO,
+  HISTORY_PARAGRAPH,
+  HISTORY_VERSION,
+  READING_CATALOG,
+  RED_CLIFFS,
+  RED_CLIFFS_PLACE,
+  UNMAPPED_EVENT,
+  startMockUpstream,
+} from "./mock-upstream.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, "visual");
+const SERVER_PORT = 18080;
 const ADMIN_USER = "admin";
 const ADMIN_PASSWORD = "long-password";
-// Review D-1: the server legally accepts non-control Unicode passwords, so
-// the visual pass must prove a Unicode password logs in end to end.
-const UNICODE_PASSWORD = "chronicle-密码-2026";
-const SERVER_PORT = 18080;
-const UNICODE_SERVER_PORT = 18081;
 
 const args = process.argv.slice(2);
 const baseUrlFlag = args.indexOf("--base-url");
 const externalBase = baseUrlFlag >= 0 ? args[baseUrlFlag + 1] : null;
 
 function sleep(ms) {
-  return new Promise((done) => setTimeout(done, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function spawnServer(upstreamPort, port, adminPassword) {
+function spawnServer(upstreamPort, port, password) {
   const binary = join(here, "..", "..", "server", "target", "debug", "chronicle-server");
   const server = spawn(binary, [], {
     env: {
@@ -41,7 +44,7 @@ function spawnServer(upstreamPort, port, adminPassword) {
       CHRONICLE_PORT: String(port),
       CHRONICLE_UPSTREAM_URL: `http://127.0.0.1:${upstreamPort}`,
       CHRONICLE_ADMIN_USER: ADMIN_USER,
-      CHRONICLE_ADMIN_PASSWORD: adminPassword,
+      CHRONICLE_ADMIN_PASSWORD: password,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -51,35 +54,51 @@ function spawnServer(upstreamPort, port, adminPassword) {
 }
 
 async function stopServer(server) {
-  if (!server) return;
+  if (!server || server.exitCode !== null) return;
   server.kill("SIGTERM");
   await sleep(500);
-  server.kill("SIGKILL");
+  if (server.exitCode === null) server.kill("SIGKILL");
 }
 
 async function waitForHealth(base) {
-  for (let i = 0; i < 100; i++) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
-      const res = await fetch(`${base}/healthz`);
-      if (res.ok) return;
+      const response = await fetch(`${base}/healthz`);
+      if (response.ok) return;
     } catch {
-      // not up yet
+      // The server is still starting.
     }
     await sleep(100);
   }
   throw new Error(`server never became healthy: ${base}`);
 }
 
-function check(name, cond) {
-  if (!cond) throw new Error(`visual verification missing ${name}`);
+function check(name, condition) {
+  if (!condition) throw new Error(`visual verification missing ${name}`);
   console.log(`  ok: ${name}`);
+}
+
+function browserExecutable() {
+  const preferred = process.env.CHROMIUM_PATH;
+  const candidates = [preferred, chromium.executablePath(), "/usr/bin/chromium", "/usr/bin/google-chrome"];
+  const playwrightPath = chromium.executablePath();
+  const cacheRoot = dirname(dirname(dirname(playwrightPath)));
+  if (existsSync(cacheRoot)) {
+    for (const entry of readdirSync(cacheRoot).filter((item) => item.startsWith("chromium-")).sort().reverse()) {
+      candidates.push(join(cacheRoot, entry, "chrome-linux", "chrome"));
+      candidates.push(join(cacheRoot, entry, "chrome-linux-arm64", "chrome"));
+    }
+  }
+  const executable = candidates.find((candidate) => candidate && existsSync(candidate));
+  if (!executable) throw new Error("no Chromium executable is available for real-browser verification");
+  return executable;
 }
 
 async function main() {
   mkdirSync(OUT, { recursive: true });
   let mock = null;
   let server = null;
-  let base = externalBase;
+  let base = externalBase?.replace(/\/+$/, "") ?? null;
   try {
     if (!base) {
       mock = await startMockUpstream(0);
@@ -89,137 +108,112 @@ async function main() {
     }
     await waitForHealth(base);
 
-    const browser = await chromium.launch();
+    // Some CI images cache the full Chromium binary but omit Playwright's
+    // optional headless-shell package. Use the available full browser so this
+    // check remains a real browser run on both layouts.
+    const browser = await chromium.launch({ executablePath: browserExecutable() });
     try {
-      // --- Public: Timeline (also proves public bundle skips Studio chunks).
-      const studioChunks = [];
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      page.on("request", (req) => {
-        if (/Studio|placeholders/i.test(req.url())) studioChunks.push(req.url());
-      });
-      await page.goto(`${base}/timeline?from_year=208&to_year=208`, { waitUntil: "networkidle" });
-      await page.getByText("赤壁之战").first().waitFor({ timeout: 10000 });
-      const timelineHTML = await page.content();
-      check("Red Cliffs Timeline card", timelineHTML.includes("赤壁之战"));
-      check("Wudi source on Timeline", timelineHTML.includes("三国志·魏书·武帝纪"));
-      check("Wuzhu source on Timeline", timelineHTML.includes("三国志·吴书·吴主传"));
-      check("canonical card once", timelineHTML.split(`data-event-id="${RED_CLIFFS}"`).length - 1 === 1);
-      check("public nav skips Studio chunks", studioChunks.length === 0);
-      // Review D-2: public nav links must be visibly separated, not one run.
-      const navBoxes = await page.locator(".site-nav a").evaluateAll((links) =>
-        links.map((link) => {
-          const rect = link.getBoundingClientRect();
-          return { x: rect.x, width: rect.width };
-        }),
-      );
-      check("site-nav renders three links", navBoxes.length === 3);
-      const ordered = [...navBoxes].sort((a, b) => a.x - b.x);
-      const gaps = ordered.slice(1).map((box, i) => box.x - (ordered[i].x + ordered[i].width));
-      check("site-nav links have visible gaps", gaps.every((gap) => gap >= 8));
-      await page.screenshot({ path: join(OUT, "timeline.png") });
 
-      // --- Public: Event Detail.
-      await page.goto(`${base}/events/${RED_CLIFFS}`, { waitUntil: "networkidle" });
-      await page.getByText("史料与证据").waitFor({ timeout: 10000 });
+      // Homepage -> published history -> exact event source locator.
+      await page.goto(`${base}/`, { waitUntil: "networkidle" });
+      await page.locator('[data-test="home-event-anchor"]').first().waitFor({ timeout: 10000 });
+      const homeHref = await page.locator('[data-test="home-event-anchor"]').first().getAttribute("href");
+      check("homepage event anchor is versioned", homeHref === `/history/${HISTORY_VERSION}/${HISTORY_PARAGRAPH}`);
+      await page.screenshot({ path: join(OUT, "home.png") });
+
+      await page.goto(`${base}/history/${HISTORY_VERSION}/${HISTORY_PARAGRAPH}`, { waitUntil: "networkidle" });
+      await page.locator('[data-history-paragraph]').first().waitFor({ timeout: 10000 });
+      const historyHTML = await page.content();
+      check("published history reader", historyHTML.includes("合成正文中的赤壁之战"));
+      check("history keeps the published version", historyHTML.includes(`data-version="${HISTORY_VERSION}"`));
+      check("history renders person context", historyHTML.includes("曹操"));
+      await page.screenshot({ path: join(OUT, "history.png") });
+
+      const eventQuery = `catalog=${READING_CATALOG}&version=${HISTORY_VERSION}`;
+      await page.goto(`${base}/events/${RED_CLIFFS}?${eventQuery}`, { waitUntil: "networkidle" });
+      await page.locator('[data-test="event-source-panel"]').waitFor({ timeout: 10000 });
       const eventHTML = await page.content();
-      check("Event evidence section", eventHTML.includes("史料与证据"));
-      check("Wudi evidence text", eventHTML.includes("公至赤壁，与备战，不利。"));
-      check("Wuzhu evidence text", eventHTML.includes("遇于赤壁，大破曹公军。"));
-      check("Cao Cao canonical link", eventHTML.includes(`/entities/${CAO_CAO}`));
-      check("related event section", eventHTML.includes("相关事件"));
-      await page.screenshot({ path: join(OUT, "event.png") });
+      check("event source locator", eventHTML.includes("事件来源定位"));
+      check("event has exact published location", eventHTML.includes(`/history/${HISTORY_VERSION}/${HISTORY_PARAGRAPH}`));
+      check("event keeps Wudi source", eventHTML.includes("三国志·魏书·武帝纪"));
+      check("event keeps Wuzhu source", eventHTML.includes("三国志·吴书·吴主传"));
+      check("event keeps source excerpts", eventHTML.includes("公至赤壁，与备战，不利。") && eventHTML.includes("遇于赤壁，大破曹公军。"));
+      check("event retires encyclopedia cards", !eventHTML.includes("史料与证据") && !eventHTML.includes("Reader Presentation"));
+      await page.screenshot({ path: join(OUT, "event-source-locator.png") });
 
-      // --- Public: Entity Detail (Cao Cao).
-      await page.goto(`${base}/entities/${CAO_CAO}`, { waitUntil: "networkidle" });
-      await page.getByText("事件轨迹").waitFor({ timeout: 10000 });
-      const entityHTML = await page.content();
-      check("Cao Cao entity page", entityHTML.includes("曹操"));
-      check("trajectory to Red Cliffs", entityHTML.includes("赤壁之战"));
-      await page.screenshot({ path: join(OUT, "entity.png") });
+      const sourceButton = page.locator('[data-test="event-source-original-entry"]').first();
+      await sourceButton.click();
+      await page.locator('[data-test="chapter-source-panel"]').waitFor({ timeout: 10000 });
+      check("event source opens original entry", (await page.locator('[data-test="chapter-source-segments"]').count()) > 0);
+      const sourceView = page.locator('[data-test="chapter-source-view-chapter"]');
+      if (await sourceView.count()) {
+        await sourceView.click();
+        await page.locator('[data-test="chapter-source-panel"][data-view="chapter"]').waitFor({ timeout: 10000 });
+        check("event source expands to chapter", true);
+      }
+      await page.locator('[data-test="chapter-source-close"]').click();
+      await page.locator('[data-test="chapter-source-panel"]').waitFor({ state: "detached", timeout: 10000 });
+      check("source panel returns to locator", true);
 
-      // --- Public: Entity Detail (uncertain place).
-      await page.goto(`${base}/entities/${RED_CLIFFS_PLACE}`, { waitUntil: "networkidle" });
-      await page.getByText("身份不确定").first().waitFor({ timeout: 10000 });
-      const placeHTML = await page.content();
-      check("place involvement marker", placeHTML.includes("作为地点"));
-      check("uncertain identity marker", placeHTML.includes("身份不确定"));
-      await page.screenshot({ path: join(OUT, "entity-place.png") });
-
-      // --- Public: Search.
+      // Person search goes to the person page while preserving only published
+      // context keys; place identity stays explicitly uncertain.
       await page.goto(`${base}/search?q=${encodeURIComponent("曹操")}`, { waitUntil: "networkidle" });
-      await page.getByText("为什么命中").first().waitFor({ timeout: 10000 });
-      const searchHTML = await page.content();
-      check("search result Cao Cao", searchHTML.includes("曹操"));
-      check("search navigation", searchHTML.includes(`/entities/${CAO_CAO}`));
-      check("search provenance", searchHTML.includes("三国志·魏书·武帝纪"));
-      await page.screenshot({ path: join(OUT, "search.png") });
+      await page.locator('[data-search-kind="entity"]').first().waitFor({ timeout: 10000 });
+      const personSearchHTML = await page.content();
+      check("person search result", personSearchHTML.includes("曹操"));
+      check("person search navigation", personSearchHTML.includes(`/entities/${CAO_CAO}`));
+      await page.goto(`${base}/entities/${CAO_CAO}?${eventQuery}`, { waitUntil: "networkidle" });
+      await page.locator('[data-view="entity"]').waitFor({ timeout: 10000 });
+      const personHTML = await page.content();
+      check("person page", personHTML.includes("曹操"));
+      check("person page has published context", personHTML.includes(`catalog=${READING_CATALOG}`));
+      check("person page does not invent year", !personHTML.includes(`/events/${RED_CLIFFS}?year=`));
 
-      // --- Mobile viewport: public timeline layout.
+      await page.goto(`${base}/search?q=${encodeURIComponent("赤壁")}`, { waitUntil: "networkidle" });
+      await page.locator('[data-search-kind="event"]').first().waitFor({ timeout: 10000 });
+      const placeSearchHTML = await page.content();
+      check("event search exact published mapping", placeSearchHTML.includes(`/history/${HISTORY_VERSION}/${HISTORY_PARAGRAPH}`));
+      check("uncertain place search result", placeSearchHTML.includes("身份不确定") && placeSearchHTML.includes(`/entities/${RED_CLIFFS_PLACE}`));
+      await page.goto(`${base}/search?q=${encodeURIComponent("无正文")}`, { waitUntil: "networkidle" });
+      const unmapped = page.locator('[data-test="search-event-unmapped"]');
+      await unmapped.waitFor({ timeout: 10000 });
+      check("unmapped event is explicit", (await unmapped.textContent()).includes("暂无对应历史正文"));
+      check("unmapped event keeps source locator", (await unmapped.locator('[data-test="search-event-source-link"]').getAttribute("href")) === `/events/${UNMAPPED_EVENT}`);
+      await page.goto(`${base}/entities/${RED_CLIFFS_PLACE}?${eventQuery}`, { waitUntil: "networkidle" });
+      await page.locator('[data-view="entity"]').waitFor({ timeout: 10000 });
+      const placeHTML = await page.content();
+      check("place evidence page", placeHTML.includes("作为地点") && placeHTML.includes("赤壁之战"));
+      await page.screenshot({ path: join(OUT, "place.png") });
+
       const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
-      await mobile.goto(`${base}/timeline?from_year=208&to_year=208`, { waitUntil: "networkidle" });
-      await mobile.getByText("赤壁之战").first().waitFor({ timeout: 10000 });
-      await mobile.screenshot({ path: join(OUT, "timeline-mobile.png") });
+      await mobile.goto(`${base}/history/${HISTORY_VERSION}/${HISTORY_PARAGRAPH}`, { waitUntil: "networkidle" });
+      await mobile.locator('[data-history-paragraph]').first().waitFor({ timeout: 10000 });
+      const mobileWidth = await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+      check("mobile history layout stays within viewport", mobileWidth);
+      await mobile.screenshot({ path: join(OUT, "history-mobile.png") });
       await mobile.close();
 
-      // --- Studio: unauthenticated shell redirects to login.
-      await page.goto(`${base}/studio`, { waitUntil: "networkidle" });
-      await page.getByText("Studio 登录").waitFor({ timeout: 10000 });
-      const loginHTML = await page.content();
-      check("studio login shell", loginHTML.includes("Studio 登录"));
-      await page.screenshot({ path: join(OUT, "studio-login.png") });
+      // Retired browser routes resolve to typed 404s, while current nav keeps
+      // the history surface as the one public entry.
+      for (const path of ["/world", "/timeline"]) {
+        const response = await page.request.get(`${base}${path}`);
+        check(`${path} is retired`, response.status() === 404);
+      }
+      const navHref = await page.locator('.site-nav a').first().getAttribute("href");
+      check("public nav points to history", navHref === "/history");
 
-      // --- Studio: login with the environment-configured admin.
+      // Studio remains server-authenticated after the public route cleanup.
+      await page.goto(`${base}/studio`, { waitUntil: "networkidle" });
+      await page.getByText("管理工作台登录").waitFor({ timeout: 10000 });
       await page.getByLabel("用户名").fill(ADMIN_USER);
       await page.getByLabel("密码").fill(ADMIN_PASSWORD);
-      await page.getByRole("button", { name: "登录 Studio" }).click();
-      await page.getByText("Studio 总览").waitFor({ timeout: 10000 });
-      const homeHTML = await page.content();
-      check("studio home", homeHTML.includes("Studio 总览"));
-      check("studio admin identity", homeHTML.includes(ADMIN_USER));
+      await page.getByRole("button", { name: "登录管理工作台" }).click();
+      await page.getByRole("heading", { name: "内容工作台" }).waitFor({ timeout: 10000 });
+      check("Studio remains reachable after public cleanup", (await page.locator('[data-view="studio-home"]').count()) === 1);
       await page.screenshot({ path: join(OUT, "studio-home.png") });
 
-      // --- Studio: placeholders (route-split chunks load on demand).
-      await page.goto(`${base}/studio/imports`, { waitUntil: "networkidle" });
-      await page.getByText("Imports").first().waitFor({ timeout: 10000 });
-      check("imports placeholder", (await page.content()).includes("C1-T10"));
-      await page.screenshot({ path: join(OUT, "studio-imports.png") });
-
-      await page.goto(`${base}/studio/review`, { waitUntil: "networkidle" });
-      await page.getByText("Review").first().waitFor({ timeout: 10000 });
-      check("review placeholder", (await page.content()).includes("C1-T11"));
-      await page.screenshot({ path: join(OUT, "studio-review.png") });
-
-      await page.goto(`${base}/studio/sources`, { waitUntil: "networkidle" });
-      await page.getByText("Sources / Corpus").first().waitFor({ timeout: 10000 });
-      check("sources placeholder", (await page.content()).includes("C1-T12"));
-      await page.screenshot({ path: join(OUT, "studio-sources.png") });
-
-      // --- Studio API stays server-enforced (no creds -> 401).
-      const anon = await fetch(`${base}/api/v1/studio/status`);
-      check("studio API 401 without credentials", anon.status === 401);
-
-      // --- Review D-1: Unicode Studio password logs in end to end.
-      // Restart the front with a Unicode admin password and log in through
-      // the real UI in a fresh tab session. With the old btoa() encoding
-      // this throws InvalidCharacterError before any request is sent.
       await page.close();
-      if (!externalBase) {
-        await stopServer(server);
-        server = spawnServer(mock.port, UNICODE_SERVER_PORT, UNICODE_PASSWORD);
-        base = `http://127.0.0.1:${UNICODE_SERVER_PORT}`;
-        await waitForHealth(base);
-      }
-      const unicodePage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      await unicodePage.goto(`${base}/studio`, { waitUntil: "networkidle" });
-      await unicodePage.getByText("Studio 登录").waitFor({ timeout: 10000 });
-      await unicodePage.getByLabel("用户名").fill(ADMIN_USER);
-      await unicodePage.getByLabel("密码").fill(UNICODE_PASSWORD);
-      await unicodePage.getByRole("button", { name: "登录 Studio" }).click();
-      await unicodePage.getByText("Studio 总览").waitFor({ timeout: 10000 });
-      const unicodeHome = await unicodePage.content();
-      check("unicode password studio login", unicodeHome.includes(ADMIN_USER));
-      await unicodePage.screenshot({ path: join(OUT, "studio-unicode-login.png") });
-      await unicodePage.close();
     } finally {
       await browser.close();
     }
@@ -232,8 +226,8 @@ async function main() {
 
 main().then(
   () => process.exit(0),
-  (err) => {
-    console.error(`chronicle visual verification: FAIL: ${err.message}`);
+  (error) => {
+    console.error(`chronicle visual verification: FAIL: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   },
 );

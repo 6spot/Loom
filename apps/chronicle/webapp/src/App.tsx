@@ -1,8 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import HistoricalTimeBar from "./components/HistoricalTimeBar";
 import { StudioAuthProvider, useStudioAuth } from "./lib/studio-auth";
-import { withHistoricalTime } from "./lib/historical-time";
+import { withPublishedContext } from "./lib/routes";
 import ChronicleIcon from "./components/ChronicleIcon";
 import PublicDialog from "./components/PublicDialog";
 import HomePage from "./pages/public/HomePage";
@@ -11,15 +10,12 @@ import { chapterPath, readingPath } from "./lib/routes";
 import EntityPage from "./pages/public/EntityPage";
 import EventPage from "./pages/public/EventPage";
 import SearchPage from "./pages/public/SearchPage";
-import TimelinePage from "./pages/public/TimelinePage";
-import WorldPage from "./pages/public/WorldPage";
 import ChapterIndexPage from "./pages/public/ChapterIndexPage";
 import ChapterPage from "./pages/public/ChapterPage";
 import ReadingIndexPage from "./pages/public/ReadingIndexPage";
 import ReadingPage from "./pages/public/ReadingPage";
 import { NotFoundState } from "./components/shared";
 import "./styles/chronicle.css";
-import "./styles/world.css";
 import "./styles/studio.css";
 import "./styles/review-evidence.css";
 import "./styles/chapter-reader.css";
@@ -43,7 +39,7 @@ function StudioGuard({ children }: { children: JSX.Element }) {
   return children;
 }
 
-function PublicChrome({ children, timeBar = true }: { children: React.ReactNode; timeBar?: boolean }) {
+function PublicChrome({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [tool, setTool] = useState<"search" | "menu" | null>(null);
@@ -58,12 +54,11 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
           <span><strong>Chronicle</strong></span>
         </Link>
         <nav className="site-nav" aria-label="主要导航">
-          <Link to="/" aria-current={location.pathname === "/" ? "page" : undefined}>探索</Link>
+          <Link to="/history" aria-current={location.pathname.startsWith("/history") ? "page" : undefined}>历史</Link>
           <button className="public-icon-button" type="button" aria-label="搜索历史" onClick={() => setTool("search")}><ChronicleIcon name="search" /></button>
           <button className="public-icon-button" type="button" aria-label="更多导航" onClick={() => setTool("menu")}><ChronicleIcon name="more" /></button>
         </nav>
       </header>
-      {timeBar ? <HistoricalTimeBar /> : null}
       <main id="app" className="app-shell" tabIndex={-1}>{children}</main>
       {tool === "search" ? <PublicDialog title="寻找一段历史" onClose={() => setTool(null)} compact>
         <form
@@ -77,7 +72,7 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
             const query = String(form.get("q") ?? "").trim();
             if (query) {
               setTool(null);
-              navigate(withHistoricalTime(`/search?q=${encodeURIComponent(query)}`, location.search));
+              navigate(withPublishedContext(`/search?q=${encodeURIComponent(query)}`, location.search));
             }
           }}
         >
@@ -88,9 +83,9 @@ function PublicChrome({ children, timeBar = true }: { children: React.ReactNode;
       </PublicDialog> : null}
       {tool === "menu" ? <PublicDialog title="探索与资料" onClose={() => setTool(null)} compact>
         <nav className="public-menu" aria-label="更多导航">
-          <Link to="/timeline">历史时刻</Link>
-          <Link to="/history">连续历史正文</Link>
-          <Link to="/read">史料译文</Link>
+          <Link to="/history">历史正文</Link>
+          <Link to="/search?kind=entity">人物与地点</Link>
+          <Link to="/read">连续阅读</Link>
           <Link to="/chapters">史料原文</Link>
           <Link to="/studio">内容管理</Link>
         </nav>
@@ -150,17 +145,15 @@ export default function App() {
           <Route path="coverage" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioCoveragePage /></Suspense></StudioGuard>} />
           <Route path="backgrounds" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioBackgroundsPage /></Suspense></StudioGuard>} />
         </Route>
-        <Route path="/" element={<PublicChrome timeBar={false}><HomePage /></PublicChrome>} />
-        <Route path="/history/*" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />
-        <Route path="/world" element={<PublicChrome><WorldPage /></PublicChrome>} />
-        <Route path="/timeline" element={<PublicChrome><TimelinePage /></PublicChrome>} />
+        <Route path="/" element={<PublicChrome><HomePage /></PublicChrome>} />
+        <Route path="/history/*" element={<PublicChrome><HistoryPage /></PublicChrome>} />
         <Route path="/search" element={<PublicChrome><SearchPage /></PublicChrome>} />
         <Route path="/events/:id" element={<PublicChrome><EventPage /></PublicChrome>} />
         <Route path="/entities/:id" element={<PublicChrome><EntityPage /></PublicChrome>} />
         <Route path="/chapters" element={<PublicChrome><ChapterIndexRoute /></PublicChrome>} />
         <Route path="/chapters/:publicationId" element={<PublicChrome><ChapterDetailRoute /></PublicChrome>} />
-        <Route path="/read" element={<PublicChrome timeBar={false}><ReadingIndexRoute /></PublicChrome>} />
-        <Route path="/read/:streamId" element={<PublicChrome timeBar={false}><ReadingDetailRoute /></PublicChrome>} />
+        <Route path="/read" element={<PublicChrome><ReadingIndexRoute /></PublicChrome>} />
+        <Route path="/read/:streamId" element={<PublicChrome><ReadingDetailRoute /></PublicChrome>} />
         <Route path="*" element={<PublicChrome><NotFoundState /></PublicChrome>} />
       </Routes>
     </StudioAuthProvider>

@@ -1,57 +1,25 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useParams } from "react-router-dom";
-import ReaderPresentation from "../../components/ReaderPresentation";
-import HistoryReturnLink from "../../components/HistoryReturnLink";
+import ChapterSourceReference from "../../components/ChapterSourceReference";
 import EventReadingEntry from "../../components/EventReadingEntry";
+import HistoryReturnLink from "../../components/HistoryReturnLink";
 export { mergeEventTargetPages } from "../../components/EventReadingEntry";
-import { useEvent } from "../../lib/queries";
-import { formatTime } from "../../lib/routes";
-import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
-import { ClaimsBlock, DECISION_LABEL, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
-import type { Participant, Representation } from "../../lib/types";
+import { ErrorState, LoadingState } from "../../components/shared";
+import {
+  historyPath,
+  historyTimeLabel,
+  loadHistory,
+  type HistoryEntry,
+  type HistoryPublication,
+} from "../../lib/history-api";
+import { fetchReadingStreams, loadReadingEventPreview } from "../../lib/reading-api";
 import { readReturnToken } from "../../lib/reading-location";
 import { ReadingHistoryStore, ReadingStorage } from "../../lib/reading-history";
-import type { ReadingLocator } from "../../lib/reading-types";
+import type { EventPreview, EventPreviewSource, ReadingLocator } from "../../lib/reading-types";
+import { describeTimeDivergence, sourceTimeText } from "../../components/reading/ReadingEventPreview";
 
-function LinkedEntity({ item, sourceLabel }: { item: Participant; sourceLabel: string }) {
-  const location = useLocation();
-  const name = item.display?.name ?? "未命名实体";
-  const type = item.display?.type ?? "entity";
-  if (!item.canonical_entity_id) {
-    return (
-      <div className="entity-link">
-        <span><strong>{name}</strong><small> · {type}</small></span>
-        <span className="decision uncertain">未解析</span>
-      </div>
-    );
-  }
-  return (
-    <Link
-      className="entity-link"
-      to={withHistoricalTime(`/entities/${encodeURIComponent(item.canonical_entity_id)}`, location.search)}
-      data-test="entity-link"
-    >
-      <span><strong>{name}</strong><small> · {type}</small></span>
-      <span className="muted">{sourceLabel}</span>
-    </Link>
-  );
-}
-
-function EventRepresentation({ rep }: { rep: Representation }) {
-  return (
-    <article className="source-card" data-source={rep.bundle}>
-      <header>
-        <div><div className="source-title">{rep.source?.title ?? rep.bundle}</div><div className="muted">Source representation</div></div>
-        <code>{rep.bundle}:{rep.ref}</code>
-      </header>
-      <ClaimsBlock claims={rep.claims ?? []} />
-      <RawDetails label="查看源 Event 记录" payload={rep.event ?? {}} />
-      <RawDetails label="查看 Source 元数据" payload={rep.source?.record ?? {}} />
-    </article>
-  );
-}
-
-/** 从 sessionStorage 的 return token 恢复本站 typed locator；缺失/失效返回 null。 */
+/** From sessionStorage restore the typed source-reading return locator. */
 function useReadingReturn(search: string): ReadingLocator | null {
   return useMemo(() => {
     const token = readReturnToken(search);
@@ -65,96 +33,192 @@ function useReadingReturn(search: string): ReadingLocator | null {
   }, [search]);
 }
 
+function PublishedEventLocations({
+  eventId,
+  publication,
+  pending,
+  failed,
+}: {
+  eventId: string;
+  publication: HistoryPublication | null | undefined;
+  pending: boolean;
+  failed: boolean;
+}) {
+  if (pending) {
+    return (
+      <section className="panel" data-test="event-published-locations">
+        <div className="panel-heading"><h2>已发布历史正文</h2></div>
+        <p className="muted" role="status">正在核对当前发布版本中的正文位置…</p>
+      </section>
+    );
+  }
+
+  const locations = publication?.entry_points.filter((entry) => entry.event_id === eventId) ?? [];
+  return (
+    <section className="panel" data-test="event-published-locations">
+      <div className="panel-heading">
+        <h2>已发布历史正文</h2>
+        <span className="count">{publication ? publication.title : "当前版本"}</span>
+      </div>
+      {failed || locations.length === 0 ? (
+        <p className="muted" data-test="event-no-published-location">
+          暂无对应历史正文；以下仅展示已发布的来源定位，不根据年份或首段猜测正文位置。
+        </p>
+      ) : (
+        <>
+          <p className="muted">{locations.length > 1 ? "这一事件在当前版本有多个正文位置，请选择：" : "已核对到当前发布版本的正文位置："}</p>
+          <div className="search-event-location-list">
+            {locations.map((entry: HistoryEntry) => (
+              <Link
+                className="public-text-button"
+                key={entry.paragraph_id}
+                to={historyPath({ version: publication!.version, paragraph_id: entry.paragraph_id })}
+                data-test="event-published-location"
+              >
+                {historyTimeLabel(entry)} · {entry.label}
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function SourceEvidence({
+  source,
+  onOpen,
+}: {
+  source: EventPreviewSource;
+  onOpen: (reference: { publicationId: string; anchorId: string; label: string }) => void;
+}) {
+  const originalEntry = source.original_entry;
+  return (
+    <article className="source-card" data-test="event-source-evidence" data-source={source.source_title}>
+      <header>
+        <div>
+          <div className="source-title">{source.source_title}</div>
+          <div className="muted">已发布来源记录</div>
+        </div>
+        {source.publication_id ? <code>{source.publication_id}</code> : null}
+      </header>
+      <p className="muted">原始时间记载：{sourceTimeText(source)}</p>
+      {source.excerpt ? (
+        <blockquote className="claim" data-test="event-source-excerpt">
+          {source.excerpt}{source.excerpt_more ? "…" : ""}
+        </blockquote>
+      ) : (
+        <p className="muted" data-test="event-source-no-excerpt">暂无已发布译文摘录。</p>
+      )}
+      {originalEntry ? (
+        <button
+          type="button"
+          className="public-text-button"
+          data-test="event-source-original-entry"
+          onClick={() => onOpen({
+            publicationId: originalEntry.publication_id,
+            anchorId: originalEntry.anchor_id,
+            label: `${source.source_title} · 原文入口`,
+          })}
+        >
+          查看该来源原文入口
+        </button>
+      ) : (
+        <p className="muted" data-test="event-source-no-original-entry">该来源暂未发布可展开的原文入口。</p>
+      )}
+    </article>
+  );
+}
+
+function EventSources({ preview }: { preview: EventPreview }) {
+  const [source, setSource] = useState<{ publicationId: string; anchorId: string; label: string } | null>(null);
+  const divergence = describeTimeDivergence(preview.sources);
+  return (
+    <section className="panel" id="evidence" data-test="event-source-panel">
+      <div className="panel-heading">
+        <h2>已发布来源</h2>
+        <span className="count">共 {preview.source_count} 个来源{preview.has_more_sources ? "，仅列部分" : ""}</span>
+      </div>
+      <p className="muted">这里保留来源归属、原始时间和可展开的原文依据；来源摘录不是历史正文的替代品。</p>
+      {divergence ? <p className="muted" data-test="event-source-time-divergence" role="note">{divergence}</p> : null}
+      {preview.sources.length ? (
+        <div className="source-stack">
+          {preview.sources.map((item, index) => <SourceEvidence key={`${item.source_title}:${index}`} source={item} onOpen={setSource} />)}
+        </div>
+      ) : (
+        <p className="muted" data-test="event-no-sources">当前发布版本没有可展示的来源摘录。</p>
+      )}
+      {source ? (
+        <ChapterSourceReference
+          key={`${source.publicationId}:${source.anchorId}`}
+          publicationId={source.publicationId}
+          anchorId={source.anchorId}
+          anchorLabel={source.label}
+          onClose={() => setSource(null)}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 export default function EventPage() {
   const { id } = useParams();
   const location = useLocation();
   const params = new URLSearchParams(location.search.startsWith("?") ? location.search.slice(1) : location.search);
-  const catalog = params.get("catalog");
+  const requestedCatalog = params.get("catalog");
+  const requestedVersion = params.get("version");
   const returnLocator = useReadingReturn(location.search);
-  const event = useEvent(id, catalog);
+  const catalog = useQuery({
+    queryKey: ["reading", "event-catalog", requestedCatalog ?? "latest"],
+    queryFn: async () => requestedCatalog ?? (await fetchReadingStreams({ limit: 1 })).snapshot.catalog_sha,
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const catalogSha = catalog.data ?? requestedCatalog;
+  const preview = useQuery<EventPreview, Error>({
+    queryKey: ["reading", "event-page-preview", id ?? "", catalogSha ?? null],
+    queryFn: () => loadReadingEventPreview(id!, catalogSha!),
+    enabled: Boolean(id && catalogSha),
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const history = useQuery<HistoryPublication | null, Error>({
+    queryKey: ["history", "event-page-locations", requestedVersion ?? "latest"],
+    queryFn: () => loadHistory(requestedVersion),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+    retry: 1,
+  });
 
-  if (event.isPending) return <LoadingState label="事件" />;
-  if (event.isError) return <ErrorState code={event.error.code} message={event.error.message} />;
+  if (!id) return <LoadingState label="事件" />;
+  if (catalog.isError) return <ErrorState code="reading_catalog_unavailable" message={catalog.error.message} />;
+  if (preview.isPending || (catalog.isPending && !catalogSha)) return <LoadingState label="事件来源" />;
+  if (preview.isError) return <ErrorState code="event_not_found" message={preview.error.message} />;
 
-  const data = event.data;
-  const participants = data.participants ?? [];
-  const places = data.places ?? [];
-  const related = data.related_events ?? [];
-  const reps = data.representations ?? [];
-  const readerPresentation = data.reader_presentation ?? null;
-
+  const data = preview.data;
   return (
-    <section data-view="event" data-canonical-id={data.canonical_event_id}>
-      <div className="breadcrumbs">
-        <Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span>
-        <Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>事件</span>
-      </div>
+    <section data-view="event" data-canonical-id={data.event_id}>
+      <div className="breadcrumbs"><Link to="/history">历史正文</Link><span>›</span><span>事件来源定位</span></div>
       <HistoryReturnLink fallback={<EventReadingEntry
-        key={`${data.canonical_event_id}:${catalog ?? ""}`}
-        eventId={data.canonical_event_id}
-        catalog={catalog}
+        key={`${data.event_id}:${catalogSha ?? "latest"}`}
+        eventId={data.event_id}
+        catalog={catalogSha}
         returnLocator={returnLocator}
       />} />
       <header className="page-header">
-        <p className="eyebrow">Canonical Event</p>
-        <h1>{data.display?.title ?? "未命名事件"}</h1>
-        <div className="hero-meta">
-          {data.display?.type ? <span className="chip type">{data.display.type}</span> : null}
-          <span className="chip">{formatTime(data.time ?? {})}</span>
-          <span className="chip">{data.source_count ?? reps.length} 个来源</span>
-        </div>
-        <p className="lede">
-          {readerPresentation
-            ? "先显示经过 grounding 校验的现代中文 Reader Presentation；下方仍完整保留 Source representation、Claim、原始 evidence 与 Resolution。"
-            : "此事件暂未生成经过 grounding 校验的现代中文 Reader Presentation，因此不会临时补写叙事；以下直接显示 source-grounded 史料与证据。"}
-        </p>
-        <a className="primary-link" href="#evidence" data-test="event-evidence-link">跳到史料与证据</a>
+        <p className="eyebrow">事件来源定位</p>
+        <h1>{data.name || "未命名事件"}</h1>
+        <p className="lede">此页只连接当前发布版本的历史正文和已发布来源定位；没有经过核对的正文映射时，不会补写百科式事件叙事。</p>
+        <a className="primary-link" href="#evidence" data-test="event-evidence-link">查看已发布来源</a>
       </header>
-
-      <ReaderPresentation presentation={readerPresentation} />
-
-      <div className="detail-grid">
-        <div className="detail-main">
-          <section className="panel" id="evidence">
-            <div className="panel-heading"><h2>史料与证据</h2><span className="count">{reps.length} representations</span></div>
-            <div className="source-stack">{reps.map((rep, index) => <EventRepresentation key={`${rep.bundle ?? "bundle"}:${rep.ref ?? index}`} rep={rep} />)}</div>
-          </section>
-          <section className="panel">
-            <div className="panel-heading"><h2>Resolution</h2><span className="count">跨来源判断</span></div>
-            <ResolutionBlock links={data.resolution_links ?? []} targetKind="event" currentId={data.canonical_event_id} />
-          </section>
-        </div>
-        <aside className="detail-side">
-          <section className="panel">
-            <div className="panel-heading"><h2>人物 / 实体</h2><span className="count">participants</span></div>
-            <div className="entity-links">
-              {participants.length ? participants.map((item, index) => (
-                <LinkedEntity key={item.canonical_entity_id ?? index} item={item} sourceLabel={(item.source_roles ?? []).map((role) => role.role).filter(Boolean).join(" · ") || "participant"} />
-              )) : <p className="muted">没有 participant 映射。</p>}
-            </div>
-          </section>
-          <section className="panel">
-            <div className="panel-heading"><h2>地点</h2><span className="count">places</span></div>
-            <div className="entity-links">{places.length ? places.map((item, index) => <LinkedEntity key={item.canonical_entity_id ?? index} item={item} sourceLabel="place" />) : <p className="muted">没有地点映射。</p>}</div>
-          </section>
-          <section className="panel">
-            <div className="panel-heading"><h2>相关事件</h2><span className="count">related ≠ same</span></div>
-            <div className="related-list">
-              {related.length ? related.map((item, index) => (
-                <Link
-                  key={item.event?.canonical_event_id ?? index}
-                  className="related-card"
-                  to={withHistoricalTime(`/events/${encodeURIComponent(item.event?.canonical_event_id ?? "")}`, location.search)}
-                  data-test="related-event"
-                >
-                  <strong>{item.event?.display?.title ?? "未命名事件"}</strong>
-                  <span className="muted">{formatTime(item.event?.time ?? {})} · {DECISION_LABEL[item.type ?? ""] ?? item.type}</span>
-                </Link>
-              )) : <p className="muted">没有 related occurrence。</p>}
-            </div>
-          </section>
-        </aside>
-      </div>
+      <PublishedEventLocations
+        eventId={data.event_id}
+        publication={history.data}
+        pending={history.isPending}
+        failed={history.isError}
+      />
+      <EventSources preview={data} />
     </section>
   );
 }

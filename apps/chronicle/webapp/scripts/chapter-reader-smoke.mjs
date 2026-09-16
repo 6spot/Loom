@@ -95,7 +95,7 @@ async function main() {
   try {
     // 3. Desktop: public nav exposes 篇章, directory renders.
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    await page.goto(`${BASE_URL}/world?year=208`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE_URL}/history`, { waitUntil: "networkidle" });
     const navLink = page.getByRole("link", { name: "篇章" });
     check("public-nav-has-chapters", (await navLink.count()) > 0);
     await navLink.first().click();

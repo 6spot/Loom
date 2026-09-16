@@ -16,8 +16,7 @@ import {
   type HistoryConclusion,
   type HistoryPhaseData,
 } from "../../lib/history-api";
-import { formatTime, readPath } from "../../lib/routes";
-import { withHistoricalTime, worldPathFromSearch } from "../../lib/historical-time";
+import { formatTime, readPath, withPublishedContext } from "../../lib/routes";
 import { ClaimsBlock, ErrorState, LoadingState, RawDetails, ResolutionBlock } from "../../components/shared";
 import type { ReaderPresentation as ReaderPresentationData, Representation, TrajectoryEvent } from "../../lib/types";
 import { buildReadingUrl, readReturnToken } from "../../lib/reading-location";
@@ -258,7 +257,7 @@ function EntityEvidence({
             <div className="panel-heading"><h3>关联事件</h3><span className="count">{events.length} 项</span></div>
             <div className="trajectory-list">
               {events.map((event) => (
-                <Link key={event.canonical_event_id} className="trajectory-card" to={withHistoricalTime(`/events/${encodeURIComponent(event.canonical_event_id)}`, search)} data-test="trajectory-event">
+                <Link key={event.canonical_event_id} className="trajectory-card" to={withPublishedContext(`/events/${encodeURIComponent(event.canonical_event_id)}`, search)} data-test="trajectory-event">
                   <strong>{event.display?.title ?? "未命名事件"}</strong>
                   <span className="muted">{formatTime(event.time ?? {})}</span>
                   <div className="trajectory-meta">{involvementChips(event.source_involvements ?? []).map((chip) => <span key={chip} className="role-chip">{chip}</span>)}</div>
@@ -276,7 +275,7 @@ function EntityEvidence({
         {(resolutionLinks?.length ?? 0) > 0 ? (
           <section className="entity-evidence-section">
             <div className="panel-heading"><h3>身份核对</h3><span className="count">{resolutionLinks?.length ?? 0} 项</span></div>
-            <ResolutionBlock links={resolutionLinks ?? []} targetKind="entity" currentId={entityId} />
+            <ResolutionBlock links={resolutionLinks ?? []} targetKind="entity" currentId={entityId} search={search} />
           </section>
         ) : null}
         {(claims?.length ?? 0) > 0 ? (
@@ -320,7 +319,7 @@ export default function EntityPage() {
   if (isPerson) {
     return (
       <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
-        <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>人物</span></div>
+        <div className="breadcrumbs"><Link to="/history">历史正文</Link><span>›</span><Link to="/search?kind=entity">人物与地点</Link><span>›</span><span>人物</span></div>
         <PersonHistoryReader
           key={`${data.canonical_entity_id}:${requestedPersonVersion ?? "latest"}`}
           entityId={data.canonical_entity_id}
@@ -341,7 +340,7 @@ export default function EntityPage() {
 
   return (
     <section data-view="entity" data-canonical-id={data.canonical_entity_id}>
-      <div className="breadcrumbs"><Link to={worldPathFromSearch(location.search)}>历史世界</Link><span>›</span><Link to={withHistoricalTime("/timeline", location.search)}>时间线</Link><span>›</span><span>对象</span></div>
+      <div className="breadcrumbs"><Link to="/history">历史正文</Link><span>›</span><span>对象</span></div>
       <HistoryReturnLink fallback={<ReadingReturnBar returnLocator={returnLocator} />} />
       <p className="muted" data-test="entity-phase-note">
         {hasValidHistoryLocator

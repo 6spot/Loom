@@ -8,13 +8,13 @@
 
 ## 1. 页面组织
 
-新增 `/read` 目录与 `/read/{stream_id}?catalog={sha}&at={unit_id}` 连续阅读页。`at` 可省略以从首段开始；入口解析后 URL 固定 catalog。第一轮篇章目录/详情保留，并提供连续阅读入口；已有 Timeline / Event Detail 提供“进入相关正文”。新的主体不是一串每段各带边框的事件卡片。
+新增 `/read` 目录与 `/read/{stream_id}?catalog={sha}&at={unit_id}` 连续阅读页。`at` 可省略以从首段开始；入口解析后 URL 固定 catalog。第一轮篇章目录/详情保留，并提供连续阅读入口；事件来源定位页提供“进入相关正文”。新的主体不是一串每段各带边框的事件卡片。
 
 桌面宽度 >= 1200px：左侧 140–180px 阅读时间轴，中间最大 42rem 正文，右侧 220–260px 当前人物/地点。正文优先取得空间，三列含间距总宽不超过 1440px。768–1199px：保留窄时间轴与正文，人物地点移到可展开区域。<768px：单栏正文，当前叙事时间及“人物地点”入口置于紧凑 sticky 阅读栏，时间轴按需展开为可关闭的列表。不出现挤压正文的三栏缩放版。
 
 正文默认 18px、line-height 1.85，窄屏不小于 17px，段落间距 1em；中文正文字体优先系统 Songti SC / Noto Serif CJK SC / serif，控件沿用系统无衬线。章标题、来源、正文、辅助入口有清楚层级；不额外下载阻塞首屏的外部字体。采用现有色系与 token，轴线低对比、当前区段有清晰文字和形状提示。内部 schema、canonical、hash、grounding 等术语不放在默认阅读文案中，审计信息保留到来源详情。
 
-顶层原 HistoricalTimeBar 不与阅读轴重复控制同一正文。阅读页的 compact bar 显示 active unit 的叙事时间，unknown 原样表达；只有显式“在历史时间线查看”才把有依据的 normalized 年/范围转换为既有筛选参数。进入或滚动正文不修改 World 时间、不创建 Runtime Timeline，也不通过 `withHistoricalTime` 把回溯事件的年份覆盖阅读 URL。
+阅读页不再叠加全局历史时间栏；compact bar 只显示 active unit 的服务端叙事时间，unknown 原样表达。进入或滚动正文不修改外部时间筛选、不创建 Runtime Timeline，也不把回溯事件的年份覆盖阅读 URL。历史正文入口、人物页和事件来源定位页只携带已发布版本与 typed reading return context。
 
 ## 2. 合成交互示例
 

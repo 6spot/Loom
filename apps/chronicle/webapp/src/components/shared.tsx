@@ -1,4 +1,4 @@
-import { formatTime } from "../lib/routes";
+import { formatTime, withPublishedContext } from "../lib/routes";
 import type { ClaimWrapper, ResolutionLink } from "../lib/types";
 
 export const DECISION_LABEL: Record<string, string> = {
@@ -51,10 +51,12 @@ function ResolutionItem({
   link,
   targetKind,
   currentId,
+  search,
 }: {
   link: ResolutionLink;
   targetKind: "entity" | "event";
   currentId: string;
+  search: string;
 }) {
   const confidence = Number.isFinite(Number(link.confidence))
     ? `${Math.round(Number(link.confidence) * 100)}%`
@@ -73,7 +75,10 @@ function ResolutionItem({
       </header>
       <p>{link.rationale ?? "无 rationale"}</p>
       {otherId ? (
-        <a href={targetKind === "entity" ? `/entities/${encodeURIComponent(otherId)}` : `/events/${encodeURIComponent(otherId)}`}>
+        <a href={withPublishedContext(
+          targetKind === "entity" ? `/entities/${encodeURIComponent(otherId)}` : `/events/${encodeURIComponent(otherId)}`,
+          search,
+        )}>
           查看另一 canonical {targetKind === "entity" ? "Entity" : "Event"}
         </a>
       ) : null}
@@ -86,16 +91,18 @@ export function ResolutionBlock({
   links,
   targetKind,
   currentId,
+  search = "",
 }: {
   links?: ResolutionLink[];
   targetKind: "entity" | "event";
   currentId: string;
+  search?: string;
 }) {
   if (!links || links.length === 0) return <p className="muted">没有跨来源 Resolution 记录。</p>;
   return (
     <div className="resolution-list">
       {links.map((link, index) => (
-        <ResolutionItem key={index} link={link} targetKind={targetKind} currentId={currentId} />
+        <ResolutionItem key={index} link={link} targetKind={targetKind} currentId={currentId} search={search} />
       ))}
     </div>
   );
@@ -118,7 +125,7 @@ export function ErrorState({ code, message }: { code: string; message: string })
       <h1>无法读取这个历史页面</h1>
       <p>{message}</p>
       <p>
-        <a href="/timeline">返回时间线</a>
+        <a href="/history">返回历史正文</a>
       </p>
     </section>
   );
@@ -130,7 +137,7 @@ export function NotFoundState() {
       <p className="eyebrow">404</p>
       <h1>这个 Chronicle 页面不存在</h1>
       <p>
-        <a href="/timeline">返回时间线</a>
+        <a href="/history">返回历史正文</a>
       </p>
     </section>
   );

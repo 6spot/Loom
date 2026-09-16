@@ -1,7 +1,7 @@
 # Chronicle webapp
 
 One React + TypeScript + Vite web application for Chronicle. One build serves
-both the public Historical World experience and the `/studio/*` engineering
+the published history/source-reading experience and the `/studio/*` engineering
 surface.
 
 ## Routes
@@ -10,11 +10,9 @@ surface.
 /                        history entry points and search
 /history                 opens the published synthesized history
 /history/{version}/{paragraphId}  fixed history version and paragraph
-/world                   public grounded Historical Moment / World page
-/timeline                public Timeline
 /search                  public Search
-/events/{id}             public Event Detail
-/entities/{id}           public Entity Detail
+/events/{id}             published event/source locator (not an encyclopedia page)
+/entities/{id}           published person/place reading and evidence page
 /read                    published source-reading directory (under More)
 /read/{streamId}         continuous source text with contextual navigation
 /chapters                source publications (under More)
@@ -28,26 +26,16 @@ surface.
 /studio/login            Studio login (HTTP Basic credentials, tab-session only)
 ```
 
-The Rust same-origin web front serves the SPA shell for `/world` and `/world/`,
-so a direct browser refresh of a bookmarked Historical World URL remains on the
-React route rather than falling through to an API/404 path.
+The Rust same-origin web front serves the SPA shell for the routes listed above,
+including fixed history paragraphs and source locators. Retired `/world` and
+`/timeline` paths are intentionally not shell routes and return not found.
 
-Public routes may carry the shared historical-time context as either
-`?year=208` or a bounded `?from_year=208&to_year=210` range. Chronicle keeps
-this context in the URL so World, Timeline, Search, Event, and Entity links are
-bookmarkable and deterministic. The public UI exposes year/year-range precision
-only; it does not fabricate month/day precision.
-
-## Historical World boundary
-
-`/world` is a presentation of the C1 Historical Moment projection, not a
-complete Historical World State. Browser code renders only data returned by the
-public Chronicle APIs: canonical Events/Entities, persisted Reader Presentation,
-Claim/source evidence, Coverage, and explicit uncertainty. It must not infer
-territorial control, precise person locations, political ownership, office
-state, troop state, or other missing historical state merely to fill a card.
-An unrepresented period is a corpus-coverage statement, not a claim that
-nothing happened historically.
+Public drill-down links carry only an already-published `catalog`/`version`/
+paragraph context and opaque same-site reading return token. Search terms and
+inferred years are never copied into a destination. Event results first use an
+exact `event_id` match in the selected published history edition; without one,
+the page says that no corresponding history text is published and exposes only
+the source locations returned by the reading API.
 
 ## Stack
 
@@ -56,8 +44,8 @@ nothing happened historically.
 - TanStack Query for server state (`src/lib/queries.ts`).
 - shadcn/ui-style component foundation **only** for Studio
   (`src/components/ui/*` + `src/styles/studio.css`). Public Chronicle pages use
-  Chronicle-specific product CSS (`src/styles/chronicle.css` and
-  `src/styles/world.css`) and must not import from `components/ui` (enforced by
+  Chronicle-specific product CSS (`src/styles/chronicle.css` and the focused
+  reading/history styles) and must not import from `components/ui` (enforced by
   `tests/route-split.test.ts`).
 - Studio routes are `React.lazy` code-split; public browsing never loads the
   admin component surface (`scripts/check-dist.mjs` verifies separate Studio
@@ -68,10 +56,7 @@ nothing happened historically.
 The browser stays downstream of the Rust Chronicle public boundary:
 
 ```text
-GET /api/v1/public/historical-moment
-GET /api/v1/public/timeline
 GET /api/v1/public/search
-GET /api/v1/public/events/{id}
 GET /api/v1/public/entities/{id}
 GET /api/v1/public/history[?version]
 GET /api/v1/public/history/paragraphs?version&at|start&limit
@@ -85,8 +70,8 @@ GET/POST /api/v1/studio/background-bindings      (Studio only, explicit display 
 
 No PostgreSQL, application persistence adapter, staged artifacts, migrations,
 or deployment secrets are browser authorities (`tests/no-db-authority.test.ts`).
-The Historical Moment response itself explicitly carries derived-projection,
-Coverage, and uncertainty semantics; the frontend does not override them.
+Published history and reading responses carry their own snapshot and evidence
+semantics; the frontend does not override them.
 
 Studio authentication stays server-enforced: the login form only attaches
 `Authorization: Basic ...` to Studio fetches and keeps credentials for the tab
@@ -126,8 +111,8 @@ root. Review, result reuse and required CI follow
 | React/TypeScript behavior, CSS, routes or frontend build configuration | Run existing Vitest tests for the changed behavior (`npm test -- <test-file>`); use `npm test` for shared changes or when the affected test set is unclear. Run `npm run build` and `npm run smoke:dist`, and keep the committed `../web/dist/` consistent. CSS/layout changes also need the visual check below. |
 | Visible layout or browser interaction | Exercise the affected route and states in the browser, including relevant viewport sizes. Use the matching component suite below; inspect its screenshots for layout changes. Shared navigation, CSS or components include affected consumers. |
 | Rust web-front routing, authentication, API proxying or asset embedding behavior | Run the affected Rust tests inside `apps/chronicle/server/`; use `cargo test` there when the affected test set is unclear. Frontend changes alone do not automatically require all server tests. |
-| Real public API/source/evidence integration | Use `apps/chronicle/web/browser_smoke.py` for the two-source flow or `apps/chronicle/web/world_browser_smoke.py` for World/Event/Entity/evidence, Coverage and historical-time behavior, according to the changed contract. |
-| Full web-front acceptance across Timeline/Event/Entity/Search/Studio | Use `node scripts/visual-verify.mjs` against the real Rust server and its configured upstream, with the expected fixture data. This broad legacy smoke is not the default check for every page edit. |
+| Real public API/source/evidence integration | Exercise the published history → person/event locator → source chapter flow against the real Rust server and configured upstream; do not use the retired World/Timeline smoke scripts. |
+| Full web-front acceptance across History/Event/Entity/Search/Studio | Use `node scripts/visual-verify.mjs` against the real Rust server and its configured upstream, with the expected fixture data. |
 
 For a CSS/copy-only change with no applicable Vitest test, use build/dist and
 browser verification. Do not add a test that merely repeats the chosen text or
@@ -160,9 +145,9 @@ available. `/history/<sha>/<hp_id>` has separate IDs and storage from
 the original source stream. Both reuse `useReadingPosition`; navigation does
 not create a second position controller.
 
-Old query-string bookmarks resolve to the same canonical ID path. The Rust
-front serves this path on direct refresh. The PC time axis is one continuous
-rail with year/range/period ticks and clickable curated entries, with no
+Published-version bookmarks retain their immutable version and paragraph
+context. The Rust front serves these paths on direct refresh. The PC time axis
+is one continuous rail with published time ticks and clickable curated entries, with no
 collapsing groups. Undated passages retain their reading order without an
 unknown-date heading or an inferred year. Time intervals may have no events;
 only the shared reviewed entry list supplies clickable anchors. The current

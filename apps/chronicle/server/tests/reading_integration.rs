@@ -3,7 +3,7 @@
 //! The Rust server owns only transport: every `/api/v1/public/reading-*`
 //! request is forwarded byte-for-byte to the Python sidecar's `/v0/reading-*`
 //! contract, preserving `catalog`/`stream`/`unit`/`cursor` and the snapshot
-//! query on the existing Event/Entity details. These tests boot the real
+//! query on the existing Entity detail. These tests boot the real
 //! router against a mock TCP upstream that echoes the forwarded path, so a
 //! mapping regression is caught before any real stack exists.
 
@@ -154,10 +154,6 @@ async fn reading_paths_map_to_the_python_v0_contract() {
             format!(
                 "/v0/reading-events/01a05cd7-439d-7071-bf00-86c664886b06/targets?catalog={CATALOG}&limit=20"
             ),
-        ),
-        (
-            format!("/api/v1/public/events/01a05cd7-439d-7071-bf00-86c664886b06?catalog={CATALOG}"),
-            format!("/v0/events/01a05cd7-439d-7071-bf00-86c664886b06?catalog={CATALOG}"),
         ),
         (
             format!("/api/v1/public/entities/01a05cd7-439d-7071-bf00-86c664886b06?catalog={CATALOG}"),

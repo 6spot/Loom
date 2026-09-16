@@ -1,17 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { explicitTimelineYear, narrativeTimeLabel } from "../src/pages/public/ReadingPage";
-import type { TimeObservation } from "../src/lib/reading-types";
-
-function observation(overrides: Partial<TimeObservation>): TimeObservation {
-  return {
-    event_ref: "e1",
-    original_text: "建安十三年",
-    source_calendar: null,
-    normalized: null,
-    precision: "year",
-    ...overrides,
-  } as TimeObservation;
-}
+import { narrativeTimeLabel } from "../src/pages/public/ReadingPage";
 
 describe("reading page narrative time display", () => {
   it("shows server-compiled labels and keeps unknown literal", () => {
@@ -24,26 +12,4 @@ describe("reading page narrative time display", () => {
     expect(narrativeTimeLabel(null)).toBe("时间未明确");
   });
 
-  it("only offers a timeline year for one exact gregorian observation", () => {
-    expect(
-      explicitTimelineYear([
-        observation({ normalized: { calendar: "proleptic_gregorian", year: 208, conversion_status: "exact" } }),
-      ]),
-    ).toBe(208);
-    expect(
-      explicitTimelineYear([
-        observation({ normalized: { calendar: "proleptic_gregorian", year: 208, conversion_status: "exact" } }),
-        observation({ normalized: { calendar: "proleptic_gregorian", year: 209, conversion_status: "exact" } }),
-      ]),
-    ).toBeNull();
-    // 未换算传统历不得到达公历时间线。
-    expect(explicitTimelineYear([observation({ source_calendar: { system: "chinese_lunisolar_regnal" } })])).toBeNull();
-    // 近似/部分换算不是精确落点。
-    expect(
-      explicitTimelineYear([
-        observation({ normalized: { calendar: "proleptic_gregorian", year: 208, approximate: true } }),
-      ]),
-    ).toBeNull();
-    expect(explicitTimelineYear(undefined)).toBeNull();
-  });
 });

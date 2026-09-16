@@ -1,6 +1,8 @@
 # Chronicle Search v0
 
-Chronicle Search v0 is the first historical entry surface after the Timeline/Event/Entity vertical slice.
+Chronicle Search v0 is the lexical discovery surface for the published
+history/source-reading experience. The `/v0/search` contract is internal to the
+Python read model; browsers enter through the Rust public namespace.
 
 ## User path
 
@@ -10,15 +12,16 @@ The browser header exposes a search field on every Chronicle page. Submitting a 
 /search?q=曹操
 ```
 
-The browser then reads:
+The browser then reads through Rust:
 
 ```text
-GET /v0/search?q=曹操&kind=all&limit=20
+GET /api/v1/public/search?q=曹操&kind=all&limit=20
 ```
 
 Search results navigate only to existing canonical routes:
 
-- `/events/{canonical_event_id}`;
+- `/events/{canonical_event_id}` as a source locator; an exact event-to-history
+  mapping is shown first when the selected published edition contains one;
 - `/entities/{canonical_entity_id}`.
 
 Search does not create a separate detail model.
@@ -140,7 +143,7 @@ Chronicle CI discovers:
 
 ```bash
 python -m unittest discover -s apps/chronicle/read_api -p 'test_*.py' -v
-npm --prefix apps/chronicle/webapp test -- tests/api.test.ts tests/historical-time.test.ts
+npm --prefix apps/chronicle/webapp test -- tests/api.test.ts tests/published-context.test.ts
 ```
 
 The real PostgreSQL search tests persist the retained 武帝纪 + 吴主传 world and verify canonical de-duplication, uncertain-place separation, related Event separation, alias/mention discovery, router validation, and match provenance.

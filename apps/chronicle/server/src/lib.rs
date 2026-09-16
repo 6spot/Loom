@@ -36,16 +36,15 @@ pub use config::{AdminCredentials, ChronicleConfig};
 pub use error::{error_body, TypedError};
 pub use upstream::{fetch_upstream, forward_upstream, UpstreamTarget, MAX_PROXY_BODY_BYTES};
 
-/// Build the Chronicle router and add the read-only Coverage/Historical Moment aliases.
+/// Build the Chronicle router and add the read-only Coverage alias.
 ///
-/// `app::build_router` remains the stable C1-T2/T9 composition root. These
-/// projections are thin forwarding surfaces over the same Python read-model
+/// `app::build_router` remains the stable C1-T2/T9 composition root. The
+/// projection is a thin forwarding surface over the same Python read-model
 /// upstream, so Rust owns namespace/auth policy without acquiring PostgreSQL
 /// or historical-data authority.
 pub fn build_router(state: Arc<AppState>) -> Router {
     let coverage_public_state = state.clone();
     let coverage_studio_state = state.clone();
-    let moment_public_state = state.clone();
 
     app::build_router(state)
         .route(
@@ -70,23 +69,6 @@ pub fn build_router(state: Arc<AppState>) -> Router {
                         } else {
                             read_proxy(&state, request.method(), uri.query(), "/v0/coverage").await
                         }
-                    }
-                },
-            ),
-        )
-        .route(
-            "/api/v1/public/historical-moment",
-            any(
-                move |OriginalUri(uri): OriginalUri, request: Request<Body>| {
-                    let state = moment_public_state.clone();
-                    async move {
-                        read_proxy(
-                            &state,
-                            request.method(),
-                            uri.query(),
-                            "/v0/historical-moment",
-                        )
-                        .await
                     }
                 },
             ),

@@ -2,23 +2,6 @@
 // Field names mirror the source-grounded contracts; Reader Presentation is a
 // derived projection and never replaces the Claim/evidence fields below.
 
-export interface TimelineItem {
-  canonical_event_id: string;
-  display?: { title?: string; type?: string };
-  time?: { start_year?: number | null; end_year?: number | null; status?: string };
-  representation_count?: number;
-  source_count?: number;
-  source_titles?: string[];
-}
-
-export interface TimelineResponse {
-  schema: string;
-  version: string;
-  query?: { from_year?: number | null; to_year?: number | null; limit?: number; offset?: number };
-  page?: { total?: number; returned?: number; has_more?: boolean };
-  items?: TimelineItem[];
-}
-
 export interface ClaimWrapper {
   bundle?: string;
   ref?: string;
@@ -70,12 +53,6 @@ export interface Representation {
   claims?: ClaimWrapper[];
 }
 
-export interface Participant {
-  canonical_entity_id?: string | null;
-  display?: { name?: string; type?: string };
-  source_roles?: { role?: string }[];
-}
-
 export interface ResolutionLink {
   decision?: string;
   confidence?: number;
@@ -83,25 +60,6 @@ export interface ResolutionLink {
   signals?: unknown;
   left?: Record<string, string | undefined>;
   right?: Record<string, string | undefined>;
-}
-
-export interface RelatedEvent {
-  type?: string;
-  event?: { canonical_event_id?: string; display?: { title?: string }; time?: TimelineItem["time"] };
-}
-
-export interface EventDetail {
-  schema: string;
-  canonical_event_id: string;
-  display?: { title?: string; type?: string };
-  time?: { start_year?: number | null; end_year?: number | null };
-  source_count?: number;
-  reader_presentation?: ReaderPresentation | null;
-  representations?: Representation[];
-  participants?: Participant[];
-  places?: Participant[];
-  related_events?: RelatedEvent[];
-  resolution_links?: ResolutionLink[];
 }
 
 export interface TrajectoryEvent {

@@ -52,9 +52,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .fallback(studio_not_found);
     Router::new()
         .route("/healthz", any(health))
-        .route("/api/v1/public/timeline", any(public_timeline))
         .route("/api/v1/public/search", any(public_search))
-        .route("/api/v1/public/events/{id}", any(public_event))
         .route(
             "/api/v1/public/entities/{id}/history",
             any(public_entity_history),
@@ -122,20 +120,6 @@ async fn health(request: axum::http::Request<Body>) -> Response {
     Json(json!({"status": "ok"})).into_response()
 }
 
-async fn public_timeline(
-    State(state): State<Arc<AppState>>,
-    OriginalUri(uri): OriginalUri,
-    request: axum::http::Request<Body>,
-) -> Response {
-    proxy_public(
-        &state,
-        request.method().clone(),
-        "/v0/timeline".to_string(),
-        uri.query().map(str::to_string),
-    )
-    .await
-}
-
 async fn public_search(
     State(state): State<Arc<AppState>>,
     OriginalUri(uri): OriginalUri,
@@ -148,26 +132,6 @@ async fn public_search(
         uri.query().map(str::to_string),
     )
     .await
-}
-
-async fn public_event(
-    State(state): State<Arc<AppState>>,
-    OriginalUri(uri): OriginalUri,
-    Path(id): Path<String>,
-    request: axum::http::Request<Body>,
-) -> Response {
-    match validated_id(&id) {
-        Some(valid) => {
-            proxy_public(
-                &state,
-                request.method().clone(),
-                format!("/v0/events/{valid}"),
-                uri.query().map(str::to_string),
-            )
-            .await
-        }
-        None => TypedError::not_found("route not found").into_response(),
-    }
 }
 
 async fn public_entity(
