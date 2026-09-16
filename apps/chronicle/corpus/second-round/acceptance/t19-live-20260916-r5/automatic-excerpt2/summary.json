@@ -1,0 +1,63 @@
+{
+  "acceptance": [
+    {
+      "artifact_type": "chapter-production-acceptance",
+      "output_id": "762fa0cb-64de-44c1-a8c0-a7fa7a8ddae5",
+      "output_sha256": "5aa969b58b9efdb3d2347f5a3d94084b0537e3b4d4b8025d2e47ccef95d89c7a",
+      "production_receipt": {
+        "candidate_sha256": "4d122cb7b067a4d13da48805f6884caf2da2ff132c6ec49f62792e48b8f7e399",
+        "chapter_id": "ch_acb1a172b048302c8f6d6969",
+        "chunk_id": "2d642f55-95f2-4687-8605-3faedf7b5b70",
+        "decision": {
+          "kind": "ai",
+          "review_output_sha256s": [
+            "78e32b4288d5c926444d4c3f605dbd7d7d219cecb7d60fc8842a22a7232725bf"
+          ]
+        },
+        "draft_sha256": "c0c8f7a1f859ce07b402a7b9a7ec6cd9d69196b586b4b86dd9088636f3228359",
+        "history_sha256": "8bd2a841546d3a19f52f9d417b26e135a598e0975a61bd3884f0b4bf2b9f22e4",
+        "pipeline_fingerprint": "adab5ccd7f35637b77b31d67b2b121244057b22295fefcc5a2aa332524e0a9b5",
+        "request_fingerprint": "16d701dd3426b1462598c496aa8befdab32561d564bc7bc124e3d7dc3ce36bef",
+        "schema": "chronicle.chapter-acceptance",
+        "status": "accepted",
+        "step_output_sha256s": [
+          "69f9f0e96e82ade63428173792c449e72e24cb6a4efb91847ac8c0c9a564d4bf",
+          "00af115f8618b46a81c8710c788de41fb63673c0050d8d275758b775bb38386c",
+          "587a6638153022c9bc54bca66be7991d8dba6c7357cd04245d5b6803186c7304",
+          "67ac9e34e2538a8aa4ee664fde63da61fc0ad1f10ff3c3b957077a72dff6565d",
+          "78e32b4288d5c926444d4c3f605dbd7d7d219cecb7d60fc8842a22a7232725bf"
+        ],
+        "version": "0.1"
+      }
+    }
+  ],
+  "document_id": "309e8cae-4e34-42d7-aef8-295528ef1d73",
+  "fixture_substitution": false,
+  "job_id": "65032ff7-400c-47b4-85fd-21f9d72c7dd5",
+  "label": "automatic-excerpt2",
+  "open_reviews": 1,
+  "real_provider": true,
+  "reviews": [
+    {
+      "decision": null,
+      "review_id": "0260a15f-4d26-4b40-bb44-b2eb707f53e4",
+      "scope": "person_state",
+      "status": "open"
+    }
+  ],
+  "revision_id": "2bc68417-fb8a-49d4-9753-d3d2a9117ae5",
+  "routing_outputs": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "output_sha256": "ab295176345a08892375dc8532399d858d73e27068a33440497571b3e9a7a9e0",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "output_sha256": "78e32b4288d5c926444d4c3f605dbd7d7d219cecb7d60fc8842a22a7232725bf",
+      "step": "review"
+    }
+  ],
+  "status": "needs_review",
+  "terminal_validation_error": null
+}

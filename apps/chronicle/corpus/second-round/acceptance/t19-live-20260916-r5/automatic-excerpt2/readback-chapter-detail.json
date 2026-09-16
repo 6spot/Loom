@@ -1,0 +1,138 @@
+{
+  "artifact_sha256": "1bb098d568024dc338c28291682b5de210a6f5a43ee2d30d7a585e38ac348165",
+  "assembled_bundle_sha256": "5e26a27c215018000a27e4b8751110bd194af914d57b0b9782cc01d36e61d7d3",
+  "catalog_sha256": "1095515c9d18ad6f07d139c64b760300b80759c2869bcfdee1e47448bbe88b51",
+  "chapter_id": "ch_acb1a172b048302c8f6d6969",
+  "chapter_index": 0,
+  "chapter_title": "sanguozhi-054-zhou-yu-real-excerpt",
+  "document_id": "309e8cae-4e34-42d7-aef8-295528ef1d73",
+  "document_title": "LM-80 r5 automatic-excerpt2 · 三國志·吳書·周瑜傳",
+  "job_id": "65032ff7-400c-47b4-85fd-21f9d72c7dd5",
+  "publication_id": "01a0aaca-b4c2-7104-966a-91adf5769597",
+  "published_at": "2026-09-16T15:16:46.343929+00:00",
+  "references": {
+    "entities": [
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7bbc-b9a1-00e875cd1cc2",
+        "name": "周瑜",
+        "ref": "ent_000001"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7f45-92f9-64da71640b39",
+        "name": "廬江",
+        "ref": "ent_000002"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7aa7-a5f6-4b405b6f1900",
+        "name": "舒",
+        "ref": "ent_000003"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7d13-bd2a-5ee506f16a12",
+        "name": "景",
+        "ref": "ent_000004"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-71a8-8bf2-4bb9f82112e1",
+        "name": "忠",
+        "ref": "ent_000005"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7130-a3fc-8fad89d29c42",
+        "name": "漢",
+        "ref": "ent_000006"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-733f-aca1-7d5df3e99c6b",
+        "name": "太尉",
+        "ref": "ent_000007"
+      }
+    ],
+    "events": []
+  },
+  "revision_id": "2bc68417-fb8a-49d4-9753-d3d2a9117ae5",
+  "revision_no": 1,
+  "schema": "chronicle.public-chapter",
+  "source_overview": {
+    "anchor_count": 16,
+    "block_count": 1,
+    "chapter_title": "sanguozhi-054-zhou-yu-real-excerpt",
+    "revision_id": "2bc68417-fb8a-49d4-9753-d3d2a9117ae5",
+    "source_title": "LM-80 r5 automatic-excerpt2 · 三國志·吳書·周瑜傳"
+  },
+  "translation_blocks": [
+    {
+      "block_id": "t_000001",
+      "chapter_id": "ch_acb1a172b048302c8f6d6969",
+      "chapter_index": 0,
+      "entity_refs": [
+        {
+          "kind": "entity",
+          "ref": "ent_000001",
+          "revision_ref": "ent_000001"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000002",
+          "revision_ref": "ent_000002"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000003",
+          "revision_ref": "ent_000003"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000004",
+          "revision_ref": "ent_000004"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000005",
+          "revision_ref": "ent_000005"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000006",
+          "revision_ref": "ent_000006"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000007",
+          "revision_ref": "ent_000007"
+        }
+      ],
+      "event_refs": [],
+      "source_anchor_ids": [
+        "anc_038cf99566beb8ca",
+        "anc_0a2c6eec12816fa7",
+        "anc_0ea565702af4f4b4",
+        "anc_14cfca00edb21a6c",
+        "anc_332d5540eb8d647e",
+        "anc_3b5f29fd3f0da292",
+        "anc_4268b2968e3d3d3d",
+        "anc_531109f027e20ad7",
+        "anc_649b0eff440cbae9",
+        "anc_a1e586e2bb280b23",
+        "anc_aba9abfafdb08510",
+        "anc_bc87fac2d2a09a28",
+        "anc_d62203fde89f4f97",
+        "anc_d7bcaf561779b793",
+        "anc_ea4f40bc0f791c3e",
+        "anc_f95fa9f76af4f882"
+      ],
+      "source_block_ids": [
+        "b_001"
+      ],
+      "text": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景和周景的儿子周忠，都曾任汉朝太尉。"
+    }
+  ],
+  "version": "0.1"
+}

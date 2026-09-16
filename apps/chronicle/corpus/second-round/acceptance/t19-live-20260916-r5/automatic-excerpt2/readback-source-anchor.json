@@ -1,0 +1,38 @@
+{
+  "anchor_id": "anc_038cf99566beb8ca",
+  "bounds": {
+    "chapter_end": 27,
+    "chapter_length": 27,
+    "chapter_start": 0,
+    "end": 9,
+    "slice_end": 27,
+    "slice_start": 0,
+    "start": 8
+  },
+  "chapter_hash": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+  "chapter_id": "ch_acb1a172b048302c8f6d6969",
+  "has_more": false,
+  "next_cursor": null,
+  "publication_id": "01a0aaca-b4c2-7104-966a-91adf5769597",
+  "revision_id": "2bc68417-fb8a-49d4-9753-d3d2a9117ae5",
+  "schema": "chronicle.public-chapter-source",
+  "segments": [
+    {
+      "highlight": false,
+      "text": "周瑜字公瑾，廬江"
+    },
+    {
+      "highlight": true,
+      "text": "舒"
+    },
+    {
+      "highlight": false,
+      "text": "人也。從祖父景，景子忠，皆為漢太尉。"
+    }
+  ],
+  "source_hash": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+  "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+  "text": "周瑜字公瑾，廬江舒人也。從祖父景，景子忠，皆為漢太尉。",
+  "version": "0.1",
+  "view": "window"
+}

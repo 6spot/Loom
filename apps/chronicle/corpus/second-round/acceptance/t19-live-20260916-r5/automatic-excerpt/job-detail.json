@@ -1,0 +1,530 @@
+{
+  "accepted_results": [],
+  "action_reasons": {
+    "cancel": "终态任务不能取消",
+    "resume": "仅待审核任务可以继续"
+  },
+  "action_state": {
+    "action_reasons": {
+      "cancel": "终态任务不能取消",
+      "resume": "仅待审核任务可以继续"
+    },
+    "actions": [
+      {
+        "available": true,
+        "enabled": true,
+        "key": "retry",
+        "reason": null
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "resume",
+        "reason": "仅待审核任务可以继续"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "cancel",
+        "reason": "终态任务不能取消"
+      },
+      {
+        "available": true,
+        "enabled": true,
+        "key": "new_run",
+        "reason": null
+      }
+    ],
+    "attempt": 1,
+    "available_actions": [
+      "retry",
+      "new_run"
+    ],
+    "job_id": "26bc287b-fd95-4538-bfc4-103efe598e36",
+    "max_attempts": 3,
+    "open_reviews": 0,
+    "status": "failed"
+  },
+  "actions": [
+    {
+      "available": true,
+      "enabled": true,
+      "href": "/api/v1/studio/jobs/26bc287b-fd95-4538-bfc4-103efe598e36/retry",
+      "key": "retry",
+      "label": "重试",
+      "method": "POST",
+      "reason": null
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/26bc287b-fd95-4538-bfc4-103efe598e36/resume",
+      "key": "resume",
+      "label": "继续生产",
+      "method": "POST",
+      "reason": "仅待审核任务可以继续"
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/26bc287b-fd95-4538-bfc4-103efe598e36/cancel",
+      "key": "cancel",
+      "label": "取消任务",
+      "method": "POST",
+      "reason": "终态任务不能取消"
+    },
+    {
+      "available": true,
+      "enabled": true,
+      "href": "/api/v1/studio/jobs/26bc287b-fd95-4538-bfc4-103efe598e36/new-run",
+      "key": "new_run",
+      "label": "新建运行",
+      "method": "POST",
+      "reason": null
+    }
+  ],
+  "attempt": 1,
+  "attempts": [],
+  "available_actions": [
+    "retry",
+    "new_run"
+  ],
+  "chunks": [],
+  "created_at": "2026-09-16T15:10:06.332438+00:00",
+  "current_stage": "prepare",
+  "current_step": {
+    "failure_reason": "chapter prepare failed: source_scope: unclosed 〈 at chapter offset 798",
+    "key": "prepare",
+    "label": "准备",
+    "machine_key": "prepare",
+    "status": "failed"
+  },
+  "current_step_key": "prepare",
+  "current_step_label": "准备",
+  "document": {
+    "document_id": "1b930c42-499c-49c9-8d75-11af0a30d0b0",
+    "filename": "sanguozhi-054-zhou-yu-real-excerpt.txt",
+    "revision_no": 1,
+    "title": "LM-80 r5 automatic-excerpt · 三國志·吳書·周瑜傳"
+  },
+  "error": "chapter prepare failed: source_scope: unclosed 〈 at chapter offset 798",
+  "job_id": "26bc287b-fd95-4538-bfc4-103efe598e36",
+  "job_kind": "chapter",
+  "job_kind_label": "章节生产任务",
+  "lease_expires_at": null,
+  "lease_owner": null,
+  "max_attempts": 3,
+  "narrative_acceptances": [],
+  "open_reviews": 0,
+  "outputs": [],
+  "production_request": null,
+  "raw_results": [],
+  "results": [],
+  "reviews": [],
+  "revision_id": "6e6faf51-1935-4576-a03e-5e0f73a55a98",
+  "source": {
+    "document_id": "1b930c42-499c-49c9-8d75-11af0a30d0b0",
+    "relationship": "immutable_revision",
+    "revision_id": "6e6faf51-1935-4576-a03e-5e0f73a55a98",
+    "revision_no": 1,
+    "source_count": 1
+  },
+  "source_count": 1,
+  "stages": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": "chapter prepare failed: source_scope: unclosed 〈 at chapter offset 798",
+      "finished_at": "2026-09-16T15:10:08.896233+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T15:10:08.815926+00:00",
+      "status": "failed"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "前置步骤未完成",
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": null,
+      "status": "pending"
+    }
+  ],
+  "status": "failed",
+  "step_graph": {
+    "current_step": "prepare",
+    "dependencies": {
+      "assemble": [
+        "extract"
+      ],
+      "extract": [
+        "segment"
+      ],
+      "prepare": [],
+      "present": [
+        "publish"
+      ],
+      "publish": [
+        "resolve"
+      ],
+      "resolve": [
+        "assemble"
+      ],
+      "segment": [
+        "structure"
+      ],
+      "structure": [
+        "prepare"
+      ]
+    },
+    "steps": [
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [],
+        "failure_reason": "chapter prepare failed: source_scope: unclosed 〈 at chapter offset 798",
+        "finished_at": "2026-09-16T15:10:08.896233+00:00",
+        "key": "prepare",
+        "label": "准备",
+        "machine_key": "prepare",
+        "stage": "prepare",
+        "started_at": "2026-09-16T15:10:08.815926+00:00",
+        "status": "failed"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "前置步骤未完成",
+        "dependencies": [
+          "prepare"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "structure",
+        "label": "结构识别",
+        "machine_key": "structure",
+        "stage": "structure",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "structure"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "segment",
+        "label": "分段",
+        "machine_key": "segment",
+        "stage": "segment",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "segment"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "extract",
+        "label": "内容抽取",
+        "machine_key": "extract",
+        "stage": "extract",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "extract"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "assemble",
+        "label": "组装草稿",
+        "machine_key": "assemble",
+        "stage": "assemble",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "assemble"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "resolve",
+        "label": "来源核对",
+        "machine_key": "resolve",
+        "stage": "resolve",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "resolve"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "publish",
+        "label": "发布",
+        "machine_key": "publish",
+        "stage": "publish",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "publish"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "present",
+        "label": "综合呈现",
+        "machine_key": "present",
+        "stage": "present",
+        "started_at": null,
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": "chapter prepare failed: source_scope: unclosed 〈 at chapter offset 798",
+      "finished_at": "2026-09-16T15:10:08.896233+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T15:10:08.815926+00:00",
+      "status": "failed"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "前置步骤未完成",
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": null,
+      "status": "pending"
+    }
+  ],
+  "task": {
+    "label": "章节生产任务",
+    "machine_key": "chapter",
+    "source_count": 1,
+    "title": "LM-80 r5 automatic-excerpt · 三國志·吳書·周瑜傳",
+    "type": "chapter"
+  },
+  "title": "LM-80 r5 automatic-excerpt · 三國志·吳書·周瑜傳",
+  "updated_at": "2026-09-16T15:10:08.899017+00:00"
+}

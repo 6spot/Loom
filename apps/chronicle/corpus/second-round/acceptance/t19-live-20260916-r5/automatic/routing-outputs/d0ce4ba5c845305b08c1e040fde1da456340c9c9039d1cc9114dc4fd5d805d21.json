@@ -1,0 +1,210 @@
+{
+  "artifact_type": "chapter-production-step",
+  "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+  "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+  "payload": {
+    "attempt": 1,
+    "attempt_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+    "error": null,
+    "input_sha256": "2d08749ef27fbd91d7b3b426fc3b16ce3722d48c82895f12a8d0a262323b87bc",
+    "model": "gpt-5.6-sol",
+    "node_key": "f1c3e1b0e4b0c432cb7f911dce781544299f2302baf9a014e791d5637bf7a655",
+    "parsed": {
+      "addressed_issue_ids": [
+        "opinion_5c184138f2e63ffc43217c6b",
+        "opinion_9d778d469f17d617bb60dcaf",
+        "opinion_4172c4548fca531f1ce85259",
+        "opinion_4883aee95a67bd6971b0c977",
+        "opinion_acba72f39a16624df95863a2",
+        "opinion_7e7321a56360e824295f004c",
+        "opinion_c13dea489a0c530fe2b8d7dc"
+      ],
+      "candidate_sha256": "1754b26414a5d6e05ce2334e3ac03fc02a3686341fcce456f727c6fada68614e",
+      "history_sha256": "b40f8fabb06d07e24bf29b316153c64add817d8aff4e2d94957eb53c9afe7592",
+      "patches": [
+        {
+          "before_sha256": "b974d1e6f254951e17fb56af55b27a7897b18aa93d19c505ff7cf02504584aef",
+          "op": "replace",
+          "value": "建安十一年，周瑜督率孙瑜等人讨伐麻、保两个屯营，斩杀了他们的首领，俘获一万多人，回军驻防（官亭）。江夏太守黄祖派将领邓龙率领几千人进入柴桑，周瑜追击并讨伐，生擒邓龙后送回吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。同年九月，曹操进入荆州，刘琮率领全军投降。曹操得到刘表的水军，水陆军队共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。议论的人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布命令。如今拒绝他，事情在名义上反而更不顺利。况且将军能够用来抵御曹操的最大依仗，就是长江。现在曹操得到荆州，已经占有了整个荆州。刘表训练的水军，蒙冲、斗舰多到上千艘，曹操把它们全都用来沿江行进，同时又有步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力的多寡，更是无法相比。我认为，最好的计策不如迎接曹操。”"
+        },
+        {
+          "before_sha256": "bdc048ea3b1a38cb08fa65a404786975909c0bb0bb4a4c47fe91e311f853b370",
+          "op": "replace",
+          "value": [
+            "tr_004"
+          ]
+        },
+        {
+          "before_sha256": "bf636861e6f3b133b253b52f48f657ab30889457ee1648475fdae333bea0b536",
+          "op": "replace",
+          "value": "起初，周瑜受到孙策友爱。"
+        },
+        {
+          "before_sha256": "7440d230a177c0335396567d1d6335ca9108b1f527466d0a764d1c6724a6c5aa",
+          "op": "replace",
+          "value": "太妃又命孙权以兄长之礼奉事周瑜。"
+        },
+        {
+          "before_sha256": "bc0146a90f2bdcb67102c41e9ee9ae12a5fd5d0a066bbf12f8b462df80f4576f",
+          "op": "replace",
+          "value": "当时孙权位为将军，诸将和宾客之间的礼节尚且简略。"
+        },
+        {
+          "before_sha256": "e1a4bdd68134ea58a1210674b59850d8b5b4ccf05398bda8b365261fe0f9b4fc",
+          "op": "replace",
+          "value": "唯独周瑜首先竭尽敬意，便恪守臣节。"
+        },
+        {
+          "before_sha256": "ae62da45034a0e0e64ed16ac0e8a36cde2c7975a3850b659ebdbfd6f8b8f2e89",
+          "op": "replace",
+          "value": "周瑜性情器度宽宏，大体上很得人心。"
+        },
+        {
+          "before_sha256": "28a7ee6be49ea52e5dd0c3b0a755f4ae65309b7e1176b4ef833d3f636ff2a0e5",
+          "op": "replace",
+          "value": "只是他与程普关系不和。"
+        },
+        {
+          "before_sha256": "2f9df7fe13fdadf536c8f3ccb6b56d443c9dff077e1eb5df1307bfce4172ac30",
+          "op": "replace",
+          "value": [
+            "tr_012"
+          ]
+        },
+        {
+          "before_sha256": "1a76fa2ee08bc7bce630ba729f36a7b49d146a0b4574eb6c54561a9286c7460f",
+          "op": "replace",
+          "value": [
+            "tr_013"
+          ]
+        },
+        {
+          "before_sha256": "814346b432a16e0a9537f1cfab82ffe45780672c8a0c5219a7ffc1840eff9c29",
+          "op": "replace",
+          "value": [
+            "tr_014"
+          ]
+        },
+        {
+          "before_sha256": "a8a14f354c8963b27ca80f40464ba7e47cc659c4fafa8f06679e91fd866f440b",
+          "op": "replace",
+          "value": [
+            "tr_015"
+          ]
+        },
+        {
+          "before_sha256": "834922bd0e9033da33b8ca8a72726f32ff4fa972ba7a9c6bab428d59c3070481",
+          "op": "replace",
+          "value": [
+            "tr_016"
+          ]
+        },
+        {
+          "before_sha256": "1e54697a295f71f652842bb44863e210d5d55b930c0f1a1a58873d9e421f481b",
+          "op": "replace",
+          "value": [
+            "tr_017"
+          ]
+        },
+        {
+          "before_sha256": "3fcb9bb73b0c5d63a84d441e8d24c5ea626876ba349ca7725ba7893c0c52d5f9",
+          "op": "replace",
+          "value": [
+            "tr_017"
+          ]
+        },
+        {
+          "before_sha256": "037a293e951b59801d052c85d82f106f4fa251beec05828e8c1cfd671a2371c1",
+          "op": "replace",
+          "value": [
+            "m_013",
+            "ent_058"
+          ]
+        },
+        {
+          "before_sha256": "d9f463d3d033e972c20f9c788fb3edd71b4488ddfb21e901b107a46b54760a19",
+          "op": "replace",
+          "value": [
+            "clm_028",
+            "restoration_request_approved"
+          ]
+        },
+        {
+          "before_sha256": "3f5b4032ec43ba9466831a9cafb3dcfb83388b32d462b26df8041c629ad2a1b7",
+          "op": "replace",
+          "value": [
+            "evt_017",
+            "孙权许其请求，适逢周胤病死"
+          ]
+        },
+        {
+          "before_sha256": "f3c35385f5c21b8d0d69695dbb4fcff1a56fba53bd1ad32b7b5eada74fd57879",
+          "op": "replace",
+          "value": [
+            "evt_001",
+            "places",
+            "横江、当利、秣陵、湖孰、江乘、曲阿"
+          ]
+        },
+        {
+          "before_sha256": "90e4e4dba5b4fe1e53fab13811df40cf1eadda9d282154d85e81b21f49bdf2d4",
+          "op": "replace",
+          "value": [
+            "b_019正文已分段对应tr_012至tr_017，原注内容未续入正文译文。"
+          ]
+        },
+        {
+          "before_sha256": "b4950b70fb17865d86513b7afc779413d99daa580c1527b44a079c23d89081e6",
+          "op": "replace",
+          "value": [
+            "tr_013现译b_019正文“太妃又使權以兄奉之”，不再包含程普原注轶事或误名。"
+          ]
+        },
+        {
+          "before_sha256": "6869b5da9a506c20a2f0a519d8742cf81c1c92b9d467f9b2e8304d6baa64a609",
+          "op": "replace",
+          "value": [
+            "b_019原注中的程普、蒋干及送别轶事仅用于理解核验，未作为正文译文或当前事件。"
+          ]
+        },
+        {
+          "before_sha256": "388b2a9f84957d9f9942b44556420c32c4d57de9c02dfe1894c3c8560d41f819",
+          "op": "replace",
+          "value": [
+            "tr_017仅对应b_019正文末句“惟與程普不睦”，不再承载原注中的回顾事件跨度。"
+          ]
+        },
+        {
+          "before_sha256": "22cdd537d07459dc4556cd8d09588619499f24ab44d8ab6719a1c3b267295782",
+          "op": "replace",
+          "value": [
+            "b_019正文分段所需人物均沿用已提取实体；原注人物不另行加入正文关联。"
+          ]
+        }
+      ],
+      "rationale": "将b_019正文重新分配至tr_012至tr_017，排除原注续译并一并消除“周普”误名；校正“前部大督”及“還備（官亭）”的译法与译文跨度；依据b_017上下文将巴丘mention解析到卒地实体；把周胤相关断言改为原文明确记载的“孙权许其请求，适逢周胤病死”，不再断定复爵实施先后；移除evt_001对丹杨的不当战场归属，并同步修正相关reading记录、阶段记录和过时警告。"
+    },
+    "pipeline_fingerprint": "6be89f15a92603f74a1547656bfdf5a9625391725d10a64c6289459622a772b1",
+    "raw_text": "{\"candidate_sha256\":\"1754b26414a5d6e05ce2334e3ac03fc02a3686341fcce456f727c6fada68614e\",\"history_sha256\":\"b40f8fabb06d07e24bf29b316153c64add817d8aff4e2d94957eb53c9afe7592\",\"addressed_issue_ids\":[\"opinion_5c184138f2e63ffc43217c6b\",\"opinion_9d778d469f17d617bb60dcaf\",\"opinion_4172c4548fca531f1ce85259\",\"opinion_4883aee95a67bd6971b0c977\",\"opinion_acba72f39a16624df95863a2\",\"opinion_7e7321a56360e824295f004c\",\"opinion_c13dea489a0c530fe2b8d7dc\"],\"rationale\":\"将b_019正文重新分配至tr_012至tr_017，排除原注续译并一并消除“周普”误名；校正“前部大督”及“還備（官亭）”的译法与译文跨度；依据b_017上下文将巴丘mention解析到卒地实体；把周胤相关断言改为原文明确记载的“孙权许其请求，适逢周胤病死”，不再断定复爵实施先后；移除evt_001对丹杨的不当战场归属，并同步修正相关reading记录、阶段记录和过时警告。\",\"patches\":[{\"op\":\"replace\",\"path\":\"/translation/blocks/3/text\",\"before_sha256\":\"b974d1e6f254951e17fb56af55b27a7897b18aa93d19c505ff7cf02504584aef\",\"value\":\"建安十一年，周瑜督率孙瑜等人讨伐麻、保两个屯营，斩杀了他们的首领，俘获一万多人，回军驻防（官亭）。江夏太守黄祖派将领邓龙率领几千人进入柴桑，周瑜追击并讨伐，生擒邓龙后送回吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。同年九月，曹操进入荆州，刘琮率领全军投降。曹操得到刘表的水军，水陆军队共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。议论的人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布命令。如今拒绝他，事情在名义上反而更不顺利。况且将军能够用来抵御曹操的最大依仗，就是长江。现在曹操得到荆州，已经占有了整个荆州。刘表训练的水军，蒙冲、斗舰多到上千艘，曹操把它们全都用来沿江行进，同时又有步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力的多寡，更是无法相比。我认为，最好的计策不如迎接曹操。”\"},{\"op\":\"replace\",\"path\":\"/reading/units/3\",\"before_sha256\":\"bdc048ea3b1a38cb08fa65a404786975909c0bb0bb4a4c47fe91e311f853b370\",\"value\":[ \"tr_004\" ]},{\"op\":\"replace\",\"path\":\"/translation/blocks/11/text\",\"before_sha256\":\"bf636861e6f3b133b253b52f48f657ab30889457ee1648475fdae333bea0b536\",\"value\":\"起初，周瑜受到孙策友爱。\"},{\"op\":\"replace\",\"path\":\"/translation/blocks/12/text\",\"before_sha256\":\"7440d230a177c0335396567d1d6335ca9108b1f527466d0a764d1c6724a6c5aa\",\"value\":\"太妃又命孙权以兄长之礼奉事周瑜。\"},{\"op\":\"replace\",\"path\":\"/translation/blocks/13/text\",\"before_sha256\":\"bc0146a90f2bdcb67102c41e9ee9ae12a5fd5d0a066bbf12f8b462df80f4576f\",\"value\":\"当时孙权位为将军，诸将和宾客之间的礼节尚且简略。\"},{\"op\":\"replace\",\"path\":\"/translation/blocks/14/text\",\"before_sha256\":\"e1a4bdd68134ea58a1210674b59850d8b5b4ccf05398bda8b365261fe0f9b4fc\",\"value\":\"唯独周瑜首先竭尽敬意，便恪守臣节。\"},{\"op\":\"replace\",\"path\":\"/translation/blocks/15/text\",\"before_sha256\":\"ae62da45034a0e0e64ed16ac0e8a36cde2c7975a3850b659ebdbfd6f8b8f2e89\",\"value\":\"周瑜性情器度宽宏，大体上很得人心。\"},{\"op\":\"replace\",\"path\":\"/translation/blocks/16/text\",\"before_sha256\":\"28a7ee6be49ea52e5dd0c3b0a755f4ae65309b7e1176b4ef833d3f636ff2a0e5\",\"value\":\"只是他与程普关系不和。\"},{\"op\":\"replace\",\"path\":\"/reading/units/11\",\"before_sha256\":\"2f9df7fe13fdadf536c8f3ccb6b56d443c9dff077e1eb5df1307bfce4172ac30\",\"value\":[ \"tr_012\" ]},{\"op\":\"replace\",\"path\":\"/reading/units/12\",\"before_sha256\":\"1a76fa2ee08bc7bce630ba729f36a7b49d146a0b4574eb6c54561a9286c7460f\",\"value\":[ \"tr_013\" ]},{\"op\":\"replace\",\"path\":\"/reading/units/13\",\"before_sha256\":\"814346b432a16e0a9537f1cfab82ffe45780672c8a0c5219a7ffc1840eff9c29\",\"value\":[ \"tr_014\" ]},{\"op\":\"replace\",\"path\":\"/reading/units/14\",\"before_sha256\":\"a8a14f354c8963b27ca80f40464ba7e47cc659c4fafa8f06679e91fd866f440b\",\"value\":[ \"tr_015\" ]},{\"op\":\"replace\",\"path\":\"/reading/units/15\",\"before_sha256\":\"834922bd0e9033da33b8ca8a72726f32ff4fa972ba7a9c6bab428d59c3070481\",\"value\":[ \"tr_016\" ]},{\"op\":\"replace\",\"path\":\"/reading/units/16\",\"before_sha256\":\"1e54697a295f71f652842bb44863e210d5d55b930c0f1a1a58873d9e421f481b\",\"value\":[ \"tr_017\" ]},{\"op\":\"replace\",\"path\":\"/person_states/unit_phases/16\",\"before_sha256\":\"3fcb9bb73b0c5d63a84d441e8d24c5ea626876ba349ca7725ba7893c0c52d5f9\",\"value\":[\"tr_017\"]},{\"op\":\"replace\",\"path\":\"/mentions/12\",\"before_sha256\":\"037a293e951b59801d052c85d82f106f4fa251beec05828e8c1cfd671a2371c1\",\"value\":[\"m_013\",\"ent_058\"]},{\"op\":\"replace\",\"path\":\"/bundle/claims/27\",\"before_sha256\":\"d9f463d3d033e972c20f9c788fb3edd71b4488ddfb21e901b107a46b54760a19\",\"value\":[\"clm_028\",\"restoration_request_approved\"]},{\"op\":\"replace\",\"path\":\"/bundle/events/16\",\"before_sha256\":\"3f5b4032ec43ba9466831a9cafb3dcfb83388b32d462b26df8041c629ad2a1b7\",\"value\":[\"evt_017\",\"孙权许其请求，适逢周胤病死\"]},{\"op\":\"replace\",\"path\":\"/bundle/events/0\",\"before_sha256\":\"f3c35385f5c21b8d0d69695dbb4fcff1a56fba53bd1ad32b7b5eada74fd57879\",\"value\":[\"evt_001\",\"places\", \"横江、当利、秣陵、湖孰、江乘、曲阿\"]},{\"op\":\"replace\",\"path\":\"/reading/warnings/0\",\"before_sha256\":\"90e4e4dba5b4fe1e53fab13811df40cf1eadda9d282154d85e81b21f49bdf2d4\",\"value\":[\"b_019正文已分段对应tr_012至tr_017，原注内容未续入正文译文。\"]},{\"op\":\"replace\",\"path\":\"/reading/warnings/1\",\"before_sha256\":\"b4950b70fb17865d86513b7afc779413d99daa580c1527b44a079c23d89081e6\",\"value\":[\"tr_013现译b_019正文“太妃又使權以兄奉之”，不再包含程普原注轶事或误名。\"]},{\"op\":\"replace\",\"path\":\"/reading/warnings/2\",\"before_sha256\":\"6869b5da9a506c20a2f0a519d8742cf81c1c92b9d467f9b2e8304d6baa64a609\",\"value\":[\"b_019原注中的程普、蒋干及送别轶事仅用于理解核验，未作为正文译文或当前事件。\"]},{\"op\":\"replace\",\"path\":\"/reading/warnings/3\",\"before_sha256\":\"388b2a9f84957d9f9942b44556420c32c4d57de9c02dfe1894c3c8560d41f819\",\"value\":[\"tr_017仅对应b_019正文末句“惟與程普不睦”，不再承载原注中的回顾事件跨度。\"]},{\"op\":\"replace\",\"path\":\"/reading/warnings/4\",\"before_sha256\":\"22cdd537d07459dc4556cd8d09588619499f24ab44d8ab6719a1c3b267295782\",\"value\":[\"b_019正文分段所需人物均沿用已提取实体；原注人物不另行加入正文关联。\"]}]}",
+    "receipt": {
+      "elapsed_seconds": 121.715,
+      "http_attempts": 1,
+      "model": "gpt-5.6-sol",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 211851,
+        "output_tokens": 4921,
+        "reasoning_tokens": 2376,
+        "total_tokens": 216772
+      }
+    },
+    "request_fingerprint": "d6f5b6124814400ccae8e94d360625b1fd657ca3c0826379e993f1f4db27725d",
+    "round": 0,
+    "schema": "chronicle.chapter-step",
+    "slot": "reviewer",
+    "status": "completed",
+    "step": "repair",
+    "validation_errors": [],
+    "version": "0.1"
+  }
+}

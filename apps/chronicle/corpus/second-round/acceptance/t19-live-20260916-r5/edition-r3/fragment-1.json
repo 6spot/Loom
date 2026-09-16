@@ -1,0 +1,684 @@
+{
+  "conclusions": [
+    {
+      "event_id": "evt_000001",
+      "evidence": [
+        "r3-e000-part-1"
+      ],
+      "id": "r3-c000-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000003",
+      "evidence": [
+        "r3-e001-part-1"
+      ],
+      "id": "r3-c001-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000005",
+      "evidence": [
+        "r3-e002-part-1"
+      ],
+      "id": "r3-c002-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000006",
+      "evidence": [
+        "r3-e003-part-1"
+      ],
+      "id": "r3-c003-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000009",
+      "evidence": [
+        "r3-e004-part-1"
+      ],
+      "id": "r3-c004-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000009",
+      "evidence": [
+        "r3-e005-part-1"
+      ],
+      "id": "r3-c005-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000010",
+      "evidence": [
+        "r3-e006-part-1"
+      ],
+      "id": "r3-c006-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000010",
+      "evidence": [
+        "r3-e007-part-1"
+      ],
+      "id": "r3-c007-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    },
+    {
+      "event_id": "evt_000011",
+      "evidence": [
+        "r3-e008-part-1"
+      ],
+      "id": "r3-c008-part-1",
+      "phase_ids": [
+        "r3-phase-1"
+      ]
+    }
+  ],
+  "coverage": {
+    "end": 9,
+    "end_anchor": "b_015",
+    "scope": "r3-real-source-01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+    "start": 0,
+    "start_anchor": "b_001"
+  },
+  "derivation": {
+    "content_judgement": "reuses the accepted r3 public chapter text and source block/anchor references; no fixture text",
+    "kind": "readback_to_history_contract",
+    "source": "t19-live-20260916-r3/readback/09-chapter-detail.json"
+  },
+  "entry_points": [
+    {
+      "event_id": null,
+      "kind": "period",
+      "label": "周瑜传 r3 片段 1",
+      "paragraph_id": "r3-p000-part-1",
+      "reason": "入口直接指向已人工接受的 r3 真实资料发布片段。"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "r3-e000-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "周瑜字公瑾，廬江舒人也。從祖父景，景子忠，皆為漢太尉。〈謝承《後漢書》曰：景字仲鄉，少以廉能見稱，以明學察孝廉，辟公府。後為豫州刺史，辟汝南陳蕃為別駕，潁川李膺、荀緄、杜密、沛國硃寓為從事，皆天下英俊之士也。稍遷至尚書令，遂登太尉。張璠《漢紀》曰：景父榮，章、和世為尚書令。初景歷位牧守，好善愛士，每歲舉孝廉，延請入，上後堂，與家人宴會，如此者數四。及贈送既備，又選用其子弟，常稱曰：「移臣作子，於政何有？」先是，司徒韓縯為河內太守，在公無私，所舉一辭而已，後亦不及其門戶，曰：「我舉若可矣，不令恩偏稱一家也。」當時論者，或兩譏焉。〉父異，洛陽令。瑜長壯有姿貌。初，孫堅與義兵討董卓，徙家於舒。堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。瑜從父尚為丹楊太守，瑜往省之。會策將東渡，到歷陽，馳書報瑜，瑜將兵迎策。策大喜曰：「吾得卿。諧也。」遂從攻橫江、當利，皆拔之。乃渡江擊秣陵，破笮融、薛禮。轉下湖孰、江乘，進入曲阿。劉繇奔走，而策之眾已數萬矣。因謂瑜曰：「吾以此眾取吳會平山越已足。卿還鎮丹楊。」瑜還。頃之，袁術遣從弟胤代尚為太守，而瑜與尚俱還壽春。術欲以瑜為將，瑜觀術終無所成，故求為居巢長，欲假塗東歸，術聽之。遂自居巢還吳。是歲，建安三年也。",
+      "source_anchor_ids": [
+        "anc_06287e3af161b4d4",
+        "anc_0dc5d85806a7d265",
+        "anc_1d8b0692f7fe3f09",
+        "anc_1fd439107ae26a19",
+        "anc_2dcb47d55758a839",
+        "anc_46baf6caa3454adf",
+        "anc_51b4e56fdb0218bf",
+        "anc_5719da762139b3b8",
+        "anc_63cc7673cff01167",
+        "anc_74640a1dbc5c5b67",
+        "anc_83ae0e6930c4116a",
+        "anc_8aa17d74af2a3232",
+        "anc_91da84139c25f0d2",
+        "anc_93a679113884c393",
+        "anc_a22a294c48cfe917",
+        "anc_beb3d69c4846abe4",
+        "anc_cd95ee38b5440275",
+        "anc_d70503a41579daa2",
+        "anc_d953941d9e28efdc",
+        "anc_dab589e78274f8a2",
+        "anc_f27ceb972e970363",
+        "anc_fa833fca8b0ad25e"
+      ],
+      "source_block_ids": [
+        "b_001"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e001-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。〈《江表傳》曰：策又給瑜鼓吹，為治館舍，贈賜莫與為比。策令曰：「周公瑾英俊異才，與孤有總角之好，骨肉之分。如前在丹楊，發眾及船糧以濟大事，論德酬功，此未足以報者也。」〉瑜時年二十四，吳中皆呼為周郎。以瑜恩信著於廬江，出備牛渚，後領春谷長。頃之，策欲取荊州，以瑜為中護軍，領導江夏太守，從攻皖，拔之。時得橋公兩女，皆國色也。策自納大橋，瑜納小橋。〈《江表傳》曰：策從容戲瑜曰：「橋公二女雖流離，得吾二人作婿，亦足為歡。」〉復近尋陽，破劉勳，討江夏，還定豫章、廬陵，留鎮巴丘。〈臣松之案：孫策於時始得豫章、廬陵，尚未能得定江夏。瑜之所鎮，應在今巴丘縣也，與後所（平）巴丘處不同。〉",
+      "source_anchor_ids": [
+        "anc_0836feb8db642c92",
+        "anc_0ff0abf8d37570a6",
+        "anc_29603234e935eb6f",
+        "anc_5782969df02fd1a5",
+        "anc_61739edaa7c993c5",
+        "anc_6306e935254ff4d5",
+        "anc_711aad119916df46",
+        "anc_7764f081a5848e67",
+        "anc_778fc93c15e5eece",
+        "anc_79df62d17b7eee5c",
+        "anc_7f7572f3b23541b3",
+        "anc_831f69459e780438",
+        "anc_96d1f2d211cf0724",
+        "anc_98a175ad3a9f0b7a",
+        "anc_9c88313adb1d38be",
+        "anc_a9231dcebd906163",
+        "anc_b44f0aad622c158c",
+        "anc_cd95ee38b5440275",
+        "anc_dc02d6bc3e4a6e0f",
+        "anc_e968e02a62b33ec9",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_003"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e002-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。〈《江表傳》曰：曹公新破袁紹，兵威日盛，建安七年，下書責權質任子。權召群臣會議，張昭、秦松等猶豫不能決，權意不欲遣質，乃獨將瑜詣母前定議，瑜曰：「昔楚國初封於荊山之側，不滿百里之地，繼嗣賢能，廣土開境，立基於郢，遂據荊楊，至於南海，傳業延祚，九百餘年。今將軍承父兄餘資，兼六郡之眾，兵精糧多，將士用命，鑄山為銅，煮海為鹽，境內富饒，人不思亂，汎舟舉帆，朝發夕到，士風勁勇，所向無敵，有何偪迫，而欲送質？質一入，不得不與曹氏相首尾，與相首尾，則命召不得不往，便見制於人也。極不過一侯印，僕從十餘人，車數乘，馬數匹，豈與南面稱孤同哉？不如勿遣，徐觀其變。若曹氏能率義以正天下，將軍事之未晚。若圖為暴亂，兵猶火也，不戢將自焚。將軍韜勇抗威，以待天命，何送質之有！」權母曰：「公瑾議是也。公瑾與伯符同年，小一月耳，我視之如子也，汝其兄事之。遂不送質。〉",
+      "source_anchor_ids": [
+        "anc_202a5f5a7ee5677d",
+        "anc_23d105d656add8f8",
+        "anc_3971cc8cdeef5518",
+        "anc_7076a4b89af6f5f8",
+        "anc_73c3fe34f79fff4c",
+        "anc_96aa96c9545b9d54",
+        "anc_9ef253b864d26d83",
+        "anc_c64bcd128ee3fc01",
+        "anc_e2979f4cfc1d7ca7",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_005"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e003-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口，還備（官亭）。江夏太守黃祖遣將鄧龍將兵數千人入柴桑，瑜追討擊，生虜龍送吳。十三年春，權討江夏，瑜為前部大督。其年九月，曹公入荊州，劉琮舉眾降，曹公得其水軍，船步兵數十萬，將士聞之皆恐。權延見群下，問以計策。議者咸曰：「曹公豺虎也，然託名漢相，挾天子以征四方，動以朝廷為辭，今日拒之，事更不順，且將軍大勢可以拒操者，長江也。今操得荊州，奄有其地。劉表治水軍，蒙沖鬥艦，乃以千數，操悉浮以沿江，兼有步兵，水陸俱下。此為長江之險，已與我共之矣。而勢力眾寡，又不可論。愚謂大計不如迎之。」瑜曰：",
+      "source_anchor_ids": [
+        "anc_06d0f8a1455c3524",
+        "anc_3644e8e1e31f21ee",
+        "anc_40782070f79cf257",
+        "anc_438e1b8b94908f4a",
+        "anc_49dc9989bd208871",
+        "anc_4db97f3e72a78be1",
+        "anc_53c741fdaf197ff0",
+        "anc_5897fad6ea64925d",
+        "anc_613a486a7ced2064",
+        "anc_6cd6a0f4643ee51c",
+        "anc_6fe6bc47100a7516",
+        "anc_710fe9ccee1f5300",
+        "anc_a087c126a2d66a86",
+        "anc_c380ec073eddfcab",
+        "anc_c64bcd128ee3fc01",
+        "anc_c86377a38c71405d"
+      ],
+      "source_block_ids": [
+        "b_007"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e004-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+      "source_anchor_ids": [
+        "anc_0034b51dcd6fb4cc",
+        "anc_0997a3f858443999",
+        "anc_0c93738a784be5ab",
+        "anc_417029a7ba34902a",
+        "anc_5e7a28f8804fab23",
+        "anc_e30e77a7b57b6b93"
+      ],
+      "source_block_ids": [
+        "b_009"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e005-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "權曰：「老賊欲廢漢自立久矣，陡忌二袁、呂布、劉表與孤耳。今數雄已滅，惟孤尚存，孤與老賊，勢不兩立。君言當擊，甚與孤合，此天以君授孤也。」〈《江表傳》曰：權拔刀斫前奏案曰：「諸將吏敢復有言當迎操者，與此案同！」及會罷之夜，瑜請見曰：「諸人徒見操書，言水步八十萬，而各恐懾，不復料其虛實，便開此議，甚無謂也。今以實校之，彼所將中國人，不過十五六萬，且軍已久疲，所得表眾，亦極七八萬耳，尚懷狐疑。夫以疲病之卒，御一作「禦」狐疑之眾，眾數雖多，甚未足畏。得精兵五萬，自足制之，原將軍勿慮。」權撫背曰：「公瑾，卿言至此，甚合孤心。子布、文表諸人，各顧妻子，挾持私慮，深失所望，獨卿與子敬與孤同耳，此天以卿二人讚孤也。五萬兵難卒合，已選三萬人，船糧戰具俱辦，卿與子敬、程公便在前發，孤當續發人眾，多載資糧，為卿後援。卿能辦之者誠決，邂逅不如意，便還就孤，孤當與孟德決之。」臣松之以為建計拒曹公，實始魯肅。於時周瑜使鄱陽，肅勸權呼瑜，瑜使鄱陽還，但與肅闇同，故能共成大勳。本傳直云，權延見群下，問以計策，瑜擺撥眾人之議，獨言抗拒之計，了不云肅先有謀，殆為攘肅之善也。〉",
+      "source_anchor_ids": [
+        "anc_3b0a2bb48bdb84c0",
+        "anc_417029a7ba34902a",
+        "anc_b93264e3b9015e95",
+        "anc_f806c5708147c4b6"
+      ],
+      "source_block_ids": [
+        "b_011"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e006-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "時劉備為曹公所破，欲引南渡江。與魯肅遇於當陽，遂共圖計，因進住夏口，遣諸葛亮詣權。權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。瑜等在南岸。瑜部將黃蓋曰：「今寇眾我寡，難與持久。然觀操軍船艦，首尾相接，可燒而走也。」乃取蒙沖鬥艦數十艘，實以薪草，膏油灌其中。裹以帷幕，上建牙旗，先書報曹公，欺以欲降。〈《江表傳》載蓋書曰：「蓋受孫氏厚恩，常為將帥，見遇不薄。然顧天下事有大勢，用江東六郡山越之人，以當中國百萬之眾，眾寡不敵，海內所共見也。東方將吏，無有愚智，皆知其不可，惟周瑜、魯肅偏懷淺戇，意未解耳。今日歸命，是其實計。瑜所督領，自易摧破。交鋒之日，蓋為前部，當因事變化，效命在近。」曹公特見行人，密問之，口敕曰：「但恐汝詐耳。蓋若信實，當授爵賞，超於前後也。」〉又豫備走舸，各系大船後，因引次俱前。曹公軍吏士皆延頸觀望，指言蓋降。蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。〈《江表傳》曰：至戰日，蓋先取輕利艦十舫，載燥荻枯柴積其中，灌以魚膏，赤幔覆之，建旌旗龍幡於艦上。時東南風急，因以十艦最著前，中江舉帆，蓋舉火白諸校，使眾兵齊聲大叫曰：「降焉！」操軍人皆出營立觀。去北軍二里餘，同時發火，火烈風猛，往船如箭，飛埃絕爛，燒盡北船，延及岸邊營柴。瑜等率輕銳尋繼其後，雷鼓大進，北軍大壞，曹公退走。〉備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。",
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e007-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "時劉備為曹公所破，欲引南渡江。與魯肅遇於當陽，遂共圖計，因進住夏口，遣諸葛亮詣權。權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。時曹公軍眾已有疾病，初一交戰，公軍敗退，引次江北。瑜等在南岸。瑜部將黃蓋曰：「今寇眾我寡，難與持久。然觀操軍船艦，首尾相接，可燒而走也。」乃取蒙沖鬥艦數十艘，實以薪草，膏油灌其中。裹以帷幕，上建牙旗，先書報曹公，欺以欲降。〈《江表傳》載蓋書曰：「蓋受孫氏厚恩，常為將帥，見遇不薄。然顧天下事有大勢，用江東六郡山越之人，以當中國百萬之眾，眾寡不敵，海內所共見也。東方將吏，無有愚智，皆知其不可，惟周瑜、魯肅偏懷淺戇，意未解耳。今日歸命，是其實計。瑜所督領，自易摧破。交鋒之日，蓋為前部，當因事變化，效命在近。」曹公特見行人，密問之，口敕曰：「但恐汝詐耳。蓋若信實，當授爵賞，超於前後也。」〉又豫備走舸，各系大船後，因引次俱前。曹公軍吏士皆延頸觀望，指言蓋降。蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。〈《江表傳》曰：至戰日，蓋先取輕利艦十舫，載燥荻枯柴積其中，灌以魚膏，赤幔覆之，建旌旗龍幡於艦上。時東南風急，因以十艦最著前，中江舉帆，蓋舉火白諸校，使眾兵齊聲大叫曰：「降焉！」操軍人皆出營立觀。去北軍二里餘，同時發火，火烈風猛，往船如箭，飛埃絕爛，燒盡北船，延及岸邊營柴。瑜等率輕銳尋繼其後，雷鼓大進，北軍大壞，曹公退走。〉備與瑜等復共追。曹公留曹仁等守江陵城。逕自北歸。",
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "id": "r3-e008-part-1",
+      "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+      "quote": "瑜與程普又進南郡，與仁相對，各隔大江。兵未交鋒，〈《吳錄》曰：備謂瑜云：「仁守江陵城，城中糧多，足為疾害。使張益德將千人隨卿，卿分二千人追我，相為從夏水人截仁後，仁聞吾入必走。」瑜以二千人益之。〉瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。寧圍既解，乃渡屯北岸，剋期大戰。瑜親跨馬擽陳，會流矢中右脅，瘡甚，便還。後仁聞瑜臥未起，勒兵就陳。瑜乃自興，案行軍營，激揚吏士，仁由是遂退。",
+      "source_anchor_ids": [
+        "anc_074bb8d644471332",
+        "anc_151f265278df3d25",
+        "anc_7f56fd30bc980eb2",
+        "anc_86ed3a1261320b8e",
+        "anc_8f6aaaf1c975910d",
+        "anc_8f8c0772e49622b4",
+        "anc_c393444c83eb8720",
+        "anc_ead6e598ecaa3edf",
+        "anc_f33d1fb0e7a16771"
+      ],
+      "source_block_ids": [
+        "b_015"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    }
+  ],
+  "paragraphs": [
+    {
+      "entities": [],
+      "id": "r3-p000-part-1",
+      "ordinal": 0,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c000-part-1"
+          ],
+          "event_id": "evt_000001",
+          "event_relation": "current",
+          "text": "周瑜，字公瑾，是庐江郡舒县人。他的从祖父周景，周景的儿子周忠，都曾担任汉朝太尉。周瑜的父亲周异，任洛阳县令。周瑜长大后身材魁梧，容貌俊美。起初，孙坚带领义军讨伐董卓，把家迁到了舒县。孙坚的儿子孙策与周瑜同岁，两人尤其友好。周瑜把道南的一所大宅让给孙策居住，还到堂上拜见孙策的母亲，两家有无相通，共同享用。周瑜的从父周尚当时任丹杨太守，周瑜前去探望他。正赶上孙策准备渡江向东，到了历阳，便派快马送信告诉周瑜。周瑜带兵迎接孙策。孙策十分高兴，说：“我得到你，事情就成了。”于是周瑜跟随孙策攻打横江、当利，都攻克了。接着渡江进攻秣陵，击败笮融、薛礼，又转而攻下湖孰、江乘，进军曲阿。刘繇逃走时，孙策的部众已经有几万人了。孙策于是对周瑜说：“凭我们现在的兵力，夺取吴郡、会稽，平定山越，已经足够了。你还是回丹杨镇守吧。”周瑜便回去了。不久，袁术派自己的堂弟袁胤接替周尚担任丹杨太守，周瑜和周尚一同回到寿春。袁术想任用周瑜为将领，周瑜看出袁术最终不会有成就，于是请求担任居巢县长，想借此绕道回到江东，袁术答应了。周瑜便从居巢回到吴地。这一年是建安三年。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_06287e3af161b4d4",
+        "anc_0dc5d85806a7d265",
+        "anc_1d8b0692f7fe3f09",
+        "anc_1fd439107ae26a19",
+        "anc_2dcb47d55758a839",
+        "anc_46baf6caa3454adf",
+        "anc_51b4e56fdb0218bf",
+        "anc_5719da762139b3b8",
+        "anc_63cc7673cff01167",
+        "anc_74640a1dbc5c5b67",
+        "anc_83ae0e6930c4116a",
+        "anc_8aa17d74af2a3232",
+        "anc_91da84139c25f0d2",
+        "anc_93a679113884c393",
+        "anc_a22a294c48cfe917",
+        "anc_beb3d69c4846abe4",
+        "anc_cd95ee38b5440275",
+        "anc_d70503a41579daa2",
+        "anc_d953941d9e28efdc",
+        "anc_dab589e78274f8a2",
+        "anc_f27ceb972e970363",
+        "anc_fa833fca8b0ad25e"
+      ],
+      "source_block_ids": [
+        "b_001"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p001-part-1",
+      "ordinal": 1,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c001-part-1"
+          ],
+          "event_id": "evt_000003",
+          "event_relation": "current",
+          "text": "孙策亲自迎接周瑜，任命他为建威中郎将，立即拨给他两千名士兵、五十匹战马。周瑜当时二十四岁，吴地人都称他为周郎。周瑜在庐江一带恩信显著，于是出兵驻守牛渚，后来兼任春谷县长。不久，孙策想夺取荆州，任命周瑜为中护军，兼任江夏太守，跟随他攻打皖县，并攻克了那里。当时他们得到桥公的两个女儿，都是国中少见的美人。孙策娶了大桥，周瑜娶了小桥。后来又进逼寻阳，击败刘勋，讨伐江夏，回军平定豫章、庐陵，留下周瑜镇守巴丘。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_0836feb8db642c92",
+        "anc_0ff0abf8d37570a6",
+        "anc_29603234e935eb6f",
+        "anc_5782969df02fd1a5",
+        "anc_61739edaa7c993c5",
+        "anc_6306e935254ff4d5",
+        "anc_711aad119916df46",
+        "anc_7764f081a5848e67",
+        "anc_778fc93c15e5eece",
+        "anc_79df62d17b7eee5c",
+        "anc_7f7572f3b23541b3",
+        "anc_831f69459e780438",
+        "anc_96d1f2d211cf0724",
+        "anc_98a175ad3a9f0b7a",
+        "anc_9c88313adb1d38be",
+        "anc_a9231dcebd906163",
+        "anc_b44f0aad622c158c",
+        "anc_cd95ee38b5440275",
+        "anc_dc02d6bc3e4a6e0f",
+        "anc_e968e02a62b33ec9",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_003"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p002-part-1",
+      "ordinal": 2,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c002-part-1"
+          ],
+          "event_id": "evt_000005",
+          "event_relation": "current",
+          "text": "建安五年，孙策去世。孙权接掌了政务。周瑜带兵前去参加丧事，随后留在吴地，以中护军的身份与长史张昭共同掌管军政事务。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_202a5f5a7ee5677d",
+        "anc_23d105d656add8f8",
+        "anc_3971cc8cdeef5518",
+        "anc_7076a4b89af6f5f8",
+        "anc_73c3fe34f79fff4c",
+        "anc_96aa96c9545b9d54",
+        "anc_9ef253b864d26d83",
+        "anc_c64bcd128ee3fc01",
+        "anc_e2979f4cfc1d7ca7",
+        "anc_f0017a03fee5994c"
+      ],
+      "source_block_ids": [
+        "b_005"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p003-part-1",
+      "ordinal": 3,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c003-part-1"
+          ],
+          "event_id": "evt_000006",
+          "event_relation": "current",
+          "text": "建安十一年，周瑜督率孙瑜等人讨伐麻屯、保屯，斩杀了他们的首领，俘获一万多人，回军驻守官亭。江夏太守黄祖派部将邓龙率领几千人进入柴桑，周瑜追击攻打，活捉邓龙后押送到吴地。建安十三年春，孙权进攻江夏，周瑜担任前部大督。这年九月，曹操进入荆州，刘琮率领部众投降。曹操得到刘表的水军，水军和步兵共有几十万人，将士们听说后都十分恐惧。孙权召见群臣，询问对策。众人都说：“曹操像豺狼虎豹一样凶猛，但他假托汉朝丞相的名义，挟持天子征讨四方，动不动就以朝廷的名义发布号令。如今拒绝他，事情在名义上反而更加不顺。而且将军能够抵抗曹操的依仗，只有长江。现在曹操得到荆州，已经占有了这片地方。刘表训练水军，蒙冲、斗舰多达数千艘，曹操把这些船全部用来沿江航行，又加上步兵，水陆并进。这样一来，长江的险要已经和我们共同拥有了。至于双方兵力多少，更是无法相提并论。我们认为，最好的办法不如迎降。”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_06d0f8a1455c3524",
+        "anc_3644e8e1e31f21ee",
+        "anc_40782070f79cf257",
+        "anc_438e1b8b94908f4a",
+        "anc_49dc9989bd208871",
+        "anc_4db97f3e72a78be1",
+        "anc_53c741fdaf197ff0",
+        "anc_5897fad6ea64925d",
+        "anc_613a486a7ced2064",
+        "anc_6cd6a0f4643ee51c",
+        "anc_6fe6bc47100a7516",
+        "anc_710fe9ccee1f5300",
+        "anc_a087c126a2d66a86",
+        "anc_c380ec073eddfcab",
+        "anc_c64bcd128ee3fc01",
+        "anc_c86377a38c71405d"
+      ],
+      "source_block_ids": [
+        "b_007"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p004-part-1",
+      "ordinal": 4,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c004-part-1"
+          ],
+          "event_id": "evt_000009",
+          "event_relation": "current",
+          "text": "周瑜说：“不是这样。曹操虽然假托汉朝丞相的名义，实际上却是汉朝的贼人。将军凭借神明般的武略和雄才，又依仗父兄留下的功业，占据江东，土地方圆数千里，兵力精锐而且足以使用，英雄豪杰也都乐于在这里建功立业，正应当横行天下，为汉王朝铲除残暴、清除污秽。何况曹操这是自己来送死，怎么能迎接他呢？请允许我替将军筹划一下：假如北方已经安定，曹操没有内忧，能够拖延时日，长久作战，前来和我们争夺战场，他又能在船上与我们较量胜负吗？如今北方还没有平定，马超、韩遂还在关西，是曹操的后患。况且舍弃马匹，依靠船只，与吴越争雄，本来就不是中原军队所擅长的。现在又正值严寒，战马没有蒿草可吃。驱赶中原士兵长途跋涉，来到江湖之间，他们又不习惯这里的水土，必然会生病。这几项都是用兵的大患，而曹操却全都冒险去做。将军擒获曹操，正应该在今天。我请求给我精兵三万人，进驻夏口，保证替将军击破他。”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_0034b51dcd6fb4cc",
+        "anc_0997a3f858443999",
+        "anc_0c93738a784be5ab",
+        "anc_417029a7ba34902a",
+        "anc_5e7a28f8804fab23",
+        "anc_e30e77a7b57b6b93"
+      ],
+      "source_block_ids": [
+        "b_009"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p005-part-1",
+      "ordinal": 5,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c005-part-1"
+          ],
+          "event_id": "evt_000009",
+          "event_relation": "current",
+          "text": "孙权说：“这个老贼想要废掉汉朝、自立为帝，已经很久了。他只是忌惮袁绍、袁术、吕布、刘表和我罢了。如今那些豪强都已经被消灭，只有我还在。我和这个老贼，势必不能两立。你说应当进攻，正与我的想法完全相合，这是上天把你赐给我了。”"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_3b0a2bb48bdb84c0",
+        "anc_417029a7ba34902a",
+        "anc_b93264e3b9015e95",
+        "anc_f806c5708147c4b6"
+      ],
+      "source_block_ids": [
+        "b_011"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p006-part-1",
+      "ordinal": 6,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c006-part-1"
+          ],
+          "event_id": "evt_000010",
+          "event_relation": "current",
+          "text": "当时刘备被曹操击败，想带领部众向南渡江。他在当阳遇到了鲁肃，于是两人共同谋划对策，进驻夏口，并派诸葛亮去见孙权。孙权于是派周瑜、程普等人与刘备合兵迎击曹操，在赤壁与曹军相遇。当时曹操的军队已经有很多人染病，第一次交战便败退，退到长江北岸驻扎。周瑜等人驻扎在南岸。周瑜的部将黄盖说：“如今敌军人数多，我们人数少，很难和他们长久相持。不过我观察曹军的船只首尾相连，可以用火烧毁它们，逼他们逃走。”于是选取了几十艘蒙冲、斗舰，在船中装满柴草，浇上油脂，又用帷幕包裹起来，船上竖起牙旗，先写信送给曹操，假装要投降。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p007-part-1",
+      "ordinal": 7,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c007-part-1"
+          ],
+          "event_id": "evt_000010",
+          "event_relation": "current",
+          "text": "黄盖又预先准备了轻快的小船，分别系在大船后面，便带着这些船依次向前驶去。曹操军中的官吏和士兵都伸长脖子观看，指着船只说黄盖来投降了。黄盖放开那些船，同时点火。当时风势猛烈，火势很快蔓延，把岸上的营寨全都烧着了。不一会儿，烟火遮天蔽日，被烧死、淹死的人马非常多，曹军于是败退，退回去守卫南郡。刘备又和周瑜等人共同追击。曹操留下曹仁等人守卫江陵城，自己直接向北撤回。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_04c6418d44dbf29a",
+        "anc_074bb8d644471332",
+        "anc_1adfb80e9569cf68",
+        "anc_2481154fcc1a5467",
+        "anc_2c4f95f6f6699812",
+        "anc_6860a7e9614aa6ef",
+        "anc_695680730e9ea5a5",
+        "anc_739309bf9bb7aae8",
+        "anc_7e37aa5753a64bda",
+        "anc_7ee028696a451ca2",
+        "anc_ae11a94abb80aa79",
+        "anc_af2b6868c56120f3",
+        "anc_c01e2fa0ebd93dc2",
+        "anc_c4d49bd8a572175e",
+        "anc_c736bfc478436b38",
+        "anc_c887d13f81caad00",
+        "anc_e157d0c4782f296d",
+        "anc_e3815731c647eb58"
+      ],
+      "source_block_ids": [
+        "b_013"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    },
+    {
+      "entities": [],
+      "id": "r3-p008-part-1",
+      "ordinal": 8,
+      "phase_id": "r3-phase-1",
+      "segments": [
+        {
+          "conclusion_ids": [
+            "r3-c008-part-1"
+          ],
+          "event_id": "evt_000011",
+          "event_relation": "current",
+          "text": "周瑜和程普又进军南郡，与曹仁隔着长江相对。两军还没有交锋，周瑜便派甘宁抢先占据夷陵。曹仁分出一支骑兵去攻打、包围甘宁。甘宁向周瑜告急。周瑜采用吕蒙的计策，留下凌统守卫后方，自己与吕蒙一起前去救援甘宁。甘宁的包围解除后，周瑜便渡江驻扎在北岸，约定日期与曹仁决战。周瑜亲自骑马冲击敌阵，恰好被流箭射中右胁，伤口很重，只得退回。后来曹仁听说周瑜卧床不起，便率兵逼近战阵。周瑜于是强撑着起身，巡视军营，激励将士，曹仁因此退兵。"
+        }
+      ],
+      "source_anchor_ids": [
+        "anc_074bb8d644471332",
+        "anc_151f265278df3d25",
+        "anc_7f56fd30bc980eb2",
+        "anc_86ed3a1261320b8e",
+        "anc_8f6aaaf1c975910d",
+        "anc_8f8c0772e49622b4",
+        "anc_c393444c83eb8720",
+        "anc_ead6e598ecaa3edf",
+        "anc_f33d1fb0e7a16771"
+      ],
+      "source_block_ids": [
+        "b_015"
+      ],
+      "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf"
+    }
+  ],
+  "phases": [
+    {
+      "id": "r3-phase-1",
+      "label": "周瑜传 r3 片段 1",
+      "period": null,
+      "year": null
+    }
+  ],
+  "publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf:history-part-1",
+  "publication_status": "published",
+  "publication_version": "r3-real-publication-01a0aa45-b717-7b29-bbae-afd7b72f7fcf-part-1",
+  "schema": "chronicle.historical-publication",
+  "source_artifact_sha256": "b75ff39b099bc73e3f31a2ca04a8b3313a3cafa7e12a3c47d81bef8f24ee6c76",
+  "source_job_id": "382605b9-adb0-47b0-a308-6712d5a013eb",
+  "source_publication_id": "01a0aa45-b717-7b29-bbae-afd7b72f7fcf",
+  "source_publication_schema": "chronicle.public-chapter",
+  "source_revision_id": "ab0a785f-aeec-4cfa-bf73-32cf13f7fc13",
+  "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+  "title": "三國志·吳書·周瑜傳（r3 real publication, part 1）",
+  "version": "0.1"
+}

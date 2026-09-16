@@ -1,0 +1,138 @@
+{
+  "artifact_type": "chapter-production-step",
+  "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+  "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+  "payload": {
+    "attempt": 1,
+    "attempt_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+    "error": null,
+    "input_sha256": "495bac39cd1aa0d0b40b03ca0d4d6fcc1b005c44c15a87d12f81f348244424a9",
+    "model": "gpt-5.6-sol",
+    "node_key": "02c71492619a6eec15d579010ae3d1d781d05e156e19357a601d48ff04be0631",
+    "parsed": {
+      "candidate_sha256": "1754b26414a5d6e05ce2334e3ac03fc02a3686341fcce456f727c6fada68614e",
+      "coverage": [
+        "sf_939e30997ab8a99a75a5603c",
+        "sf_0167db6fba2f5091c5a174d6",
+        "sf_dde727107fededaf38cfe8a5",
+        "sf_ea815f08df204a81bdeff1e4",
+        "sf_6f6c479e3d1a9614c7fcd0bf",
+        "sf_adfcff873fbb853582116f75",
+        "sf_7db384ff53f83f12813311ca",
+        "sf_dc72fd2884f14cb3ea89aef9",
+        "sf_52876aaf69e9bc0919180b09",
+        "sf_1dc10b655a1412a88bb9c7f0",
+        "sf_67e444e87d4eeef928835028",
+        "sf_95de71616a7ac0f99426bbd2",
+        "sf_729bd604d843cf5704ff1778",
+        "sf_3c4e36fee53428debafac144",
+        "sf_a617d0bf8594afe6ecce2fc2",
+        "sf_9fbbe64c6eb99f6bb7d21912",
+        "sf_2f7054298eeb1ffc965de363",
+        "sf_43c2022cf03c5201565df84c",
+        "sf_55aca6e62c83b9dfe3a3f512",
+        "sf_60701fab492118d704d7f0cd",
+        "sf_eb154a11fb8bc16ba46e763b",
+        "sf_2364e6dddff0594e730d1c44"
+      ],
+      "dispositions": [],
+      "history_sha256": "2316d4e655c9927e8a31c020c8fa7fb3a31bf72ecd9595f35a755936837641b4",
+      "issues": [
+        {
+          "evidence": [
+            "sf_a1b7ae7e74331472fe2d48e8"
+          ],
+          "id": "iss_001",
+          "message": "这些译文块续入了b_019原注中的程普、蒋干、送别、曹操自述及孙权追评等内容。协议明确译文只翻译body，annotation仅供理解核验；候选虽用warning承认材料来自原注，但仍将其作为连续正文译文保留，正文范围错误未解决。",
+          "represented": false,
+          "target": "translation.blocks tr_013-tr_017",
+          "type": "processing_error"
+        },
+        {
+          "evidence": [
+            "sf_a1b7ae7e74331472fe2d48e8"
+          ],
+          "id": "iss_002",
+          "message": "译文将原注人物程普误写成“周普”，造成事实主体姓名错误；同段后文又写作程普，内部也不一致。候选warning承认错误但没有修正正文，不能视为已解决。",
+          "represented": false,
+          "target": "translation.blocks[tr_013]",
+          "type": "processing_error"
+        },
+        {
+          "evidence": [
+            "sf_7db384ff53f83f12813311ca"
+          ],
+          "id": "iss_003",
+          "message": "原文官名为“前部大督”，译文及译文事件跨度写成“前部大都督”，擅增一“都”字，职位名称不准确；结构化实体ent_028反而保留为“前部大督”，形成正文与实体记录不一致。",
+          "represented": false,
+          "target": "translation.blocks[tr_004] and reading.event_spans[es_008]",
+          "type": "processing_error"
+        },
+        {
+          "evidence": [
+            "sf_a617d0bf8594afe6ecce2fc2",
+            "sf_d06320811343d871a3edd5b8"
+          ],
+          "id": "iss_004",
+          "message": "该mention的选择器明确限定为b_017中唯一一次“巴丘”，上下文也是周瑜病卒处，且evt_015已经使用专设的ent_058；却仍把它标为可能指向早期驻地ent_020或卒地ent_058，忽略了精确块位置和段落上下文，属于错误歧义化。",
+          "represented": false,
+          "target": "mentions[m_013]",
+          "type": "processing_error"
+        },
+        {
+          "evidence": [
+            "sf_eb154a11fb8bc16ba46e763b"
+          ],
+          "id": "iss_005",
+          "message": "原文只明确说孙权答应请求，恰逢周胤病死，没有明确交代复兵复爵手续是否已实施。候选却断言“died_before_restoration=true”，并把周胤角色写成“拟获复爵而病死者”，将未明的实施先后推成确定事实，且未保留这一史料限定。",
+          "represented": false,
+          "target": "claim clm_028 and event evt_017",
+          "type": "source_uncertainty"
+        },
+        {
+          "evidence": [
+            "sf_7db384ff53f83f12813311ca"
+          ],
+          "id": "iss_006",
+          "message": "原文作“還備（官亭）”，括注形式显示此处文字存在校勘或异文限定；译文直接写成“回军驻守官亭”，把不确定读法处理为无条件地点事实，候选也未在当前正文表达中保留限定。",
+          "represented": false,
+          "target": "translation.blocks[tr_004]",
+          "type": "source_uncertainty"
+        },
+        {
+          "evidence": [
+            "sf_0167db6fba2f5091c5a174d6"
+          ],
+          "id": "iss_007",
+          "message": "evt_001汇总的是周瑜迎孙策后攻横江、当利、秣陵、湖孰、江乘、曲阿等一连串作战，却仅把丹杨列为事件地点。丹杨在本段是周瑜随后奉命返回镇守之地，并非该合并作战事件的唯一或直接战场，地点归属与事件范围不匹配。",
+          "represented": false,
+          "target": "event evt_001 places",
+          "type": "processing_error"
+        }
+      ],
+      "verdict": "revise"
+    },
+    "pipeline_fingerprint": "6be89f15a92603f74a1547656bfdf5a9625391725d10a64c6289459622a772b1",
+    "raw_text": "{\"candidate_sha256\":\"1754b26414a5d6e05ce2334e3ac03fc02a3686341fcce456f727c6fada68614e\",\"history_sha256\":\"2316d4e655c9927e8a31c020c8fa7fb3a31bf72ecd9595f35a755936837641b4\",\"verdict\":\"revise\",\"coverage\":[\"sf_939e30997ab8a99a75a5603c\",\"sf_0167db6fba2f5091c5a174d6\",\"sf_dde727107fededaf38cfe8a5\",\"sf_ea815f08df204a81bdeff1e4\",\"sf_6f6c479e3d1a9614c7fcd0bf\",\"sf_adfcff873fbb853582116f75\",\"sf_7db384ff53f83f12813311ca\",\"sf_dc72fd2884f14cb3ea89aef9\",\"sf_52876aaf69e9bc0919180b09\",\"sf_1dc10b655a1412a88bb9c7f0\",\"sf_67e444e87d4eeef928835028\",\"sf_95de71616a7ac0f99426bbd2\",\"sf_729bd604d843cf5704ff1778\",\"sf_3c4e36fee53428debafac144\",\"sf_a617d0bf8594afe6ecce2fc2\",\"sf_9fbbe64c6eb99f6bb7d21912\",\"sf_2f7054298eeb1ffc965de363\",\"sf_43c2022cf03c5201565df84c\",\"sf_55aca6e62c83b9dfe3a3f512\",\"sf_60701fab492118d704d7f0cd\",\"sf_eb154a11fb8bc16ba46e763b\",\"sf_2364e6dddff0594e730d1c44\"],\"issues\":[{\"id\":\"iss_001\",\"type\":\"processing_error\",\"target\":\"translation.blocks tr_013-tr_017\",\"message\":\"这些译文块续入了b_019原注中的程普、蒋干、送别、曹操自述及孙权追评等内容。协议明确译文只翻译body，annotation仅供理解核验；候选虽用warning承认材料来自原注，但仍将其作为连续正文译文保留，正文范围错误未解决。\",\"evidence\":[\"sf_a1b7ae7e74331472fe2d48e8\"],\"represented\":false},{\"id\":\"iss_002\",\"type\":\"processing_error\",\"target\":\"translation.blocks[tr_013]\",\"message\":\"译文将原注人物程普误写成“周普”，造成事实主体姓名错误；同段后文又写作程普，内部也不一致。候选warning承认错误但没有修正正文，不能视为已解决。\",\"evidence\":[\"sf_a1b7ae7e74331472fe2d48e8\"],\"represented\":false},{\"id\":\"iss_003\",\"type\":\"processing_error\",\"target\":\"translation.blocks[tr_004] and reading.event_spans[es_008]\",\"message\":\"原文官名为“前部大督”，译文及译文事件跨度写成“前部大都督”，擅增一“都”字，职位名称不准确；结构化实体ent_028反而保留为“前部大督”，形成正文与实体记录不一致。\",\"evidence\":[\"sf_7db384ff53f83f12813311ca\"],\"represented\":false},{\"id\":\"iss_004\",\"type\":\"processing_error\",\"target\":\"mentions[m_013]\",\"message\":\"该mention的选择器明确限定为b_017中唯一一次“巴丘”，上下文也是周瑜病卒处，且evt_015已经使用专设的ent_058；却仍把它标为可能指向早期驻地ent_020或卒地ent_058，忽略了精确块位置和段落上下文，属于错误歧义化。\",\"evidence\":[\"sf_a617d0bf8594afe6ecce2fc2\",\"sf_d06320811343d871a3edd5b8\"],\"represented\":false},{\"id\":\"iss_005\",\"type\":\"source_uncertainty\",\"target\":\"claim clm_028 and event evt_017\",\"message\":\"原文只明确说孙权答应请求，恰逢周胤病死，没有明确交代复兵复爵手续是否已实施。候选却断言“died_before_restoration=true”，并把周胤角色写成“拟获复爵而病死者”，将未明的实施先后推成确定事实，且未保留这一史料限定。\",\"evidence\":[\"sf_eb154a11fb8bc16ba46e763b\"],\"represented\":false},{\"id\":\"iss_006\",\"type\":\"source_uncertainty\",\"target\":\"translation.blocks[tr_004]\",\"message\":\"原文作“還備（官亭）”，括注形式显示此处文字存在校勘或异文限定；译文直接写成“回军驻守官亭”，把不确定读法处理为无条件地点事实，候选也未在当前正文表达中保留限定。\",\"evidence\":[\"sf_7db384ff53f83f12813311ca\"],\"represented\":false},{\"id\":\"iss_007\",\"type\":\"processing_error\",\"target\":\"event evt_001 places\",\"message\":\"evt_001汇总的是周瑜迎孙策后攻横江、当利、秣陵、湖孰、江乘、曲阿等一连串作战，却仅把丹杨列为事件地点。丹杨在本段是周瑜随后奉命返回镇守之地，并非该合并作战事件的唯一或直接战场，地点归属与事件范围不匹配。\",\"evidence\":[\"sf_0167db6fba2f5091c5a174d6\"],\"represented\":false}],\"dispositions\":[]}",
+    "receipt": {
+      "elapsed_seconds": 127.7,
+      "http_attempts": 1,
+      "model": "gpt-5.6-sol",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 191345,
+        "output_tokens": 4948,
+        "reasoning_tokens": 3576,
+        "total_tokens": 196293
+      }
+    },
+    "request_fingerprint": "d6f5b6124814400ccae8e94d360625b1fd657ca3c0826379e993f1f4db27725d",
+    "round": 0,
+    "schema": "chronicle.chapter-step",
+    "slot": "reviewer",
+    "status": "completed",
+    "step": "review",
+    "validation_errors": [],
+    "version": "0.1"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "chronicle.t19-real-provider-route",
+  "version": "0.1",
+  "label": "automatic-excerpt2",
+  "job_id": "65032ff7-400c-47b4-85fd-21f9d72c7dd5",
+  "source_sha256": "3215f84b39fba6b2d00fa284d18a858ff84f72a5c3e3275a83b8b5611bec62d4",
+  "source_bytes": 81,
+  "provider": {
+    "fixture_mode": false,
+    "chapter_model": "gpt-5.6-luna",
+    "review_model": "gpt-5.6-sol",
+    "timeout_seconds": 1800
+  },
+  "initial_status": "needs_review",
+  "final_status": "completed",
+  "automatic_content_acceptance": {
+    "decision_kind": "ai",
+    "acceptance_output_sha256": "5aa969b58b9efdb3d2347f5a3d94084b0537e3b4d4b8025d2e47ccef95d89c7a",
+    "review_output_sha256": "78e32b4288d5c926444d4c3f605dbd7d7d219cecb7d60fc8842a22a7232725bf",
+    "candidate_sha256": "4d122cb7b067a4d13da48805f6884caf2da2ff132c6ec49f62792e48b8f7e399"
+  },
+  "human_person_state_followup": {
+    "review_id": "0260a15f-4d26-4b40-bb44-b2eb707f53e4",
+    "default_assessment": "uncertain",
+    "override_count": 5,
+    "decision_artifact": "person-state-decision.json"
+  },
+  "publication": {
+    "publication_id": "01a0aaca-b4c2-7104-966a-91adf5769597",
+    "artifact_sha256": "1bb098d568024dc338c28291682b5de210a6f5a43ee2d30d7a585e38ac348165",
+    "catalog_sha256": "1095515c9d18ad6f07d139c64b760300b80759c2869bcfdee1e47448bbe88b51",
+    "assembled_bundle_sha256": "5e26a27c215018000a27e4b8751110bd194af914d57b0b9782cc01d36e61d7d3",
+    "readback": "readback-chapter-detail.json"
+  },
+  "routing": {
+    "review_output_saved": true,
+    "invalid_linking_attempt_saved": true,
+    "retry_output_saved": true,
+    "fixture_substitution": false
+  }
+}

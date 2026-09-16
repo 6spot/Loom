@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "artifact_sha256": "1bb098d568024dc338c28291682b5de210a6f5a43ee2d30d7a585e38ac348165",
+      "catalog_sha256": "1095515c9d18ad6f07d139c64b760300b80759c2869bcfdee1e47448bbe88b51",
+      "chapter_id": "ch_acb1a172b048302c8f6d6969",
+      "chapter_index": 0,
+      "chapter_title": "sanguozhi-054-zhou-yu-real-excerpt",
+      "document_id": "309e8cae-4e34-42d7-aef8-295528ef1d73",
+      "document_title": "LM-80 r5 automatic-excerpt2 · 三國志·吳書·周瑜傳",
+      "job_id": "65032ff7-400c-47b4-85fd-21f9d72c7dd5",
+      "publication_id": "01a0aaca-b4c2-7104-966a-91adf5769597",
+      "published_at": "2026-09-16T15:16:46.343929+00:00",
+      "revision_id": "2bc68417-fb8a-49d4-9753-d3d2a9117ae5",
+      "revision_no": 1
+    }
+  ],
+  "next_cursor": null,
+  "query": {
+    "limit": 100
+  },
+  "schema": "chronicle.chapter-directory",
+  "version": "0.1"
+}

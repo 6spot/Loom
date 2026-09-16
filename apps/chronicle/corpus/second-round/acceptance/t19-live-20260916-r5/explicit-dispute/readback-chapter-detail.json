@@ -1,0 +1,113 @@
+{
+  "artifact_sha256": "94f470fd8e28abf806369ef52d0d90e1253f08c02e3d7e8f3652140bc92ab066",
+  "assembled_bundle_sha256": "3361f9f4048a6e08db464d0393ec129cdb0ba0d8d8e09178431e1b792ceb173d",
+  "catalog_sha256": "1d0b6c4b89517840c9a94827cb5769d1b2ee0b5b8296e3d55adeb7ef222b6ef9",
+  "chapter_id": "ch_2afd4219072f81f6099c151b",
+  "chapter_index": 0,
+  "chapter_title": "sanguozhi-054-zhou-yu-real-excerpt",
+  "document_id": "6e5bda10-0385-4658-b0a5-f67cf5ef2d5d",
+  "document_title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳",
+  "job_id": "28d1cbc8-58e9-4cae-b43d-31e719e3fc9a",
+  "publication_id": "01a0aad6-42d3-7eb7-a3c9-7b20470d4f22",
+  "published_at": "2026-09-16T15:29:23.609036+00:00",
+  "references": {
+    "entities": [
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7bbc-b9a1-00e875cd1cc2",
+        "name": "周瑜",
+        "ref": "ent_000001"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7f45-92f9-64da71640b39",
+        "name": "廬江",
+        "ref": "ent_000002"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7aa7-a5f6-4b405b6f1900",
+        "name": "舒",
+        "ref": "ent_000003"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-7d13-bd2a-5ee506f16a12",
+        "name": "景",
+        "ref": "ent_000004"
+      },
+      {
+        "block_id": "t_000001",
+        "canonical_id": "01a0aaca-b49c-71a8-8bf2-4bb9f82112e1",
+        "name": "忠",
+        "ref": "ent_000005"
+      }
+    ],
+    "events": []
+  },
+  "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+  "revision_no": 1,
+  "schema": "chronicle.public-chapter",
+  "source_overview": {
+    "anchor_count": 13,
+    "block_count": 1,
+    "chapter_title": "sanguozhi-054-zhou-yu-real-excerpt",
+    "revision_id": "61b6b5b7-d7da-411f-9766-2c4742c9c625",
+    "source_title": "LM-80 r5 explicit-dispute · 三國志·吳書·周瑜傳"
+  },
+  "translation_blocks": [
+    {
+      "block_id": "t_000001",
+      "chapter_id": "ch_2afd4219072f81f6099c151b",
+      "chapter_index": 0,
+      "entity_refs": [
+        {
+          "kind": "entity",
+          "ref": "ent_000001",
+          "revision_ref": "ent_000001"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000002",
+          "revision_ref": "ent_000002"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000003",
+          "revision_ref": "ent_000003"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000004",
+          "revision_ref": "ent_000004"
+        },
+        {
+          "kind": "entity",
+          "ref": "ent_000005",
+          "revision_ref": "ent_000005"
+        }
+      ],
+      "event_refs": [],
+      "source_anchor_ids": [
+        "anc_11445732f4c38cd7",
+        "anc_5606a1692821b401",
+        "anc_59878b3efd47d90d",
+        "anc_709ea253ea13210f",
+        "anc_7573af45c465e888",
+        "anc_777bd34f31b963e2",
+        "anc_87e1ba64f4e5321f",
+        "anc_8cc3b16b74ff6841",
+        "anc_9a36b954d83c0ec4",
+        "anc_9acea7305f2bd917",
+        "anc_b70f9392c4724825",
+        "anc_c2654af4501aa322",
+        "anc_f2b80c6e0fa738b3"
+      ],
+      "source_block_ids": [
+        "b_001"
+      ],
+      "text": "周瑜字公瑾，是庐江郡舒县人。他的从祖父周景、周景的儿子周忠，都曾担任汉朝太尉。"
+    }
+  ],
+  "version": "0.1"
+}

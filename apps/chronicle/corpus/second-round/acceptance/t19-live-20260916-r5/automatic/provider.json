@@ -1,0 +1,10 @@
+{
+  "api_key_present": true,
+  "candidate_version": "0.4",
+  "chapter_model": "gpt-5.6-luna",
+  "chapter_review_models": "gpt-5.6-sol",
+  "endpoint": "https://cpa.zale.net/v1/responses",
+  "fixture_mode": false,
+  "narrative_model": "gpt-5.6-luna",
+  "timeout_seconds": "1800"
+}

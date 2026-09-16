@@ -1,0 +1,23 @@
+[
+  {
+    "candidate_id": "ec_002",
+    "decision": "uncertain",
+    "left_label": "景",
+    "review_id": "2b7e64a5-b329-4b71-9b73-57f5a04c4c63",
+    "right_label": "景"
+  },
+  {
+    "candidate_id": "ec_001",
+    "decision": "uncertain",
+    "left_label": "周瑜",
+    "review_id": "7a9c158a-b441-47af-80ff-0c7a0e867fbb",
+    "right_label": "周瑜"
+  },
+  {
+    "candidate_id": "ec_003",
+    "decision": "uncertain",
+    "left_label": "忠",
+    "review_id": "a4b55179-de97-4baa-a795-340900ad65ae",
+    "right_label": "忠"
+  }
+]

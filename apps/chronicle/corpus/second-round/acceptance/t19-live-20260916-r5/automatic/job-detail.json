@@ -1,0 +1,1441 @@
+{
+  "accepted_results": [],
+  "action_reasons": {
+    "new_run": "仅失败或已取消任务可以新建运行",
+    "resume": "仍有 1 项审核未完成",
+    "retry": "仅失败任务可以重试"
+  },
+  "action_state": {
+    "action_reasons": {
+      "new_run": "仅失败或已取消任务可以新建运行",
+      "resume": "仍有 1 项审核未完成",
+      "retry": "仅失败任务可以重试"
+    },
+    "actions": [
+      {
+        "available": false,
+        "enabled": false,
+        "key": "retry",
+        "reason": "仅失败任务可以重试"
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "resume",
+        "reason": "仍有 1 项审核未完成"
+      },
+      {
+        "available": true,
+        "enabled": true,
+        "key": "cancel",
+        "reason": null
+      },
+      {
+        "available": false,
+        "enabled": false,
+        "key": "new_run",
+        "reason": "仅失败或已取消任务可以新建运行"
+      }
+    ],
+    "attempt": 1,
+    "available_actions": [
+      "cancel"
+    ],
+    "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+    "max_attempts": 3,
+    "open_reviews": 1,
+    "status": "needs_review"
+  },
+  "actions": [
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/retry",
+      "key": "retry",
+      "label": "重试",
+      "method": "POST",
+      "reason": "仅失败任务可以重试"
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/resume",
+      "key": "resume",
+      "label": "继续生产",
+      "method": "POST",
+      "reason": "仍有 1 项审核未完成"
+    },
+    {
+      "available": true,
+      "enabled": true,
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/cancel",
+      "key": "cancel",
+      "label": "取消任务",
+      "method": "POST",
+      "reason": null
+    },
+    {
+      "available": false,
+      "enabled": false,
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/new-run",
+      "key": "new_run",
+      "label": "新建运行",
+      "method": "POST",
+      "reason": "仅失败或已取消任务可以新建运行"
+    }
+  ],
+  "attempt": 1,
+  "attempts": [
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "attempt_sha256": "dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 99.241,
+      "ended_at": "2026-09-16T14:44:20.844578+00:00",
+      "model": "gpt-5.6-luna",
+      "output_complete": true,
+      "output_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "result_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "round": 0,
+      "slot": "executor",
+      "started_at": "2026-09-16T14:42:41.404586+00:00",
+      "status": "completed",
+      "step": "translation",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 22326,
+        "output_tokens": 5159,
+        "reasoning_tokens": 237,
+        "total_tokens": 27485
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "attempt_sha256": "faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 507.616,
+      "ended_at": "2026-09-16T14:51:09.300035+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "result_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T14:42:41.549584+00:00",
+      "status": "completed",
+      "step": "extraction",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 29559,
+        "output_tokens": 27770,
+        "reasoning_tokens": 4726,
+        "total_tokens": 57329
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "attempt_sha256": "0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 392.572,
+      "ended_at": "2026-09-16T14:57:42.538441+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": false,
+      "output_sha256": "fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "result_sha256": "fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T14:51:09.426139+00:00",
+      "status": "invalid",
+      "step": "linking",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 53883,
+        "output_tokens": 21340,
+        "reasoning_tokens": 1996,
+        "total_tokens": 75223
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [
+          "base: reading: reading_context: reading.units[19].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[19].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[19].context_entities[2].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[20].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[20].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[20].context_entities[2].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[21].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[21].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[21].context_entities[2].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[22].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[22].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[23].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[23].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[23].context_entities[2].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[23].context_entities[3].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[0].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[1].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[2].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[3].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[4].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[24].context_entities[5].event_roles[0] event 'evt_017' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[5].context_entities[0].event_roles[0] event 'evt_010' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[5].context_entities[1].event_roles[0] event 'evt_010' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[5].context_entities[2].event_roles[0] event 'evt_010' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[7].context_entities[0].event_roles[0] event 'evt_011' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[7].context_entities[1].event_roles[0] event 'evt_011' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[7].context_entities[2].event_roles[0] event 'evt_011' is not a current_event_ref of this unit",
+          "base: reading: reading_context: reading.units[7].context_entities[3].event_roles[0] event 'evt_011' is not a current_event_ref of this unit",
+          "base: reading: reading_time: reading unit 'tr_020' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading unit 'tr_021' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading unit 'tr_022' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading unit 'tr_023' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading unit 'tr_024' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading unit 'tr_025' inheritance chain ends at 'tr_019' ('mixed'); it must terminate at events",
+          "base: reading: reading_time: reading.units[11] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[12] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[13] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[14] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[15] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[16].event_spans[0] relation 'retrospective' event 'evt_011' cannot be a current time basis",
+          "base: reading: reading_time: reading.units[16].event_spans[1] relation 'retrospective' event 'evt_015' cannot be a current time basis",
+          "base: reading: reading_time: reading.units[17] unknown mode must not carry source_selections",
+          "base: reading: reading_time: reading.units[19] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[19] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[20] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[20] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[21] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[21] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[22] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[22] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[23] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[23] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[24] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[24] time event 'evt_017' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[5] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[5] time event 'evt_010' must belong to current_event_refs",
+          "base: reading: reading_time: reading.units[7] inherit mode must not carry time event_refs",
+          "base: reading: reading_time: reading.units[7] time event 'evt_011' must belong to current_event_refs"
+        ],
+        "status": "failed"
+      },
+      "validation_status": "failed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "attempt_count": 2,
+      "attempt_id": "0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "attempt_sha256": "0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 353.436,
+      "ended_at": "2026-09-16T15:03:36.622920+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "result_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T14:57:42.657806+00:00",
+      "status": "completed",
+      "step": "linking",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 76424,
+        "output_tokens": 19147,
+        "reasoning_tokens": 879,
+        "total_tokens": 95571
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "attempt_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 127.7,
+      "ended_at": "2026-09-16T15:05:45.201262+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "result_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:03:37.393114+00:00",
+      "status": "completed",
+      "step": "review",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 191345,
+        "output_tokens": 4948,
+        "reasoning_tokens": 3576,
+        "total_tokens": 196293
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "attempt_count": 1,
+      "attempt_id": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "attempt_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "comparison_status": "not_applicable",
+      "elapsed_seconds": 121.715,
+      "ended_at": "2026-09-16T15:07:47.403592+00:00",
+      "model": "gpt-5.6-sol",
+      "output_complete": true,
+      "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "result_href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "result_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "round": 0,
+      "slot": "reviewer",
+      "started_at": "2026-09-16T15:05:45.577199+00:00",
+      "status": "completed",
+      "step": "repair",
+      "step_label": "模型步骤",
+      "usage": {
+        "input_tokens": 211851,
+        "output_tokens": 4921,
+        "reasoning_tokens": 2376,
+        "total_tokens": 216772
+      },
+      "usage_status": "reported",
+      "validation": {
+        "errors": [],
+        "status": "passed"
+      },
+      "validation_status": "passed"
+    }
+  ],
+  "available_actions": [
+    "cancel"
+  ],
+  "chunks": [
+    {
+      "attempt": 0,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "chunk_index": 0,
+      "content_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "max_attempts": 3,
+      "production": {
+        "model": "gpt-5.6-sol",
+        "pipeline_fingerprint": "6be89f15a92603f74a1547656bfdf5a9625391725d10a64c6289459622a772b1",
+        "status": "completed",
+        "step": "repair",
+        "steps": [
+          {
+            "attempt": 1,
+            "elapsed_seconds": 127.7,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "review",
+            "usage": {
+              "input_tokens": 191345,
+              "output_tokens": 4948,
+              "reasoning_tokens": 3576,
+              "total_tokens": 196293
+            }
+          },
+          {
+            "attempt": 1,
+            "elapsed_seconds": 507.616,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "extraction",
+            "usage": {
+              "input_tokens": 29559,
+              "output_tokens": 27770,
+              "reasoning_tokens": 4726,
+              "total_tokens": 57329
+            }
+          },
+          {
+            "attempt": 2,
+            "elapsed_seconds": 353.436,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "linking",
+            "usage": {
+              "input_tokens": 76424,
+              "output_tokens": 19147,
+              "reasoning_tokens": 879,
+              "total_tokens": 95571
+            }
+          },
+          {
+            "attempt": 1,
+            "elapsed_seconds": 121.715,
+            "error": null,
+            "model": "gpt-5.6-sol",
+            "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+            "round": 0,
+            "slot": "reviewer",
+            "status": "completed",
+            "step": "repair",
+            "usage": {
+              "input_tokens": 211851,
+              "output_tokens": 4921,
+              "reasoning_tokens": 2376,
+              "total_tokens": 216772
+            }
+          },
+          {
+            "attempt": 1,
+            "elapsed_seconds": 99.241,
+            "error": null,
+            "model": "gpt-5.6-luna",
+            "output_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+            "round": 0,
+            "slot": "executor",
+            "status": "completed",
+            "step": "translation",
+            "usage": {
+              "input_tokens": 22326,
+              "output_tokens": 5159,
+              "reasoning_tokens": 237,
+              "total_tokens": 27485
+            }
+          }
+        ]
+      },
+      "runs": [],
+      "section_id": "06a96eb4-51be-483e-b0b6-38e89727c1da",
+      "source_end": 5018,
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "source_start": 0,
+      "status": "needs_review",
+      "title": "chapters"
+    }
+  ],
+  "created_at": "2026-09-16T14:42:36.117589+00:00",
+  "current_stage": "extract",
+  "current_step": {
+    "failure_reason": "chapter content review pending",
+    "key": "extract",
+    "label": "内容抽取",
+    "machine_key": "extract",
+    "status": "needs_review"
+  },
+  "current_step_key": "extract",
+  "current_step_label": "内容抽取",
+  "document": {
+    "document_id": "fc97d29e-ff03-4656-81e8-2faa98c270cb",
+    "filename": "sanguozhi-054-zhou-yu.txt",
+    "revision_no": 1,
+    "title": "LM-80 r5 automatic · 三國志·吳書·周瑜傳"
+  },
+  "error": "chapter content review pending",
+  "job_id": "ab986af5-64f1-4639-a598-6086f92316d0",
+  "job_kind": "chapter",
+  "job_kind_label": "章节生产任务",
+  "lease_expires_at": "2026-09-16T15:12:47.388493+00:00",
+  "lease_owner": "chronicle-worker-01",
+  "max_attempts": 3,
+  "narrative_acceptances": [],
+  "open_reviews": 1,
+  "outputs": [
+    {
+      "artifact_sha256": "62b236e095a026546b9e17e10425d8f05f85874e0ce300f68faedff08ca496ab",
+      "artifact_type": "chapter-production-plan",
+      "created_at": "2026-09-16T14:42:41.349462+00:00",
+      "output_id": "6342d1a9-1246-4965-a7d2-cee23d254431",
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0"
+    },
+    {
+      "artifact_sha256": "dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:42:41.399560+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "model": "gpt-5.6-luna",
+      "output_id": "db38a1a3-76a3-42b0-a484-5cfa61056521",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "executor",
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_sha256": "faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:42:41.541248+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "model": "gpt-5.6-sol",
+      "output_id": "53dd98dd-ac42-4135-82cc-52200c31bda6",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "artifact_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:44:20.844578+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "model": "gpt-5.6-luna",
+      "output_id": "57d3295b-7513-4ad9-b5d6-dc4095c22a5f",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "executor",
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "artifact_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:51:09.300035+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "model": "gpt-5.6-sol",
+      "output_id": "bc1a52cd-4914-40a0-950f-6b67e9c306a8",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_sha256": "0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:51:09.413021+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "model": "gpt-5.6-sol",
+      "output_id": "f8ededb9-1e0f-4764-a356-7e1e896e721c",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:57:42.538441+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "model": "gpt-5.6-sol",
+      "output_id": "808691c3-184d-47a9-9d13-3c618e440a76",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T14:57:42.633927+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "model": "gpt-5.6-sol",
+      "output_id": "b5611cc0-7322-4aff-83f2-19d131d0f295",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:03:36.622920+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "model": "gpt-5.6-sol",
+      "output_id": "a66b76c8-f0c9-4838-b003-647147401262",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_sha256": "209b0b9de33941bcf98e2d524ad46c58c6bdeadf1efa787258e8f49b70e06b08",
+      "artifact_type": "chapter-production-draft",
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:03:36.720070+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/209b0b9de33941bcf98e2d524ad46c58c6bdeadf1efa787258e8f49b70e06b08",
+      "output_id": "0ca3bc7b-42cc-47f7-be52-88f1f4ecedd9",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "draft"
+    },
+    {
+      "artifact_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:03:37.342958+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "model": "gpt-5.6-sol",
+      "output_id": "64d84a14-0410-4801-8f40-c3c10d3bd595",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "artifact_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:05:45.201262+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "model": "gpt-5.6-sol",
+      "output_id": "cdf92b73-c654-4995-81bd-7634eff366ab",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "review"
+    },
+    {
+      "artifact_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:05:45.487302+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "model": "gpt-5.6-sol",
+      "output_id": "8c4e01f6-c4ab-4fc0-8941-9a05ac727c28",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "started",
+      "step": "repair"
+    },
+    {
+      "artifact_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:07:47.403592+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "model": "gpt-5.6-sol",
+      "output_id": "4b83b573-caee-4faa-aae4-41dca925415d",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "slot": "reviewer",
+      "status": "completed",
+      "step": "repair"
+    },
+    {
+      "artifact_sha256": "04efeed40eb25f9f4ec2c91d3f24c29c4e2f20554e5ed705e10359a4aa399533",
+      "artifact_type": "chapter-content-review",
+      "created_at": "2026-09-16T15:07:48.156262+00:00",
+      "output_id": "684d4c53-a710-40ba-b478-4c4f7afa699f",
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0"
+    }
+  ],
+  "production_request": null,
+  "raw_results": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:42:41.399560+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:42:41.541248+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:44:20.844578+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:51:09.300035+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:51:09.413021+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:57:42.538441+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "created_at": "2026-09-16T14:57:42.633927+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:03:36.622920+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:03:37.342958+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:05:45.201262+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:05:45.487302+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "repair"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:07:47.403592+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "repair"
+    }
+  ],
+  "results": [
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:42:41.399560+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "dd1d2c7d362a73adf9c5408a84488259613a7e8de8d9a9fd06337fe8306dcd47",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:42:41.541248+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "faaba094b894224ff0c70230073db211a3238167dc4e1b51d90d32346849dd3c",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:44:20.844578+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "model": "gpt-5.6-luna",
+      "output_sha256": "a5fe6ef6ff78a25155be776bac9553d251d8e24efa8d3aa2b66467a80bf491f6",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "translation"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:51:09.300035+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "022c24984d81c63cb0d50cbdaf218b92d7be91a3810fc1e07cd17670269b9c87",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "extraction"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:51:09.413021+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "0c6ba81c84c82883476ab69a3189666fdd19fb870623850deb10a0334b9b842b",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T14:57:42.538441+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "fb1d8931dd76818baadf85b6a71db1ef8e613c7db727d8ff720f4e9a5fb23e5a",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "invalid",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 2,
+      "created_at": "2026-09-16T14:57:42.633927+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "0e1ac53e6866751967accd90f97d02c524df99b94b506c3217a876dc3469323a",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 2,
+      "created_at": "2026-09-16T15:03:36.622920+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "8a9af0df312f042ce789b12428d90bc03198b2ba4dba34c79ee395fa7ff793dd",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "linking"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:03:37.342958+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "3db630a625911c805756706b8fdd5bfd1eb06cd4f18a79dac38dd10cec1c0a32",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:05:45.201262+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "23d63c428046dd54fa1c41c610741c5cee6b2112977650221001ecd0590127f4",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "review"
+    },
+    {
+      "artifact_type": "chapter-production-attempt",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:05:45.487302+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "960119e540e35d568a8ff1d8af27a48088dd9395028203cc3ccd515efe0f8400",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "started",
+      "step": "repair"
+    },
+    {
+      "artifact_type": "chapter-production-step",
+      "attempt": 1,
+      "created_at": "2026-09-16T15:07:47.403592+00:00",
+      "href": "/api/v1/studio/jobs/ab986af5-64f1-4639-a598-6086f92316d0/outputs/d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "model": "gpt-5.6-sol",
+      "output_sha256": "d0ce4ba5c845305b08c1e040fde1da456340c9c9039d1cc9114dc4fd5d805d21",
+      "readable": true,
+      "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+      "round": 0,
+      "status": "completed",
+      "step": "repair"
+    }
+  ],
+  "reviews": [
+    {
+      "chunk_id": "5994b768-2ecd-447d-abe8-db7845878cb6",
+      "created_at": "2026-09-16T15:07:48.156262+00:00",
+      "kind": "stage_gate",
+      "narrative_kind": null,
+      "resolved_at": null,
+      "review_id": "4bb00b07-e1d7-4cbe-ad93-9da52ea065ce",
+      "scope": "chapter_content",
+      "scope_label": "章节内容审核",
+      "status": "open"
+    }
+  ],
+  "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+  "source": {
+    "document_id": "fc97d29e-ff03-4656-81e8-2faa98c270cb",
+    "relationship": "immutable_revision",
+    "revision_id": "df0e0237-252c-495c-a773-108a519543e0",
+    "revision_no": 1,
+    "source_count": 1
+  },
+  "source_count": 1,
+  "stages": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.765546+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T14:42:40.526788+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.854744+00:00",
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": "2026-09-16T14:42:40.801690+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.960753+00:00",
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": "2026-09-16T14:42:40.901792+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": "chapter content review pending",
+      "finished_at": null,
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": "2026-09-16T14:42:41.008617+00:00",
+      "status": "needs_review"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "前置步骤未完成",
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": null,
+      "status": "pending"
+    }
+  ],
+  "status": "needs_review",
+  "step_graph": {
+    "current_step": "extract",
+    "dependencies": {
+      "assemble": [
+        "extract"
+      ],
+      "extract": [
+        "segment"
+      ],
+      "prepare": [],
+      "present": [
+        "publish"
+      ],
+      "publish": [
+        "resolve"
+      ],
+      "resolve": [
+        "assemble"
+      ],
+      "segment": [
+        "structure"
+      ],
+      "structure": [
+        "prepare"
+      ]
+    },
+    "steps": [
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T14:42:40.765546+00:00",
+        "key": "prepare",
+        "label": "准备",
+        "machine_key": "prepare",
+        "stage": "prepare",
+        "started_at": "2026-09-16T14:42:40.526788+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "prepare"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T14:42:40.854744+00:00",
+        "key": "structure",
+        "label": "结构识别",
+        "machine_key": "structure",
+        "stage": "structure",
+        "started_at": "2026-09-16T14:42:40.801690+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "structure"
+        ],
+        "failure_reason": null,
+        "finished_at": "2026-09-16T14:42:40.960753+00:00",
+        "key": "segment",
+        "label": "分段",
+        "machine_key": "segment",
+        "stage": "segment",
+        "started_at": "2026-09-16T14:42:40.901792+00:00",
+        "status": "completed"
+      },
+      {
+        "attempt": 1,
+        "blocked_reason": null,
+        "dependencies": [
+          "segment"
+        ],
+        "failure_reason": "chapter content review pending",
+        "finished_at": null,
+        "key": "extract",
+        "label": "内容抽取",
+        "machine_key": "extract",
+        "stage": "extract",
+        "started_at": "2026-09-16T14:42:41.008617+00:00",
+        "status": "needs_review"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "前置步骤未完成",
+        "dependencies": [
+          "extract"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "assemble",
+        "label": "组装草稿",
+        "machine_key": "assemble",
+        "stage": "assemble",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "assemble"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "resolve",
+        "label": "来源核对",
+        "machine_key": "resolve",
+        "stage": "resolve",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "resolve"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "publish",
+        "label": "发布",
+        "machine_key": "publish",
+        "stage": "publish",
+        "started_at": null,
+        "status": "pending"
+      },
+      {
+        "attempt": 0,
+        "blocked_reason": "等待前置步骤",
+        "dependencies": [
+          "publish"
+        ],
+        "failure_reason": null,
+        "finished_at": null,
+        "key": "present",
+        "label": "综合呈现",
+        "machine_key": "present",
+        "stage": "present",
+        "started_at": null,
+        "status": "pending"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.765546+00:00",
+      "key": "prepare",
+      "label": "准备",
+      "machine_key": "prepare",
+      "stage": "prepare",
+      "started_at": "2026-09-16T14:42:40.526788+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "prepare"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.854744+00:00",
+      "key": "structure",
+      "label": "结构识别",
+      "machine_key": "structure",
+      "stage": "structure",
+      "started_at": "2026-09-16T14:42:40.801690+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "structure"
+      ],
+      "failure_reason": null,
+      "finished_at": "2026-09-16T14:42:40.960753+00:00",
+      "key": "segment",
+      "label": "分段",
+      "machine_key": "segment",
+      "stage": "segment",
+      "started_at": "2026-09-16T14:42:40.901792+00:00",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "blocked_reason": null,
+      "dependencies": [
+        "segment"
+      ],
+      "failure_reason": "chapter content review pending",
+      "finished_at": null,
+      "key": "extract",
+      "label": "内容抽取",
+      "machine_key": "extract",
+      "stage": "extract",
+      "started_at": "2026-09-16T14:42:41.008617+00:00",
+      "status": "needs_review"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "前置步骤未完成",
+      "dependencies": [
+        "extract"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "assemble",
+      "label": "组装草稿",
+      "machine_key": "assemble",
+      "stage": "assemble",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "assemble"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "resolve",
+      "label": "来源核对",
+      "machine_key": "resolve",
+      "stage": "resolve",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "resolve"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "publish",
+      "label": "发布",
+      "machine_key": "publish",
+      "stage": "publish",
+      "started_at": null,
+      "status": "pending"
+    },
+    {
+      "attempt": 0,
+      "blocked_reason": "等待前置步骤",
+      "dependencies": [
+        "publish"
+      ],
+      "failure_reason": null,
+      "finished_at": null,
+      "key": "present",
+      "label": "综合呈现",
+      "machine_key": "present",
+      "stage": "present",
+      "started_at": null,
+      "status": "pending"
+    }
+  ],
+  "task": {
+    "label": "章节生产任务",
+    "machine_key": "chapter",
+    "source_count": 1,
+    "title": "LM-80 r5 automatic · 三國志·吳書·周瑜傳",
+    "type": "chapter"
+  },
+  "title": "LM-80 r5 automatic · 三國志·吳書·周瑜傳",
+  "updated_at": "2026-09-16T15:07:48.231612+00:00"
+}
