@@ -34,6 +34,7 @@ const StudioReviewPage = lazy(() => import("./pages/studio/StudioReviewPage"));
 const StudioReviewDetailPage = lazy(() => import("./pages/studio/StudioReviewDetailPage"));
 const StudioSourcesPage = lazy(() => import("./pages/studio/StudioSourcesPage"));
 const StudioCoveragePage = lazy(() => import("./pages/studio/StudioCoveragePage"));
+const StudioBackgroundsPage = lazy(() => import("./pages/studio/StudioBackgroundsPage"));
 
 function StudioGuard({ children }: { children: JSX.Element }) {
   const auth = useStudioAuth();
@@ -147,6 +148,7 @@ export default function App() {
           <Route path="review/:reviewId" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioReviewDetailPage /></Suspense></StudioGuard>} />
           <Route path="sources" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioSourcesPage /></Suspense></StudioGuard>} />
           <Route path="coverage" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioCoveragePage /></Suspense></StudioGuard>} />
+          <Route path="backgrounds" element={<StudioGuard><Suspense fallback={<StudioFallback />}><StudioBackgroundsPage /></Suspense></StudioGuard>} />
         </Route>
         <Route path="/" element={<PublicChrome timeBar={false}><HomePage /></PublicChrome>} />
         <Route path="/history/*" element={<PublicChrome timeBar={false}><HistoryPage /></PublicChrome>} />

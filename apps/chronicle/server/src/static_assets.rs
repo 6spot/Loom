@@ -92,6 +92,11 @@ pub static ASSETS: &[Asset] = &[
         "dist/assets/StudioCoveragePage.js"
     ),
     asset!(
+        "/assets/StudioBackgroundsPage.js",
+        "text/javascript; charset=utf-8",
+        "dist/assets/StudioBackgroundsPage.js"
+    ),
+    asset!(
         "/assets/review-session.js",
         "text/javascript; charset=utf-8",
         "dist/assets/review-session.js"
@@ -233,7 +238,10 @@ fn is_spa_path(path: &str) -> bool {
         let id = rest.strip_suffix('/').unwrap_or(rest);
         if !id.is_empty()
             && !id.contains('/')
-            && matches!(id, "login" | "imports" | "review" | "sources" | "coverage")
+            && matches!(
+                id,
+                "login" | "imports" | "review" | "sources" | "coverage" | "backgrounds"
+            )
         {
             return true;
         }
@@ -295,6 +303,8 @@ mod tests {
             "/studio/sources",
             "/studio/coverage",
             "/studio/coverage/",
+            "/studio/backgrounds",
+            "/studio/backgrounds/",
         ] {
             let (content_type, body) = resolve_web_path(path).expect(path);
             assert_eq!(content_type, "text/html; charset=utf-8");
@@ -316,6 +326,7 @@ mod tests {
             "/assets/StudioReviewDetailPage.js",
             "/assets/StudioSourcesPage.js",
             "/assets/StudioCoveragePage.js",
+            "/assets/StudioBackgroundsPage.js",
             "/assets/review-session.js",
             "/assets/studio-api.js",
             "/assets/studio-i18n.js",
@@ -380,6 +391,7 @@ mod tests {
         for path in [
             "/studio/imports/job/extra",
             "/studio/review/item/extra",
+            "/studio/backgrounds/extra",
             "/studio/unknown",
             "/studio/../api/v1/studio/status",
         ] {

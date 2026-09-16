@@ -4,7 +4,7 @@ import { useStudioAuth } from "../../lib/studio-auth";
 
 const NAV = [
   ["/studio", "工作台", "◫"], ["/studio/imports", "生产任务", "↗"], ["/studio/review", "内容审核", "✓"],
-  ["/studio/sources", "史料管理", "▤"], ["/studio/coverage", "资料覆盖", "◎"],
+  ["/studio/sources", "史料管理", "▤"], ["/studio/backgrounds", "背景素材", "▧"], ["/studio/coverage", "资料覆盖", "◎"],
 ];
 export default function StudioLayout() {
   const auth = useStudioAuth();

@@ -645,6 +645,139 @@ export interface ReviewPage {
   plan_fingerprint: string;
 }
 
+export type BackgroundAssetFormat = "png" | "jpeg" | "webp" | string;
+
+export interface BackgroundAsset {
+  asset_id: string;
+  asset_version_id: string;
+  version: number;
+  source: string | null;
+  era: string | null;
+  prompt: string | null;
+  metadata: Record<string, unknown>;
+  content_sha256: string;
+  media_type: string;
+  format: BackgroundAssetFormat;
+  filename: string;
+  byte_size: number;
+  width: number;
+  height: number;
+  storage_status: "present" | "missing" | string;
+  preview_href: string;
+  resource_href?: string;
+  created_at: string | null;
+  version_created_at: string | null;
+  candidate: true;
+}
+
+export interface BackgroundAssetPage {
+  schema: "chronicle.background-asset-list";
+  version: string;
+  assets: BackgroundAsset[];
+  offset: number;
+  has_more: boolean;
+}
+
+export interface BackgroundDisplay {
+  opacity: number;
+  position: { x: number; y: number };
+  scale: number;
+  mask: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+    shape?: "rect" | "gradient";
+  } | null;
+}
+
+export interface BackgroundBinding {
+  binding_id: string;
+  edition_version: string;
+  start_paragraph_id: string;
+  end_paragraph_id: string;
+  start_ordinal: number;
+  end_ordinal: number;
+  asset_id: string;
+  asset_version_id: string;
+  asset_version: number;
+  display: BackgroundDisplay;
+  status: "active" | "disabled" | string;
+  active: boolean;
+  revision: number;
+  etag: string;
+  saved_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  disabled_at: string | null;
+  audit_href?: string;
+  asset: BackgroundAsset;
+  image_href?: string;
+}
+
+export interface BackgroundBindingPage {
+  schema: "chronicle.background-binding-list";
+  version: string;
+  bindings: BackgroundBinding[];
+  offset: number;
+  has_more: boolean;
+}
+
+export interface BackgroundBindingAuditEntry {
+  audit_id: string;
+  action: "created" | "replaced" | "disabled" | string;
+  revision: number;
+  actor: string;
+  previous_asset_version_id: string | null;
+  asset_version_id: string;
+  previous_start_paragraph_id: string | null;
+  previous_end_paragraph_id: string | null;
+  start_paragraph_id: string;
+  end_paragraph_id: string;
+  display: BackgroundDisplay;
+  created_at: string | null;
+}
+
+export interface BackgroundBindingAudit {
+  schema: "chronicle.background-binding-audit";
+  version: string;
+  binding_id: string;
+  entries: BackgroundBindingAuditEntry[];
+}
+
+export interface CreateBackgroundBindingInput {
+  edition_version: string;
+  start_paragraph_id: string;
+  end_paragraph_id: string;
+  asset_id: string;
+  asset_version_id: string;
+  display?: Partial<BackgroundDisplay>;
+  actor?: string | null;
+}
+
+export interface ReplaceBackgroundBindingInput {
+  asset_id: string;
+  asset_version_id: string;
+  display?: Partial<BackgroundDisplay>;
+  start_paragraph_id?: string;
+  end_paragraph_id?: string;
+  actor?: string | null;
+  expected_revision?: number;
+  expected_etag?: string;
+}
+
+interface BackgroundAssetResponse {
+  schema: "chronicle.background-asset";
+  version: string;
+  asset: BackgroundAsset;
+}
+
+interface BackgroundBindingResponse {
+  schema: "chronicle.background-binding";
+  version: string;
+  binding: BackgroundBinding;
+}
+
 interface ReviewResponse {
   schema: "chronicle.review";
   version: string;
@@ -653,7 +786,7 @@ interface ReviewResponse {
 
 function authHeaders(auth: string | null, extra?: HeadersInit): Headers {
   const headers = new Headers(extra ?? {});
-  headers.set("Accept", "application/json");
+  if (!headers.has("Accept")) headers.set("Accept", "application/json");
   if (auth) headers.set("Authorization", auth);
   return headers;
 }
@@ -688,6 +821,20 @@ export async function studioRequest<T>(auth: string | null, path: string, init: 
   return parseResponse<T>(response);
 }
 
+/** Fetch a private Studio image while keeping the candidate behind Basic auth. */
+export async function studioBinaryRequest(auth: string | null, path: string, init: RequestInit = {}): Promise<Blob> {
+  const response = await fetch(path, {
+    credentials: "same-origin",
+    ...init,
+    headers: authHeaders(auth, { Accept: "image/png,image/jpeg,image/webp", ...init.headers }),
+  });
+  if (!response.ok) {
+    await parseResponse<never>(response);
+    throw new StudioApiError(response.status, "request_failed", `Studio API returned HTTP ${response.status}`);
+  }
+  return response.blob();
+}
+
 export function jobIsLive(status: JobStatus): boolean {
   return status === "queued" || status === "running" || status === "needs_review";
 }
@@ -697,6 +844,32 @@ export function mediaTypeForUpload(filename: string): string | null {
   if (lower.endsWith(".txt")) return "text/plain";
   if (lower.endsWith(".md")) return "text/markdown";
   return null;
+}
+
+export function backgroundMediaTypeForUpload(filename: string): string | null {
+  const lower = filename.toLowerCase();
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return null;
+}
+
+function queryString(values: Record<string, string | number | null | undefined>): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined && value !== null && String(value) !== "") params.set(key, String(value));
+  }
+  const encoded = params.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
+export function backgroundAssetPreviewPath(assetId: string, assetVersionId?: string | null): string {
+  const path = `/api/v1/studio/background-assets/${encodeURIComponent(assetId)}/preview`;
+  return `${path}${queryString({ asset_version_id: assetVersionId })}`;
+}
+
+export function publicBackgroundPath(version: string, paragraphId: string): string {
+  return `/api/v1/public/backgrounds?${new URLSearchParams({ version, paragraph_id: paragraphId })}`;
 }
 
 export function formatShortHash(value: string | null | undefined): string {
@@ -742,6 +915,157 @@ export async function uploadRevision(
       body: file,
     })
   ).revision;
+}
+
+export async function listBackgroundAssets(
+  auth: string | null,
+  query: { source?: string | null; era?: string | null; limit?: number; offset?: number } = {},
+): Promise<BackgroundAssetPage> {
+  const params = new URLSearchParams({
+    limit: String(query.limit ?? 100),
+    offset: String(query.offset ?? 0),
+  });
+  if (query.source?.trim()) params.set("source", query.source.trim());
+  if (query.era?.trim()) params.set("era", query.era.trim());
+  return studioRequest<BackgroundAssetPage>(auth, `/api/v1/studio/background-assets?${params.toString()}`);
+}
+
+export async function getBackgroundAsset(
+  auth: string | null,
+  assetId: string,
+  assetVersionId?: string | null,
+): Promise<BackgroundAsset> {
+  return (
+    await studioRequest<BackgroundAssetResponse>(
+      auth,
+      `/api/v1/studio/background-assets/${encodeURIComponent(assetId)}${queryString({ asset_version_id: assetVersionId })}`,
+    )
+  ).asset;
+}
+
+export async function uploadBackgroundAsset(
+  auth: string | null,
+  file: File,
+  metadata: { source?: string; era?: string; prompt?: string; metadata?: Record<string, unknown> } = {},
+): Promise<BackgroundAsset> {
+  const mediaType = backgroundMediaTypeForUpload(file.name);
+  if (!mediaType) throw new StudioApiError(400, "unsupported_file", "只支持 PNG、JPEG 或 WebP 图片");
+  const params = new URLSearchParams({ filename: file.name });
+  if (metadata.source?.trim()) params.set("source", metadata.source.trim());
+  if (metadata.era?.trim()) params.set("era", metadata.era.trim());
+  if (metadata.prompt?.trim()) params.set("prompt", metadata.prompt.trim());
+  if (metadata.metadata && Object.keys(metadata.metadata).length) {
+    params.set("metadata", JSON.stringify(metadata.metadata));
+  }
+  return (
+    await studioRequest<BackgroundAssetResponse>(
+      auth,
+      `/api/v1/studio/background-assets?${params.toString()}`,
+      { method: "POST", headers: { "Content-Type": mediaType }, body: file },
+    )
+  ).asset;
+}
+
+export async function uploadBackgroundAssetVersion(
+  auth: string | null,
+  assetId: string,
+  file: File,
+): Promise<BackgroundAsset> {
+  const mediaType = backgroundMediaTypeForUpload(file.name);
+  if (!mediaType) throw new StudioApiError(400, "unsupported_file", "只支持 PNG、JPEG 或 WebP 图片");
+  const path = `/api/v1/studio/background-assets/${encodeURIComponent(assetId)}/versions?${new URLSearchParams({ filename: file.name })}`;
+  return (
+    await studioRequest<BackgroundAssetResponse>(auth, path, {
+      method: "POST",
+      headers: { "Content-Type": mediaType },
+      body: file,
+    })
+  ).asset;
+}
+
+export async function listBackgroundBindings(
+  auth: string | null,
+  query: {
+    editionVersion?: string | null;
+    paragraphId?: string | null;
+    status?: "active" | "disabled" | "all";
+    limit?: number;
+    offset?: number;
+  } = {},
+): Promise<BackgroundBindingPage> {
+  const params = new URLSearchParams({
+    limit: String(query.limit ?? 100),
+    offset: String(query.offset ?? 0),
+  });
+  if (query.editionVersion?.trim()) params.set("edition_version", query.editionVersion.trim());
+  if (query.paragraphId?.trim()) params.set("paragraph_id", query.paragraphId.trim());
+  if (query.status) params.set("status", query.status);
+  return studioRequest<BackgroundBindingPage>(auth, `/api/v1/studio/background-bindings?${params.toString()}`);
+}
+
+export async function getBackgroundBinding(auth: string | null, bindingId: string): Promise<BackgroundBinding> {
+  return (
+    await studioRequest<BackgroundBindingResponse>(
+      auth,
+      `/api/v1/studio/background-bindings/${encodeURIComponent(bindingId)}`,
+    )
+  ).binding;
+}
+
+export async function createBackgroundBinding(
+  auth: string | null,
+  input: CreateBackgroundBindingInput,
+): Promise<BackgroundBinding> {
+  return (
+    await studioRequest<BackgroundBindingResponse>(auth, "/api/v1/studio/background-bindings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    })
+  ).binding;
+}
+
+export async function replaceBackgroundBinding(
+  auth: string | null,
+  bindingId: string,
+  input: ReplaceBackgroundBindingInput,
+): Promise<BackgroundBinding> {
+  return (
+    await studioRequest<BackgroundBindingResponse>(
+      auth,
+      `/api/v1/studio/background-bindings/${encodeURIComponent(bindingId)}/replace`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    )
+  ).binding;
+}
+
+export async function disableBackgroundBinding(
+  auth: string | null,
+  bindingId: string,
+  input: { actor?: string | null; expected_revision?: number; expected_etag?: string } = {},
+): Promise<BackgroundBinding> {
+  return (
+    await studioRequest<BackgroundBindingResponse>(
+      auth,
+      `/api/v1/studio/background-bindings/${encodeURIComponent(bindingId)}/disable`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    )
+  ).binding;
+}
+
+export function getBackgroundBindingAudit(auth: string | null, bindingId: string): Promise<BackgroundBindingAudit> {
+  return studioRequest<BackgroundBindingAudit>(
+    auth,
+    `/api/v1/studio/background-bindings/${encodeURIComponent(bindingId)}/audit`,
+  );
 }
 
 export async function listJobs(auth: string | null, status?: JobStatus, offset = 0): Promise<JobSummary[]> {
