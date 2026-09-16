@@ -1,0 +1,44 @@
+{
+  "schema": "chronicle.t19-history-edition-old-session-evidence",
+  "version": "0.1",
+  "candidate_commit": "c4b1fd04eb5ae71249894a9ebbd9daa7b7acea40",
+  "candidate_image": "staged-a9d478af",
+  "before": {
+    "status": 200,
+    "version": "1aaebc9ec1a94c881968c545c1c112693307b72cee6041e2010abfb6fb1e3b4f",
+    "paragraph_count": 4,
+    "page_status": 200,
+    "page_digest": "c69d3d20c025fcc61ae1a9b0e2458325b88009a6ada0062c95d9ae77b19cd41f"
+  },
+  "append": {
+    "operation": "append",
+    "baseline_version": "1aaebc9ec1a94c881968c545c1c112693307b72cee6041e2010abfb6fb1e3b4f",
+    "parent_version": "1aaebc9ec1a94c881968c545c1c112693307b72cee6041e2010abfb6fb1e3b4f",
+    "new_version": "dceb6ae0f206e89653b2e2d1cbaea18cc569c54d09e158d882e50a0484d0e978"
+  },
+  "old_session_after_append": {
+    "directory_status": 200,
+    "page_status": 200,
+    "version": "1aaebc9ec1a94c881968c545c1c112693307b72cee6041e2010abfb6fb1e3b4f",
+    "paragraph_count": 4,
+    "ordinals": [0, 1, 2, 3],
+    "page_digest": "c69d3d20c025fcc61ae1a9b0e2458325b88009a6ada0062c95d9ae77b19cd41f"
+  },
+  "new_edition_after_append": {
+    "directory_status": 200,
+    "page_status": 200,
+    "version": "dceb6ae0f206e89653b2e2d1cbaea18cc569c54d09e158d882e50a0484d0e978",
+    "paragraph_count": 6,
+    "appended_ordinals": [4, 5]
+  },
+  "checks": {
+    "before_publish_read": true,
+    "old_session_directory_after_append": true,
+    "old_session_page_after_append": true,
+    "old_session_content_unchanged": true,
+    "new_edition_directory": true,
+    "new_edition_appended_page": true,
+    "lineage_points_to_old": true
+  },
+  "result": "PASS"
+}

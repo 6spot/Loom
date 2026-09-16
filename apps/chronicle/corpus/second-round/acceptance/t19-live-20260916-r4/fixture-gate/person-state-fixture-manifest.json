@@ -1,0 +1,69 @@
+{
+  "base_url": "http://127.0.0.1:18081",
+  "budgets": {
+    "max_long_task_ms": 200,
+    "mounted_max_units": 140,
+    "person_region_p95_ms": 100,
+    "target_groups": 1000,
+    "target_units": 5000
+  },
+  "generated_by": "C3-T01",
+  "history": {
+    "catalog_sha": "68383264f66f536a5df1020e64fef21ca748e856c4154e7f54a89b46a0ffb62b",
+    "certainty": "clear",
+    "entity_id": "01a0aa7c-3d15-7a9d-a7df-cf0c4daeba38",
+    "paragraph_count": 2,
+    "paragraph_id": "hp_bd98d8f40da30d8860a6080e",
+    "phase_id": "hphase_9429f20f33cb4f0f3c0618a9",
+    "state_id": "hcon_523a649bb531e7516bf7117e",
+    "version": "211b614bd7ba4e28014e18db9a49865a4b38b5351fd500239252b4c35a1b0885"
+  },
+  "review": {
+    "person_state_job_id": "d95c22d4-822e-4568-8662-645dea99c08b",
+    "review_scope": "all"
+  },
+  "scale": {
+    "catalog_sha": "08c7a4abe56afdca9daba4184825c9d2afade58ada5f4f83f132d954e5b4085c",
+    "first_unit_id": "ru_a6c45c23c73345acf85b546d",
+    "group_count": 1000,
+    "last_unit_id": "ru_34574b3b89397c353384b9fa",
+    "status": "measured",
+    "stream_id": "01a0aa7d-4718-7047-983b-232714bd6648",
+    "synthetic": true,
+    "target_groups": 1000,
+    "target_units": 5000,
+    "unit_count": 5000
+  },
+  "schema": "chronicle.person-state-flow-fixture",
+  "source_person": {
+    "catalog_sha": "fd2697a95c7092b0ffc19613c6a9de95606999ef2db1dc861b9f147008c60e73",
+    "person_id": "01a0aa7c-3d15-7a9d-a7df-cf0c4daeba38",
+    "section": "identities",
+    "state_count": 1,
+    "stream_id": "6c52c448-8d01-7409-a955-bb3fe9e7ee49",
+    "unit_id": "ru_f7371b399c59648967201e33"
+  },
+  "version": "0.1",
+  "viewports": [
+    {
+      "height": 900,
+      "name": "desktop-1440",
+      "width": 1440
+    },
+    {
+      "height": 768,
+      "name": "tablet-1024",
+      "width": 1024
+    },
+    {
+      "height": 844,
+      "name": "mobile-390",
+      "width": 390
+    },
+    {
+      "height": 568,
+      "name": "narrow-320",
+      "width": 320
+    }
+  ]
+}

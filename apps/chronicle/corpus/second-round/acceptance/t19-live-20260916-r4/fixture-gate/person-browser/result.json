@@ -1,0 +1,194 @@
+{
+  "schema": "chronicle.person-state-flow-smoke",
+  "version": "0.1",
+  "task": "C2-R3-T14",
+  "base_url": "http://127.0.0.1:18081",
+  "fixture_manifest": "/srv/Loom-lm80-r4/apps/chronicle/corpus/second-round/acceptance/t19-live-20260916-r4/fixture-gate/person-state-fixture-manifest.json",
+  "requested_suite": "all",
+  "ok": true,
+  "results": [
+    {
+      "suite": "reading",
+      "ok": true,
+      "checks": [
+        {
+          "name": "history_paragraph_anchored",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "history_phase_ready_and_matches_version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_state_fact_rendered_on_history",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "two_tier_marker_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_page_uses_the_published_reader",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_page_keeps_the_pinned_main_locator",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unpublished_person_history_is_stated",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unpublished_person_page_does_not_invent_a_phase",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_page_offers_return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "return_preserves_version_and_paragraph",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mobile_context_entry_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "mobile_person_state_visible",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "history_phase_id": "hphase_9429f20f33cb4f0f3c0618a9",
+        "state_certainty": "clear"
+      }
+    },
+    {
+      "suite": "review",
+      "ok": true,
+      "checks": [
+        {
+          "name": "queue_exposes_person-state-review-panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "detail_renders_person-state-review-panel",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_state_candidates_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_state_rationale_editable",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_state_draft_typed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_state_assessment_focusable",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {}
+    },
+    {
+      "suite": "performance",
+      "ok": true,
+      "checks": [
+        {
+          "name": "history_paragraphs_loaded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "distinct_paragraph_targets",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "person_region_p95_within_budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no_long_task_over_budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context_entities_bounded",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "person_region_transitions": [
+          {
+            "from": "hp_7903cea56625f257feb6b84e",
+            "paragraph_id": "hp_bd98d8f40da30d8860a6080e",
+            "phase_id": "hphase_9429f20f33cb4f0f3c0618a9",
+            "duration_ms": 44.299999952316284
+          },
+          {
+            "from": "hp_bd98d8f40da30d8860a6080e",
+            "paragraph_id": "hp_7903cea56625f257feb6b84e",
+            "phase_id": "hphase_8a2dc0af2add7fa6ef05a66c",
+            "duration_ms": 45
+          },
+          {
+            "from": "hp_7903cea56625f257feb6b84e",
+            "paragraph_id": "hp_bd98d8f40da30d8860a6080e",
+            "phase_id": "hphase_9429f20f33cb4f0f3c0618a9",
+            "duration_ms": 45.199999928474426
+          },
+          {
+            "from": "hp_bd98d8f40da30d8860a6080e",
+            "paragraph_id": "hp_7903cea56625f257feb6b84e",
+            "phase_id": "hphase_8a2dc0af2add7fa6ef05a66c",
+            "duration_ms": 44.10000002384186
+          },
+          {
+            "from": "hp_7903cea56625f257feb6b84e",
+            "paragraph_id": "hp_bd98d8f40da30d8860a6080e",
+            "phase_id": "hphase_9429f20f33cb4f0f3c0618a9",
+            "duration_ms": 44.199999928474426
+          }
+        ],
+        "person_region_samples_ms": [
+          44.299999952316284,
+          45,
+          45.199999928474426,
+          44.10000002384186,
+          44.199999928474426
+        ],
+        "person_region_p95_ms": 45.199999928474426,
+        "long_task_count": 0,
+        "max_long_task_ms": 0,
+        "context_entities_mounted": 1
+      }
+    }
+  ]
+}

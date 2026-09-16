@@ -1,0 +1,1949 @@
+{
+  "schema": "chronicle.reading-flow-smoke",
+  "version": "0.1",
+  "task": "C2-R2-T16",
+  "base_url": "http://127.0.0.1:18081",
+  "fixture_manifest": "/srv/Loom-lm80-r4/apps/chronicle/corpus/second-round/acceptance/t19-live-20260916-r4/fixture-gate/reading-fixture-manifest.json",
+  "requested_suite": "all",
+  "ok": true,
+  "results": [
+    {
+      "suite": "flow",
+      "ok": true,
+      "checks": [
+        {
+          "name": "fixture-declares-events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "page-stream-binding-6c52c448-8d01-7409-a955-bb3fe9e7ee49",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "time-groups-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-entities-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-trigger-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-source-attributed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-does-not-invent-state",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-closes-on-escape",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "page-stream-binding-c7bd2e71-930d-7292-b494-9581a24b720c",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "time-groups-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-entities-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-trigger-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-source-attributed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-does-not-invent-state",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-closes-on-escape",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "page-stream-binding-210859ea-d302-782c-98a1-6afa0541f850",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "segments-reassemble-unit-text",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "time-groups-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-entities-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-trigger-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-source-attributed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-does-not-invent-state",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "event-preview-closes-on-escape",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-page-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "version-v1-binds-stream",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "version-v2-binds-stream",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "old-reference-does-not-jump-new-version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "deep-link-restores-unit",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "history-back-returns",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "history-forward-restores",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "refresh-restores-page",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "invalid-locator-explicit-error",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "touch-context-panel-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "touch-context-panel-closes",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "touch-axis-toggle",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "touch-event-preview-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "touch-event-preview-closes",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unknown-time-expressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "unknown-time-not-fabricated",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "context-shown-before-clearing",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "missing-context-clears",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "missing-role-entity-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "missing-role-not-fabricated",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {}
+    },
+    {
+      "suite": "accessibility",
+      "ok": true,
+      "checks": [
+        {
+          "name": "no-horizontal-overflow-desktop-1440",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "units-present-desktop-1440",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-horizontal-overflow-tablet-1024",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "units-present-tablet-1024",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "target-size-[data-test=\"reading-context-open\"]",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-horizontal-overflow-mobile-390",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "units-present-mobile-390",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "target-size-[data-test=\"reading-axis-toggle\"]",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "target-size-[data-test=\"reading-context-open\"]",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "no-horizontal-overflow-narrow-320",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "units-present-narrow-320",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "target-size-[data-test=\"reading-axis-toggle\"]",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "target-size-[data-test=\"reading-context-open\"]",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-200-no-horizontal-overflow-desktop",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-200-keeps-units-desktop",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-200-no-horizontal-overflow-mobile",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "font-200-keeps-units-mobile",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "keyboard-trigger-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "keyboard-focus-visible",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "keyboard-preview-opens",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "keyboard-preview-closes",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "reduced-motion-trigger-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "reduced-motion-preview-works",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "reduced-motion-preview-closes",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "body-contrast-wcag-aa",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "targets_measured": 2,
+        "body_contrast_ratio": 14.62
+      }
+    },
+    {
+      "suite": "performance",
+      "ok": true,
+      "checks": [
+        {
+          "name": "performance-scale-stream-present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "scale-unit-count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "scale-group-count",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-same-page-navigation-return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-distant-gap-adjacent-reading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-1000-consecutive-advances",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-active-samples",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-restore-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-mounted-window-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-scroll-duration",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-window-progressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-sustained-scroll-progress",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-long-task-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-no-preview-n-plus-one",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-1-units-requests-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-same-page-navigation-return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-distant-gap-adjacent-reading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-1000-consecutive-advances",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-active-samples",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-restore-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-mounted-window-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-scroll-duration",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-window-progressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-sustained-scroll-progress",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-long-task-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-no-preview-n-plus-one",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-2-units-requests-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-same-page-navigation-return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-distant-gap-adjacent-reading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-1000-consecutive-advances",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-active-samples",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-restore-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-mounted-window-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-scroll-duration",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-window-progressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-sustained-scroll-progress",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-long-task-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-no-preview-n-plus-one",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-3-units-requests-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-same-page-navigation-return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-distant-gap-adjacent-reading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-1000-consecutive-advances",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-active-samples",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-restore-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-mounted-window-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-scroll-duration",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-window-progressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-sustained-scroll-progress",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-long-task-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-no-preview-n-plus-one",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-4-units-requests-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-same-page-navigation-return",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-distant-gap-adjacent-reading",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-1000-consecutive-advances",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-active-samples",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-restore-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-mounted-window-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-scroll-duration",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-window-progressed",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-sustained-scroll-progress",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-long-task-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-no-preview-n-plus-one",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "run-5-units-requests-bounded",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "five-fixed-runs",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aggregate-active-p95-budget",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "aggregate-restore-p95-budget",
+          "ok": true,
+          "detail": ""
+        }
+      ],
+      "evidence": {
+        "run_1": {
+          "run": 1,
+          "active_p95_ms": 17.600000023841858,
+          "active_samples_ms": [
+            15.699999928474426,
+            16.100000023841858,
+            16.899999976158142,
+            16.899999976158142,
+            16.299999952316284,
+            15.700000047683716,
+            14,
+            16.100000023841858,
+            16.600000023841858,
+            17.600000023841858,
+            16.299999952316284,
+            16.09999990463257,
+            16.100000023841858,
+            15.800000071525574,
+            15.799999952316284
+          ],
+          "active_timeouts": [],
+          "restore_ms": 78.29999995231628,
+          "mounted_units": 120,
+          "window_progression": {
+            "duration_seconds": 30,
+            "wheels": 334,
+            "mounted_samples": 334,
+            "mounted_max": 120,
+            "mounted_min": 120,
+            "active_ordinal_min": 1042,
+            "active_ordinal_max": 2301,
+            "checkpoints": [
+              {
+                "elapsed_ms": 9,
+                "ordinal": 1042
+              },
+              {
+                "elapsed_ms": 5070,
+                "ordinal": 1254
+              },
+              {
+                "elapsed_ms": 10159,
+                "ordinal": 1469
+              },
+              {
+                "elapsed_ms": 15245,
+                "ordinal": 1681
+              },
+              {
+                "elapsed_ms": 20248,
+                "ordinal": 1893
+              },
+              {
+                "elapsed_ms": 25263,
+                "ordinal": 2104
+              },
+              {
+                "elapsed_ms": 30018,
+                "ordinal": 2305
+              }
+            ]
+          },
+          "consecutive_advances": {
+            "requested_steps": 1000,
+            "completed_adjacent_steps": 1000,
+            "first_ordinal": 0,
+            "last_ordinal": 1000,
+            "mounted_max": 120,
+            "duration_ms": 16768,
+            "stalled_at": null
+          },
+          "same_page_return": true,
+          "distant_gap_navigation": {
+            "cached_max": 2324,
+            "target_ordinal": 4995,
+            "backward": {
+              "requested_steps": 40,
+              "completed_adjacent_steps": 40,
+              "first_ordinal": 4995,
+              "last_ordinal": 4955,
+              "mounted_max": 120,
+              "duration_ms": 841,
+              "stalled_at": null
+            },
+            "forward": {
+              "requested_steps": 35,
+              "completed_adjacent_steps": 35,
+              "first_ordinal": 4955,
+              "last_ordinal": 4990,
+              "mounted_max": 120,
+              "duration_ms": 1161,
+              "stalled_at": null
+            }
+          },
+          "restore_observation": {
+            "data_ready_ms": 82.40000009536743,
+            "completed_ms": 160.70000004768372,
+            "active": true,
+            "context": true,
+            "idle": true,
+            "position_error": 0.2875000000003638,
+            "top": 357.3125,
+            "visible": true
+          },
+          "long_tasks_ms": [],
+          "max_long_task_ms": 0,
+          "request_counts": {
+            "units": 115,
+            "groups": 1,
+            "locate": 1,
+            "preview": 0,
+            "people": 1350,
+            "person_details": 0,
+            "other": 2
+          },
+          "preview_requests": 0
+        },
+        "run_2": {
+          "run": 2,
+          "active_p95_ms": 17.699999928474426,
+          "active_samples_ms": [
+            15.699999928474426,
+            16,
+            17.699999928474426,
+            16.299999952316284,
+            16.600000023841858,
+            16.200000047683716,
+            16.100000023841858,
+            16.199999928474426,
+            16.5,
+            17.100000023841858,
+            16.09999990463257,
+            16,
+            15.900000095367432,
+            16.100000023841858,
+            16.299999952316284
+          ],
+          "active_timeouts": [],
+          "restore_ms": 81.39999997615814,
+          "mounted_units": 120,
+          "window_progression": {
+            "duration_seconds": 30,
+            "wheels": 336,
+            "mounted_samples": 336,
+            "mounted_max": 120,
+            "mounted_min": 120,
+            "active_ordinal_min": 1042,
+            "active_ordinal_max": 2308,
+            "checkpoints": [
+              {
+                "elapsed_ms": 8,
+                "ordinal": 1042
+              },
+              {
+                "elapsed_ms": 5012,
+                "ordinal": 1254
+              },
+              {
+                "elapsed_ms": 10020,
+                "ordinal": 1465
+              },
+              {
+                "elapsed_ms": 15052,
+                "ordinal": 1677
+              },
+              {
+                "elapsed_ms": 20125,
+                "ordinal": 1893
+              },
+              {
+                "elapsed_ms": 25170,
+                "ordinal": 2104
+              },
+              {
+                "elapsed_ms": 30059,
+                "ordinal": 2312
+              }
+            ]
+          },
+          "consecutive_advances": {
+            "requested_steps": 1000,
+            "completed_adjacent_steps": 1000,
+            "first_ordinal": 0,
+            "last_ordinal": 1000,
+            "mounted_max": 120,
+            "duration_ms": 16754,
+            "stalled_at": null
+          },
+          "same_page_return": true,
+          "distant_gap_navigation": {
+            "cached_max": 2339,
+            "target_ordinal": 4995,
+            "backward": {
+              "requested_steps": 40,
+              "completed_adjacent_steps": 40,
+              "first_ordinal": 4995,
+              "last_ordinal": 4955,
+              "mounted_max": 120,
+              "duration_ms": 862,
+              "stalled_at": null
+            },
+            "forward": {
+              "requested_steps": 35,
+              "completed_adjacent_steps": 35,
+              "first_ordinal": 4955,
+              "last_ordinal": 4990,
+              "mounted_max": 120,
+              "duration_ms": 1151,
+              "stalled_at": null
+            }
+          },
+          "restore_observation": {
+            "data_ready_ms": 63.10000002384186,
+            "completed_ms": 144.5,
+            "active": true,
+            "context": true,
+            "idle": true,
+            "position_error": 0.2875000000003638,
+            "top": 357.3125,
+            "visible": true
+          },
+          "long_tasks_ms": [],
+          "max_long_task_ms": 0,
+          "request_counts": {
+            "units": 116,
+            "groups": 1,
+            "locate": 1,
+            "preview": 0,
+            "people": 1352,
+            "person_details": 0,
+            "other": 2
+          },
+          "preview_requests": 0
+        },
+        "run_3": {
+          "run": 3,
+          "active_p95_ms": 17.899999976158142,
+          "active_samples_ms": [
+            15.899999976158142,
+            16.100000023841858,
+            17.899999976158142,
+            16.299999952316284,
+            15.799999952316284,
+            15.899999976158142,
+            16.100000023841858,
+            16,
+            16.399999976158142,
+            17.899999976158142,
+            16.299999952316284,
+            14.900000095367432,
+            16.09999990463257,
+            16.100000023841858,
+            16
+          ],
+          "active_timeouts": [],
+          "restore_ms": 71.39999997615814,
+          "mounted_units": 120,
+          "window_progression": {
+            "duration_seconds": 30,
+            "wheels": 335,
+            "mounted_samples": 335,
+            "mounted_max": 120,
+            "mounted_min": 120,
+            "active_ordinal_min": 1042,
+            "active_ordinal_max": 2305,
+            "checkpoints": [
+              {
+                "elapsed_ms": 9,
+                "ordinal": 1042
+              },
+              {
+                "elapsed_ms": 5087,
+                "ordinal": 1258
+              },
+              {
+                "elapsed_ms": 10125,
+                "ordinal": 1469
+              },
+              {
+                "elapsed_ms": 15195,
+                "ordinal": 1685
+              },
+              {
+                "elapsed_ms": 20209,
+                "ordinal": 1896
+              },
+              {
+                "elapsed_ms": 25257,
+                "ordinal": 2108
+              },
+              {
+                "elapsed_ms": 30017,
+                "ordinal": 2308
+              }
+            ]
+          },
+          "consecutive_advances": {
+            "requested_steps": 1000,
+            "completed_adjacent_steps": 1000,
+            "first_ordinal": 0,
+            "last_ordinal": 1000,
+            "mounted_max": 120,
+            "duration_ms": 16760,
+            "stalled_at": null
+          },
+          "same_page_return": true,
+          "distant_gap_navigation": {
+            "cached_max": 2339,
+            "target_ordinal": 4995,
+            "backward": {
+              "requested_steps": 40,
+              "completed_adjacent_steps": 40,
+              "first_ordinal": 4995,
+              "last_ordinal": 4955,
+              "mounted_max": 120,
+              "duration_ms": 829,
+              "stalled_at": null
+            },
+            "forward": {
+              "requested_steps": 35,
+              "completed_adjacent_steps": 35,
+              "first_ordinal": 4955,
+              "last_ordinal": 4990,
+              "mounted_max": 120,
+              "duration_ms": 1162,
+              "stalled_at": null
+            }
+          },
+          "restore_observation": {
+            "data_ready_ms": 57.89999997615814,
+            "completed_ms": 129.29999995231628,
+            "active": true,
+            "context": true,
+            "idle": true,
+            "position_error": 0.2875000000003638,
+            "top": 357.3125,
+            "visible": true
+          },
+          "long_tasks_ms": [],
+          "max_long_task_ms": 0,
+          "request_counts": {
+            "units": 116,
+            "groups": 1,
+            "locate": 1,
+            "preview": 0,
+            "people": 1351,
+            "person_details": 0,
+            "other": 2
+          },
+          "preview_requests": 0
+        },
+        "run_4": {
+          "run": 4,
+          "active_p95_ms": 18.300000071525574,
+          "active_samples_ms": [
+            15.600000023841858,
+            16.5,
+            18.300000071525574,
+            16.200000047683716,
+            15.799999952316284,
+            16,
+            16.700000047683716,
+            16.399999976158142,
+            16.100000023841858,
+            17.899999976158142,
+            16.100000023841858,
+            18.100000023841858,
+            16.399999976158142,
+            15.800000071525574,
+            16.100000023841858
+          ],
+          "active_timeouts": [],
+          "restore_ms": 68.89999997615814,
+          "mounted_units": 120,
+          "window_progression": {
+            "duration_seconds": 30,
+            "wheels": 335,
+            "mounted_samples": 335,
+            "mounted_max": 120,
+            "mounted_min": 120,
+            "active_ordinal_min": 1042,
+            "active_ordinal_max": 2305,
+            "checkpoints": [
+              {
+                "elapsed_ms": 9,
+                "ordinal": 1042
+              },
+              {
+                "elapsed_ms": 5093,
+                "ordinal": 1258
+              },
+              {
+                "elapsed_ms": 10110,
+                "ordinal": 1469
+              },
+              {
+                "elapsed_ms": 15126,
+                "ordinal": 1681
+              },
+              {
+                "elapsed_ms": 20162,
+                "ordinal": 1893
+              },
+              {
+                "elapsed_ms": 25217,
+                "ordinal": 2104
+              },
+              {
+                "elapsed_ms": 30083,
+                "ordinal": 2308
+              }
+            ]
+          },
+          "consecutive_advances": {
+            "requested_steps": 1000,
+            "completed_adjacent_steps": 1000,
+            "first_ordinal": 0,
+            "last_ordinal": 1000,
+            "mounted_max": 120,
+            "duration_ms": 16756,
+            "stalled_at": null
+          },
+          "same_page_return": true,
+          "distant_gap_navigation": {
+            "cached_max": 2339,
+            "target_ordinal": 4995,
+            "backward": {
+              "requested_steps": 40,
+              "completed_adjacent_steps": 40,
+              "first_ordinal": 4995,
+              "last_ordinal": 4955,
+              "mounted_max": 120,
+              "duration_ms": 909,
+              "stalled_at": null
+            },
+            "forward": {
+              "requested_steps": 35,
+              "completed_adjacent_steps": 35,
+              "first_ordinal": 4955,
+              "last_ordinal": 4990,
+              "mounted_max": 120,
+              "duration_ms": 1153,
+              "stalled_at": null
+            }
+          },
+          "restore_observation": {
+            "data_ready_ms": 77.5,
+            "completed_ms": 146.39999997615814,
+            "active": true,
+            "context": true,
+            "idle": true,
+            "position_error": 0.2875000000003638,
+            "top": 357.3125,
+            "visible": true
+          },
+          "long_tasks_ms": [],
+          "max_long_task_ms": 0,
+          "request_counts": {
+            "units": 116,
+            "groups": 1,
+            "locate": 1,
+            "preview": 0,
+            "people": 1351,
+            "person_details": 0,
+            "other": 2
+          },
+          "preview_requests": 0
+        },
+        "run_5": {
+          "run": 5,
+          "active_p95_ms": 33.60000002384186,
+          "active_samples_ms": [
+            15.600000023841858,
+            15.800000071525574,
+            18.199999928474426,
+            33.60000002384186,
+            15.799999952316284,
+            15.899999976158142,
+            15.799999952316284,
+            16.300000071525574,
+            16.300000071525574,
+            18,
+            16.299999952316284,
+            15.899999976158142,
+            22.5,
+            16.5,
+            14.600000023841858
+          ],
+          "active_timeouts": [],
+          "restore_ms": 77.70000004768372,
+          "mounted_units": 120,
+          "window_progression": {
+            "duration_seconds": 30,
+            "wheels": 336,
+            "mounted_samples": 336,
+            "mounted_max": 120,
+            "mounted_min": 120,
+            "active_ordinal_min": 1042,
+            "active_ordinal_max": 2308,
+            "checkpoints": [
+              {
+                "elapsed_ms": 8,
+                "ordinal": 1042
+              },
+              {
+                "elapsed_ms": 5094,
+                "ordinal": 1258
+              },
+              {
+                "elapsed_ms": 10117,
+                "ordinal": 1469
+              },
+              {
+                "elapsed_ms": 15182,
+                "ordinal": 1685
+              },
+              {
+                "elapsed_ms": 20204,
+                "ordinal": 1896
+              },
+              {
+                "elapsed_ms": 25225,
+                "ordinal": 2108
+              },
+              {
+                "elapsed_ms": 30078,
+                "ordinal": 2312
+              }
+            ]
+          },
+          "consecutive_advances": {
+            "requested_steps": 1000,
+            "completed_adjacent_steps": 1000,
+            "first_ordinal": 0,
+            "last_ordinal": 1000,
+            "mounted_max": 120,
+            "duration_ms": 16766,
+            "stalled_at": null
+          },
+          "same_page_return": true,
+          "distant_gap_navigation": {
+            "cached_max": 2339,
+            "target_ordinal": 4995,
+            "backward": {
+              "requested_steps": 40,
+              "completed_adjacent_steps": 40,
+              "first_ordinal": 4995,
+              "last_ordinal": 4955,
+              "mounted_max": 120,
+              "duration_ms": 833,
+              "stalled_at": null
+            },
+            "forward": {
+              "requested_steps": 35,
+              "completed_adjacent_steps": 35,
+              "first_ordinal": 4955,
+              "last_ordinal": 4990,
+              "mounted_max": 120,
+              "duration_ms": 1152,
+              "stalled_at": null
+            }
+          },
+          "restore_observation": {
+            "data_ready_ms": 68.79999995231628,
+            "completed_ms": 146.5,
+            "active": true,
+            "context": true,
+            "idle": true,
+            "position_error": 0.2875000000003638,
+            "top": 357.3125,
+            "visible": true
+          },
+          "long_tasks_ms": [],
+          "max_long_task_ms": 0,
+          "request_counts": {
+            "units": 116,
+            "groups": 1,
+            "locate": 1,
+            "preview": 0,
+            "people": 1352,
+            "person_details": 0,
+            "other": 2
+          },
+          "preview_requests": 0
+        },
+        "environment": {
+          "browser": "chromium",
+          "viewport": "1440x900",
+          "runs": 5,
+          "active_samples_per_run": 15,
+          "active_measurement": "wheel-to-active-and-sidebar-ready (conservative upper bound)",
+          "consecutive_advances_per_run": 1000,
+          "continuous_scroll_seconds": 30
+        },
+        "runs": [
+          {
+            "run": 1,
+            "active_p95_ms": 17.600000023841858,
+            "active_samples_ms": [
+              15.699999928474426,
+              16.100000023841858,
+              16.899999976158142,
+              16.899999976158142,
+              16.299999952316284,
+              15.700000047683716,
+              14,
+              16.100000023841858,
+              16.600000023841858,
+              17.600000023841858,
+              16.299999952316284,
+              16.09999990463257,
+              16.100000023841858,
+              15.800000071525574,
+              15.799999952316284
+            ],
+            "active_timeouts": [],
+            "restore_ms": 78.29999995231628,
+            "mounted_units": 120,
+            "window_progression": {
+              "duration_seconds": 30,
+              "wheels": 334,
+              "mounted_samples": 334,
+              "mounted_max": 120,
+              "mounted_min": 120,
+              "active_ordinal_min": 1042,
+              "active_ordinal_max": 2301,
+              "checkpoints": [
+                {
+                  "elapsed_ms": 9,
+                  "ordinal": 1042
+                },
+                {
+                  "elapsed_ms": 5070,
+                  "ordinal": 1254
+                },
+                {
+                  "elapsed_ms": 10159,
+                  "ordinal": 1469
+                },
+                {
+                  "elapsed_ms": 15245,
+                  "ordinal": 1681
+                },
+                {
+                  "elapsed_ms": 20248,
+                  "ordinal": 1893
+                },
+                {
+                  "elapsed_ms": 25263,
+                  "ordinal": 2104
+                },
+                {
+                  "elapsed_ms": 30018,
+                  "ordinal": 2305
+                }
+              ]
+            },
+            "consecutive_advances": {
+              "requested_steps": 1000,
+              "completed_adjacent_steps": 1000,
+              "first_ordinal": 0,
+              "last_ordinal": 1000,
+              "mounted_max": 120,
+              "duration_ms": 16768,
+              "stalled_at": null
+            },
+            "same_page_return": true,
+            "distant_gap_navigation": {
+              "cached_max": 2324,
+              "target_ordinal": 4995,
+              "backward": {
+                "requested_steps": 40,
+                "completed_adjacent_steps": 40,
+                "first_ordinal": 4995,
+                "last_ordinal": 4955,
+                "mounted_max": 120,
+                "duration_ms": 841,
+                "stalled_at": null
+              },
+              "forward": {
+                "requested_steps": 35,
+                "completed_adjacent_steps": 35,
+                "first_ordinal": 4955,
+                "last_ordinal": 4990,
+                "mounted_max": 120,
+                "duration_ms": 1161,
+                "stalled_at": null
+              }
+            },
+            "restore_observation": {
+              "data_ready_ms": 82.40000009536743,
+              "completed_ms": 160.70000004768372,
+              "active": true,
+              "context": true,
+              "idle": true,
+              "position_error": 0.2875000000003638,
+              "top": 357.3125,
+              "visible": true
+            },
+            "long_tasks_ms": [],
+            "max_long_task_ms": 0,
+            "request_counts": {
+              "units": 115,
+              "groups": 1,
+              "locate": 1,
+              "preview": 0,
+              "people": 1350,
+              "person_details": 0,
+              "other": 2
+            },
+            "preview_requests": 0
+          },
+          {
+            "run": 2,
+            "active_p95_ms": 17.699999928474426,
+            "active_samples_ms": [
+              15.699999928474426,
+              16,
+              17.699999928474426,
+              16.299999952316284,
+              16.600000023841858,
+              16.200000047683716,
+              16.100000023841858,
+              16.199999928474426,
+              16.5,
+              17.100000023841858,
+              16.09999990463257,
+              16,
+              15.900000095367432,
+              16.100000023841858,
+              16.299999952316284
+            ],
+            "active_timeouts": [],
+            "restore_ms": 81.39999997615814,
+            "mounted_units": 120,
+            "window_progression": {
+              "duration_seconds": 30,
+              "wheels": 336,
+              "mounted_samples": 336,
+              "mounted_max": 120,
+              "mounted_min": 120,
+              "active_ordinal_min": 1042,
+              "active_ordinal_max": 2308,
+              "checkpoints": [
+                {
+                  "elapsed_ms": 8,
+                  "ordinal": 1042
+                },
+                {
+                  "elapsed_ms": 5012,
+                  "ordinal": 1254
+                },
+                {
+                  "elapsed_ms": 10020,
+                  "ordinal": 1465
+                },
+                {
+                  "elapsed_ms": 15052,
+                  "ordinal": 1677
+                },
+                {
+                  "elapsed_ms": 20125,
+                  "ordinal": 1893
+                },
+                {
+                  "elapsed_ms": 25170,
+                  "ordinal": 2104
+                },
+                {
+                  "elapsed_ms": 30059,
+                  "ordinal": 2312
+                }
+              ]
+            },
+            "consecutive_advances": {
+              "requested_steps": 1000,
+              "completed_adjacent_steps": 1000,
+              "first_ordinal": 0,
+              "last_ordinal": 1000,
+              "mounted_max": 120,
+              "duration_ms": 16754,
+              "stalled_at": null
+            },
+            "same_page_return": true,
+            "distant_gap_navigation": {
+              "cached_max": 2339,
+              "target_ordinal": 4995,
+              "backward": {
+                "requested_steps": 40,
+                "completed_adjacent_steps": 40,
+                "first_ordinal": 4995,
+                "last_ordinal": 4955,
+                "mounted_max": 120,
+                "duration_ms": 862,
+                "stalled_at": null
+              },
+              "forward": {
+                "requested_steps": 35,
+                "completed_adjacent_steps": 35,
+                "first_ordinal": 4955,
+                "last_ordinal": 4990,
+                "mounted_max": 120,
+                "duration_ms": 1151,
+                "stalled_at": null
+              }
+            },
+            "restore_observation": {
+              "data_ready_ms": 63.10000002384186,
+              "completed_ms": 144.5,
+              "active": true,
+              "context": true,
+              "idle": true,
+              "position_error": 0.2875000000003638,
+              "top": 357.3125,
+              "visible": true
+            },
+            "long_tasks_ms": [],
+            "max_long_task_ms": 0,
+            "request_counts": {
+              "units": 116,
+              "groups": 1,
+              "locate": 1,
+              "preview": 0,
+              "people": 1352,
+              "person_details": 0,
+              "other": 2
+            },
+            "preview_requests": 0
+          },
+          {
+            "run": 3,
+            "active_p95_ms": 17.899999976158142,
+            "active_samples_ms": [
+              15.899999976158142,
+              16.100000023841858,
+              17.899999976158142,
+              16.299999952316284,
+              15.799999952316284,
+              15.899999976158142,
+              16.100000023841858,
+              16,
+              16.399999976158142,
+              17.899999976158142,
+              16.299999952316284,
+              14.900000095367432,
+              16.09999990463257,
+              16.100000023841858,
+              16
+            ],
+            "active_timeouts": [],
+            "restore_ms": 71.39999997615814,
+            "mounted_units": 120,
+            "window_progression": {
+              "duration_seconds": 30,
+              "wheels": 335,
+              "mounted_samples": 335,
+              "mounted_max": 120,
+              "mounted_min": 120,
+              "active_ordinal_min": 1042,
+              "active_ordinal_max": 2305,
+              "checkpoints": [
+                {
+                  "elapsed_ms": 9,
+                  "ordinal": 1042
+                },
+                {
+                  "elapsed_ms": 5087,
+                  "ordinal": 1258
+                },
+                {
+                  "elapsed_ms": 10125,
+                  "ordinal": 1469
+                },
+                {
+                  "elapsed_ms": 15195,
+                  "ordinal": 1685
+                },
+                {
+                  "elapsed_ms": 20209,
+                  "ordinal": 1896
+                },
+                {
+                  "elapsed_ms": 25257,
+                  "ordinal": 2108
+                },
+                {
+                  "elapsed_ms": 30017,
+                  "ordinal": 2308
+                }
+              ]
+            },
+            "consecutive_advances": {
+              "requested_steps": 1000,
+              "completed_adjacent_steps": 1000,
+              "first_ordinal": 0,
+              "last_ordinal": 1000,
+              "mounted_max": 120,
+              "duration_ms": 16760,
+              "stalled_at": null
+            },
+            "same_page_return": true,
+            "distant_gap_navigation": {
+              "cached_max": 2339,
+              "target_ordinal": 4995,
+              "backward": {
+                "requested_steps": 40,
+                "completed_adjacent_steps": 40,
+                "first_ordinal": 4995,
+                "last_ordinal": 4955,
+                "mounted_max": 120,
+                "duration_ms": 829,
+                "stalled_at": null
+              },
+              "forward": {
+                "requested_steps": 35,
+                "completed_adjacent_steps": 35,
+                "first_ordinal": 4955,
+                "last_ordinal": 4990,
+                "mounted_max": 120,
+                "duration_ms": 1162,
+                "stalled_at": null
+              }
+            },
+            "restore_observation": {
+              "data_ready_ms": 57.89999997615814,
+              "completed_ms": 129.29999995231628,
+              "active": true,
+              "context": true,
+              "idle": true,
+              "position_error": 0.2875000000003638,
+              "top": 357.3125,
+              "visible": true
+            },
+            "long_tasks_ms": [],
+            "max_long_task_ms": 0,
+            "request_counts": {
+              "units": 116,
+              "groups": 1,
+              "locate": 1,
+              "preview": 0,
+              "people": 1351,
+              "person_details": 0,
+              "other": 2
+            },
+            "preview_requests": 0
+          },
+          {
+            "run": 4,
+            "active_p95_ms": 18.300000071525574,
+            "active_samples_ms": [
+              15.600000023841858,
+              16.5,
+              18.300000071525574,
+              16.200000047683716,
+              15.799999952316284,
+              16,
+              16.700000047683716,
+              16.399999976158142,
+              16.100000023841858,
+              17.899999976158142,
+              16.100000023841858,
+              18.100000023841858,
+              16.399999976158142,
+              15.800000071525574,
+              16.100000023841858
+            ],
+            "active_timeouts": [],
+            "restore_ms": 68.89999997615814,
+            "mounted_units": 120,
+            "window_progression": {
+              "duration_seconds": 30,
+              "wheels": 335,
+              "mounted_samples": 335,
+              "mounted_max": 120,
+              "mounted_min": 120,
+              "active_ordinal_min": 1042,
+              "active_ordinal_max": 2305,
+              "checkpoints": [
+                {
+                  "elapsed_ms": 9,
+                  "ordinal": 1042
+                },
+                {
+                  "elapsed_ms": 5093,
+                  "ordinal": 1258
+                },
+                {
+                  "elapsed_ms": 10110,
+                  "ordinal": 1469
+                },
+                {
+                  "elapsed_ms": 15126,
+                  "ordinal": 1681
+                },
+                {
+                  "elapsed_ms": 20162,
+                  "ordinal": 1893
+                },
+                {
+                  "elapsed_ms": 25217,
+                  "ordinal": 2104
+                },
+                {
+                  "elapsed_ms": 30083,
+                  "ordinal": 2308
+                }
+              ]
+            },
+            "consecutive_advances": {
+              "requested_steps": 1000,
+              "completed_adjacent_steps": 1000,
+              "first_ordinal": 0,
+              "last_ordinal": 1000,
+              "mounted_max": 120,
+              "duration_ms": 16756,
+              "stalled_at": null
+            },
+            "same_page_return": true,
+            "distant_gap_navigation": {
+              "cached_max": 2339,
+              "target_ordinal": 4995,
+              "backward": {
+                "requested_steps": 40,
+                "completed_adjacent_steps": 40,
+                "first_ordinal": 4995,
+                "last_ordinal": 4955,
+                "mounted_max": 120,
+                "duration_ms": 909,
+                "stalled_at": null
+              },
+              "forward": {
+                "requested_steps": 35,
+                "completed_adjacent_steps": 35,
+                "first_ordinal": 4955,
+                "last_ordinal": 4990,
+                "mounted_max": 120,
+                "duration_ms": 1153,
+                "stalled_at": null
+              }
+            },
+            "restore_observation": {
+              "data_ready_ms": 77.5,
+              "completed_ms": 146.39999997615814,
+              "active": true,
+              "context": true,
+              "idle": true,
+              "position_error": 0.2875000000003638,
+              "top": 357.3125,
+              "visible": true
+            },
+            "long_tasks_ms": [],
+            "max_long_task_ms": 0,
+            "request_counts": {
+              "units": 116,
+              "groups": 1,
+              "locate": 1,
+              "preview": 0,
+              "people": 1351,
+              "person_details": 0,
+              "other": 2
+            },
+            "preview_requests": 0
+          },
+          {
+            "run": 5,
+            "active_p95_ms": 33.60000002384186,
+            "active_samples_ms": [
+              15.600000023841858,
+              15.800000071525574,
+              18.199999928474426,
+              33.60000002384186,
+              15.799999952316284,
+              15.899999976158142,
+              15.799999952316284,
+              16.300000071525574,
+              16.300000071525574,
+              18,
+              16.299999952316284,
+              15.899999976158142,
+              22.5,
+              16.5,
+              14.600000023841858
+            ],
+            "active_timeouts": [],
+            "restore_ms": 77.70000004768372,
+            "mounted_units": 120,
+            "window_progression": {
+              "duration_seconds": 30,
+              "wheels": 336,
+              "mounted_samples": 336,
+              "mounted_max": 120,
+              "mounted_min": 120,
+              "active_ordinal_min": 1042,
+              "active_ordinal_max": 2308,
+              "checkpoints": [
+                {
+                  "elapsed_ms": 8,
+                  "ordinal": 1042
+                },
+                {
+                  "elapsed_ms": 5094,
+                  "ordinal": 1258
+                },
+                {
+                  "elapsed_ms": 10117,
+                  "ordinal": 1469
+                },
+                {
+                  "elapsed_ms": 15182,
+                  "ordinal": 1685
+                },
+                {
+                  "elapsed_ms": 20204,
+                  "ordinal": 1896
+                },
+                {
+                  "elapsed_ms": 25225,
+                  "ordinal": 2108
+                },
+                {
+                  "elapsed_ms": 30078,
+                  "ordinal": 2312
+                }
+              ]
+            },
+            "consecutive_advances": {
+              "requested_steps": 1000,
+              "completed_adjacent_steps": 1000,
+              "first_ordinal": 0,
+              "last_ordinal": 1000,
+              "mounted_max": 120,
+              "duration_ms": 16766,
+              "stalled_at": null
+            },
+            "same_page_return": true,
+            "distant_gap_navigation": {
+              "cached_max": 2339,
+              "target_ordinal": 4995,
+              "backward": {
+                "requested_steps": 40,
+                "completed_adjacent_steps": 40,
+                "first_ordinal": 4995,
+                "last_ordinal": 4955,
+                "mounted_max": 120,
+                "duration_ms": 833,
+                "stalled_at": null
+              },
+              "forward": {
+                "requested_steps": 35,
+                "completed_adjacent_steps": 35,
+                "first_ordinal": 4955,
+                "last_ordinal": 4990,
+                "mounted_max": 120,
+                "duration_ms": 1152,
+                "stalled_at": null
+              }
+            },
+            "restore_observation": {
+              "data_ready_ms": 68.79999995231628,
+              "completed_ms": 146.5,
+              "active": true,
+              "context": true,
+              "idle": true,
+              "position_error": 0.2875000000003638,
+              "top": 357.3125,
+              "visible": true
+            },
+            "long_tasks_ms": [],
+            "max_long_task_ms": 0,
+            "request_counts": {
+              "units": 116,
+              "groups": 1,
+              "locate": 1,
+              "preview": 0,
+              "people": 1352,
+              "person_details": 0,
+              "other": 2
+            },
+            "preview_requests": 0
+          }
+        ],
+        "aggregate_active_p95_ms": 18.199999928474426,
+        "aggregate_restore_p95_ms": 81.39999997615814
+      }
+    }
+  ]
+}

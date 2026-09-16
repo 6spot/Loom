@@ -1,0 +1,48 @@
+{
+  "schema": "chronicle.t19-background-current-head-evidence",
+  "version": "0.1",
+  "candidate_commit": "c4b1fd04eb5ae71249894a9ebbd9daa7b7acea40",
+  "candidate_image": "staged-a9d478af",
+  "stack": {
+    "services": ["chronicle-web", "chronicle-read", "postgres"],
+    "host_port": 18082,
+    "cleaned_up": true
+  },
+  "browser_smoke": {
+    "script": "apps/chronicle/webapp/scripts/history-background-real-stack-smoke.mjs",
+    "edition_version": "d03e196d47c4e674c03486d9e9f6ed8fa9b29e9e209e9d959a5a219d85e0942c",
+    "binding_id": "01a0aa83-d91a-7a77-a449-642f7f46dcf0",
+    "checks": {
+      "candidate_invisible_before_save": true,
+      "saved_background_visible_inside_exact_range": true,
+      "outside_range_stays_on_paper": true,
+      "keyboard_controls_and_range_save": true,
+      "overlap_conflict_keeps_draft": true,
+      "wrong_asset_version_keeps_draft": true,
+      "wrong_edition_keeps_draft": true,
+      "transport_failure_keeps_draft": true,
+      "disable_clears_public_binding": true,
+      "no_page_errors": true
+    },
+    "screenshots": [
+      "reader-before-save.png",
+      "reader-after-save.png",
+      "reader-outside-range.png",
+      "studio-error-draft-kept.png"
+    ],
+    "result": "PASS"
+  },
+  "restart_persistence": {
+    "evidence": "restart.json",
+    "binding_id": "01a0aa85-4aae-745b-bac5-6ec8b91b0bc9",
+    "active_after_restart": true,
+    "audit_entries_after_restart": 1,
+    "disable_after_restart": {
+      "status": 200,
+      "active": false,
+      "public_background_after_disable": null
+    },
+    "result": "PASS"
+  },
+  "result": "PASS"
+}

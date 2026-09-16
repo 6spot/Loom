@@ -1,0 +1,13 @@
+{
+  "candidate_commit": "c4b1fd04eb5ae71249894a9ebbd9daa7b7acea40",
+  "edition_version": "d03e196d47c4e674c03486d9e9f6ed8fa9b29e9e209e9d959a5a219d85e0942c",
+  "binding_id": "01a0aa85-4aae-745b-bac5-6ec8b91b0bc9",
+  "asset_id": "01a0aa83-dd5c-7a36-be8d-1a9114f3877f",
+  "asset_version_id": "01a0aa83-dd5c-75cf-8bd4-03a3cee69d65",
+  "before_restart": {
+    "status": 200,
+    "public_binding_id": "01a0aa85-4aae-745b-bac5-6ec8b91b0bc9",
+    "revision": 1,
+    "etag": "\"01a0aa85-4aae-745b-bac5-6ec8b91b0bc9-1\""
+  }
+}
