@@ -37,6 +37,10 @@ Multica LM-39），父任务 C2-R2（#549）。本目录保存第二轮**真实 
   staged gate 摘要和 deterministic fixture 背景素材浏览器 smoke。真实资料
   两章均在 extraction fail-closed，0 章接受或发布；本目录明确区分 fixture
   contract PASS 与真实内容质量未完成，不覆盖或改写上方历史记录。
+- [`t19-live-20260916-r2/`](t19-live-20260916-r2/README.md)：Reviewer 要求的
+  provider output-contract 修复后同一真实资料流程重跑。真实 gateway 已接受
+  strict extraction schema，先主传 fresh child 的 extraction attempt 2 通过
+  本地校验；其余步骤仍因语义校验或 1,800 秒超时失败，未声称完成内容验收。
 
 ## 最新单章流程结果（2026-09-13）
 

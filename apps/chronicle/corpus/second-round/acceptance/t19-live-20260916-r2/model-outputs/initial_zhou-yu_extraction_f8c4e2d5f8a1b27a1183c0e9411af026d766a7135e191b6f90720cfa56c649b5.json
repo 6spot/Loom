@@ -1,0 +1,3303 @@
+{
+  "job_id": "69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac",
+  "revision_id": "7738b7b6-9f7e-42fd-ae9b-edfa91cbdd31",
+  "output_sha256": "f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5",
+  "artifact_type": "chapter-production-step",
+  "total_chars": 124696,
+  "payload": {
+    "schema": "chronicle.chapter-step",
+    "version": "0.1",
+    "step": "extraction",
+    "node_key": "b57edf2461a3e17c0443d0a939d18304098e7e3edf7ade801d82fd29e3ce5ceb",
+    "slot": "executor",
+    "model": "gpt-5.6-luna",
+    "round": 0,
+    "attempt": 2,
+    "status": "invalid",
+    "attempt_sha256": "a964664f1cee3c7bdc92214b731304aa1f457e4f655e9d70b911f0f7095cae73",
+    "input_sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "pipeline_fingerprint": "49590c32d20a6cc1e1a07e981bd99823c0d41af797b10a7542d4aa6c3f83ef00",
+    "request_fingerprint": "ac151de4c02a236ced4911098ab148de630bc42c2b2dfc006937e26a19b0b07c",
+    "raw_text": "{\"chapter_id\":\"ch_899214e62543e09036f4702f\",\"bundle\":{\"schema_version\":\"0.1\",\"source\":{\"temp_id\":\"src_001\",\"kind\":\"source\",\"source_type\":\"book\",\"title\":\"sanguozhi-054-zhou-yu\",\"language\":\"zh-Hant\",\"extraction\":{\"method\":\"model\"}},\"entities\":[{\"temp_id\":\"ent_001\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周瑜\",\"aliases\":[\"公瑾\",\"周郎\"],\"mentions\":[{\"text\":\"周瑜\"},{\"text\":\"公瑾\"},{\"text\":\"周郎\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_002\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周景\",\"aliases\":[\"仲鄉\"],\"mentions\":[{\"text\":\"景\"},{\"text\":\"仲鄉\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_003\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周忠\",\"aliases\":[],\"mentions\":[{\"text\":\"忠\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_004\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周異\",\"aliases\":[],\"mentions\":[{\"text\":\"異\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_005\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"孫堅\",\"aliases\":[\"堅\"],\"mentions\":[{\"text\":\"孫堅\"},{\"text\":\"堅\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_006\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"孫策\",\"aliases\":[\"策\",\"伯符\"],\"mentions\":[{\"text\":\"策\"},{\"text\":\"伯符\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_007\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"孫權\",\"aliases\":[\"權\",\"將軍\"],\"mentions\":[{\"text\":\"權\"},{\"text\":\"將軍\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_008\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周尚\",\"aliases\":[\"尚\"],\"mentions\":[{\"text\":\"尚\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_009\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"袁術\",\"aliases\":[\"術\"],\"mentions\":[{\"text\":\"袁術\"},{\"text\":\"術\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_010\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"袁胤\",\"aliases\":[\"胤\"],\"mentions\":[{\"text\":\"胤\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_011\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉繇\",\"aliases\":[],\"mentions\":[{\"text\":\"劉繇\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_012\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"橋公\",\"aliases\":[],\"mentions\":[{\"text\":\"橋公\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_013\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"大橋\",\"aliases\":[],\"mentions\":[{\"text\":\"大橋\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_014\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"小橋\",\"aliases\":[],\"mentions\":[{\"text\":\"小橋\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_015\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"黃祖\",\"aliases\":[],\"mentions\":[{\"text\":\"黃祖\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_016\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"鄧龍\",\"aliases\":[],\"mentions\":[{\"text\":\"鄧龍\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_017\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"曹操\",\"aliases\":[\"曹公\",\"操\",\"孟德\"],\"mentions\":[{\"text\":\"曹公\"},{\"text\":\"操\"},{\"text\":\"孟德\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_018\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉琮\",\"aliases\":[],\"mentions\":[{\"text\":\"劉琮\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_019\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉備\",\"aliases\":[\"備\"],\"mentions\":[{\"text\":\"劉備\"},{\"text\":\"備\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_020\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"魯肅\",\"aliases\":[\"子敬\",\"肅\"],\"mentions\":[{\"text\":\"魯肅\"},{\"text\":\"子敬\"},{\"text\":\"肅\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_021\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"諸葛亮\",\"aliases\":[],\"mentions\":[{\"text\":\"諸葛亮\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_022\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"程普\",\"aliases\":[\"程公\",\"普\"],\"mentions\":[{\"text\":\"程普\"},{\"text\":\"程公\"},{\"text\":\"普\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_023\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"黃蓋\",\"aliases\":[\"蓋\"],\"mentions\":[{\"text\":\"黃蓋\"},{\"text\":\"蓋\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_024\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"曹仁\",\"aliases\":[\"仁\"],\"mentions\":[{\"text\":\"曹仁\"},{\"text\":\"仁\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_025\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"甘寧\",\"aliases\":[\"寧\"],\"mentions\":[{\"text\":\"甘寧\"},{\"text\":\"寧\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_026\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"呂蒙\",\"aliases\":[\"蒙\"],\"mentions\":[{\"text\":\"呂蒙\"},{\"text\":\"蒙\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_027\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"凌統\",\"aliases\":[],\"mentions\":[{\"text\":\"凌統\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_028\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"劉璋\",\"aliases\":[],\"mentions\":[{\"text\":\"劉璋\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_029\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"馬超\",\"aliases\":[],\"mentions\":[{\"text\":\"馬超\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_030\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"韓遂\",\"aliases\":[],\"mentions\":[{\"text\":\"韓遂\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_031\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周循\",\"aliases\":[\"循\"],\"mentions\":[{\"text\":\"循\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_032\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周胤\",\"aliases\":[\"胤\"],\"mentions\":[{\"text\":\"胤\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_033\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周峻\",\"aliases\":[\"峻\"],\"mentions\":[{\"text\":\"峻\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_034\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"周護\",\"aliases\":[\"護\"],\"mentions\":[{\"text\":\"護\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_035\",\"kind\":\"entity\",\"type\":\"person\",\"canonical_name\":\"蔣幹\",\"aliases\":[\"子翼\",\"幹\"],\"mentions\":[{\"text\":\"蔣幹\"},{\"text\":\"子翼\"},{\"text\":\"幹\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_036\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"廬江舒\",\"aliases\":[],\"mentions\":[{\"text\":\"廬江舒\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_037\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"丹楊\",\"aliases\":[],\"mentions\":[{\"text\":\"丹楊\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_038\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"江東\",\"aliases\":[],\"mentions\":[{\"text\":\"江東\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_039\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"江夏\",\"aliases\":[],\"mentions\":[{\"text\":\"江夏\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_040\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"赤壁\",\"aliases\":[],\"mentions\":[{\"text\":\"赤壁\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_041\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"南郡\",\"aliases\":[],\"mentions\":[{\"text\":\"南郡\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_042\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"江陵\",\"aliases\":[],\"mentions\":[{\"text\":\"江陵\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_043\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"蜀\",\"aliases\":[],\"mentions\":[{\"text\":\"蜀\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_044\",\"kind\":\"entity\",\"type\":\"place\",\"canonical_name\":\"吳\",\"aliases\":[],\"mentions\":[{\"text\":\"吳\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_045\",\"kind\":\"entity\",\"type\":\"polity\",\"canonical_name\":\"漢\",\"aliases\":[],\"mentions\":[{\"text\":\"漢\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_046\",\"kind\":\"entity\",\"type\":\"polity\",\"canonical_name\":\"曹氏\",\"aliases\":[],\"mentions\":[{\"text\":\"曹氏\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_047\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"建威中郎將\",\"aliases\":[],\"mentions\":[{\"text\":\"建威中郎將\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_048\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"中護軍\",\"aliases\":[],\"mentions\":[{\"text\":\"中護軍\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_049\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"江夏太守\",\"aliases\":[],\"mentions\":[{\"text\":\"江夏太守\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_050\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"偏將軍\",\"aliases\":[],\"mentions\":[{\"text\":\"偏將軍\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_051\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"南郡太守\",\"aliases\":[],\"mentions\":[{\"text\":\"南郡太守\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_052\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"興業都尉\",\"aliases\":[],\"mentions\":[{\"text\":\"興業都尉\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_053\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"騎都尉\",\"aliases\":[],\"mentions\":[{\"text\":\"騎都尉\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"ent_054\",\"kind\":\"entity\",\"type\":\"office\",\"canonical_name\":\"都鄉侯\",\"aliases\":[],\"mentions\":[{\"text\":\"都鄉侯\"}],\"resolution\":{\"status\":\"unresolved\"},\"extraction\":{\"method\":\"model\"}}],\"events\":[{\"temp_id\":\"evt_001\",\"kind\":\"event\",\"type\":\"movement\",\"title\":\"周瑜率兵迎接孫策並參與攻取江東諸地\",\"time\":{\"original_text\":\"建安三年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":198,\"precision\":\"year\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"率兵迎接及參戰者\"},{\"entity_ref\":\"ent_006\",\"role\":\"東渡及進攻者\"},{\"entity_ref\":\"ent_011\",\"role\":\"敗走者\"}],\"places\":[\"ent_037\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_002\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"孫策授周瑜建威中郎將並給兵騎\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_006\",\"role\":\"授予者\"},{\"entity_ref\":\"ent_001\",\"role\":\"受任者\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_003\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"周瑜任中護軍並領導江夏太守\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_006\",\"role\":\"任命者\"},{\"entity_ref\":\"ent_001\",\"role\":\"受任者\"}],\"places\":[\"ent_039\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_004\",\"kind\":\"event\",\"type\":\"succession\",\"title\":\"孫策去世後孫權統掌事務，周瑜留吳共掌眾事\",\"time\":{\"original_text\":\"五年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":200,\"precision\":\"year\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_006\",\"role\":\"去世者\"},{\"entity_ref\":\"ent_007\",\"role\":\"繼掌事務者\"},{\"entity_ref\":\"ent_001\",\"role\":\"赴喪並留吳掌事者\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_005\",\"kind\":\"event\",\"type\":\"military\",\"title\":\"周瑜督孫瑜等討麻、保二屯並擊虜鄧龍\",\"time\":{\"original_text\":\"十一年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":206,\"precision\":\"year\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"督軍者\"},{\"entity_ref\":\"ent_015\",\"role\":\"遣將者\"},{\"entity_ref\":\"ent_016\",\"role\":\"被俘者\"}],\"places\":[\"ent_039\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_006\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"周瑜任前部大督並參與討江夏\",\"time\":{\"original_text\":\"十三年春\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":208,\"precision\":\"year\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_007\",\"role\":\"出兵者\"},{\"entity_ref\":\"ent_001\",\"role\":\"前部大督\"}],\"places\":[\"ent_039\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_007\",\"kind\":\"event\",\"type\":\"political\",\"title\":\"周瑜主張抗擊曹操，請求率精兵進駐夏口\",\"time\":{\"original_text\":\"其年九月\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":208,\"precision\":\"month\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"提出抗戰計策者\"},{\"entity_ref\":\"ent_007\",\"role\":\"決策者\"},{\"entity_ref\":\"ent_017\",\"role\":\"被抗擊者\"}],\"places\":[\"ent_039\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_008\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"赤壁之戰中孫劉聯軍擊敗曹操軍\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"吳軍主將之一\"},{\"entity_ref\":\"ent_019\",\"role\":\"聯軍參戰者\"},{\"entity_ref\":\"ent_017\",\"role\":\"敗軍主將\"}],\"places\":[\"ent_040\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_009\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"黃蓋火攻曹操水軍，曹操軍敗退保南郡\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_023\",\"role\":\"施行火攻者\"},{\"entity_ref\":\"ent_001\",\"role\":\"率輕銳追擊者\"},{\"entity_ref\":\"ent_017\",\"role\":\"敗退者\"}],\"places\":[\"ent_041\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_010\",\"kind\":\"event\",\"type\":\"battle\",\"title\":\"周瑜救援甘寧並擊退曹仁\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"救援及作戰者\"},{\"entity_ref\":\"ent_025\",\"role\":\"被圍及獲救者\"},{\"entity_ref\":\"ent_024\",\"role\":\"進攻及退軍者\"},{\"entity_ref\":\"ent_026\",\"role\":\"提供計策者\"}],\"places\":[\"ent_042\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_011\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"孫權拜周瑜偏將軍並領南郡太守\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_007\",\"role\":\"任命者\"},{\"entity_ref\":\"ent_001\",\"role\":\"受任者\"}],\"places\":[\"ent_041\",\"ent_042\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_012\",\"kind\":\"event\",\"type\":\"political\",\"title\":\"周瑜建議孫權徙置劉備並分置關羽張飛\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"建議者\"},{\"entity_ref\":\"ent_007\",\"role\":\"裁決者\"},{\"entity_ref\":\"ent_019\",\"role\":\"建議處置對象\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_013\",\"kind\":\"event\",\"type\":\"political\",\"title\":\"周瑜請求與奮威俱進取蜀，孫權允許\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"請求出征者\"},{\"entity_ref\":\"ent_007\",\"role\":\"允許者\"},{\"entity_ref\":\"ent_028\",\"role\":\"蜀地現任牧守\"}],\"places\":[\"ent_043\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_014\",\"kind\":\"event\",\"type\":\"death\",\"title\":\"周瑜在赴蜀途中於巴丘病卒\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_001\",\"role\":\"病卒者\"}],\"places\":[\"ent_042\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_015\",\"kind\":\"event\",\"type\":\"death\",\"title\":\"孫權為周瑜舉哀並安排其喪事\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_007\",\"role\":\"舉哀及供給喪事者\"},{\"entity_ref\":\"ent_001\",\"role\":\"故將軍\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_016\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"周胤初拜興業都尉並受兵屯公安\",\"time\":null,\"participants\":[{\"entity_ref\":\"ent_032\",\"role\":\"受任者\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_017\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"周胤封都鄉侯後徙廬陵郡\",\"time\":{\"original_text\":\"黃龍元年\",\"source_calendar\":{\"system\":\"chinese_lunisolar_regnal\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":229,\"precision\":\"year\",\"conversion_status\":\"year_only\"}},\"participants\":[{\"entity_ref\":\"ent_032\",\"role\":\"受封及被徙者\"}],\"places\":[\"ent_044\"],\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"evt_018\",\"kind\":\"event\",\"type\":\"appointment\",\"title\":\"孫權許可恢復周胤兵爵但周胤隨即病死\",\"time\":{\"original_text\":\"會胤病死\",\"source_calendar\":{\"system\":\"unknown\"},\"normalized\":{\"calendar\":\"proleptic_gregorian\",\"year\":null,\"precision\":\"unknown\",\"conversion_status\":\"unresolved\"}},\"participants\":[{\"entity_ref\":\"ent_007\",\"role\":\"許可者\"},{\"entity_ref\":\"ent_032\",\"role\":\"病死者\"}],\"places\":[],\"extraction\":{\"method\":\"model\"}}],\"claims\":[{\"temp_id\":\"clm_001\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"proposed_strategy\",\"object\":{\"kind\":\"literal\",\"value\":\"請得精兵三萬人，進住夏口以破曹操\"},\"evidence\":{\"text\":\"不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"clm_002\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"political_loyalty\",\"object\":{\"kind\":\"literal\",\"value\":\"周瑜主張抗拒曹操而非迎降\"},\"evidence\":{\"text\":\"不然。操雖託名漢相，其實漢賊也。\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"clm_003\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"military_reputation\",\"object\":{\"kind\":\"literal\",\"value\":\"周瑜曾摧曹操於烏林、走曹仁於郢都\"},\"evidence\":{\"text\":\"故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"clm_004\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"musical_skill\",\"object\":{\"kind\":\"literal\",\"value\":\"周瑜精通音樂，酒後仍能察覺曲調錯誤\"},\"evidence\":{\"text\":\"瑜少精意於音樂。雖三爵之後，其有闕誤。瑜必知之，知之必顧，故時人謠曰：「曲有誤，周郎顧。」\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"clm_005\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"predicate\":\"reputation\",\"object\":{\"kind\":\"literal\",\"value\":\"孫權稱周瑜有王佐之資\"},\"evidence\":{\"text\":\"權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}},{\"temp_id\":\"clm_006\",\"kind\":\"claim\",\"subject\":{\"kind\":\"entity\",\"ref\":\"ent_020\"},\"predicate\":\"strategic_priority\",\"object\":{\"kind\":\"literal\",\"value\":\"裴松之认为拒曹之計實始於魯肅，而本傳未載其先謀\"},\"evidence\":{\"text\":\"臣松之以為建計拒曹公，實始魯肅。\",\"source_ref\":\"src_001\",\"locator\":{}},\"assessment\":{\"status\":\"unassessed\"},\"extraction\":{\"method\":\"model\"}}],\"warnings\":[{\"type\":\"annotation_attribution\",\"severity\":\"info\",\"message\":\"本章含《謝承後漢書》《漢紀》《江表傳》《吳錄》及裴松之案語；相关叙述保留其转述或注家归属。\"},{\"type\":\"place_identification\",\"severity\":\"warning\",\"message\":\"注家指出前后巴丘可能为同名异处，未合并为控制或行政归属事实。\"},{\"type\":\"chronology\",\"severity\":\"info\",\"message\":\"建安、黃龍、赤烏纪年按年号换算为公历年；未具可确认年日的事件保留null。\"}]},\"mentions\":[{\"mention_id\":\"m_001\",\"surface\":\"周瑜\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_001\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"周瑜\",\"occurrence\":1}},{\"mention_id\":\"m_002\",\"surface\":\"公瑾\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_001\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"公瑾\",\"occurrence\":1}},{\"mention_id\":\"m_003\",\"surface\":\"周郎\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_001\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"周郎\",\"occurrence\":1}},{\"mention_id\":\"m_004\",\"surface\":\"策\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_006\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"策\",\"occurrence\":1}},{\"mention_id\":\"m_005\",\"surface\":\"權\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_007\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"權\",\"occurrence\":1}},{\"mention_id\":\"m_006\",\"surface\":\"曹公\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_017\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"曹公\",\"occurrence\":1}},{\"mention_id\":\"m_007\",\"surface\":\"魯肅\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_020\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"魯肅\",\"occurrence\":1}},{\"mention_id\":\"m_008\",\"surface\":\"赤壁\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_040\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"赤壁\",\"occurrence\":1}},{\"mention_id\":\"m_009\",\"surface\":\"胤\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_032\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"胤\",\"occurrence\":1}},{\"mention_id\":\"m_010\",\"surface\":\"峻\",\"contextual\":false,\"status\":\"resolved\",\"target_ref\":\"ent_033\",\"candidate_refs\":[],\"selection\":{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻\",\"occurrence\":1}}],\"record_sources\":[{\"record_ref\":\"ent_001\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"周瑜字公瑾，廬江舒人也。\",\"occurrence\":1}]},{\"record_ref\":\"ent_002\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"從祖父景，景子忠，皆為漢太尉。\",\"occurrence\":1}]},{\"record_ref\":\"ent_003\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"景子忠，皆為漢太尉。\",\"occurrence\":1}]},{\"record_ref\":\"ent_004\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"父異，洛陽令。\",\"occurrence\":1}]},{\"record_ref\":\"ent_005\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"初，孫堅與義兵討董卓\",\"occurrence\":1}]},{\"record_ref\":\"ent_006\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"堅子策與瑜同年，獨相友善\",\"occurrence\":1}]},{\"record_ref\":\"ent_007\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"權統事。\",\"occurrence\":1}]},{\"record_ref\":\"ent_008\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"瑜從父尚為丹楊太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_009\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"袁術遣從弟胤代尚為太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_010\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"遣從弟胤代尚為太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_011\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"劉繇奔走\",\"occurrence\":1}]},{\"record_ref\":\"ent_012\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"時得橋公兩女，皆國色也。\",\"occurrence\":1}]},{\"record_ref\":\"ent_013\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策自納大橋\",\"occurrence\":1}]},{\"record_ref\":\"ent_014\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"瑜納小橋。\",\"occurrence\":1}]},{\"record_ref\":\"ent_015\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"江夏太守黃祖遣將\",\"occurrence\":1}]},{\"record_ref\":\"ent_016\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"遣將鄧龍將兵數千人\",\"occurrence\":1}]},{\"record_ref\":\"ent_017\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"曹公入荊州\",\"occurrence\":1}]},{\"record_ref\":\"ent_018\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"劉琮舉眾降\",\"occurrence\":1}]},{\"record_ref\":\"ent_019\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"時劉備為曹公所破\",\"occurrence\":1}]},{\"record_ref\":\"ent_020\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"與魯肅遇於當陽\",\"occurrence\":1}]},{\"record_ref\":\"ent_021\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"遣諸葛亮詣權\",\"occurrence\":1}]},{\"record_ref\":\"ent_022\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"權遂遣瑜及程普等\",\"occurrence\":1}]},{\"record_ref\":\"ent_023\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"瑜部將黃蓋曰\",\"occurrence\":1}]},{\"record_ref\":\"ent_024\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"曹公留曹仁等守江陵城\",\"occurrence\":1}]},{\"record_ref\":\"ent_025\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜即遣甘寧前據夷陵\",\"occurrence\":1}]},{\"record_ref\":\"ent_026\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜用呂蒙計\",\"occurrence\":1}]},{\"record_ref\":\"ent_027\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"留淩統以守其後\",\"occurrence\":1}]},{\"record_ref\":\"ent_028\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"是時劉璋為益州牧。\",\"occurrence\":1}]},{\"record_ref\":\"ent_029\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"好與馬超結援\",\"occurrence\":1}]},{\"record_ref\":\"ent_030\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"加馬超、韓遂尚在關西\",\"occurrence\":1}]},{\"record_ref\":\"ent_031\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"男循尚公主\",\"occurrence\":1}]},{\"record_ref\":\"ent_032\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。\",\"occurrence\":1}]},{\"record_ref\":\"ent_033\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"瑜兄子峻\",\"occurrence\":1}]},{\"record_ref\":\"ent_034\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_029\",\"last_block_id\":\"b_029\",\"quote\":\"峻子護為將\",\"occurrence\":1}]},{\"record_ref\":\"ent_035\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"遣九江蔣幹往見瑜\",\"occurrence\":1}]},{\"record_ref\":\"ent_036\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"廬江舒人也\",\"occurrence\":1}]},{\"record_ref\":\"ent_037\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"瑜從父尚為丹楊太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_038\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"割據江東\",\"occurrence\":1}]},{\"record_ref\":\"ent_039\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"江夏太守黃祖\",\"occurrence\":1}]},{\"record_ref\":\"ent_040\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"遇於赤壁\",\"occurrence\":1}]},{\"record_ref\":\"ent_041\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"還保南郡\",\"occurrence\":1}]},{\"record_ref\":\"ent_042\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜與程普又進南郡\",\"occurrence\":1}]},{\"record_ref\":\"ent_043\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"進取蜀\",\"occurrence\":1}]},{\"record_ref\":\"ent_044\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"遂留吳\",\"occurrence\":1}]},{\"record_ref\":\"ent_045\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"為漢家除殘去穢\",\"occurrence\":1}]},{\"record_ref\":\"ent_046\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"不得不與曹氏相首尾\",\"occurrence\":1}]},{\"record_ref\":\"ent_047\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"授建威中郎將\",\"occurrence\":1}]},{\"record_ref\":\"ent_048\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"以瑜為中護軍\",\"occurrence\":1}]},{\"record_ref\":\"ent_049\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"領導江夏太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_050\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍\",\"occurrence\":1}]},{\"record_ref\":\"ent_051\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"領南郡太守\",\"occurrence\":1}]},{\"record_ref\":\"ent_052\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"初拜興業都尉\",\"occurrence\":1}]},{\"record_ref\":\"ent_053\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"拜騎都尉\",\"occurrence\":1}]},{\"record_ref\":\"ent_054\",\"record_kind\":\"entity\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"封都鄉侯\",\"occurrence\":1}]},{\"record_ref\":\"evt_001\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"會策將東渡，到歷陽，馳書報瑜，瑜將兵迎策。\",\"occurrence\":1}]},{\"record_ref\":\"evt_002\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1}]},{\"record_ref\":\"evt_003\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策欲取荊州，以瑜為中護軍，領導江夏太守\",\"occurrence\":1}]},{\"record_ref\":\"evt_004\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。\",\"occurrence\":1}]},{\"record_ref\":\"evt_005\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口\",\"occurrence\":1}]},{\"record_ref\":\"evt_006\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_007\",\"last_block_id\":\"b_007\",\"quote\":\"十三年春，權討江夏，瑜為前部大督。\",\"occurrence\":1}]},{\"record_ref\":\"evt_007\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"occurrence\":1}]},{\"record_ref\":\"evt_008\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。\",\"occurrence\":1}]},{\"record_ref\":\"evt_009\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_013\",\"last_block_id\":\"b_013\",\"quote\":\"蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。\",\"occurrence\":1}]},{\"record_ref\":\"evt_010\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_015\",\"last_block_id\":\"b_015\",\"quote\":\"瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。寧圍既解\",\"occurrence\":1}]},{\"record_ref\":\"evt_011\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍，領南郡太守。\",\"occurrence\":1}]},{\"record_ref\":\"evt_012\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜上疏曰：「劉備以梟雄之姿，而有關羽、張飛熊虎之將，必非久屈為人用者。愚謂大計宜徙備置吳\",\"occurrence\":1}]},{\"record_ref\":\"evt_013\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。\",\"occurrence\":1}]},{\"record_ref\":\"evt_014\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1}]},{\"record_ref\":\"evt_015\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權素服舉哀。感動左右。喪當還吳，又迎之蕪湖，眾事費度，一為供給。\",\"occurrence\":1}]},{\"record_ref\":\"evt_016\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。\",\"occurrence\":1}]},{\"record_ref\":\"evt_017\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"黃龍元年，封都鄉侯，後以罪徙廬陵郡。\",\"occurrence\":1}]},{\"record_ref\":\"evt_018\",\"record_kind\":\"event\",\"selections\":[{\"first_block_id\":\"b_027\",\"last_block_id\":\"b_027\",\"quote\":\"瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。\",\"occurrence\":1}]},{\"record_ref\":\"clm_001\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。\",\"occurrence\":1}]},{\"record_ref\":\"clm_002\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_009\",\"last_block_id\":\"b_009\",\"quote\":\"不然。操雖託名漢相，其實漢賊也。\",\"occurrence\":1}]},{\"record_ref\":\"clm_003\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_025\",\"last_block_id\":\"b_025\",\"quote\":\"故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。\",\"occurrence\":1}]},{\"record_ref\":\"clm_004\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_021\",\"last_block_id\":\"b_021\",\"quote\":\"瑜少精意於音樂。雖三爵之後，其有闕誤。瑜必知之，知之必顧，故時人謠曰：「曲有誤，周郎顧。」\",\"occurrence\":1}]},{\"record_ref\":\"clm_005\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」\",\"occurrence\":1}]},{\"record_ref\":\"clm_006\",\"record_kind\":\"claim\",\"selections\":[{\"first_block_id\":\"b_011\",\"last_block_id\":\"b_011\",\"quote\":\"臣松之以為建計拒曹公，實始魯肅。\",\"occurrence\":1}]}],\"person_states\":{\"phases\":[{\"phase_id\":\"ph_001\",\"label\":\"周瑜早年及与孙策交游\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_001\"}],\"source_selections\":[{\"first_block_id\":\"b_001\",\"last_block_id\":\"b_001\",\"quote\":\"堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。\",\"occurrence\":1}]},{\"phase_id\":\"ph_002\",\"label\":\"孙策时期的军事任职\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_002\"},{\"kind\":\"event\",\"ref\":\"evt_003\"}],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1},{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"頃之，策欲取荊州，以瑜為中護軍，領導江夏太守\",\"occurrence\":1}]},{\"phase_id\":\"ph_003\",\"label\":\"孙权时期的军事统帅与政治谋议\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_004\"},{\"kind\":\"event\",\"ref\":\"evt_005\"},{\"kind\":\"event\",\"ref\":\"evt_006\"},{\"kind\":\"event\",\"ref\":\"evt_007\"},{\"kind\":\"event\",\"ref\":\"evt_008\"},{\"kind\":\"event\",\"ref\":\"evt_009\"},{\"kind\":\"event\",\"ref\":\"evt_010\"},{\"kind\":\"event\",\"ref\":\"evt_011\"},{\"kind\":\"event\",\"ref\":\"evt_012\"},{\"kind\":\"event\",\"ref\":\"evt_013\"}],\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。\",\"occurrence\":1},{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。\",\"occurrence\":1}]},{\"phase_id\":\"ph_004\",\"label\":\"周瑜病卒及身后评价\",\"event_refs\":[{\"kind\":\"event\",\"ref\":\"evt_014\"},{\"kind\":\"event\",\"ref\":\"evt_015\"}],\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1},{\"first_block_id\":\"b_019\",\"last_block_id\":\"b_019\",\"quote\":\"權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」\",\"occurrence\":1}]}],\"phase_orders\":[{\"assertion_id\":\"po_001\",\"earlier_phase_ref\":\"ph_001\",\"later_phase_ref\":\"ph_002\",\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。\",\"occurrence\":1}]},{\"assertion_id\":\"po_002\",\"earlier_phase_ref\":\"ph_002\",\"later_phase_ref\":\"ph_003\",\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"五年，策薨。權統事。\",\"occurrence\":1}]},{\"assertion_id\":\"po_003\",\"earlier_phase_ref\":\"ph_003\",\"later_phase_ref\":\"ph_004\",\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"瑜還江陵為行裝，而道於巴丘病卒\",\"occurrence\":1}]}],\"facts\":[{\"fact_id\":\"pf_001\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_047\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_002\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"策親自迎瑜，授建威中郎將\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_002\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_048\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_002\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"以瑜為中護軍\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_003\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_049\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_002\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_003\",\"last_block_id\":\"b_003\",\"quote\":\"領導江夏太守\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_004\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_050\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"權拜瑜偏將軍\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_005\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_051\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_017\",\"last_block_id\":\"b_017\",\"quote\":\"領南郡太守\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_006\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_001\"},\"dimension\":\"affiliation\",\"value_ref\":null,\"relation\":\"serves\",\"target_ref\":{\"kind\":\"entity\",\"ref\":\"ent_045\"},\"operation\":\"attest\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_005\",\"last_block_id\":\"b_005\",\"quote\":\"遂留吳\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_007\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_032\"},\"dimension\":\"office\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_052\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"循弟胤，初拜興業都尉。\",\"occurrence\":1}],\"attribution\":\"narrator\"},{\"fact_id\":\"pf_008\",\"person_ref\":{\"kind\":\"entity\",\"ref\":\"ent_032\"},\"dimension\":\"title\",\"value_ref\":{\"kind\":\"entity\",\"ref\":\"ent_054\"},\"relation\":null,\"target_ref\":null,\"operation\":\"start\",\"qualification\":\"ordinary\",\"phase_ref\":\"ph_003\",\"claim_refs\":[],\"source_selections\":[{\"first_block_id\":\"b_023\",\"last_block_id\":\"b_023\",\"quote\":\"黃龍元年，封都鄉侯\",\"occurrence\":1}],\"attribution\":\"narrator\"}],\"continuities\":[],\"disagreements\":[]},\"warnings\":[]}",
+    "parsed": {
+      "bundle": {
+        "claims": [
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "請得精兵三萬人，進住夏口以破曹操"
+            },
+            "subject": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "temp_id": "clm_001",
+            "evidence": {
+              "text": "不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "proposed_strategy",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          },
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "周瑜主張抗拒曹操而非迎降"
+            },
+            "subject": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "temp_id": "clm_002",
+            "evidence": {
+              "text": "不然。操雖託名漢相，其實漢賊也。",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "political_loyalty",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          },
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "周瑜曾摧曹操於烏林、走曹仁於郢都"
+            },
+            "subject": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "temp_id": "clm_003",
+            "evidence": {
+              "text": "故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "military_reputation",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          },
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "周瑜精通音樂，酒後仍能察覺曲調錯誤"
+            },
+            "subject": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "temp_id": "clm_004",
+            "evidence": {
+              "text": "瑜少精意於音樂。雖三爵之後，其有闕誤。瑜必知之，知之必顧，故時人謠曰：「曲有誤，周郎顧。」",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "musical_skill",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          },
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "孫權稱周瑜有王佐之資"
+            },
+            "subject": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "temp_id": "clm_005",
+            "evidence": {
+              "text": "權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "reputation",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          },
+          {
+            "kind": "claim",
+            "object": {
+              "kind": "literal",
+              "value": "裴松之认为拒曹之計實始於魯肅，而本傳未載其先謀"
+            },
+            "subject": {
+              "ref": "ent_020",
+              "kind": "entity"
+            },
+            "temp_id": "clm_006",
+            "evidence": {
+              "text": "臣松之以為建計拒曹公，實始魯肅。",
+              "locator": {},
+              "source_ref": "src_001"
+            },
+            "predicate": "strategic_priority",
+            "assessment": {
+              "status": "unassessed"
+            },
+            "extraction": {
+              "method": "model"
+            }
+          }
+        ],
+        "events": [
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 198,
+                "calendar": "proleptic_gregorian",
+                "precision": "year",
+                "conversion_status": "year_only"
+              },
+              "original_text": "建安三年",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "movement",
+            "title": "周瑜率兵迎接孫策並參與攻取江東諸地",
+            "places": [
+              "ent_037"
+            ],
+            "temp_id": "evt_001",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "率兵迎接及參戰者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "東渡及進攻者",
+                "entity_ref": "ent_006"
+              },
+              {
+                "role": "敗走者",
+                "entity_ref": "ent_011"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "appointment",
+            "title": "孫策授周瑜建威中郎將並給兵騎",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_002",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "授予者",
+                "entity_ref": "ent_006"
+              },
+              {
+                "role": "受任者",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "appointment",
+            "title": "周瑜任中護軍並領導江夏太守",
+            "places": [
+              "ent_039"
+            ],
+            "temp_id": "evt_003",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "任命者",
+                "entity_ref": "ent_006"
+              },
+              {
+                "role": "受任者",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 200,
+                "calendar": "proleptic_gregorian",
+                "precision": "year",
+                "conversion_status": "year_only"
+              },
+              "original_text": "五年",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "succession",
+            "title": "孫策去世後孫權統掌事務，周瑜留吳共掌眾事",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_004",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "去世者",
+                "entity_ref": "ent_006"
+              },
+              {
+                "role": "繼掌事務者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "赴喪並留吳掌事者",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 206,
+                "calendar": "proleptic_gregorian",
+                "precision": "year",
+                "conversion_status": "year_only"
+              },
+              "original_text": "十一年",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "military",
+            "title": "周瑜督孫瑜等討麻、保二屯並擊虜鄧龍",
+            "places": [
+              "ent_039"
+            ],
+            "temp_id": "evt_005",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "督軍者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "遣將者",
+                "entity_ref": "ent_015"
+              },
+              {
+                "role": "被俘者",
+                "entity_ref": "ent_016"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 208,
+                "calendar": "proleptic_gregorian",
+                "precision": "year",
+                "conversion_status": "year_only"
+              },
+              "original_text": "十三年春",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "appointment",
+            "title": "周瑜任前部大督並參與討江夏",
+            "places": [
+              "ent_039"
+            ],
+            "temp_id": "evt_006",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "出兵者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "前部大督",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 208,
+                "calendar": "proleptic_gregorian",
+                "precision": "month",
+                "conversion_status": "year_only"
+              },
+              "original_text": "其年九月",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "political",
+            "title": "周瑜主張抗擊曹操，請求率精兵進駐夏口",
+            "places": [
+              "ent_039"
+            ],
+            "temp_id": "evt_007",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "提出抗戰計策者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "決策者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "被抗擊者",
+                "entity_ref": "ent_017"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "battle",
+            "title": "赤壁之戰中孫劉聯軍擊敗曹操軍",
+            "places": [
+              "ent_040"
+            ],
+            "temp_id": "evt_008",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "吳軍主將之一",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "聯軍參戰者",
+                "entity_ref": "ent_019"
+              },
+              {
+                "role": "敗軍主將",
+                "entity_ref": "ent_017"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "battle",
+            "title": "黃蓋火攻曹操水軍，曹操軍敗退保南郡",
+            "places": [
+              "ent_041"
+            ],
+            "temp_id": "evt_009",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "施行火攻者",
+                "entity_ref": "ent_023"
+              },
+              {
+                "role": "率輕銳追擊者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "敗退者",
+                "entity_ref": "ent_017"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "battle",
+            "title": "周瑜救援甘寧並擊退曹仁",
+            "places": [
+              "ent_042"
+            ],
+            "temp_id": "evt_010",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "救援及作戰者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "被圍及獲救者",
+                "entity_ref": "ent_025"
+              },
+              {
+                "role": "進攻及退軍者",
+                "entity_ref": "ent_024"
+              },
+              {
+                "role": "提供計策者",
+                "entity_ref": "ent_026"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "appointment",
+            "title": "孫權拜周瑜偏將軍並領南郡太守",
+            "places": [
+              "ent_041",
+              "ent_042"
+            ],
+            "temp_id": "evt_011",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "任命者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "受任者",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "political",
+            "title": "周瑜建議孫權徙置劉備並分置關羽張飛",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_012",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "建議者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "裁決者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "建議處置對象",
+                "entity_ref": "ent_019"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "political",
+            "title": "周瑜請求與奮威俱進取蜀，孫權允許",
+            "places": [
+              "ent_043"
+            ],
+            "temp_id": "evt_013",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "請求出征者",
+                "entity_ref": "ent_001"
+              },
+              {
+                "role": "允許者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "蜀地現任牧守",
+                "entity_ref": "ent_028"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "death",
+            "title": "周瑜在赴蜀途中於巴丘病卒",
+            "places": [
+              "ent_042"
+            ],
+            "temp_id": "evt_014",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "病卒者",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "death",
+            "title": "孫權為周瑜舉哀並安排其喪事",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_015",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "舉哀及供給喪事者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "故將軍",
+                "entity_ref": "ent_001"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": null,
+            "type": "appointment",
+            "title": "周胤初拜興業都尉並受兵屯公安",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_016",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "受任者",
+                "entity_ref": "ent_032"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": 229,
+                "calendar": "proleptic_gregorian",
+                "precision": "year",
+                "conversion_status": "year_only"
+              },
+              "original_text": "黃龍元年",
+              "source_calendar": {
+                "system": "chinese_lunisolar_regnal"
+              }
+            },
+            "type": "appointment",
+            "title": "周胤封都鄉侯後徙廬陵郡",
+            "places": [
+              "ent_044"
+            ],
+            "temp_id": "evt_017",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "受封及被徙者",
+                "entity_ref": "ent_032"
+              }
+            ]
+          },
+          {
+            "kind": "event",
+            "time": {
+              "normalized": {
+                "year": null,
+                "calendar": "proleptic_gregorian",
+                "precision": "unknown",
+                "conversion_status": "unresolved"
+              },
+              "original_text": "會胤病死",
+              "source_calendar": {
+                "system": "unknown"
+              }
+            },
+            "type": "appointment",
+            "title": "孫權許可恢復周胤兵爵但周胤隨即病死",
+            "places": [],
+            "temp_id": "evt_018",
+            "extraction": {
+              "method": "model"
+            },
+            "participants": [
+              {
+                "role": "許可者",
+                "entity_ref": "ent_007"
+              },
+              {
+                "role": "病死者",
+                "entity_ref": "ent_032"
+              }
+            ]
+          }
+        ],
+        "source": {
+          "kind": "source",
+          "title": "sanguozhi-054-zhou-yu",
+          "temp_id": "src_001",
+          "language": "zh-Hant",
+          "extraction": {
+            "method": "model"
+          },
+          "source_type": "book"
+        },
+        "entities": [
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "公瑾",
+              "周郎"
+            ],
+            "temp_id": "ent_001",
+            "mentions": [
+              {
+                "text": "周瑜"
+              },
+              {
+                "text": "公瑾"
+              },
+              {
+                "text": "周郎"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周瑜"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "仲鄉"
+            ],
+            "temp_id": "ent_002",
+            "mentions": [
+              {
+                "text": "景"
+              },
+              {
+                "text": "仲鄉"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周景"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_003",
+            "mentions": [
+              {
+                "text": "忠"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周忠"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_004",
+            "mentions": [
+              {
+                "text": "異"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周異"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "堅"
+            ],
+            "temp_id": "ent_005",
+            "mentions": [
+              {
+                "text": "孫堅"
+              },
+              {
+                "text": "堅"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫堅"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "策",
+              "伯符"
+            ],
+            "temp_id": "ent_006",
+            "mentions": [
+              {
+                "text": "策"
+              },
+              {
+                "text": "伯符"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫策"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "權",
+              "將軍"
+            ],
+            "temp_id": "ent_007",
+            "mentions": [
+              {
+                "text": "權"
+              },
+              {
+                "text": "將軍"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "孫權"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "尚"
+            ],
+            "temp_id": "ent_008",
+            "mentions": [
+              {
+                "text": "尚"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周尚"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "術"
+            ],
+            "temp_id": "ent_009",
+            "mentions": [
+              {
+                "text": "袁術"
+              },
+              {
+                "text": "術"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "袁術"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "胤"
+            ],
+            "temp_id": "ent_010",
+            "mentions": [
+              {
+                "text": "胤"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "袁胤"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_011",
+            "mentions": [
+              {
+                "text": "劉繇"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉繇"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_012",
+            "mentions": [
+              {
+                "text": "橋公"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "橋公"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_013",
+            "mentions": [
+              {
+                "text": "大橋"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "大橋"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_014",
+            "mentions": [
+              {
+                "text": "小橋"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "小橋"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_015",
+            "mentions": [
+              {
+                "text": "黃祖"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "黃祖"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_016",
+            "mentions": [
+              {
+                "text": "鄧龍"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "鄧龍"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "曹公",
+              "操",
+              "孟德"
+            ],
+            "temp_id": "ent_017",
+            "mentions": [
+              {
+                "text": "曹公"
+              },
+              {
+                "text": "操"
+              },
+              {
+                "text": "孟德"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "曹操"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_018",
+            "mentions": [
+              {
+                "text": "劉琮"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉琮"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "備"
+            ],
+            "temp_id": "ent_019",
+            "mentions": [
+              {
+                "text": "劉備"
+              },
+              {
+                "text": "備"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉備"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "子敬",
+              "肅"
+            ],
+            "temp_id": "ent_020",
+            "mentions": [
+              {
+                "text": "魯肅"
+              },
+              {
+                "text": "子敬"
+              },
+              {
+                "text": "肅"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "魯肅"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_021",
+            "mentions": [
+              {
+                "text": "諸葛亮"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "諸葛亮"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "程公",
+              "普"
+            ],
+            "temp_id": "ent_022",
+            "mentions": [
+              {
+                "text": "程普"
+              },
+              {
+                "text": "程公"
+              },
+              {
+                "text": "普"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "程普"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "蓋"
+            ],
+            "temp_id": "ent_023",
+            "mentions": [
+              {
+                "text": "黃蓋"
+              },
+              {
+                "text": "蓋"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "黃蓋"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "仁"
+            ],
+            "temp_id": "ent_024",
+            "mentions": [
+              {
+                "text": "曹仁"
+              },
+              {
+                "text": "仁"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "曹仁"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "寧"
+            ],
+            "temp_id": "ent_025",
+            "mentions": [
+              {
+                "text": "甘寧"
+              },
+              {
+                "text": "寧"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "甘寧"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "蒙"
+            ],
+            "temp_id": "ent_026",
+            "mentions": [
+              {
+                "text": "呂蒙"
+              },
+              {
+                "text": "蒙"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "呂蒙"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_027",
+            "mentions": [
+              {
+                "text": "凌統"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "凌統"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_028",
+            "mentions": [
+              {
+                "text": "劉璋"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "劉璋"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_029",
+            "mentions": [
+              {
+                "text": "馬超"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "馬超"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [],
+            "temp_id": "ent_030",
+            "mentions": [
+              {
+                "text": "韓遂"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "韓遂"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "循"
+            ],
+            "temp_id": "ent_031",
+            "mentions": [
+              {
+                "text": "循"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周循"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "胤"
+            ],
+            "temp_id": "ent_032",
+            "mentions": [
+              {
+                "text": "胤"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周胤"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "峻"
+            ],
+            "temp_id": "ent_033",
+            "mentions": [
+              {
+                "text": "峻"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周峻"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "護"
+            ],
+            "temp_id": "ent_034",
+            "mentions": [
+              {
+                "text": "護"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "周護"
+          },
+          {
+            "kind": "entity",
+            "type": "person",
+            "aliases": [
+              "子翼",
+              "幹"
+            ],
+            "temp_id": "ent_035",
+            "mentions": [
+              {
+                "text": "蔣幹"
+              },
+              {
+                "text": "子翼"
+              },
+              {
+                "text": "幹"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "蔣幹"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_036",
+            "mentions": [
+              {
+                "text": "廬江舒"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "廬江舒"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_037",
+            "mentions": [
+              {
+                "text": "丹楊"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "丹楊"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_038",
+            "mentions": [
+              {
+                "text": "江東"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "江東"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_039",
+            "mentions": [
+              {
+                "text": "江夏"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "江夏"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_040",
+            "mentions": [
+              {
+                "text": "赤壁"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "赤壁"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_041",
+            "mentions": [
+              {
+                "text": "南郡"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "南郡"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_042",
+            "mentions": [
+              {
+                "text": "江陵"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "江陵"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_043",
+            "mentions": [
+              {
+                "text": "蜀"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "蜀"
+          },
+          {
+            "kind": "entity",
+            "type": "place",
+            "aliases": [],
+            "temp_id": "ent_044",
+            "mentions": [
+              {
+                "text": "吳"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "吳"
+          },
+          {
+            "kind": "entity",
+            "type": "polity",
+            "aliases": [],
+            "temp_id": "ent_045",
+            "mentions": [
+              {
+                "text": "漢"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "漢"
+          },
+          {
+            "kind": "entity",
+            "type": "polity",
+            "aliases": [],
+            "temp_id": "ent_046",
+            "mentions": [
+              {
+                "text": "曹氏"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "曹氏"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_047",
+            "mentions": [
+              {
+                "text": "建威中郎將"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "建威中郎將"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_048",
+            "mentions": [
+              {
+                "text": "中護軍"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "中護軍"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_049",
+            "mentions": [
+              {
+                "text": "江夏太守"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "江夏太守"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_050",
+            "mentions": [
+              {
+                "text": "偏將軍"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "偏將軍"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_051",
+            "mentions": [
+              {
+                "text": "南郡太守"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "南郡太守"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_052",
+            "mentions": [
+              {
+                "text": "興業都尉"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "興業都尉"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_053",
+            "mentions": [
+              {
+                "text": "騎都尉"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "騎都尉"
+          },
+          {
+            "kind": "entity",
+            "type": "office",
+            "aliases": [],
+            "temp_id": "ent_054",
+            "mentions": [
+              {
+                "text": "都鄉侯"
+              }
+            ],
+            "extraction": {
+              "method": "model"
+            },
+            "resolution": {
+              "status": "unresolved"
+            },
+            "canonical_name": "都鄉侯"
+          }
+        ],
+        "warnings": [
+          {
+            "type": "annotation_attribution",
+            "message": "本章含《謝承後漢書》《漢紀》《江表傳》《吳錄》及裴松之案語；相关叙述保留其转述或注家归属。",
+            "severity": "info"
+          },
+          {
+            "type": "place_identification",
+            "message": "注家指出前后巴丘可能为同名异处，未合并为控制或行政归属事实。",
+            "severity": "warning"
+          },
+          {
+            "type": "chronology",
+            "message": "建安、黃龍、赤烏纪年按年号换算为公历年；未具可确认年日的事件保留null。",
+            "severity": "info"
+          }
+        ],
+        "schema_version": "0.1"
+      },
+      "mentions": [
+        {
+          "status": "resolved",
+          "surface": "周瑜",
+          "selection": {
+            "quote": "周瑜",
+            "occurrence": 1,
+            "last_block_id": "b_001",
+            "first_block_id": "b_001"
+          },
+          "contextual": false,
+          "mention_id": "m_001",
+          "target_ref": "ent_001",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "公瑾",
+          "selection": {
+            "quote": "公瑾",
+            "occurrence": 1,
+            "last_block_id": "b_003",
+            "first_block_id": "b_003"
+          },
+          "contextual": false,
+          "mention_id": "m_002",
+          "target_ref": "ent_001",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "周郎",
+          "selection": {
+            "quote": "周郎",
+            "occurrence": 1,
+            "last_block_id": "b_003",
+            "first_block_id": "b_003"
+          },
+          "contextual": false,
+          "mention_id": "m_003",
+          "target_ref": "ent_001",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "策",
+          "selection": {
+            "quote": "策",
+            "occurrence": 1,
+            "last_block_id": "b_001",
+            "first_block_id": "b_001"
+          },
+          "contextual": false,
+          "mention_id": "m_004",
+          "target_ref": "ent_006",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "權",
+          "selection": {
+            "quote": "權",
+            "occurrence": 1,
+            "last_block_id": "b_005",
+            "first_block_id": "b_005"
+          },
+          "contextual": false,
+          "mention_id": "m_005",
+          "target_ref": "ent_007",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "曹公",
+          "selection": {
+            "quote": "曹公",
+            "occurrence": 1,
+            "last_block_id": "b_007",
+            "first_block_id": "b_007"
+          },
+          "contextual": false,
+          "mention_id": "m_006",
+          "target_ref": "ent_017",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "魯肅",
+          "selection": {
+            "quote": "魯肅",
+            "occurrence": 1,
+            "last_block_id": "b_013",
+            "first_block_id": "b_013"
+          },
+          "contextual": false,
+          "mention_id": "m_007",
+          "target_ref": "ent_020",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "赤壁",
+          "selection": {
+            "quote": "赤壁",
+            "occurrence": 1,
+            "last_block_id": "b_013",
+            "first_block_id": "b_013"
+          },
+          "contextual": false,
+          "mention_id": "m_008",
+          "target_ref": "ent_040",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "胤",
+          "selection": {
+            "quote": "胤",
+            "occurrence": 1,
+            "last_block_id": "b_023",
+            "first_block_id": "b_023"
+          },
+          "contextual": false,
+          "mention_id": "m_009",
+          "target_ref": "ent_032",
+          "candidate_refs": []
+        },
+        {
+          "status": "resolved",
+          "surface": "峻",
+          "selection": {
+            "quote": "峻",
+            "occurrence": 1,
+            "last_block_id": "b_029",
+            "first_block_id": "b_029"
+          },
+          "contextual": false,
+          "mention_id": "m_010",
+          "target_ref": "ent_033",
+          "candidate_refs": []
+        }
+      ],
+      "warnings": [],
+      "chapter_id": "ch_899214e62543e09036f4702f",
+      "person_states": {
+        "facts": [
+          {
+            "fact_id": "pf_001",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_002",
+            "value_ref": {
+              "ref": "ent_047",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "策親自迎瑜，授建威中郎將",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_002",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_002",
+            "value_ref": {
+              "ref": "ent_048",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "以瑜為中護軍",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_003",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_002",
+            "value_ref": {
+              "ref": "ent_049",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "領導江夏太守",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_004",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_003",
+            "value_ref": {
+              "ref": "ent_050",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "權拜瑜偏將軍",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_005",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_003",
+            "value_ref": {
+              "ref": "ent_051",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "領南郡太守",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_006",
+            "relation": "serves",
+            "dimension": "affiliation",
+            "operation": "attest",
+            "phase_ref": "ph_003",
+            "value_ref": null,
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_001",
+              "kind": "entity"
+            },
+            "target_ref": {
+              "ref": "ent_045",
+              "kind": "entity"
+            },
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "遂留吳",
+                "occurrence": 1,
+                "last_block_id": "b_005",
+                "first_block_id": "b_005"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_007",
+            "relation": null,
+            "dimension": "office",
+            "operation": "start",
+            "phase_ref": "ph_003",
+            "value_ref": {
+              "ref": "ent_052",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "循弟胤，初拜興業都尉。",
+                "occurrence": 1,
+                "last_block_id": "b_023",
+                "first_block_id": "b_023"
+              }
+            ]
+          },
+          {
+            "fact_id": "pf_008",
+            "relation": null,
+            "dimension": "title",
+            "operation": "start",
+            "phase_ref": "ph_003",
+            "value_ref": {
+              "ref": "ent_054",
+              "kind": "entity"
+            },
+            "claim_refs": [],
+            "person_ref": {
+              "ref": "ent_032",
+              "kind": "entity"
+            },
+            "target_ref": null,
+            "attribution": "narrator",
+            "qualification": "ordinary",
+            "source_selections": [
+              {
+                "quote": "黃龍元年，封都鄉侯",
+                "occurrence": 1,
+                "last_block_id": "b_023",
+                "first_block_id": "b_023"
+              }
+            ]
+          }
+        ],
+        "phases": [
+          {
+            "label": "周瑜早年及与孙策交游",
+            "phase_id": "ph_001",
+            "event_refs": [
+              {
+                "ref": "evt_001",
+                "kind": "event"
+              }
+            ],
+            "source_selections": [
+              {
+                "quote": "堅子策與瑜同年，獨相友善，瑜推道南大宅以舍策，升堂拜母，有無通共。",
+                "occurrence": 1,
+                "last_block_id": "b_001",
+                "first_block_id": "b_001"
+              }
+            ]
+          },
+          {
+            "label": "孙策时期的军事任职",
+            "phase_id": "ph_002",
+            "event_refs": [
+              {
+                "ref": "evt_002",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_003",
+                "kind": "event"
+              }
+            ],
+            "source_selections": [
+              {
+                "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              },
+              {
+                "quote": "頃之，策欲取荊州，以瑜為中護軍，領導江夏太守",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ]
+          },
+          {
+            "label": "孙权时期的军事统帅与政治谋议",
+            "phase_id": "ph_003",
+            "event_refs": [
+              {
+                "ref": "evt_004",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_005",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_006",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_007",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_008",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_009",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_010",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_011",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_012",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_013",
+                "kind": "event"
+              }
+            ],
+            "source_selections": [
+              {
+                "quote": "瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+                "occurrence": 1,
+                "last_block_id": "b_005",
+                "first_block_id": "b_005"
+              },
+              {
+                "quote": "權拜瑜偏將軍，領南郡太守。以下雋、漢昌、劉陽、州陵為奉邑，屯據江陵。",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ]
+          },
+          {
+            "label": "周瑜病卒及身后评价",
+            "phase_id": "ph_004",
+            "event_refs": [
+              {
+                "ref": "evt_014",
+                "kind": "event"
+              },
+              {
+                "ref": "evt_015",
+                "kind": "event"
+              }
+            ],
+            "source_selections": [
+              {
+                "quote": "瑜還江陵為行裝，而道於巴丘病卒",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              },
+              {
+                "quote": "權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」",
+                "occurrence": 1,
+                "last_block_id": "b_019",
+                "first_block_id": "b_019"
+              }
+            ]
+          }
+        ],
+        "continuities": [],
+        "phase_orders": [
+          {
+            "assertion_id": "po_001",
+            "later_phase_ref": "ph_002",
+            "earlier_phase_ref": "ph_001",
+            "source_selections": [
+              {
+                "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+                "occurrence": 1,
+                "last_block_id": "b_003",
+                "first_block_id": "b_003"
+              }
+            ]
+          },
+          {
+            "assertion_id": "po_002",
+            "later_phase_ref": "ph_003",
+            "earlier_phase_ref": "ph_002",
+            "source_selections": [
+              {
+                "quote": "五年，策薨。權統事。",
+                "occurrence": 1,
+                "last_block_id": "b_005",
+                "first_block_id": "b_005"
+              }
+            ]
+          },
+          {
+            "assertion_id": "po_003",
+            "later_phase_ref": "ph_004",
+            "earlier_phase_ref": "ph_003",
+            "source_selections": [
+              {
+                "quote": "瑜還江陵為行裝，而道於巴丘病卒",
+                "occurrence": 1,
+                "last_block_id": "b_017",
+                "first_block_id": "b_017"
+              }
+            ]
+          }
+        ],
+        "disagreements": []
+      },
+      "record_sources": [
+        {
+          "record_ref": "ent_001",
+          "selections": [
+            {
+              "quote": "周瑜字公瑾，廬江舒人也。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_002",
+          "selections": [
+            {
+              "quote": "從祖父景，景子忠，皆為漢太尉。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_003",
+          "selections": [
+            {
+              "quote": "景子忠，皆為漢太尉。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_004",
+          "selections": [
+            {
+              "quote": "父異，洛陽令。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_005",
+          "selections": [
+            {
+              "quote": "初，孫堅與義兵討董卓",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_006",
+          "selections": [
+            {
+              "quote": "堅子策與瑜同年，獨相友善",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_007",
+          "selections": [
+            {
+              "quote": "權統事。",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_008",
+          "selections": [
+            {
+              "quote": "瑜從父尚為丹楊太守",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_009",
+          "selections": [
+            {
+              "quote": "袁術遣從弟胤代尚為太守",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_010",
+          "selections": [
+            {
+              "quote": "遣從弟胤代尚為太守",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_011",
+          "selections": [
+            {
+              "quote": "劉繇奔走",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_012",
+          "selections": [
+            {
+              "quote": "時得橋公兩女，皆國色也。",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_013",
+          "selections": [
+            {
+              "quote": "策自納大橋",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_014",
+          "selections": [
+            {
+              "quote": "瑜納小橋。",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_015",
+          "selections": [
+            {
+              "quote": "江夏太守黃祖遣將",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_016",
+          "selections": [
+            {
+              "quote": "遣將鄧龍將兵數千人",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_017",
+          "selections": [
+            {
+              "quote": "曹公入荊州",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_018",
+          "selections": [
+            {
+              "quote": "劉琮舉眾降",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_019",
+          "selections": [
+            {
+              "quote": "時劉備為曹公所破",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_020",
+          "selections": [
+            {
+              "quote": "與魯肅遇於當陽",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_021",
+          "selections": [
+            {
+              "quote": "遣諸葛亮詣權",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_022",
+          "selections": [
+            {
+              "quote": "權遂遣瑜及程普等",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_023",
+          "selections": [
+            {
+              "quote": "瑜部將黃蓋曰",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_024",
+          "selections": [
+            {
+              "quote": "曹公留曹仁等守江陵城",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_025",
+          "selections": [
+            {
+              "quote": "瑜即遣甘寧前據夷陵",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_026",
+          "selections": [
+            {
+              "quote": "瑜用呂蒙計",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_027",
+          "selections": [
+            {
+              "quote": "留淩統以守其後",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_028",
+          "selections": [
+            {
+              "quote": "是時劉璋為益州牧。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_029",
+          "selections": [
+            {
+              "quote": "好與馬超結援",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_030",
+          "selections": [
+            {
+              "quote": "加馬超、韓遂尚在關西",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_031",
+          "selections": [
+            {
+              "quote": "男循尚公主",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_032",
+          "selections": [
+            {
+              "quote": "循弟胤，初拜興業都尉。",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_033",
+          "selections": [
+            {
+              "quote": "瑜兄子峻",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_034",
+          "selections": [
+            {
+              "quote": "峻子護為將",
+              "occurrence": 1,
+              "last_block_id": "b_029",
+              "first_block_id": "b_029"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_035",
+          "selections": [
+            {
+              "quote": "遣九江蔣幹往見瑜",
+              "occurrence": 1,
+              "last_block_id": "b_019",
+              "first_block_id": "b_019"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_036",
+          "selections": [
+            {
+              "quote": "廬江舒人也",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_037",
+          "selections": [
+            {
+              "quote": "瑜從父尚為丹楊太守",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_038",
+          "selections": [
+            {
+              "quote": "割據江東",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_039",
+          "selections": [
+            {
+              "quote": "江夏太守黃祖",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_040",
+          "selections": [
+            {
+              "quote": "遇於赤壁",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_041",
+          "selections": [
+            {
+              "quote": "還保南郡",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_042",
+          "selections": [
+            {
+              "quote": "瑜與程普又進南郡",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_043",
+          "selections": [
+            {
+              "quote": "進取蜀",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_044",
+          "selections": [
+            {
+              "quote": "遂留吳",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_045",
+          "selections": [
+            {
+              "quote": "為漢家除殘去穢",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_046",
+          "selections": [
+            {
+              "quote": "不得不與曹氏相首尾",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_047",
+          "selections": [
+            {
+              "quote": "授建威中郎將",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_048",
+          "selections": [
+            {
+              "quote": "以瑜為中護軍",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_049",
+          "selections": [
+            {
+              "quote": "領導江夏太守",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_050",
+          "selections": [
+            {
+              "quote": "權拜瑜偏將軍",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_051",
+          "selections": [
+            {
+              "quote": "領南郡太守",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_052",
+          "selections": [
+            {
+              "quote": "初拜興業都尉",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_053",
+          "selections": [
+            {
+              "quote": "拜騎都尉",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "ent_054",
+          "selections": [
+            {
+              "quote": "封都鄉侯",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "entity"
+        },
+        {
+          "record_ref": "evt_001",
+          "selections": [
+            {
+              "quote": "會策將東渡，到歷陽，馳書報瑜，瑜將兵迎策。",
+              "occurrence": 1,
+              "last_block_id": "b_001",
+              "first_block_id": "b_001"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_002",
+          "selections": [
+            {
+              "quote": "策親自迎瑜，授建威中郎將，即與兵二千人，騎五十匹。",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_003",
+          "selections": [
+            {
+              "quote": "策欲取荊州，以瑜為中護軍，領導江夏太守",
+              "occurrence": 1,
+              "last_block_id": "b_003",
+              "first_block_id": "b_003"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_004",
+          "selections": [
+            {
+              "quote": "五年，策薨。權統事。瑜將兵赴喪，遂留吳，以中護軍與長史張昭共掌眾事。",
+              "occurrence": 1,
+              "last_block_id": "b_005",
+              "first_block_id": "b_005"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_005",
+          "selections": [
+            {
+              "quote": "十一年，督孫瑜等討麻、保二屯，梟其渠帥，囚俘萬餘口",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_006",
+          "selections": [
+            {
+              "quote": "十三年春，權討江夏，瑜為前部大督。",
+              "occurrence": 1,
+              "last_block_id": "b_007",
+              "first_block_id": "b_007"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_007",
+          "selections": [
+            {
+              "quote": "不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_008",
+          "selections": [
+            {
+              "quote": "權遂遣瑜及程普等與備並力逆曹公，遇於赤壁。",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_009",
+          "selections": [
+            {
+              "quote": "蓋放諸船，同時發火。時風盛猛，悉延燒岸上營落。頃之。煙炎張天，人馬燒溺死者甚眾，軍遂敗退，還保南郡。",
+              "occurrence": 1,
+              "last_block_id": "b_013",
+              "first_block_id": "b_013"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_010",
+          "selections": [
+            {
+              "quote": "瑜即遣甘寧前據夷陵。仁分兵騎別攻圍寧。寧告急於瑜。瑜用呂蒙計，留淩統以守其後，身與蒙上救寧。寧圍既解",
+              "occurrence": 1,
+              "last_block_id": "b_015",
+              "first_block_id": "b_015"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_011",
+          "selections": [
+            {
+              "quote": "權拜瑜偏將軍，領南郡太守。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_012",
+          "selections": [
+            {
+              "quote": "瑜上疏曰：「劉備以梟雄之姿，而有關羽、張飛熊虎之將，必非久屈為人用者。愚謂大計宜徙備置吳",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_013",
+          "selections": [
+            {
+              "quote": "乞與奮威俱進取蜀，得蜀而並張魯，因留奮威固守其地，好與馬超結援。瑜還與將軍據襄陽以蹙操，北方可圖也。」權許之。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_014",
+          "selections": [
+            {
+              "quote": "瑜還江陵為行裝，而道於巴丘病卒",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_015",
+          "selections": [
+            {
+              "quote": "權素服舉哀。感動左右。喪當還吳，又迎之蕪湖，眾事費度，一為供給。",
+              "occurrence": 1,
+              "last_block_id": "b_017",
+              "first_block_id": "b_017"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_016",
+          "selections": [
+            {
+              "quote": "循弟胤，初拜興業都尉。妻以宗女，授兵千人，屯公安。",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_017",
+          "selections": [
+            {
+              "quote": "黃龍元年，封都鄉侯，後以罪徙廬陵郡。",
+              "occurrence": 1,
+              "last_block_id": "b_023",
+              "first_block_id": "b_023"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "evt_018",
+          "selections": [
+            {
+              "quote": "瑾、騭表比上，朱然及全琮亦俱陳乞，權乃許之。會胤病死。",
+              "occurrence": 1,
+              "last_block_id": "b_027",
+              "first_block_id": "b_027"
+            }
+          ],
+          "record_kind": "event"
+        },
+        {
+          "record_ref": "clm_001",
+          "selections": [
+            {
+              "quote": "不然。操雖託名漢相，其實漢賊也。將軍以神武雄才，兼仗父兄之烈，割據江東，地方數千里，兵精足用，英雄樂業，尚當橫行天下，為漢家除殘去穢。況操自送死，而可迎之耶？請為將軍籌之：今使北土已安，操無內憂，能曠日持久，來爭疆場，又能與我校勝負於船楫，（可）乎？今北土既未平安，加馬超、韓遂尚在關西，為操後患。且捨鞍馬，仗舟揖，與吳越爭衡，本非中國所長。又今盛寒，馬無蒿草。驅中國士眾遠涉江湖之間不習水土，必生疾病。此數四者，用兵之患也，而操皆冒行之。將軍擒操，宜在今日。瑜請得精兵三萬人，進住夏口，保為將軍破之。",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "claim"
+        },
+        {
+          "record_ref": "clm_002",
+          "selections": [
+            {
+              "quote": "不然。操雖託名漢相，其實漢賊也。",
+              "occurrence": 1,
+              "last_block_id": "b_009",
+              "first_block_id": "b_009"
+            }
+          ],
+          "record_kind": "claim"
+        },
+        {
+          "record_ref": "clm_003",
+          "selections": [
+            {
+              "quote": "故能摧曹操於烏林，走曹仁於郢都，揚國威德，華夏是震，蠢爾蠻荊，莫不賓服。",
+              "occurrence": 1,
+              "last_block_id": "b_025",
+              "first_block_id": "b_025"
+            }
+          ],
+          "record_kind": "claim"
+        },
+        {
+          "record_ref": "clm_004",
+          "selections": [
+            {
+              "quote": "瑜少精意於音樂。雖三爵之後，其有闕誤。瑜必知之，知之必顧，故時人謠曰：「曲有誤，周郎顧。」",
+              "occurrence": 1,
+              "last_block_id": "b_021",
+              "first_block_id": "b_021"
+            }
+          ],
+          "record_kind": "claim"
+        },
+        {
+          "record_ref": "clm_005",
+          "selections": [
+            {
+              "quote": "權流涕曰：「公瑾有王佐之資，今忽短命，孤何賴哉？」",
+              "occurrence": 1,
+              "last_block_id": "b_019",
+              "first_block_id": "b_019"
+            }
+          ],
+          "record_kind": "claim"
+        },
+        {
+          "record_ref": "clm_006",
+          "selections": [
+            {
+              "quote": "臣松之以為建計拒曹公，實始魯肅。",
+              "occurrence": 1,
+              "last_block_id": "b_011",
+              "first_block_id": "b_011"
+            }
+          ],
+          "record_kind": "claim"
+        }
+      ]
+    },
+    "validation_errors": [
+      "anchors: record_sources 'clm_005'[1] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+      "person_state_refs: person_states.phases[3].source_selections[2] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+    ],
+    "error": null,
+    "receipt": {
+      "status": "completed",
+      "model": "gpt-5.6-luna",
+      "usage": {
+        "input_tokens": 44484,
+        "output_tokens": 14077,
+        "total_tokens": 58561,
+        "reasoning_tokens": 655
+      },
+      "elapsed_seconds": 105.995,
+      "http_attempts": 1
+    }
+  }
+}

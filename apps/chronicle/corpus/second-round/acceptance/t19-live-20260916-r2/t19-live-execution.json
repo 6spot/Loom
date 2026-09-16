@@ -1,0 +1,2665 @@
+{
+  "schema": "chronicle.t19-live-execution-evidence",
+  "version": "0.2",
+  "task": "C3-T19",
+  "issue": "LM-80",
+  "candidate_commit": "fde19a935198d37a40bcb3ed109b08a389636c3a",
+  "captured_at": "2026-09-16T07:30:21Z",
+  "environment": {
+    "fresh_database": true,
+    "provider_endpoint_configured": true,
+    "credentials": "omitted",
+    "global_timeout_seconds": 1800
+  },
+  "provider_contract": {
+    "protocol_version": "chapter-production/0.2",
+    "structured_steps": {
+      "extraction": "2dc9d9b4ff8f876bcf858c3c751b484a8be00bdfb16f147443517faab3f21ccb",
+      "comparison": "04356bb7f9a151c85f77b7902a6c34f694855a1399f6635aae44c2db17b6c305",
+      "linking": "9be2405687d9456e81f1d42b32d66ff2d7d416855661b068663018e961ede420",
+      "review": "8d9bed4a1981347b26ec05dc5c44bf39777e2b084beb59faf01aadbcb730f173",
+      "repair": "1c555fdb7d4be8d613395d89eb227e1b541661b37cfcf96a291cc8a85ad68bad"
+    },
+    "extraction_format": {
+      "type": "json_schema",
+      "name": "chronicle_chapter_extraction_v01",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chapter_id": {
+            "type": "string",
+            "pattern": "^ch_[0-9a-f]{24}$"
+          },
+          "bundle": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema_version": {
+                "const": "0.1",
+                "type": "string"
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "temp_id": {
+                    "type": "string",
+                    "pattern": "^(src|ent|evt|clm)_[0-9]{3,}$"
+                  },
+                  "kind": {
+                    "const": "source",
+                    "type": "string"
+                  },
+                  "source_type": {
+                    "enum": [
+                      "book",
+                      "article",
+                      "web",
+                      "dataset",
+                      "manuscript",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "extraction": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "method": {
+                        "enum": [
+                          "human_gold",
+                          "model",
+                          "parser"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "method"
+                    ]
+                  }
+                },
+                "required": [
+                  "temp_id",
+                  "kind",
+                  "source_type",
+                  "title",
+                  "language",
+                  "extraction"
+                ]
+              },
+              "entities": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "temp_id": {
+                      "type": "string",
+                      "pattern": "^(src|ent|evt|clm)_[0-9]{3,}$"
+                    },
+                    "kind": {
+                      "const": "entity",
+                      "type": "string"
+                    },
+                    "type": {
+                      "enum": [
+                        "person",
+                        "place",
+                        "polity",
+                        "organization",
+                        "army",
+                        "office",
+                        "group",
+                        "other"
+                      ],
+                      "type": "string"
+                    },
+                    "canonical_name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "aliases": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mentions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "text": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "text"
+                        ]
+                      }
+                    },
+                    "resolution": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": {
+                          "enum": [
+                            "unresolved",
+                            "new",
+                            "ambiguous"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    },
+                    "extraction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "method": {
+                          "enum": [
+                            "human_gold",
+                            "model",
+                            "parser"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "temp_id",
+                    "kind",
+                    "type",
+                    "canonical_name",
+                    "aliases",
+                    "mentions",
+                    "resolution",
+                    "extraction"
+                  ]
+                }
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "temp_id": {
+                      "type": "string",
+                      "pattern": "^(src|ent|evt|clm)_[0-9]{3,}$"
+                    },
+                    "kind": {
+                      "const": "event",
+                      "type": "string"
+                    },
+                    "type": {
+                      "enum": [
+                        "political",
+                        "administrative",
+                        "military",
+                        "battle",
+                        "movement",
+                        "retreat",
+                        "death",
+                        "birth",
+                        "succession",
+                        "appointment",
+                        "surrender",
+                        "diplomatic",
+                        "epidemic",
+                        "territorial_change",
+                        "economic",
+                        "cultural",
+                        "other"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "time": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "original_text": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "source_calendar": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "system": {
+                                  "enum": [
+                                    "chinese_lunisolar_regnal",
+                                    "proleptic_gregorian",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "system"
+                              ]
+                            },
+                            "normalized": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "calendar": {
+                                  "const": "proleptic_gregorian",
+                                  "type": "string"
+                                },
+                                "year": {
+                                  "anyOf": [
+                                    {
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "precision": {
+                                  "enum": [
+                                    "day",
+                                    "month",
+                                    "year",
+                                    "range",
+                                    "unknown"
+                                  ],
+                                  "type": "string"
+                                },
+                                "conversion_status": {
+                                  "enum": [
+                                    "exact",
+                                    "year_only",
+                                    "partial",
+                                    "unresolved"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "calendar",
+                                "year",
+                                "precision",
+                                "conversion_status"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "original_text",
+                            "source_calendar",
+                            "normalized"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "participants": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "entity_ref": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "role": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "entity_ref",
+                          "role"
+                        ]
+                      }
+                    },
+                    "places": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "extraction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "method": {
+                          "enum": [
+                            "human_gold",
+                            "model",
+                            "parser"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "temp_id",
+                    "kind",
+                    "type",
+                    "title",
+                    "time",
+                    "participants",
+                    "places",
+                    "extraction"
+                  ]
+                }
+              },
+              "claims": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "temp_id": {
+                      "type": "string",
+                      "pattern": "^(src|ent|evt|clm)_[0-9]{3,}$"
+                    },
+                    "kind": {
+                      "const": "claim",
+                      "type": "string"
+                    },
+                    "subject": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "enum": [
+                            "entity",
+                            "event"
+                          ],
+                          "type": "string"
+                        },
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "ref"
+                      ]
+                    },
+                    "predicate": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    },
+                    "object": {
+                      "anyOf": [
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "entity",
+                                "event"
+                              ],
+                              "type": "string"
+                            },
+                            "ref": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "ref"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "literal",
+                              "type": "string"
+                            },
+                            "value": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {},
+                                  "required": []
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "value"
+                          ]
+                        }
+                      ]
+                    },
+                    "evidence": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "source_ref": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "locator": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": []
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "source_ref",
+                        "locator"
+                      ]
+                    },
+                    "assessment": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": {
+                          "const": "unassessed",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status"
+                      ]
+                    },
+                    "extraction": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "method": {
+                          "enum": [
+                            "human_gold",
+                            "model",
+                            "parser"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "temp_id",
+                    "kind",
+                    "subject",
+                    "predicate",
+                    "object",
+                    "evidence",
+                    "assessment",
+                    "extraction"
+                  ]
+                }
+              },
+              "warnings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "severity": {
+                      "enum": [
+                        "info",
+                        "warning",
+                        "error"
+                      ],
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "severity",
+                    "message"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "schema_version",
+              "source",
+              "entities",
+              "events",
+              "claims",
+              "warnings"
+            ]
+          },
+          "mentions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mention_id": {
+                  "type": "string",
+                  "pattern": "^m_[0-9]{3,}$"
+                },
+                "surface": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "contextual": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "enum": [
+                    "resolved",
+                    "ambiguous",
+                    "unresolved"
+                  ],
+                  "type": "string"
+                },
+                "target_ref": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "candidate_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "selection": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "first_block_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "last_block_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "quote": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "occurrence": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "required": [
+                    "first_block_id",
+                    "last_block_id",
+                    "quote",
+                    "occurrence"
+                  ]
+                }
+              },
+              "required": [
+                "mention_id",
+                "surface",
+                "contextual",
+                "status",
+                "target_ref",
+                "candidate_refs",
+                "selection"
+              ]
+            }
+          },
+          "record_sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "record_ref": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "record_kind": {
+                  "enum": [
+                    "entity",
+                    "event",
+                    "claim"
+                  ],
+                  "type": "string"
+                },
+                "selections": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "first_block_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "last_block_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "quote": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "occurrence": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": [
+                      "first_block_id",
+                      "last_block_id",
+                      "quote",
+                      "occurrence"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "record_ref",
+                "record_kind",
+                "selections"
+              ]
+            }
+          },
+          "person_states": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "phases": {
+                "type": "array",
+                "maxItems": 512,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "phase_id": {
+                      "type": "string",
+                      "pattern": "^ph_[0-9]{3,}$"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "event_refs": {
+                      "type": "array",
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "event",
+                            "type": "string"
+                          },
+                          "ref": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "ref"
+                        ]
+                      }
+                    },
+                    "source_selections": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "first_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "last_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "occurrence": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "first_block_id",
+                          "last_block_id",
+                          "quote",
+                          "occurrence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "phase_id",
+                    "label",
+                    "event_refs",
+                    "source_selections"
+                  ]
+                }
+              },
+              "phase_orders": {
+                "type": "array",
+                "maxItems": 1024,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "assertion_id": {
+                      "type": "string",
+                      "pattern": "^po_[0-9]{3,}$"
+                    },
+                    "earlier_phase_ref": {
+                      "type": "string",
+                      "pattern": "^ph_[0-9]{3,}$"
+                    },
+                    "later_phase_ref": {
+                      "type": "string",
+                      "pattern": "^ph_[0-9]{3,}$"
+                    },
+                    "source_selections": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "first_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "last_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "occurrence": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "first_block_id",
+                          "last_block_id",
+                          "quote",
+                          "occurrence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "assertion_id",
+                    "earlier_phase_ref",
+                    "later_phase_ref",
+                    "source_selections"
+                  ]
+                }
+              },
+              "facts": {
+                "type": "array",
+                "maxItems": 512,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "fact_id": {
+                          "type": "string",
+                          "pattern": "^pf_[0-9]{3,}$"
+                        },
+                        "person_ref": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "kind": {
+                              "const": "entity",
+                              "type": "string"
+                            },
+                            "ref": {
+                              "type": "string",
+                              "minLength": 1
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "ref"
+                          ]
+                        },
+                        "dimension": {
+                          "enum": [
+                            "office",
+                            "title",
+                            "affiliation"
+                          ],
+                          "type": "string"
+                        },
+                        "value_ref": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "entity",
+                                  "type": "string"
+                                },
+                                "ref": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "ref"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "relation": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "serves",
+                                "attached_to"
+                              ]
+                            },
+                            {
+                              "type": "null",
+                              "enum": [
+                                null
+                              ]
+                            }
+                          ]
+                        },
+                        "target_ref": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "kind": {
+                                  "const": "entity",
+                                  "type": "string"
+                                },
+                                "ref": {
+                                  "type": "string",
+                                  "minLength": 1
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "ref"
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "operation": {
+                          "enum": [
+                            "start",
+                            "end",
+                            "attest"
+                          ],
+                          "type": "string"
+                        },
+                        "qualification": {
+                          "enum": [
+                            "ordinary",
+                            "recommendation",
+                            "self_designation",
+                            "posthumous",
+                            "reported"
+                          ],
+                          "type": "string"
+                        },
+                        "phase_ref": {
+                          "type": "string",
+                          "pattern": "^ph_[0-9]{3,}$"
+                        },
+                        "claim_refs": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "kind": {
+                                "const": "claim",
+                                "type": "string"
+                              },
+                              "ref": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ref"
+                            ]
+                          }
+                        },
+                        "source_selections": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 16,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "first_block_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "last_block_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "quote": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "occurrence": {
+                                "type": "integer",
+                                "minimum": 1
+                              }
+                            },
+                            "required": [
+                              "first_block_id",
+                              "last_block_id",
+                              "quote",
+                              "occurrence"
+                            ]
+                          }
+                        },
+                        "attribution": {
+                          "enum": [
+                            "narrator",
+                            "quotation",
+                            "annotation",
+                            "hearsay"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fact_id",
+                        "person_ref",
+                        "dimension",
+                        "value_ref",
+                        "relation",
+                        "target_ref",
+                        "operation",
+                        "qualification",
+                        "phase_ref",
+                        "claim_refs",
+                        "source_selections",
+                        "attribution"
+                      ]
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": []
+                        }
+                      ]
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {},
+                          "required": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              },
+              "continuities": {
+                "type": "array",
+                "maxItems": 1024,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "assertion_id": {
+                      "type": "string",
+                      "pattern": "^pc_[0-9]{3,}$"
+                    },
+                    "fact_ref": {
+                      "type": "string",
+                      "pattern": "^pf_[0-9]{3,}$"
+                    },
+                    "start_phase_ref": {
+                      "type": "string",
+                      "pattern": "^ph_[0-9]{3,}$"
+                    },
+                    "end_phase_ref": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^ph_[0-9]{3,}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "source_selections": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "first_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "last_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "occurrence": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "first_block_id",
+                          "last_block_id",
+                          "quote",
+                          "occurrence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "assertion_id",
+                    "fact_ref",
+                    "start_phase_ref",
+                    "end_phase_ref",
+                    "source_selections"
+                  ]
+                }
+              },
+              "disagreements": {
+                "type": "array",
+                "maxItems": 1024,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "assertion_id": {
+                      "type": "string",
+                      "pattern": "^pd_[0-9]{3,}$"
+                    },
+                    "topic": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    },
+                    "fact_refs": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^pf_[0-9]{3,}$"
+                      }
+                    },
+                    "phase_refs": {
+                      "type": "array",
+                      "maxItems": 16,
+                      "items": {
+                        "type": "string",
+                        "pattern": "^ph_[0-9]{3,}$"
+                      }
+                    },
+                    "source_selections": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "first_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "last_block_id": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "occurrence": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "first_block_id",
+                          "last_block_id",
+                          "quote",
+                          "occurrence"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "assertion_id",
+                    "topic",
+                    "fact_refs",
+                    "phase_refs",
+                    "source_selections"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "phases",
+              "phase_orders",
+              "facts",
+              "continuities",
+              "disagreements"
+            ]
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "severity": {
+                  "enum": [
+                    "info",
+                    "warning",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "type",
+                "severity",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "chapter_id",
+          "bundle",
+          "mentions",
+          "record_sources",
+          "person_states",
+          "warnings"
+        ]
+      },
+      "strict": true
+    }
+  },
+  "model_options": {
+    "config_sha256": "4cced6dffdd37f7bd6d787cd33940a090753ffd45e7ac94fb4229f21ded78978",
+    "models": [
+      {
+        "id": "executor",
+        "name": "gpt-5.6-luna"
+      },
+      {
+        "id": "reviewer_1",
+        "name": "gpt-5.6-sol"
+      }
+    ],
+    "steps": {
+      "translation": [
+        "executor"
+      ],
+      "extraction": [
+        "executor"
+      ],
+      "comparison": [
+        "reviewer_1"
+      ],
+      "linking": [
+        "executor"
+      ],
+      "review": [
+        "reviewer_1"
+      ],
+      "repair": [
+        "executor"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "title": "三國志·蜀書·先主傳",
+      "filename": "sanguozhi-032-xianzhu-liubei.txt",
+      "source_label": "Wikisource 三國志/卷32 oldid=2583378 section=先主 劉備 transform=mediawiki-text-v0.2",
+      "source_sha256": "ea40a7087560fe9e693e6f81cb7d1689704f888a40b5b8a8bf7169ec272994e8",
+      "source_bytes": 37474,
+      "document_id": "5f38537f-4208-4131-a0cb-c5a68eb1271b",
+      "revision_id": "0fbd5773-ea2d-42fd-b735-1fd0d5088740",
+      "revision_no": 1,
+      "key": "xianzhu-liubei"
+    },
+    {
+      "title": "三國志·吳書·周瑜傳",
+      "filename": "sanguozhi-054-zhou-yu.txt",
+      "source_label": "Wikisource 三國志/卷54 oldid=2387393 section=周瑜 transform=mediawiki-text-v0.2",
+      "source_sha256": "63db082c4e763be3b56c87cb56e2bed904af5325e9a498b07d932d3b5af1f43e",
+      "source_bytes": 14996,
+      "document_id": "a50f8c48-348c-4f9f-bd92-3eb5684c8330",
+      "revision_id": "7738b7b6-9f7e-42fd-ae9b-edfa91cbdd31",
+      "revision_no": 1,
+      "key": "zhou-yu"
+    }
+  ],
+  "runs": [
+    {
+      "label": "initial_xianzhu-liubei",
+      "profile": "initial:luna",
+      "parent_job_id": null,
+      "job_id": "c31ab470-82e1-4f81-86b8-e9229a128b7e",
+      "revision_id": "0fbd5773-ea2d-42fd-b735-1fd0d5088740",
+      "selection": {
+        "config_sha256": "4cced6dffdd37f7bd6d787cd33940a090753ffd45e7ac94fb4229f21ded78978",
+        "steps": {
+          "translation": [
+            "executor"
+          ],
+          "extraction": [
+            "executor"
+          ],
+          "comparison": [
+            "reviewer_1"
+          ],
+          "linking": [
+            "executor"
+          ],
+          "review": [
+            "reviewer_1"
+          ],
+          "repair": [
+            "executor"
+          ]
+        }
+      },
+      "outputs": [
+        {
+          "label": "initial_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "3d8554e9e0d4a7b8462417cc1748608050ba70258d4fd45ed4089ee14216a5e7",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 622,
+          "path": "initial_xianzhu-liubei_chapter-production-attempt_3d8554e9e0d4a7b8462417cc1748608050ba70258d4fd45ed4089ee14216a5e7.json",
+          "payload_sha256": "836f9967010f73c4d55d77917c92b2f5a3bea4dbad03f64953712310305a1bce"
+        },
+        {
+          "label": "initial_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "5dd30c37c20fc96c6df34498558b47e72411e284670477f62906b55d184380a7",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 621,
+          "path": "initial_xianzhu-liubei_chapter-production-attempt_5dd30c37c20fc96c6df34498558b47e72411e284670477f62906b55d184380a7.json",
+          "payload_sha256": "bf1f736fb5676cda42b278ed8b4c6adf0aab690cb1dc4961b3b4fc9a002cee1c"
+        },
+        {
+          "label": "initial_xianzhu-liubei_translation",
+          "sha256": "528ae31800c1453112928468f6925f5c51ce67215ea0fdc02066c72d8b04380f",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 30532,
+          "path": "initial_xianzhu-liubei_translation_528ae31800c1453112928468f6925f5c51ce67215ea0fdc02066c72d8b04380f.json",
+          "payload_sha256": "77951a72331280657716b3410264fd6de24555d815a6b0a9bb96a7ff00ccf5c8"
+        },
+        {
+          "label": "initial_xianzhu-liubei_extraction",
+          "sha256": "40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 132450,
+          "path": "initial_xianzhu-liubei_extraction_40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3.json",
+          "payload_sha256": "3b78bd4d525da591e6f9c79f4152fcafad3691727614b65f0771c12ce3192031"
+        },
+        {
+          "label": "initial_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "2b631ea95cc723cab5f2eadf5daed5c19d8fd9f50f6a717f4a60b2afe392ab1c",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 683,
+          "path": "initial_xianzhu-liubei_chapter-production-attempt_2b631ea95cc723cab5f2eadf5daed5c19d8fd9f50f6a717f4a60b2afe392ab1c.json",
+          "payload_sha256": "546d88dabaa5a5eaca7454cbf76b3a5b6ff55ffc2c48777cc88dc186dc5d3d5e"
+        },
+        {
+          "label": "initial_xianzhu-liubei_extraction",
+          "sha256": "074a97cea9c7c857442c17ee8c5c71bbf5e95490c5984dd75e36496ceb930792",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 131042,
+          "path": "initial_xianzhu-liubei_extraction_074a97cea9c7c857442c17ee8c5c71bbf5e95490c5984dd75e36496ceb930792.json",
+          "payload_sha256": "589daf5fb7048617ccc1c0e2bf72f7f8659a4e453b9f63f5f66fb38fb3f104da"
+        }
+      ],
+      "status": "failed",
+      "current_stage": "extract",
+      "attempt": 1,
+      "max_attempts": 8,
+      "open_reviews": 0,
+      "error": "chapter extract failed: stage failed closed",
+      "stages": [
+        {
+          "key": "prepare",
+          "machine_key": "prepare",
+          "stage": "prepare",
+          "label": "准备",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:30:24.225779+00:00",
+          "finished_at": "2026-09-16T07:30:24.463561+00:00"
+        },
+        {
+          "key": "structure",
+          "machine_key": "structure",
+          "stage": "structure",
+          "label": "结构识别",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "prepare"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:30:24.497338+00:00",
+          "finished_at": "2026-09-16T07:30:24.547225+00:00"
+        },
+        {
+          "key": "segment",
+          "machine_key": "segment",
+          "stage": "segment",
+          "label": "分段",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "structure"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:30:24.594292+00:00",
+          "finished_at": "2026-09-16T07:30:24.653075+00:00"
+        },
+        {
+          "key": "extract",
+          "machine_key": "extract",
+          "stage": "extract",
+          "label": "内容抽取",
+          "status": "failed",
+          "attempt": 1,
+          "dependencies": [
+            "segment"
+          ],
+          "failure_reason": "chapter extract failed: stage failed closed",
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:30:24.701002+00:00",
+          "finished_at": "2026-09-16T07:36:56.930992+00:00"
+        },
+        {
+          "key": "assemble",
+          "machine_key": "assemble",
+          "stage": "assemble",
+          "label": "组装草稿",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "extract"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "前置步骤未完成",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "resolve",
+          "machine_key": "resolve",
+          "stage": "resolve",
+          "label": "来源核对",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "assemble"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "publish",
+          "machine_key": "publish",
+          "stage": "publish",
+          "label": "发布",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "resolve"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "present",
+          "machine_key": "present",
+          "stage": "present",
+          "label": "综合呈现",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "publish"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "3d8554e9e0d4a7b8462417cc1748608050ba70258d4fd45ed4089ee14216a5e7",
+          "attempt_sha256": "3d8554e9e0d4a7b8462417cc1748608050ba70258d4fd45ed4089ee14216a5e7",
+          "result_sha256": "528ae31800c1453112928468f6925f5c51ce67215ea0fdc02066c72d8b04380f",
+          "output_sha256": "528ae31800c1453112928468f6925f5c51ce67215ea0fdc02066c72d8b04380f",
+          "artifact_type": "chapter-production-step",
+          "step": "translation",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "completed",
+          "started_at": "2026-09-16T07:30:25.102731+00:00",
+          "ended_at": "2026-09-16T07:32:21.270796+00:00",
+          "elapsed_seconds": 115.963,
+          "output_complete": true,
+          "validation": {
+            "status": "passed",
+            "errors": []
+          },
+          "validation_status": "passed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 59339,
+            "output_tokens": 10804,
+            "total_tokens": 70143,
+            "reasoning_tokens": 123
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/c31ab470-82e1-4f81-86b8-e9229a128b7e/outputs/528ae31800c1453112928468f6925f5c51ce67215ea0fdc02066c72d8b04380f"
+        },
+        {
+          "attempt_id": "5dd30c37c20fc96c6df34498558b47e72411e284670477f62906b55d184380a7",
+          "attempt_sha256": "5dd30c37c20fc96c6df34498558b47e72411e284670477f62906b55d184380a7",
+          "result_sha256": "40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3",
+          "output_sha256": "40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "invalid",
+          "started_at": "2026-09-16T07:30:25.253492+00:00",
+          "ended_at": "2026-09-16T07:34:32.031897+00:00",
+          "elapsed_seconds": 246.685,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": [
+              "record_sources: record 'ent_042' has no record_sources entry",
+              "record_sources: record_sources entry references unknown record 'ent_042,'",
+              "mentions: mention 'm_001' surface '先主' must equal selection.quote '先主姓劉'",
+              "mentions: mention 'm_002' surface '劉備' must equal selection.quote '劉備襲蜀'",
+              "mentions: mention 'm_003' surface '曹公' must equal selection.quote '曹公厚遇之'",
+              "mentions: mention 'm_004' surface '呂布' must equal selection.quote '呂布乘虛襲下邳'",
+              "mentions: mention 'm_005' surface '孫權' must equal selection.quote '先主至京見權'",
+              "mentions: mention 'm_006' surface '漢中' must equal selection.quote '先主遂有漢中'",
+              "mentions: mention 'm_007' surface '成都' must equal selection.quote '即皇帝位於成都'",
+              "mentions: mention 'm_008' surface '永安' must equal selection.quote '殂於永安宮'",
+              "anchors: record_sources 'ent_002'[1] quote occurs 0 time(s) in ['b_005'..'b_005'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_007': re-point first/last_block_id to the enclosing block(s) and recount",
+              "anchors: record_sources 'ent_006'[1] quote occurs 0 time(s) in ['b_017'..'b_017'] but occurrence=1 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_015': re-point first/last_block_id to the enclosing block(s) and recount",
+              "anchors: record_sources 'ent_032'[1] quote occurs 1 time(s) in ['b_017'..'b_017'] but occurrence=2 was requested; quote occurs 1 time(s) chapter-wide, first in block 'b_017': re-point first/last_block_id to the enclosing block(s) and recount",
+              "time_precision: evt_019 time.original_text '二十四年秋' is not grounded in chapter text",
+              "aliases: ent_036 alias '魚復' has no chapter-text support",
+              "person_state_types: person_states.facts[1] qualification 'recommendation' can only attest; it cannot start/end a current office",
+              "person_state_types: person_states.facts[2] qualification 'recommendation' can only attest; it cannot start/end a current office"
+            ]
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 66526,
+            "output_tokens": 13338,
+            "total_tokens": 79864,
+            "reasoning_tokens": 404
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/c31ab470-82e1-4f81-86b8-e9229a128b7e/outputs/40b68b8fc05eaa22e81e475d385d563b3144af98b7b7cc1268866e3e8b5f95a3"
+        },
+        {
+          "attempt_id": "2b631ea95cc723cab5f2eadf5daed5c19d8fd9f50f6a717f4a60b2afe392ab1c",
+          "attempt_sha256": "2b631ea95cc723cab5f2eadf5daed5c19d8fd9f50f6a717f4a60b2afe392ab1c",
+          "result_sha256": "074a97cea9c7c857442c17ee8c5c71bbf5e95490c5984dd75e36496ceb930792",
+          "output_sha256": "074a97cea9c7c857442c17ee8c5c71bbf5e95490c5984dd75e36496ceb930792",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 2,
+          "attempt_count": 2,
+          "status": "invalid",
+          "started_at": "2026-09-16T07:34:32.181185+00:00",
+          "ended_at": "2026-09-16T07:36:56.852870+00:00",
+          "elapsed_seconds": 144.58,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": [
+              "mentions: mention 'm_001' unresolved requires target_ref=null",
+              "mentions: mention 'm_002' unresolved requires target_ref=null",
+              "mentions: mention 'm_003' unresolved requires target_ref=null",
+              "mentions: mention 'm_004' unresolved requires target_ref=null",
+              "mentions: mention 'm_005' unresolved requires target_ref=null",
+              "mentions: mention 'm_006' unresolved requires target_ref=null",
+              "mentions: mention 'm_007' unresolved requires target_ref=null",
+              "mentions: mention 'm_008' unresolved requires target_ref=null",
+              "anchors: record_sources 'ent_010'[1] quote occurs 0 time(s) in ['b_003'..'b_003'] but occurrence=1 was requested; quote occurs 13 time(s) chapter-wide, first in block 'b_007': re-point first/last_block_id to the enclosing block(s) and recount"
+            ]
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 81120,
+            "output_tokens": 13454,
+            "total_tokens": 94574,
+            "reasoning_tokens": 582
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/c31ab470-82e1-4f81-86b8-e9229a128b7e/outputs/074a97cea9c7c857442c17ee8c5c71bbf5e95490c5984dd75e36496ceb930792"
+        }
+      ]
+    },
+    {
+      "label": "initial_zhou-yu",
+      "profile": "initial:luna",
+      "parent_job_id": null,
+      "job_id": "69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac",
+      "revision_id": "7738b7b6-9f7e-42fd-ae9b-edfa91cbdd31",
+      "selection": {
+        "config_sha256": "4cced6dffdd37f7bd6d787cd33940a090753ffd45e7ac94fb4229f21ded78978",
+        "steps": {
+          "translation": [
+            "executor"
+          ],
+          "extraction": [
+            "executor"
+          ],
+          "comparison": [
+            "reviewer_1"
+          ],
+          "linking": [
+            "executor"
+          ],
+          "review": [
+            "reviewer_1"
+          ],
+          "repair": [
+            "executor"
+          ]
+        }
+      },
+      "outputs": [
+        {
+          "label": "initial_zhou-yu_chapter-production-attempt",
+          "sha256": "46ee5a7766860ecad1a49e96503f75517f4b9c1a587504bfd4fa5d4b7f77cd27",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 622,
+          "path": "initial_zhou-yu_chapter-production-attempt_46ee5a7766860ecad1a49e96503f75517f4b9c1a587504bfd4fa5d4b7f77cd27.json",
+          "payload_sha256": "8c17cf3899d75c0e4c58812e8892f4c2fa532d86cf5aa57fcddc476a8d76e034"
+        },
+        {
+          "label": "initial_zhou-yu_chapter-production-attempt",
+          "sha256": "4ffe01fca7c7674f933de7006f5310ec3ec2de0dbb194da0f24a1b5fda14a0df",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 621,
+          "path": "initial_zhou-yu_chapter-production-attempt_4ffe01fca7c7674f933de7006f5310ec3ec2de0dbb194da0f24a1b5fda14a0df.json",
+          "payload_sha256": "8fa2f47ad3d13e37765ec9acb6fa29a4e29c321f6b0e7bb4e45954b3393857ec"
+        },
+        {
+          "label": "initial_zhou-yu_extraction",
+          "sha256": "acafb9d1baeb760c4b06a2d36bd3cb402ac4f724c764c5e96a43c2be0a992800",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 125898,
+          "path": "initial_zhou-yu_extraction_acafb9d1baeb760c4b06a2d36bd3cb402ac4f724c764c5e96a43c2be0a992800.json",
+          "payload_sha256": "99b0ad40ad40bc5d1b8417e1b701dbf1b58cb01e24bd48936acb0b1c44c1924e"
+        },
+        {
+          "label": "initial_zhou-yu_chapter-production-attempt",
+          "sha256": "a964664f1cee3c7bdc92214b731304aa1f457e4f655e9d70b911f0f7095cae73",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 683,
+          "path": "initial_zhou-yu_chapter-production-attempt_a964664f1cee3c7bdc92214b731304aa1f457e4f655e9d70b911f0f7095cae73.json",
+          "payload_sha256": "b882144d221af160c3a32fc6e57924bebcf6b0fb23bac40ca1be2c9760bcdf23"
+        },
+        {
+          "label": "initial_zhou-yu_extraction",
+          "sha256": "f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 124696,
+          "path": "initial_zhou-yu_extraction_f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5.json",
+          "payload_sha256": "c095656705b566943201227889497a383be3b3d3c304ad287c4e6581bc400535"
+        },
+        {
+          "label": "initial_zhou-yu_translation",
+          "sha256": "da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 889,
+          "path": "initial_zhou-yu_translation_da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3.json",
+          "payload_sha256": "9ca1b2484b65b6a95baaf64026f93ecc787a7cb8c0d9b651205debf07d18d1b9"
+        }
+      ],
+      "status": "failed",
+      "current_stage": "extract",
+      "attempt": 1,
+      "max_attempts": 8,
+      "open_reviews": 0,
+      "error": "chapter extract failed: stage failed closed",
+      "stages": [
+        {
+          "key": "prepare",
+          "machine_key": "prepare",
+          "stage": "prepare",
+          "label": "准备",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:36:57.022369+00:00",
+          "finished_at": "2026-09-16T07:36:57.267757+00:00"
+        },
+        {
+          "key": "structure",
+          "machine_key": "structure",
+          "stage": "structure",
+          "label": "结构识别",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "prepare"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:36:57.297864+00:00",
+          "finished_at": "2026-09-16T07:36:57.346481+00:00"
+        },
+        {
+          "key": "segment",
+          "machine_key": "segment",
+          "stage": "segment",
+          "label": "分段",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "structure"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:36:57.393587+00:00",
+          "finished_at": "2026-09-16T07:36:57.453628+00:00"
+        },
+        {
+          "key": "extract",
+          "machine_key": "extract",
+          "stage": "extract",
+          "label": "内容抽取",
+          "status": "failed",
+          "attempt": 1,
+          "dependencies": [
+            "segment"
+          ],
+          "failure_reason": "chapter extract failed: stage failed closed",
+          "blocked_reason": null,
+          "started_at": "2026-09-16T07:36:57.500735+00:00",
+          "finished_at": "2026-09-16T08:06:58.042484+00:00"
+        },
+        {
+          "key": "assemble",
+          "machine_key": "assemble",
+          "stage": "assemble",
+          "label": "组装草稿",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "extract"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "前置步骤未完成",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "resolve",
+          "machine_key": "resolve",
+          "stage": "resolve",
+          "label": "来源核对",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "assemble"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "publish",
+          "machine_key": "publish",
+          "stage": "publish",
+          "label": "发布",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "resolve"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "present",
+          "machine_key": "present",
+          "stage": "present",
+          "label": "综合呈现",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "publish"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "46ee5a7766860ecad1a49e96503f75517f4b9c1a587504bfd4fa5d4b7f77cd27",
+          "attempt_sha256": "46ee5a7766860ecad1a49e96503f75517f4b9c1a587504bfd4fa5d4b7f77cd27",
+          "result_sha256": "da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3",
+          "output_sha256": "da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3",
+          "artifact_type": "chapter-production-step",
+          "step": "translation",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "failed",
+          "started_at": "2026-09-16T07:36:57.891537+00:00",
+          "ended_at": "2026-09-16T08:06:57.969913+00:00",
+          "elapsed_seconds": 1800.023,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": []
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": null,
+          "usage_status": "unreported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac/outputs/da22f3b3bf59cc17fae79613a4afbc614956dcebeae1b93ce432c88f6fe696a3"
+        },
+        {
+          "attempt_id": "4ffe01fca7c7674f933de7006f5310ec3ec2de0dbb194da0f24a1b5fda14a0df",
+          "attempt_sha256": "4ffe01fca7c7674f933de7006f5310ec3ec2de0dbb194da0f24a1b5fda14a0df",
+          "result_sha256": "acafb9d1baeb760c4b06a2d36bd3cb402ac4f724c764c5e96a43c2be0a992800",
+          "output_sha256": "acafb9d1baeb760c4b06a2d36bd3cb402ac4f724c764c5e96a43c2be0a992800",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "invalid",
+          "started_at": "2026-09-16T07:36:58.013960+00:00",
+          "ended_at": "2026-09-16T07:41:21.571268+00:00",
+          "elapsed_seconds": 263.478,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": [
+              "mentions: mention 'm_002' surface '公瑾' must equal selection.quote '周公瑾'",
+              "mentions: mention 'm_009' surface '周胤' must equal selection.quote '胤'",
+              "mentions: mention 'm_010' surface '周峻' must equal selection.quote '峻'",
+              "anchors: record_sources 'clm_005'[1] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+              "anchors: record_sources 'evt_007'[1] quote occurs 0 time(s) in ['b_007'..'b_009'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+              "aliases: ent_027 alias '凌統' has no chapter-text support",
+              "person_state_refs: person_states.phases[3].source_selections[1] quote occurs 0 time(s) in ['b_017'..'b_017'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+              "person_state_refs: person_states.phases[3].source_selections[2] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+              "person_state_types: person_states.facts[5] affiliation target 'ent_044' is a place, not a person/polity/organization"
+            ]
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 29592,
+            "output_tokens": 14034,
+            "total_tokens": 43626,
+            "reasoning_tokens": 601
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac/outputs/acafb9d1baeb760c4b06a2d36bd3cb402ac4f724c764c5e96a43c2be0a992800"
+        },
+        {
+          "attempt_id": "a964664f1cee3c7bdc92214b731304aa1f457e4f655e9d70b911f0f7095cae73",
+          "attempt_sha256": "a964664f1cee3c7bdc92214b731304aa1f457e4f655e9d70b911f0f7095cae73",
+          "result_sha256": "f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5",
+          "output_sha256": "f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "executor",
+          "model": "gpt-5.6-luna",
+          "round": 0,
+          "attempt": 2,
+          "attempt_count": 2,
+          "status": "invalid",
+          "started_at": "2026-09-16T07:41:21.709337+00:00",
+          "ended_at": "2026-09-16T07:43:07.787995+00:00",
+          "elapsed_seconds": 105.995,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": [
+              "anchors: record_sources 'clm_005'[1] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote",
+              "person_state_refs: person_states.phases[3].source_selections[2] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote not found anywhere in chapter text: replace it with a verbatim-copied quote"
+            ]
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 44484,
+            "output_tokens": 14077,
+            "total_tokens": 58561,
+            "reasoning_tokens": 655
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac/outputs/f8c4e2d5f8a1b27a1183c0e9411af026d766a7135e191b6f90720cfa56c649b5"
+        }
+      ]
+    },
+    {
+      "label": "fresh_xianzhu-liubei",
+      "profile": "fresh:sol",
+      "parent_job_id": "c31ab470-82e1-4f81-86b8-e9229a128b7e",
+      "job_id": "d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7",
+      "revision_id": "0fbd5773-ea2d-42fd-b735-1fd0d5088740",
+      "selection": {
+        "config_sha256": "4cced6dffdd37f7bd6d787cd33940a090753ffd45e7ac94fb4229f21ded78978",
+        "steps": {
+          "translation": [
+            "reviewer_1"
+          ],
+          "extraction": [
+            "reviewer_1"
+          ],
+          "comparison": [
+            "executor"
+          ],
+          "linking": [
+            "reviewer_1"
+          ],
+          "review": [
+            "executor"
+          ],
+          "repair": [
+            "reviewer_1"
+          ]
+        }
+      },
+      "outputs": [
+        {
+          "label": "fresh_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "ddd1c416885c0c77d8eb05bdfc538d69d19a7b685f07311ddd213d4adcff5d1f",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 623,
+          "path": "fresh_xianzhu-liubei_chapter-production-attempt_ddd1c416885c0c77d8eb05bdfc538d69d19a7b685f07311ddd213d4adcff5d1f.json",
+          "payload_sha256": "4999a05ab7f458da12c94ec2c6eb8da6f05186bc655e01cc2777c501cd852253"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "d2184ace976d4969952d19f8e67623a2b10236a0b9ae93d18e71beb37add5b6c",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 622,
+          "path": "fresh_xianzhu-liubei_chapter-production-attempt_d2184ace976d4969952d19f8e67623a2b10236a0b9ae93d18e71beb37add5b6c.json",
+          "payload_sha256": "bf1229b53452c832aa23cf6884bd65c2793beef1d9e3c1165c88642660ab03de"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_translation",
+          "sha256": "ce12d87f9b396080858908d41c0307ad20beb3b21e2f4887a566b27dfc6c6455",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 26601,
+          "path": "fresh_xianzhu-liubei_translation_ce12d87f9b396080858908d41c0307ad20beb3b21e2f4887a566b27dfc6c6455.json",
+          "payload_sha256": "b889eb89f6023be5a427b8784e1819331567838823556da9351125ab136a9c9f"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_extraction",
+          "sha256": "5d77bcca7053096dd3e7c6e424f396eba76a54ff47c3aee8d0ebc37779fa7595",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 167700,
+          "path": "fresh_xianzhu-liubei_extraction_5d77bcca7053096dd3e7c6e424f396eba76a54ff47c3aee8d0ebc37779fa7595.json",
+          "payload_sha256": "08e068ca5524b9804e93e836c1ce1be23ce4b8871b915436130bd012da9c7c1e"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "a766b16d79bc681ae358d0a4d9436c12e81c53fba6d7d7ed4c3632607c89bfe3",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 684,
+          "path": "fresh_xianzhu-liubei_chapter-production-attempt_a766b16d79bc681ae358d0a4d9436c12e81c53fba6d7d7ed4c3632607c89bfe3.json",
+          "payload_sha256": "c07590cab4e71a253864e25d45a1b60778049b59b77b62ea3de434d2f5a1ba82"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_extraction",
+          "sha256": "d7ff0bbeb4f5ec20524dcb14163090c05a9b8afec68e5ed87298c5fa98c102d1",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 167187,
+          "path": "fresh_xianzhu-liubei_extraction_d7ff0bbeb4f5ec20524dcb14163090c05a9b8afec68e5ed87298c5fa98c102d1.json",
+          "payload_sha256": "ba2639ad9fcd641cd2ee8bbb9ee0ff4ea47f7d374f80f9b7db4b7d8228240bef"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_chapter-production-attempt",
+          "sha256": "3fdc5eec6d2fd2bcc84f20060a5cf7d85f4092e995e21ca2b94291b9d54021cd",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 619,
+          "path": "fresh_xianzhu-liubei_chapter-production-attempt_3fdc5eec6d2fd2bcc84f20060a5cf7d85f4092e995e21ca2b94291b9d54021cd.json",
+          "payload_sha256": "6812461935e049e1f536d0fce781bb4415911cfeae9a4d30bd986a78b87b7ac8"
+        },
+        {
+          "label": "fresh_xianzhu-liubei_linking",
+          "sha256": "e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 886,
+          "path": "fresh_xianzhu-liubei_linking_e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f.json",
+          "payload_sha256": "2ba55af16b483611f6e9adda1b165a0fa402c165a08feb47fe8f893e03d6f304"
+        }
+      ],
+      "status": "failed",
+      "current_stage": "extract",
+      "attempt": 1,
+      "max_attempts": 8,
+      "open_reviews": 0,
+      "error": "chapter extract failed: stage failed closed",
+      "stages": [
+        {
+          "key": "prepare",
+          "machine_key": "prepare",
+          "stage": "prepare",
+          "label": "准备",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:07:03.157813+00:00",
+          "finished_at": "2026-09-16T08:07:03.399717+00:00"
+        },
+        {
+          "key": "structure",
+          "machine_key": "structure",
+          "stage": "structure",
+          "label": "结构识别",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "prepare"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:07:03.433243+00:00",
+          "finished_at": "2026-09-16T08:07:03.490280+00:00"
+        },
+        {
+          "key": "segment",
+          "machine_key": "segment",
+          "stage": "segment",
+          "label": "分段",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "structure"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:07:03.526625+00:00",
+          "finished_at": "2026-09-16T08:07:03.568659+00:00"
+        },
+        {
+          "key": "extract",
+          "machine_key": "extract",
+          "stage": "extract",
+          "label": "内容抽取",
+          "status": "failed",
+          "attempt": 1,
+          "dependencies": [
+            "segment"
+          ],
+          "failure_reason": "chapter extract failed: stage failed closed",
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:07:03.614536+00:00",
+          "finished_at": "2026-09-16T08:50:47.957253+00:00"
+        },
+        {
+          "key": "assemble",
+          "machine_key": "assemble",
+          "stage": "assemble",
+          "label": "组装草稿",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "extract"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "前置步骤未完成",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "resolve",
+          "machine_key": "resolve",
+          "stage": "resolve",
+          "label": "来源核对",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "assemble"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "publish",
+          "machine_key": "publish",
+          "stage": "publish",
+          "label": "发布",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "resolve"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "present",
+          "machine_key": "present",
+          "stage": "present",
+          "label": "综合呈现",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "publish"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "ddd1c416885c0c77d8eb05bdfc538d69d19a7b685f07311ddd213d4adcff5d1f",
+          "attempt_sha256": "ddd1c416885c0c77d8eb05bdfc538d69d19a7b685f07311ddd213d4adcff5d1f",
+          "result_sha256": "ce12d87f9b396080858908d41c0307ad20beb3b21e2f4887a566b27dfc6c6455",
+          "output_sha256": "ce12d87f9b396080858908d41c0307ad20beb3b21e2f4887a566b27dfc6c6455",
+          "artifact_type": "chapter-production-step",
+          "step": "translation",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "completed",
+          "started_at": "2026-09-16T08:07:04.002137+00:00",
+          "ended_at": "2026-09-16T08:11:40.392271+00:00",
+          "elapsed_seconds": 276.32,
+          "output_complete": true,
+          "validation": {
+            "status": "passed",
+            "errors": []
+          },
+          "validation_status": "passed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 59293,
+            "output_tokens": 10672,
+            "total_tokens": 69965,
+            "reasoning_tokens": 149
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7/outputs/ce12d87f9b396080858908d41c0307ad20beb3b21e2f4887a566b27dfc6c6455"
+        },
+        {
+          "attempt_id": "d2184ace976d4969952d19f8e67623a2b10236a0b9ae93d18e71beb37add5b6c",
+          "attempt_sha256": "d2184ace976d4969952d19f8e67623a2b10236a0b9ae93d18e71beb37add5b6c",
+          "result_sha256": "5d77bcca7053096dd3e7c6e424f396eba76a54ff47c3aee8d0ebc37779fa7595",
+          "output_sha256": "5d77bcca7053096dd3e7c6e424f396eba76a54ff47c3aee8d0ebc37779fa7595",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "invalid",
+          "started_at": "2026-09-16T08:07:04.134165+00:00",
+          "ended_at": "2026-09-16T08:13:52.986693+00:00",
+          "elapsed_seconds": 408.73,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": [
+              "anchors: record_sources 'ent_012'[1] quote occurs 0 time(s) in ['b_019'..'b_019'] but occurrence=1 was requested; quote occurs 13 time(s) chapter-wide, first in block 'b_007': re-point first/last_block_id to the enclosing block(s) and recount",
+              "person_state_types: person_states.facts[12] qualification 'recommendation' can only attest; it cannot start/end a current office",
+              "person_state_types: person_states.facts[18] qualification 'posthumous' can only attest; it cannot start/end a current office"
+            ]
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 66526,
+            "output_tokens": 22201,
+            "total_tokens": 88727,
+            "reasoning_tokens": 3698
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7/outputs/5d77bcca7053096dd3e7c6e424f396eba76a54ff47c3aee8d0ebc37779fa7595"
+        },
+        {
+          "attempt_id": "a766b16d79bc681ae358d0a4d9436c12e81c53fba6d7d7ed4c3632607c89bfe3",
+          "attempt_sha256": "a766b16d79bc681ae358d0a4d9436c12e81c53fba6d7d7ed4c3632607c89bfe3",
+          "result_sha256": "d7ff0bbeb4f5ec20524dcb14163090c05a9b8afec68e5ed87298c5fa98c102d1",
+          "output_sha256": "d7ff0bbeb4f5ec20524dcb14163090c05a9b8afec68e5ed87298c5fa98c102d1",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 2,
+          "attempt_count": 2,
+          "status": "completed",
+          "started_at": "2026-09-16T08:13:53.172714+00:00",
+          "ended_at": "2026-09-16T08:20:47.656020+00:00",
+          "elapsed_seconds": 414.372,
+          "output_complete": true,
+          "validation": {
+            "status": "passed",
+            "errors": []
+          },
+          "validation_status": "passed",
+          "comparison_status": "not_applicable",
+          "usage": {
+            "input_tokens": 86367,
+            "output_tokens": 18915,
+            "total_tokens": 105282,
+            "reasoning_tokens": 410
+          },
+          "usage_status": "reported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7/outputs/d7ff0bbeb4f5ec20524dcb14163090c05a9b8afec68e5ed87298c5fa98c102d1"
+        },
+        {
+          "attempt_id": "3fdc5eec6d2fd2bcc84f20060a5cf7d85f4092e995e21ca2b94291b9d54021cd",
+          "attempt_sha256": "3fdc5eec6d2fd2bcc84f20060a5cf7d85f4092e995e21ca2b94291b9d54021cd",
+          "result_sha256": "e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f",
+          "output_sha256": "e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f",
+          "artifact_type": "chapter-production-step",
+          "step": "linking",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "failed",
+          "started_at": "2026-09-16T08:20:47.798747+00:00",
+          "ended_at": "2026-09-16T08:50:47.875180+00:00",
+          "elapsed_seconds": 1800.006,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": []
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": null,
+          "usage_status": "unreported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/d44a3c6a-99a0-41ab-b442-f1f7aa44b5e7/outputs/e214d40cde87766625d04081b14a7c06be2dec8e0dbd456dc2f2f1d00fe5b31f"
+        }
+      ]
+    },
+    {
+      "label": "fresh_zhou-yu",
+      "profile": "fresh:sol",
+      "parent_job_id": "69d65bd5-d7dd-4f2c-bfab-6e4d841e62ac",
+      "job_id": "7ef4f7c7-1f11-4fb5-ac86-b6eaff049775",
+      "revision_id": "7738b7b6-9f7e-42fd-ae9b-edfa91cbdd31",
+      "selection": {
+        "config_sha256": "4cced6dffdd37f7bd6d787cd33940a090753ffd45e7ac94fb4229f21ded78978",
+        "steps": {
+          "translation": [
+            "reviewer_1"
+          ],
+          "extraction": [
+            "reviewer_1"
+          ],
+          "comparison": [
+            "executor"
+          ],
+          "linking": [
+            "reviewer_1"
+          ],
+          "review": [
+            "executor"
+          ],
+          "repair": [
+            "reviewer_1"
+          ]
+        }
+      },
+      "outputs": [
+        {
+          "label": "fresh_zhou-yu_chapter-production-attempt",
+          "sha256": "2ad56af9a933c87c5ae5e3e597c416f12f048a9a92c764a64ea9a68b29c9f912",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 623,
+          "path": "fresh_zhou-yu_chapter-production-attempt_2ad56af9a933c87c5ae5e3e597c416f12f048a9a92c764a64ea9a68b29c9f912.json",
+          "payload_sha256": "23f3f12d218dc02a86fcee42c4794a518835dcc6ed870a62e4256700a1e94546"
+        },
+        {
+          "label": "fresh_zhou-yu_chapter-production-attempt",
+          "sha256": "ebd2c94a28a191492ea92ab66deb82959350234d062ece43d7e1bfb673115236",
+          "artifact_type": "chapter-production-attempt",
+          "total_chars": 622,
+          "path": "fresh_zhou-yu_chapter-production-attempt_ebd2c94a28a191492ea92ab66deb82959350234d062ece43d7e1bfb673115236.json",
+          "payload_sha256": "d056907afeb09b2e97e29b394a373a787dfdc4705c1de07900e996dbd4ede13f"
+        },
+        {
+          "label": "fresh_zhou-yu_translation",
+          "sha256": "f38d441675de39ffb4fcd74c42c0b1b8b3ba4dd686ec020299cf311299b3ce99",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 890,
+          "path": "fresh_zhou-yu_translation_f38d441675de39ffb4fcd74c42c0b1b8b3ba4dd686ec020299cf311299b3ce99.json",
+          "payload_sha256": "129be8a801823a80c937b3781892687ec9689ea092e3cfa517666bc87fbff4fb"
+        },
+        {
+          "label": "fresh_zhou-yu_extraction",
+          "sha256": "2e2ac0a4ae83722ae82f22698018d49decd3580518459f0c307326d826bc1480",
+          "artifact_type": "chapter-production-step",
+          "total_chars": 889,
+          "path": "fresh_zhou-yu_extraction_2e2ac0a4ae83722ae82f22698018d49decd3580518459f0c307326d826bc1480.json",
+          "payload_sha256": "ec0311c030c0a255af28ae88cc568dc8183772f1b0434f7aabc05618bfb693a7"
+        }
+      ],
+      "status": "failed",
+      "current_stage": "extract",
+      "attempt": 1,
+      "max_attempts": 8,
+      "open_reviews": 0,
+      "error": "chapter extract failed: stage failed closed",
+      "stages": [
+        {
+          "key": "prepare",
+          "machine_key": "prepare",
+          "stage": "prepare",
+          "label": "准备",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:50:48.047072+00:00",
+          "finished_at": "2026-09-16T08:50:48.280818+00:00"
+        },
+        {
+          "key": "structure",
+          "machine_key": "structure",
+          "stage": "structure",
+          "label": "结构识别",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "prepare"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:50:48.312381+00:00",
+          "finished_at": "2026-09-16T08:50:48.362695+00:00"
+        },
+        {
+          "key": "segment",
+          "machine_key": "segment",
+          "stage": "segment",
+          "label": "分段",
+          "status": "completed",
+          "attempt": 1,
+          "dependencies": [
+            "structure"
+          ],
+          "failure_reason": null,
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:50:48.409588+00:00",
+          "finished_at": "2026-09-16T08:50:48.468136+00:00"
+        },
+        {
+          "key": "extract",
+          "machine_key": "extract",
+          "stage": "extract",
+          "label": "内容抽取",
+          "status": "failed",
+          "attempt": 1,
+          "dependencies": [
+            "segment"
+          ],
+          "failure_reason": "chapter extract failed: stage failed closed",
+          "blocked_reason": null,
+          "started_at": "2026-09-16T08:50:48.514305+00:00",
+          "finished_at": "2026-09-16T09:20:49.257596+00:00"
+        },
+        {
+          "key": "assemble",
+          "machine_key": "assemble",
+          "stage": "assemble",
+          "label": "组装草稿",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "extract"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "前置步骤未完成",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "resolve",
+          "machine_key": "resolve",
+          "stage": "resolve",
+          "label": "来源核对",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "assemble"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "publish",
+          "machine_key": "publish",
+          "stage": "publish",
+          "label": "发布",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "resolve"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        },
+        {
+          "key": "present",
+          "machine_key": "present",
+          "stage": "present",
+          "label": "综合呈现",
+          "status": "pending",
+          "attempt": 0,
+          "dependencies": [
+            "publish"
+          ],
+          "failure_reason": null,
+          "blocked_reason": "等待前置步骤",
+          "started_at": null,
+          "finished_at": null
+        }
+      ],
+      "attempts": [
+        {
+          "attempt_id": "2ad56af9a933c87c5ae5e3e597c416f12f048a9a92c764a64ea9a68b29c9f912",
+          "attempt_sha256": "2ad56af9a933c87c5ae5e3e597c416f12f048a9a92c764a64ea9a68b29c9f912",
+          "result_sha256": "f38d441675de39ffb4fcd74c42c0b1b8b3ba4dd686ec020299cf311299b3ce99",
+          "output_sha256": "f38d441675de39ffb4fcd74c42c0b1b8b3ba4dd686ec020299cf311299b3ce99",
+          "artifact_type": "chapter-production-step",
+          "step": "translation",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "failed",
+          "started_at": "2026-09-16T08:50:48.992390+00:00",
+          "ended_at": "2026-09-16T09:20:49.074829+00:00",
+          "elapsed_seconds": 1800.024,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": []
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": null,
+          "usage_status": "unreported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/7ef4f7c7-1f11-4fb5-ac86-b6eaff049775/outputs/f38d441675de39ffb4fcd74c42c0b1b8b3ba4dd686ec020299cf311299b3ce99"
+        },
+        {
+          "attempt_id": "ebd2c94a28a191492ea92ab66deb82959350234d062ece43d7e1bfb673115236",
+          "attempt_sha256": "ebd2c94a28a191492ea92ab66deb82959350234d062ece43d7e1bfb673115236",
+          "result_sha256": "2e2ac0a4ae83722ae82f22698018d49decd3580518459f0c307326d826bc1480",
+          "output_sha256": "2e2ac0a4ae83722ae82f22698018d49decd3580518459f0c307326d826bc1480",
+          "artifact_type": "chapter-production-step",
+          "step": "extraction",
+          "slot": "reviewer_1",
+          "model": "gpt-5.6-sol",
+          "round": 0,
+          "attempt": 1,
+          "attempt_count": 1,
+          "status": "failed",
+          "started_at": "2026-09-16T08:50:49.115673+00:00",
+          "ended_at": "2026-09-16T09:20:49.175968+00:00",
+          "elapsed_seconds": 1800.006,
+          "output_complete": false,
+          "validation": {
+            "status": "failed",
+            "errors": []
+          },
+          "validation_status": "failed",
+          "comparison_status": "not_applicable",
+          "usage": null,
+          "usage_status": "unreported",
+          "step_label": "模型步骤",
+          "result_href": "/api/v1/studio/jobs/7ef4f7c7-1f11-4fb5-ac86-b6eaff049775/outputs/2e2ac0a4ae83722ae82f22698018d49decd3580518459f0c307326d826bc1480"
+        }
+      ]
+    }
+  ]
+}
