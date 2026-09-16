@@ -283,12 +283,10 @@ async fn public_namespaces_proxy_to_c0_paths() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;
     for (public, expected_proxied) in [
-        ("/api/v1/public/timeline?limit=1", "/v0/timeline?limit=1"),
         (
             "/api/v1/public/search?q=%E6%9B%B9",
             "/v0/search?q=%E6%9B%B9",
         ),
-        ("/api/v1/public/events/some-id", "/v0/events/some-id"),
         ("/api/v1/public/entities/some-id", "/v0/entities/some-id"),
     ] {
         let (status, _, body) = get(server.port, public, None).await;
@@ -373,7 +371,7 @@ async fn studio_background_routes_require_auth_and_forward_delete() {
 async fn public_reads_reject_non_get_with_typed_error() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;
-    let (status, _, body) = raw_request(server.port, "POST", "/api/v1/public/timeline", None)
+    let (status, _, body) = raw_request(server.port, "POST", "/api/v1/public/search", None)
         .await
         .expect("live server answers");
     assert_eq!(status, 405);
@@ -453,7 +451,7 @@ async fn upstream_outage_maps_to_typed_503() {
         port: 1,
     };
     let server = spawn_server(test_state(down, true)).await;
-    let (status, _, body) = get(server.port, "/api/v1/public/timeline", None).await;
+    let (status, _, body) = get(server.port, "/api/v1/public/search", None).await;
     assert_eq!(status, 503);
     let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
     assert_eq!(payload["schema"], "chronicle.error");
@@ -473,12 +471,17 @@ async fn retired_frontend_and_public_aliases_are_not_served() {
     ))
     .await;
     for path in [
+        "/world",
+        "/timeline",
         "/app.mjs",
         "/ui.mjs",
         "/route_safe.mjs",
         "/search_ui.mjs",
         "/styles.css",
         "/search.css",
+        "/api/v1/public/timeline",
+        "/api/v1/public/events/some-id",
+        "/api/v1/public/historical-moment",
         "/v0/timeline",
         "/v0/search?q=x",
         "/v0/events/some-id",
@@ -490,7 +493,7 @@ async fn retired_frontend_and_public_aliases_are_not_served() {
     ] {
         let (status, _, body) = get(server.port, path, None).await;
         assert_eq!(status, 404, "{path}");
-        if path.starts_with("/v0/") {
+        if path.starts_with("/v0/") || path.starts_with("/api/v1/public/") {
             let payload: serde_json::Value = serde_json::from_slice(&body).expect("json");
             assert_eq!(payload["error"]["code"], "not_found", "{path}");
         } else {
@@ -504,10 +507,15 @@ async fn retired_frontend_and_public_aliases_are_not_served() {
 async fn web_front_serves_shell_and_assets() {
     let (upstream, _mock) = spawn_mock_upstream().await;
     let server = spawn_server(test_state(upstream, true)).await;
-    let (shell, shell_head, shell_body) = get(server.port, "/timeline", None).await;
+    let (shell, shell_head, shell_body) = get(server.port, "/history", None).await;
     assert_eq!(shell, 200);
     assert!(shell_head.contains("text/html"));
     assert!(String::from_utf8_lossy(&shell_body).contains("Chronicle"));
+    for retired in ["/world", "/timeline"] {
+        let (status, _, body) = get(server.port, retired, None).await;
+        assert_eq!(status, 404, "{retired}");
+        assert_eq!(body, b"not found\n", "{retired}");
+    }
     let (asset, asset_head, asset_body) = get(server.port, "/assets/index.js", None).await;
     assert_eq!(asset, 200);
     assert!(asset_head.contains("text/javascript"));

@@ -32,8 +32,8 @@ Later navigation may include:
 
 A global search / question box is always available.
 
-In the current React front the public nav is 世界 / 时间线 / 搜索 / 篇章 /
-连续阅读 / Studio. 篇章 (`/chapters`) lists published immutable reading
+In the current React front the public nav is 历史 / 搜索 / 人物与地点 /
+连续阅读 / 史料原文 / Studio. 篇章 (`/chapters`) lists published immutable reading
 versions; `/chapters/{publication_id}` renders the complete single-column
 vernacular text with on-demand source references (see chapter-production
 §§7–8). Direct open and refresh of both paths serve the SPA shell from the
@@ -47,12 +47,10 @@ Continuous reading (second round, C2-R2-T15) adds `/read` and
 reading streams and fixes the exploration snapshot; entering a stream
 combines the content window, the narrative-time side axis, the single active
 unit controller, event-word previews and the current-person/place panel.
-The reading page replaces the global HistoricalTimeBar with a compact bar
-showing only the active unit's server-compiled narrative time; an explicit
-“在历史时间线查看” link converts a single exact normalized year into the
-existing timeline filter, and never rewrites the reading URL. Event and
-entity detail pages accept an optional `catalog` snapshot and can return to
-the exact reading locator through a same-site return token. Direct deep
+The reading page uses a compact bar showing only the active unit's
+server-compiled narrative time. Event source-locator and entity pages accept
+an optional `catalog` snapshot and can return to the exact reading locator
+through a same-site return token. Direct deep
 links, refresh and browser back/forward are supported. Longer-term tracks,
 map and why surfaces remain out of scope.
 
@@ -137,9 +135,13 @@ Contextual surfaces can expose:
 - Sources
 - Simulation
 
-## Global World Time Bar
+## Retired global time/world surface
 
-Chronicle should have a persistent historical-time control across major exploration surfaces.
+The former persistent World/Timeline time control is not part of the current
+public application. `/world`, `/timeline`, their public API aliases, and the
+old card stack are retired rather than redirected. The published `/history`
+edition owns its own immutable version and reading axis; links to people,
+events, and sources carry only verified version/locator context.
 
 Example:
 
@@ -186,11 +188,11 @@ Below the hero:
 - guided entry points
 - recently expanded corpus coverage
 
-## Page 2 — World at a historical moment
+## Page 2 — Continuous history at a published version
 
-Example: `World · 220 CE`
+Example: `History · published version`
 
-This is Chronicle's primary page.
+This is Chronicle's primary public reading surface at `/history`.
 
 The main content is a chronological, continuous narrative synthesized from the
 available sources. A restrained left axis locates the current historical stage.
@@ -200,16 +202,16 @@ belong in detailed life history. Original material is available through deeper
 inspection. Event terms open a light preview and can locate their anchors in the
 same historical flow, with a return to the previous reading position.
 
-The page should explain how the moment developed and what was happening around
-it. Concurrent regional context, richer lenses and a historical map can extend
-this surface when the data supports them; missing spatial or political state must
-not be invented to fill the layout.
+The page explains the reviewed sequence and what was happening around the
+selected passage. Concurrent regional context, richer lenses and a historical
+map can extend this surface when the data supports them; missing spatial or
+political state must not be invented to fill the layout.
 
-## Page 3 — Timeline
+## Page 3 — Timeline (retired)
 
-The current design prioritizes continuous chronological reading. Periods and
-events are navigation anchors; their boundaries do not end or filter the reading
-flow. There is no fixed background/course/aftermath division. Multiple comparative
+There is no public `/timeline` page. The current design prioritizes continuous
+chronological reading at `/history`: periods and reviewed events are anchors;
+their boundaries do not end or filter the reading flow. Multiple comparative
 tracks are a later extension over the same historical corpus.
 
 Possible tracks:
@@ -325,11 +327,10 @@ Supported query types:
 
 Answers should link back into concrete Chronicle surfaces such as:
 
-- timeline
-- event detail
-- entity detail
-- sources
-- historical moment
+- published history paragraphs
+- event source locator
+- person/entity detail
+- source chapters
 
 AI is a query and explanation interface over the corpus, not the authority that creates historical fact.
 
@@ -424,14 +425,12 @@ This also becomes an internal planning tool for deciding which dataset packs sho
 
 Required:
 
-1. Home
-2. World at a historical moment
-3. Timeline
-4. Entity / person detail
-5. Event detail
-6. Why / causal exploration
-7. Sources
-8. Global search / historical Q&A
+1. Home and published history entry points
+2. Continuous history at a fixed published version
+3. Entity / person detail
+4. Event source locator
+5. Sources and original chapters
+6. Global search / historical Q&A
 
 V0.5 candidates:
 

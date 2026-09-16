@@ -4,13 +4,6 @@
 // the Rust chronicle-server public boundary (`/api/v1/public/*`, served from
 // the proven C0 read model). It never touches application persistence or catalog files.
 
-export interface TimelineQuery {
-  from_year?: number;
-  to_year?: number;
-  limit?: number;
-  offset?: number;
-}
-
 export interface SearchQuery {
   q: string;
   kind?: string;
@@ -28,15 +21,6 @@ export class ApiError extends Error {
   }
 }
 
-export function timelinePath(query: TimelineQuery = {}): string {
-  const params = new URLSearchParams();
-  if (query.from_year !== undefined) params.set("from_year", String(query.from_year));
-  if (query.to_year !== undefined) params.set("to_year", String(query.to_year));
-  params.set("limit", String(query.limit ?? 50));
-  params.set("offset", String(query.offset ?? 0));
-  return `/api/v1/public/timeline?${params.toString()}`;
-}
-
 export function searchPath(query: SearchQuery): string {
   const params = new URLSearchParams();
   params.set("q", query.q.trim());
@@ -45,34 +29,10 @@ export function searchPath(query: SearchQuery): string {
   return `/api/v1/public/search?${params.toString()}`;
 }
 
-/** Optional `catalog` snapshot pins detail to the fixed exploration range. */
-export function eventPath(id: string, catalog?: string | null): string {
-  const base = `/api/v1/public/events/${encodeURIComponent(id)}`;
-  return catalog ? `${base}?catalog=${encodeURIComponent(catalog)}` : base;
-}
-
+/** Optional `catalog` snapshot pins the entity detail to the fixed source snapshot. */
 export function entityPath(id: string, catalog?: string | null): string {
   const base = `/api/v1/public/entities/${encodeURIComponent(id)}`;
   return catalog ? `${base}?catalog=${encodeURIComponent(catalog)}` : base;
-}
-
-export function timelinePathFromSearch(search: string): string {
-  const incoming = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
-  const query: TimelineQuery = {};
-  const fromYear = incoming.get("from_year");
-  const toYear = incoming.get("to_year");
-  const contextYear = incoming.get("year");
-  const limit = incoming.get("limit");
-  const offset = incoming.get("offset");
-  if (fromYear !== null && fromYear !== "") query.from_year = Number(fromYear);
-  if (toYear !== null && toYear !== "") query.to_year = Number(toYear);
-  if (query.from_year === undefined && query.to_year === undefined && contextYear !== null && contextYear !== "") {
-    query.from_year = Number(contextYear);
-    query.to_year = Number(contextYear);
-  }
-  if (limit !== null && limit !== "") query.limit = Number(limit);
-  if (offset !== null && offset !== "") query.offset = Number(offset);
-  return timelinePath(query);
 }
 
 export function searchPathFromSearch(search: string): string {

@@ -8,7 +8,7 @@
 
 一条 Reading Stream 对应一个已发布 document revision，按 chapter_index 和译文 block 顺序连续阅读。全部章、全部正文都可到达；正文不按事件年份重新排序，不截取若干 Claim 冒充完整内容。章间有标题与来源分隔，同章原有指代及嵌注归属保持连续。
 
-跨来源通过同一已确认事件的“其他记载”明确切换到另一 stream，并保存返回位置；不在前端自动混编多本书，也不额外生成跨书历史文章。既有 `/timeline` 继续承担按年浏览事件的入口，增加“进入相关正文”；侧边轴负责定位当前叙事中的时间区段。倒叙章或下一篇传记可以回到较早年份，轴明确显示回溯而不把文字重排。原章阅读入口和完整古文引用继续可用。
+跨来源通过同一已确认事件的“其他记载”明确切换到另一 stream，并保存返回位置；不在前端自动混编多本书，也不额外生成跨书历史文章。历史正文首页和侧边轴只提供已审核的阅读锚点；事件检索优先返回固定版本中的精确正文位置，没有映射时只进入来源定位。倒叙章或下一篇传记可以回到较早年份，轴明确显示回溯而不把文字重排。原章阅读入口和完整古文引用继续可用。
 
 阅读时间、片段与索引均为 Chronicle application-owned projection，遵守 Amendment 0006。模型、名称、展示分组不会新增 canonical 身份等价；既有 Resolution / Amendment 0007 决定不变。人物长期官职、阵营、关系有效期、地图、Why、问答与模拟不在本轮。当前片段的事件角色不成为长期状态，事件地点不证明参与人物都在当地。
 
@@ -97,7 +97,7 @@ stream 固定一个上传 revision 的全部章 publication。新 revision 是�
 | GET /api/v1/public/reading-events/{event_id}/preview?catalog= | 快照内名称、各来源时间观察、来源名、可用的来源译文摘录及原文入口；无正文时只有已有事实字段，不临时生成摘要 |
 | GET /api/v1/public/reading-events/{event_id}/targets?catalog=&limit=20&cursor= | 分页列出该 canonical Event 的精确正文位置、来源/章名、relation、短摘录；current 与 mention 明确分开 |
 
-既有 `/api/v1/public/events/{id}`、`/entities/{id}`（内部仍对应 `/v0/events/{id}`、`/entities/{id}`）增加可选 catalog；不带时保留原行为，从阅读进入时必须携带。复用既有详情组装，source representations、相关对象及 Resolution/relations 均限定到该 catalog 实际成员，不另建平行详情服务。与该 snapshot 无明确绑定的 latest Reader Presentation 不覆盖固定详情，返回 null 并展示已有来源证据。详情的 cache key 同样包含 catalog。
+`/entities/{id}`（内部对应 `/v0/entities/{id}`）仍可选 catalog，并把人物/地点资料限定到该来源快照。事件页改为消费 `/api/v1/public/reading-events/{event_id}/preview|targets`，只展示发布来源摘录、精确正文目标和原文入口；不再通过 `/api/v1/public/events/{id}` 暴露百科式详情。所有阅读 preview/targets cache key 都包含 catalog。
 
 Unit/context DTO 与 TypeScript 类型由协议任务统一提供。每页 limit 1..50，groups 可至 100；SELECT 使用稳定 keyset + limit+1，不读取全部正文后切片。正文页上限 2 MiB，提前停止并返回 next_cursor，不能截断某个 unit 的文字；单个 unit 连同其 metadata 上限 256 KiB，在发布编译时校验。反向游标绑定方向。preview 单次按需请求、最多 64 KiB（最多 8 个来源摘要，每个摘录至多 160 code points，并返回来源总数/更多入口）；只有摘录可明确省略，不能把它作为完整译文。targets 分页不能把首批当全部。所有 JSON 低于 Rust 现有 8 MiB 上限。
 
@@ -107,7 +107,7 @@ cursor 绑定版本、snapshot、stream、filters、方向和最后稳定排序�
 
 ## 7. 定位选择与当前片段
 
-“查看事件”打开既有 Event Detail 并保存 return token；“定位发生位置”只从 targets 中 relation=current 的位置选择。一处可直接跳转，多处展示来源/章节让用户选；没有 current 则明确暂无已收录发生段落，允许查看详情或标明为“提及”的材料。绝不把第一次字符串命中或最近年份当事件位置。“其他记载”始终明确显示来源切换。
+“查看事件”打开事件来源定位页并保存 return token；“定位发生位置”只从 targets 中 relation=current 的位置选择。一处可直接跳转，多处展示来源/章节让用户选；没有 current 则明确暂无已收录发生段落，允许查看来源定位或标明为“提及”的材料。绝不把第一次字符串命中或最近年份当事件位置。“其他记载”始终明确显示来源切换。
 
 当前人物/地点直接消费 active unit.context_entities；主要项优先、同类按本段出现顺序，按 canonical ID 去重但保留各条来源/事件角色；默认最多 6 位人物、4 个地点，其他可展开。政权和其他对象单列，不将军队/政权当人。未知/缺失关联显示无明确关联，不填整章人物或世界快照。失去当前段时清空而非留下上一段人物。
 

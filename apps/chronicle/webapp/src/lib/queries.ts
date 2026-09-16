@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ApiError, entityPath, eventPath, fetchJSON, searchPathFromSearch, timelinePathFromSearch } from "./api";
-import { historicalMomentPathFromSearch, type HistoricalMomentResponse } from "./historical-moment";
-import type { EntityDetail, EventDetail, SearchResponse, TimelineResponse } from "./types";
+import { ApiError, entityPath, fetchJSON, searchPathFromSearch } from "./api";
+import type { EntityDetail, SearchResponse } from "./types";
 
 /**
  * Composite-history phase locator (C2-R3-T13). The main reading locator is
@@ -25,31 +24,6 @@ export function personStatePhaseKey(locator: HistoryPhaseLocator) {
     locator.paragraph_id,
     locator.phase_id ?? null,
   ] as const;
-}
-
-export function useTimeline(search: string) {
-  const path = timelinePathFromSearch(search);
-  return useQuery<TimelineResponse, ApiError>({
-    queryKey: ["timeline", path],
-    queryFn: () => fetchJSON<TimelineResponse>(path),
-  });
-}
-
-export function useHistoricalMoment(search: string) {
-  const path = historicalMomentPathFromSearch(search);
-  return useQuery<HistoricalMomentResponse, ApiError>({
-    queryKey: ["historical-moment", path],
-    queryFn: () => fetchJSON<HistoricalMomentResponse>(path!),
-    enabled: path !== null,
-  });
-}
-
-export function useEvent(id: string | undefined, catalog?: string | null) {
-  return useQuery<EventDetail, ApiError>({
-    queryKey: ["event", id, catalog ?? null],
-    queryFn: () => fetchJSON<EventDetail>(eventPath(id ?? "", catalog)),
-    enabled: !!id,
-  });
 }
 
 export function useEntity(id: string | undefined, catalog?: string | null) {

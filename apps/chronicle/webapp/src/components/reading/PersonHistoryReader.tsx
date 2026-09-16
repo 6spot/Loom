@@ -16,8 +16,7 @@ import {
 } from "../../lib/person-history-api";
 import { buildReadingUrl } from "../../lib/reading-location";
 import type { ReadingLocator } from "../../lib/reading-types";
-import { readPath } from "../../lib/routes";
-import { withHistoricalTime } from "../../lib/historical-time";
+import { readPath, withPublishedContext } from "../../lib/routes";
 import type { TrajectoryEvent } from "../../lib/types";
 
 interface PersonHistoryReaderProps {
@@ -73,9 +72,9 @@ function objectLabel(object: PersonHistoryRelatedObject): string {
 function objectPath(object: PersonHistoryRelatedObject, search: string): string | null {
   const id = object.canonical_id?.trim() || object.id.trim();
   if (!id) return null;
-  if (object.kind === "event") return withHistoricalTime(`/events/${encodeURIComponent(id)}`, search);
+  if (object.kind === "event") return withPublishedContext(`/events/${encodeURIComponent(id)}`, search);
   if (["person", "place", "polity", "organization"].includes(object.kind ?? "")) {
-    return withHistoricalTime(`/entities/${encodeURIComponent(id)}`, search);
+    return withPublishedContext(`/entities/${encodeURIComponent(id)}`, search);
   }
   return null;
 }
@@ -413,7 +412,7 @@ export default function PersonHistoryReader({
               <ul>
                 {events.map((event) => (
                   <li key={event.canonical_event_id}>
-                    <Link to={withHistoricalTime(`/events/${encodeURIComponent(event.canonical_event_id)}`, search)}>{event.display?.title ?? "未命名经历"}</Link>
+                    <Link to={withPublishedContext(`/events/${encodeURIComponent(event.canonical_event_id)}`, search)}>{event.display?.title ?? "未命名经历"}</Link>
                     <span>{event.time?.start_year == null ? "年代未详" : yearLabel(event.time.start_year)}</span>
                   </li>
                 ))}

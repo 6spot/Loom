@@ -1,98 +1,99 @@
-// Canned C0-shaped Chronicle read-model responses for headless verification
-// (Playwright visual checks and the React dev loop). Shapes mirror the C0
-// read contracts; the mock serves /v0/* exactly like the Python sidecar so
-// the Rust server proxy path is exercised end to end.
+// Canned published-history/source-locator responses for the real-browser
+// verification script. The mock serves the Python sidecar's internal `/v0/*`
+// paths so the Rust public proxy is exercised end to end.
 import { createServer } from "node:http";
 
 export const RED_CLIFFS = "01a05cd7-439d-7071-bf00-86c664886b06";
+export const UNMAPPED_EVENT = "01a05cd7-6666-7888-8999-000011112222";
 export const CAO_CAO = "01a05cd7-1111-7222-8333-444455556666";
-export const JIANGLING = "01a05cd7-2222-7333-8444-555566667777";
 export const RED_CLIFFS_PLACE = "01a05cd7-3333-7444-8555-666677778888";
-export const OTHER_RED_CLIFFS_PLACE = "01a05cd7-4444-7555-8666-777788889999";
+export const HISTORY_VERSION = "a".repeat(64);
+export const READING_CATALOG = "c".repeat(64);
+export const HISTORY_PARAGRAPH = `hp_${"1".repeat(24)}`;
+export const READING_STREAM = "01a05cd7-5555-7666-8777-888899990000";
+export const READING_UNIT = `ru_${"2".repeat(24)}`;
 
-const TIMELINE_ITEM = {
-  canonical_event_id: RED_CLIFFS,
-  display: { title: "赤壁之战", type: "battle" },
-  time: { start_year: 208, end_year: 208, status: "single_year" },
-  representation_count: 2,
-  source_count: 2,
-  source_titles: ["三国志·魏书·武帝纪", "三国志·吴书·吴主传"],
+const HISTORY_PUBLICATION = {
+  version: HISTORY_VERSION,
+  catalog_sha: READING_CATALOG,
+  title: "合成历史测试版",
+  paragraph_count: 1,
+  first_paragraph_id: HISTORY_PARAGRAPH,
+  groups: [{ id: "history-group-1", year: 208, period: null, label: "建安十三年", first_paragraph_id: HISTORY_PARAGRAPH, count: 1 }],
+  entry_points: [{ label: "赤壁之战", kind: "event", paragraph_id: HISTORY_PARAGRAPH, event_id: RED_CLIFFS, ordinal: 0, year: 208, period: null, excerpt: "测试正文入口；不是历史验收材料。" }],
+  navigation: [{
+    id: HISTORY_PARAGRAPH,
+    label: "公元 208 年",
+    period: null,
+    start: 0,
+    end: 0,
+    items: [{ paragraph_id: HISTORY_PARAGRAPH, ordinal: 0, label: "赤壁之战", period: null, importance: "major" }],
+  }],
 };
 
-const EVENT_DETAIL = {
-  schema: "chronicle.event-detail",
-  version: "0.1",
-  canonical_event_id: RED_CLIFFS,
-  display: { title: "赤壁之战", type: "battle" },
-  time: { start_year: 208, end_year: 208, status: "single_year" },
+const HISTORY_PAGE = {
+  publication_version: HISTORY_VERSION,
+  paragraphs: [{
+    id: HISTORY_PARAGRAPH,
+    ordinal: 0,
+    phase_id: "history-phase-1",
+    group_id: "history-group-1",
+    segments: [{ text: "合成正文中的赤壁之战。", conclusion_ids: [], certainty: "clear", event_id: RED_CLIFFS, event_relation: "current", event_text: "赤壁之战" }],
+    entities: [{ id: CAO_CAO, name: "曹操", kind: "person", importance: "primary", states: [] }],
+  }],
+  start: 0,
+  total: 1,
+  previous_start: null,
+  next_start: null,
+};
+
+const EVENT_PREVIEW = {
+  event_id: RED_CLIFFS,
+  catalog_sha: READING_CATALOG,
+  name: "赤壁之战",
+  sources: [
+    {
+      source_title: "三国志·魏书·武帝纪",
+      publication_id: "publication-wudi",
+      observations: [{ original_text: "建安十三年", normalized: null, precision: "year" }],
+      excerpt: "公至赤壁，与备战，不利。",
+      excerpt_more: false,
+      original_entry: { publication_id: "publication-wudi", anchor_id: "anchor-wudi" },
+    },
+    {
+      source_title: "三国志·吴书·吴主传",
+      publication_id: "publication-wuzhu",
+      observations: [{ original_text: "建安十三年", normalized: null, precision: "year" }],
+      excerpt: "遇于赤壁，大破曹公军。",
+      excerpt_more: false,
+      original_entry: { publication_id: "publication-wuzhu", anchor_id: "anchor-wuzhu" },
+    },
+  ],
   source_count: 2,
-  representations: [
-    {
-      bundle: "wudi",
-      ref: "evt_022",
-      source: { title: "三国志·魏书·武帝纪", record: { ref: "src_001" } },
-      event: { title: "公至赤壁，与备战，不利" },
-      claims: [
-        {
-          bundle: "wudi",
-          ref: "clm_024",
-          claim: {
-            predicate: "outcome",
-            evidence: { text: "公至赤壁，与备战，不利。", locator: { section: "建安十三年" } },
-          },
-        },
-      ],
-    },
-    {
-      bundle: "wuzhu",
-      ref: "evt_016",
-      source: { title: "三国志·吴书·吴主传", record: { ref: "src_002" } },
-      event: { title: "瑜、普为左右督，各领万人，与备俱进，遇于赤壁，大破曹公军" },
-      claims: [
-        {
-          bundle: "wuzhu",
-          ref: "clm_018",
-          claim: { predicate: "outcome", evidence: { text: "遇于赤壁，大破曹公军。", locator: {} } },
-        },
-      ],
-    },
-  ],
-  participants: [
-    {
-      canonical_entity_id: CAO_CAO,
-      display: { name: "曹操", type: "person" },
-      source_roles: [{ bundle: "wudi", event_ref: "evt_022", entity_ref: "ent_001", role: "commander" }],
-    },
-  ],
-  places: [
-    {
-      canonical_entity_id: RED_CLIFFS_PLACE,
-      display: { name: "赤壁", type: "place" },
-      source_refs: [{ bundle: "wudi", event_ref: "evt_022", entity_ref: "ent_010" }],
-    },
-  ],
-  related_events: [
-    {
-      type: "related_occurrence",
-      event: {
-        canonical_event_id: JIANGLING,
-        display: { title: "曹操北还并留军守江陵、襄阳", type: "military" },
-        time: { start_year: 208, end_year: 208, status: "single_year" },
-      },
-      provenance: [],
-    },
-  ],
-  resolution_links: [
-    {
-      candidate_id: "vc_001",
-      decision: "same_occurrence",
-      confidence: 0.98,
-      rationale: "两来源描述同一赤壁交战。",
-      signals: { time: "208" },
-      left: { canonical_event_id: RED_CLIFFS },
-      right: { canonical_event_id: RED_CLIFFS },
-    },
-  ],
+  has_more_sources: false,
+};
+
+const EVENT_TARGETS = {
+  event_id: RED_CLIFFS,
+  catalog_sha: READING_CATALOG,
+  targets: [{
+    event_id: RED_CLIFFS,
+    catalog_sha: READING_CATALOG,
+    relation: "current",
+    stream_id: READING_STREAM,
+    publication_id: "publication-wudi",
+    chapter_id: "chapter-wudi",
+    chapter_title: "武帝纪",
+    source_title: "三国志·魏书·武帝纪",
+    unit_id: READING_UNIT,
+    span_id: "span-red-cliffs",
+    locator: { stream_id: READING_STREAM, catalog_sha: READING_CATALOG, unit_id: READING_UNIT },
+    excerpt: "公至赤壁，与备战，不利。",
+  }],
+  current_count: 1,
+  mention_count: 0,
+  next_cursor: null,
+  has_more: false,
 };
 
 const CAO_ENTITY = {
@@ -102,44 +103,10 @@ const CAO_ENTITY = {
   display: { name: "曹操", type: "person" },
   source_count: 2,
   representation_count: 2,
-  representations: [
-    {
-      bundle: "wudi",
-      ref: "ent_001",
-      source: { title: "三国志·魏书·武帝纪", record: {} },
-      entity: { canonical_name: "曹操", aliases: ["曹孟德"] },
-      claims: [],
-    },
-    {
-      bundle: "wuzhu",
-      ref: "ent_004",
-      source: { title: "三国志·吴书·吴主传", record: {} },
-      entity: { canonical_name: "曹操", aliases: ["曹公"] },
-      claims: [],
-    },
-  ],
-  events: [
-    {
-      canonical_event_id: RED_CLIFFS,
-      display: { title: "赤壁之战", type: "battle" },
-      time: { start_year: 208, end_year: 208, status: "single_year" },
-      source_involvements: [
-        { bundle: "wudi", entity_ref: "ent_001", event_ref: "evt_022", participant_roles: ["commander"], as_place: false },
-      ],
-    },
-  ],
+  representations: [],
+  events: [{ canonical_event_id: RED_CLIFFS, display: { title: "赤壁之战" }, time: { start_year: 208, end_year: 208 }, source_involvements: [{ participant_roles: ["commander"], as_place: false }] }],
   claims: [],
-  resolution_links: [
-    {
-      candidate_id: "vc_002",
-      decision: "same_entity",
-      confidence: 0.99,
-      rationale: "两来源指向同一人物曹操。",
-      signals: { name: "曹操" },
-      left: { canonical_entity_id: CAO_CAO },
-      right: { canonical_entity_id: CAO_CAO },
-    },
-  ],
+  resolution_links: [],
 };
 
 const PLACE_ENTITY = {
@@ -147,134 +114,47 @@ const PLACE_ENTITY = {
   version: "0.1",
   canonical_entity_id: RED_CLIFFS_PLACE,
   display: { name: "赤壁", type: "place" },
-  representation_count: 1,
   source_count: 1,
-  representations: [
-    {
-      bundle: "wudi",
-      ref: "ent_010",
-      source: { title: "三国志·魏书·武帝纪", record: {} },
-      entity: { canonical_name: "赤壁", aliases: [] },
-      claims: [],
-    },
-  ],
-  events: [
-    {
-      canonical_event_id: RED_CLIFFS,
-      display: { title: "赤壁之战", type: "battle" },
-      time: { start_year: 208, end_year: 208, status: "single_year" },
-      source_involvements: [
-        { bundle: "wudi", entity_ref: "ent_010", event_ref: "evt_022", participant_roles: [], as_place: true },
-      ],
-    },
-  ],
+  representation_count: 1,
+  representations: [],
+  events: [{ canonical_event_id: RED_CLIFFS, display: { title: "赤壁之战" }, time: { start_year: 208, end_year: 208 }, source_involvements: [{ participant_roles: [], as_place: true }] }],
   claims: [],
-  resolution_links: [
-    {
-      candidate_id: "vc_010",
-      decision: "uncertain",
-      confidence: 0.55,
-      rationale: "同名地点但现有来源不足以证明身份完全相同。",
-      signals: { name: "赤壁" },
-      left: { canonical_entity_id: RED_CLIFFS_PLACE },
-      right: { canonical_entity_id: OTHER_RED_CLIFFS_PLACE },
-    },
-  ],
+  resolution_links: [{ decision: "uncertain", confidence: 0.55, rationale: "测试身份不确定" }],
 };
 
 function searchItems(q) {
   if (q.includes("曹操")) {
-    return [
-      {
-        kind: "entity",
-        canonical_id: CAO_CAO,
-        display: { name: "曹操", type: "person" },
-        representation_count: 2,
-        source_count: 2,
-        source_titles: ["三国志·魏书·武帝纪", "三国志·吴书·吴主传"],
-        identity_uncertain: false,
-        navigation_path: `/entities/${CAO_CAO}`,
-        match: {
-          rank: 0,
-          matched_surfaces: [
-            { rank: 1, match: "exact", field: "entity.canonical_name", value: "曹操", bundle: "wudi", ref: "ent_001", source_title: "三国志·魏书·武帝纪" },
-            { rank: 2, match: "exact", field: "entity.canonical_name", value: "曹操", bundle: "wuzhu", ref: "ent_004", source_title: "三国志·吴书·吴主传" },
-          ],
-        },
-      },
-    ];
+    return [{ kind: "entity", canonical_id: CAO_CAO, display: { name: "曹操", type: "person" }, representation_count: 2, source_count: 2, identity_uncertain: false, navigation_path: `/entities/${CAO_CAO}`, match: { rank: 0, matched_surfaces: [{ match: "exact", field: "entity.canonical_name", value: "曹操", source_title: "三国志·魏书·武帝纪" }] } }];
   }
   if (q.includes("赤壁")) {
     return [
-      {
-        kind: "event",
-        canonical_id: RED_CLIFFS,
-        display: { title: "赤壁之战", type: "battle" },
-        time: { start_year: 208, end_year: 208, status: "single_year" },
-        representation_count: 2,
-        source_count: 2,
-        source_titles: ["三国志·魏书·武帝纪", "三国志·吴书·吴主传"],
-        navigation_path: `/events/${RED_CLIFFS}`,
-        match: {
-          rank: 0,
-          matched_surfaces: [
-            { rank: 1, match: "exact", field: "event.title", value: "赤壁之战", bundle: "wudi", ref: "evt_022", source_title: "三国志·魏书·武帝纪" },
-          ],
-        },
-      },
-      {
-        kind: "entity",
-        canonical_id: RED_CLIFFS_PLACE,
-        display: { name: "赤壁", type: "place" },
-        representation_count: 1,
-        source_count: 1,
-        source_titles: ["三国志·魏书·武帝纪"],
-        identity_uncertain: true,
-        navigation_path: `/entities/${RED_CLIFFS_PLACE}`,
-        match: {
-          rank: 3,
-          matched_surfaces: [
-            { rank: 3, match: "exact", field: "entity.canonical_name", value: "赤壁", bundle: "wudi", ref: "ent_010", source_title: "三国志·魏书·武帝纪" },
-          ],
-        },
-      },
+      { kind: "event", canonical_id: RED_CLIFFS, display: { title: "赤壁之战", type: "battle" }, representation_count: 2, source_count: 2, navigation_path: `/events/${RED_CLIFFS}`, match: { rank: 0, matched_surfaces: [{ match: "exact", field: "event.title", value: "赤壁之战", source_title: "三国志·魏书·武帝纪" }] } },
+      { kind: "entity", canonical_id: RED_CLIFFS_PLACE, display: { name: "赤壁", type: "place" }, representation_count: 1, source_count: 1, identity_uncertain: true, navigation_path: `/entities/${RED_CLIFFS_PLACE}`, match: { rank: 3, matched_surfaces: [{ match: "exact", field: "entity.canonical_name", value: "赤壁", source_title: "三国志·魏书·武帝纪" }] } },
     ];
+  }
+  if (q.includes("无正文")) {
+    return [{ kind: "event", canonical_id: UNMAPPED_EVENT, display: { title: "无正文对应事件", type: "event" }, representation_count: 1, source_count: 1, navigation_path: `/events/${UNMAPPED_EVENT}`, match: { rank: 0, matched_surfaces: [{ match: "exact", field: "event.title", value: "无正文对应事件", source_title: "测试来源" }] } }];
   }
   return [];
 }
 
 function payloadFor(path, query) {
-  if (path === "/healthz") return [200, { status: "ok" }];
-  if (path === "/v0/timeline") {
-    return [
-      200,
-      {
-        schema: "chronicle.timeline",
-        version: "0.1",
-        query: { from_year: 208, to_year: 208, limit: 50, offset: 0 },
-        page: { total: 1, returned: 1, has_more: false },
-        items: [TIMELINE_ITEM],
-      },
-    ];
-  }
+  if (path === "/v0/history") return [200, { publication: HISTORY_PUBLICATION }];
+  if (path === "/v0/history/paragraphs") return [200, HISTORY_PAGE];
+  if (path === "/v0/reading-streams") return [200, { schema: "chronicle.reading", version: "0.1", snapshot: { catalog_sha: READING_CATALOG, publication_sequence: 1 }, query: {}, page: { streams: [], limit: 1, has_more: false, next_cursor: null } }];
+  if (path === `/v0/reading-events/${RED_CLIFFS}/preview`) return [200, EVENT_PREVIEW];
+  if (path === `/v0/reading-events/${RED_CLIFFS}/targets`) return [200, EVENT_TARGETS];
   if (path === "/v0/search") {
-    const q = query.get("q") ?? "";
-    const items = searchItems(q);
-    return [
-      200,
-      {
-        schema: "chronicle.search",
-        version: "0.1",
-        query: { q, kind: query.get("kind") ?? "all", limit: 20 },
-        page: { total: items.length, returned: items.length, has_more: false },
-        items,
-      },
-    ];
+    const items = searchItems(query.get("q") ?? "");
+    return [200, { schema: "chronicle.search", version: "0.1", query: { q: query.get("q") ?? "", kind: query.get("kind") ?? "all", limit: 20 }, page: { total: items.length, returned: items.length, has_more: false }, items }];
   }
-  if (path === `/v0/events/${RED_CLIFFS}`) return [200, EVENT_DETAIL];
   if (path === `/v0/entities/${CAO_CAO}`) return [200, CAO_ENTITY];
   if (path === `/v0/entities/${RED_CLIFFS_PLACE}`) return [200, PLACE_ENTITY];
-  return [404, { schema: "chronicle.error", version: "0.1", error: { code: "not_found", message: "mock: unknown id" } }];
+  if (path === `/v0/entities/${CAO_CAO}/history`) return [200, { person_id: CAO_CAO, publication: null, status: "empty", empty: true }];
+  if (path.startsWith("/v0/chapters/") && path.includes("/sources/")) {
+    return [200, { anchor_id: path.split("/sources/")[1], view: query.get("view") ?? "window", source_sha256: "d".repeat(64), chapter_range: [0, 1], page_range: [0, 1], segments: [{ text: "合成原文依据。", highlight: true }], next_cursor: null, has_more: false }];
+  }
+  return [404, { schema: "chronicle.error", version: "0.1", error: { code: "not_found", message: "mock: unknown path" } }];
 }
 
 export function startMockUpstream(port = 0) {

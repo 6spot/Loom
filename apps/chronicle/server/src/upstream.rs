@@ -421,7 +421,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: addr.port(),
         };
-        let response = fetch_upstream(&target, "/v0/timeline?limit=1")
+        let response = fetch_upstream(&target, "/v0/search?q=fixture")
             .await
             .expect("fetch");
         assert_eq!(response.status, 200);
@@ -435,7 +435,7 @@ mod tests {
             host: "127.0.0.1".to_string(),
             port: 1,
         };
-        let error = fetch_upstream(&target, "/v0/timeline")
+        let error = fetch_upstream(&target, "/v0/search")
             .await
             .expect_err("fails");
         assert!(matches!(error, UpstreamError::Unreachable(_)));

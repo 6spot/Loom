@@ -2,9 +2,9 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { historyPath, historyTimeLabel, loadHistory } from "../../lib/history-api";
 import { useSearch } from "../../lib/queries";
-import { formatTime } from "../../lib/routes";
-import { withHistoricalTime } from "../../lib/historical-time";
+import { withPublishedContext } from "../../lib/routes";
 import { ErrorState, LoadingState } from "../../components/shared";
+import type { HistoryEntry, HistoryPublication } from "../../lib/history-api";
 import type { SearchItem, SearchSurface } from "../../lib/types";
 
 const MATCH_LABEL: Record<string, string> = { exact: "完全匹配", prefix: "前缀匹配", substring: "包含匹配" };
@@ -17,20 +17,72 @@ function EntityCard({ item, timeSearch }: { item: SearchItem; timeSearch: string
   return (
     <article className="search-card entity-result" data-search-kind="entity" data-canonical-id={item.canonical_id}>
       <div className="search-card-topline"><span className="chip type">Entity</span>{item.identity_uncertain ? <span className="decision uncertain">身份不确定</span> : null}<span className="count">rank {item.match?.rank ?? "—"}</span></div>
-      <h2><Link to={withHistoricalTime(item.navigation_path, timeSearch)}>{item.display?.name ?? "未命名实体"}</Link></h2>
+      <h2><Link to={withPublishedContext(item.navigation_path, timeSearch)}>{item.display?.name ?? "未命名实体"}</Link></h2>
       <div className="hero-meta"><span className="chip">{item.display?.type ?? "entity"}</span><span className="chip">{item.source_count ?? 0} 个来源</span><span className="chip">{item.representation_count ?? 0} 条记录</span></div>
       <details className="search-match"><summary>为什么命中</summary><ul>{(item.match?.matched_surfaces ?? []).slice(0, 6).map((surface, index) => <MatchedSurface key={index} surface={surface} />)}</ul></details>
     </article>
   );
 }
 
-function EventCard({ item, timeSearch }: { item: SearchItem; timeSearch: string }) {
+function PublishedEventLinks({
+  item,
+  publication,
+  pending,
+  search,
+}: {
+  item: SearchItem;
+  publication: HistoryPublication | null | undefined;
+  pending: boolean;
+  search: string;
+}) {
+  const sourcePath = withPublishedContext(item.navigation_path, search);
+  const locations = publication?.entry_points.filter((entry) => entry.event_id === item.canonical_id) ?? [];
+  if (pending) return <p className="muted" data-test="search-event-history-pending">正在核对已发布正文位置…</p>;
+  if (locations.length === 0) {
+    return (
+      <div className="search-event-navigation" data-test="search-event-unmapped">
+        <p className="muted">暂无对应历史正文；以下入口只展示已发布的来源定位。</p>
+        <Link className="public-text-button" to={sourcePath} data-test="search-event-source-link">查看来源定位</Link>
+      </div>
+    );
+  }
+  return (
+    <div className="search-event-navigation" data-test="search-event-mapped">
+      <p className="muted">已发布历史正文位置{locations.length > 1 ? "（请选择）" : ""}：</p>
+      <div className="search-event-location-list">
+        {locations.map((entry) => (
+          <Link
+            className="public-text-button"
+            key={entry.paragraph_id}
+            to={historyPath({ version: publication!.version, paragraph_id: entry.paragraph_id })}
+            data-test="search-event-history-link"
+          >
+            {historyTimeLabel(entry)} · {entry.label}
+          </Link>
+        ))}
+      </div>
+      <Link className="public-text-button" to={sourcePath} data-test="search-event-source-link">查看来源定位</Link>
+    </div>
+  );
+}
+
+function EventCard({
+  item,
+  timeSearch,
+  publication,
+  historyPending,
+}: {
+  item: SearchItem;
+  timeSearch: string;
+  publication: HistoryPublication | null | undefined;
+  historyPending: boolean;
+}) {
   return (
     <article className="search-card event-result" data-search-kind="event" data-canonical-id={item.canonical_id}>
       <div className="search-card-topline"><span className="chip type">Event</span><span className="count">rank {item.match?.rank ?? "—"}</span></div>
-      <h2><Link to={withHistoricalTime(item.navigation_path, timeSearch)}>{item.display?.title ?? "未命名事件"}</Link></h2>
-      <p className="search-time">{formatTime(item.time ?? {})}</p>
+      <h2>{item.display?.title ?? "未命名事件"}</h2>
       <div className="hero-meta"><span className="chip">{item.display?.type ?? "event"}</span><span className="chip">{item.source_count ?? 0} 个来源</span><span className="chip">{item.representation_count ?? 0} 条记录</span></div>
+      <PublishedEventLinks item={item} publication={publication} pending={historyPending} search={timeSearch} />
       <details className="search-match"><summary>为什么命中</summary><ul>{(item.match?.matched_surfaces ?? []).slice(0, 6).map((surface, index) => <MatchedSurface key={index} surface={surface} />)}</ul></details>
     </article>
   );
@@ -41,7 +93,12 @@ export default function SearchPage() {
   const location = useLocation();
   const q = (searchParams.get("q") ?? "").trim();
   const search = useSearch(`?${searchParams.toString()}`);
-  const history = useQuery({ queryKey: ["history", "directory", "latest"], queryFn: () => loadHistory(), staleTime: 30_000 });
+  const requestedVersion = searchParams.get("version");
+  const history = useQuery({
+    queryKey: ["history", "directory", requestedVersion ?? "latest"],
+    queryFn: () => loadHistory(requestedVersion),
+    staleTime: 30_000,
+  });
   const entries = history.data?.entry_points.filter((entry) => q && entry.label.includes(q)) ?? [];
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -54,7 +111,7 @@ export default function SearchPage() {
 
   const form = <form className="search-page-form" action="/search" method="get" onSubmit={submit}><label htmlFor="search-page-q">搜索词</label><div className="search-row"><input id="search-page-q" name="q" defaultValue={q} autoComplete="off" placeholder="曹操、赤壁之战、江陵…" /><button className="primary-button" type="submit">搜索</button></div></form>;
 
-  if (!q) return <section data-view="search"><header className="page-header"><p className="eyebrow">Search</p><h1>搜索历史世界</h1><p className="lede">输入人物、地点或事件，例如「曹操」「赤壁」「江陵」。结果以 canonical Entity/Event 导航，来源命中理由保持可见。</p></header>{form}<section className="state-card empty-card"><h2>从一个名字或事件开始</h2><p className="muted">Chronicle 只做可解释的词面检索，不会用模型生成一个看似权威的历史答案。</p></section></section>;
+  if (!q) return <section data-view="search"><header className="page-header"><p className="eyebrow">Search</p><h1>搜索历史</h1><p className="lede">输入人物、地点或事件，例如「曹操」「赤壁」「江陵」。结果以 canonical Entity/Event 导航，来源命中理由保持可见。</p></header>{form}<section className="state-card empty-card"><h2>从一个名字或事件开始</h2><p className="muted">Chronicle 只做可解释的词面检索，不会用模型生成一个看似权威的历史答案。</p></section></section>;
   if (search.isPending) return <LoadingState label="搜索结果" />;
   if (search.isError) return <ErrorState code={search.error.code} message={search.error.message} />;
 
@@ -65,9 +122,9 @@ export default function SearchPage() {
     <section data-view="search">
       <header className="page-header"><p className="eyebrow">Search</p><h1>“{data.query?.q ?? q}” 的搜索结果</h1><p className="lede">同一 canonical 对象只出现一次；展开“为什么命中”可以看到具体来源表示和匹配字段。</p></header>
       {form}
-      {history.data && entries.length ? <section className="home-section" aria-label="历史正文阅读入口"><h2>在历史正文中阅读</h2><div className="home-entries">{entries.map((entry) => <Link className="history-entry" key={`${entry.kind}:${entry.paragraph_id}`} to={historyPath({ version: history.data!.version, paragraph_id: entry.paragraph_id })}><span className="history-entry-time">{historyTimeLabel(entry)}</span><strong>{entry.label}</strong><span className="history-entry-excerpt">{entry.excerpt}</span></Link>)}</div></section> : null}
+      {history.data && entries.length ? <section className="home-section" aria-label="历史正文阅读入口"><h2>在历史正文中阅读</h2><div className="home-entries">{entries.map((entry: HistoryEntry) => <Link className="history-entry" key={`${entry.kind}:${entry.paragraph_id}`} to={historyPath({ version: history.data!.version, paragraph_id: entry.paragraph_id })}><span className="history-entry-time">{historyTimeLabel(entry)}</span><strong>{entry.label}</strong><span className="history-entry-excerpt">{entry.excerpt}</span></Link>)}</div></section> : null}
       <div className="page-stats"><span>共 {page.total ?? items.length} 个 canonical 结果</span><span>显示 {page.returned ?? items.length} 个</span></div>
-      {items.length ? <><div className="search-results">{items.map((item) => item.kind === "entity" ? <EntityCard key={item.canonical_id} item={item} timeSearch={location.search} /> : <EventCard key={item.canonical_id} item={item} timeSearch={location.search} />)}</div>{page.has_more ? <p className="muted">还有更多匹配；当前只展示前 {page.returned} 条，可收窄查询词。</p> : null}</> : <section className="state-card empty-card"><h2>没有找到匹配结果</h2><p className="muted">这只表示当前 Chronicle 语料里没有词面命中，不代表历史上不存在相关人物或事件。</p></section>}
+      {items.length ? <><div className="search-results">{items.map((item) => item.kind === "entity" ? <EntityCard key={item.canonical_id} item={item} timeSearch={location.search} /> : <EventCard key={item.canonical_id} item={item} timeSearch={location.search} publication={history.data} historyPending={history.isPending} />)}</div>{page.has_more ? <p className="muted">还有更多匹配；当前只展示前 {page.returned} 条，可收窄查询词。</p> : null}</> : <section className="state-card empty-card"><h2>没有找到匹配结果</h2><p className="muted">这只表示当前 Chronicle 语料里没有词面命中，不代表历史上不存在相关人物或事件。</p></section>}
     </section>
   );
 }

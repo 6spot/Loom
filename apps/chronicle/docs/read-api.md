@@ -1,6 +1,12 @@
 # Chronicle Read Model / API v0
 
-C0-T10 exposes the persisted Chronicle world as deterministic read-only application contracts for Timeline, Event Detail, and Entity Detail.
+C0-T10 exposes the persisted Chronicle read model as deterministic read-only
+application contracts. The `/v0/*` paths below are internal Python-sidecar
+protocols: the current browser reaches Search, Entity, history, source reading,
+and event source-location data through the Rust `/api/v1/public/*` boundary.
+The former public World/Timeline/Event Detail aliases are retired there and
+return typed `404`; retaining an internal contract below does not make it a
+public browser route.
 
 ## Authority boundary
 

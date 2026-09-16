@@ -182,10 +182,7 @@ fn is_single_segment(rest: &str) -> bool {
 }
 
 fn is_spa_path(path: &str) -> bool {
-    if path == "/world" || path == "/world/" {
-        return true;
-    }
-    if path == "/" || path == "/timeline" || path == "/timeline/" {
+    if path == "/" {
         return true;
     }
     if path == "/search" || path == "/search/" {
@@ -275,10 +272,6 @@ mod tests {
             "/history",
             "/history/",
             "/",
-            "/world",
-            "/world/",
-            "/timeline",
-            "/timeline/",
             "/search",
             "/chapters",
             "/chapters/",
@@ -402,6 +395,10 @@ mod tests {
     #[test]
     fn non_web_paths_do_not_resolve() {
         for path in [
+            "/world",
+            "/world/",
+            "/timeline",
+            "/timeline/",
             "/api/v1/public/timeline",
             "/api/v1/public/chapters",
             "/api/v1/public/chapters/some-id",

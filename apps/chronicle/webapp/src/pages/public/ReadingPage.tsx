@@ -3,10 +3,9 @@
 // 组合 T09 typed client、T10 正文窗口、T11 侧边轴、T12 单一控制器、T13 事件
 // 预览与 T14 当前片段面板，成为真实公开阅读流程。布局与交互合同见
 // reading-experience.md：正文优先，桌面三列 / 平板两列 / 窄屏单栏；compact bar
-// 只显示 active unit 的叙事时间，绝不用全局 HistoricalTimeBar 覆盖阅读返回。
+// 只显示 active unit 的叙事时间，不覆盖阅读返回位置。
 //
-// 本页不重写分组/定位/关联算法，也不修改 World 时间或 Runtime Timeline；URL 只
-// 由校验过的 stream/catalog/unit 字段构建。
+// 本页不重写分组/定位/关联算法；URL 只由校验过的 stream/catalog/unit 字段构建。
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -42,10 +41,8 @@ import {
   type ReadingUnit,
   type StreamPage,
   type TimeGroup,
-  type TimeObservation,
 } from "../../lib/reading-types";
 import { mergeReadingUnitPages, readingAdjacentPages } from "../../lib/reading-window";
-import { isSupportedHistoricalYear } from "../../lib/historical-time";
 import { readPath, readingPath } from "../../lib/routes";
 import "../../styles/reading-layout.css";
 
@@ -106,26 +103,6 @@ export function narrativeTimeLabel(time: {
     (part): part is string => Boolean(part && part.trim()),
   );
   return parts.length > 0 ? parts.join(" · ") : "时间未明确";
-}
-
-/** 仅当本段有唯一、已换算的公历观察年时才提供显式时间线入口。 */
-export function explicitTimelineYear(
-  observations: readonly TimeObservation[] | null | undefined,
-): number | null {
-  const years = new Set<number>();
-  for (const observation of observations ?? []) {
-    const normalized = observation.normalized;
-    if (!normalized) continue;
-    if (normalized.calendar && normalized.calendar !== "proleptic_gregorian") continue;
-    if (normalized.approximate === true) continue;
-    if (normalized.conversion_status === "partial" || normalized.conversion_status === "unresolved") {
-      continue;
-    }
-    if (typeof normalized.year === "number" && Number.isInteger(normalized.year)) {
-      years.add(normalized.year);
-    }
-  }
-  return years.size === 1 ? [...years][0] : null;
 }
 
 function safeLocator(streamId: string, catalog: string, unitId: string): ReadingLocator | null {
@@ -501,11 +478,6 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
     : null;
 
   const narrativeTime = controller.narrativeTime;
-  const timelineYear = explicitTimelineYear(narrativeTime?.observations);
-  const timelineHref =
-    timelineYear !== null && isSupportedHistoricalYear(timelineYear)
-      ? `/timeline?year=${timelineYear}`
-      : null;
 
   const activeUnit = controller.activeUnitId ? unitByIdRef.current.get(controller.activeUnitId) : undefined;
   const issue = controller.issue;
@@ -639,7 +611,6 @@ function ReadingSurface({ streamId, catalog, client, onOpenEvent, onOpenEntity }
             查看原文依据{toolsUnit.source_anchor_ids.length > 1 ? ` ${index + 1}` : ""}
           </button>)}
           {toolsUnit.source_anchor_ids.length === 0 ? <p>这一段尚未附上原文依据。</p> : null}
-          {timelineHref ? <a className="public-text-button" data-test="reading-compact-timeline" href={timelineHref}>查看这个时刻的其他事件</a> : null}
         </div> : null}
       </PublicDialog> : null}
     </section>
