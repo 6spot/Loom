@@ -12,7 +12,7 @@ from unittest.mock import patch
 import yaml
 
 from ci_routing import (
-    GROUPS, STEPS, SUITES, changed_paths, check_docs, check_notes,
+    GROUPS, MAX_REASON_EXAMPLES, STEPS, SUITES, changed_paths, check_docs, check_notes,
     check_results, classify, emit, validate_plan,
 )
 
@@ -361,6 +361,20 @@ class GitInputTests(unittest.TestCase):
         lines = Path("output.txt").read_text().splitlines()
         self.assertEqual(len(lines), 1)
         self.assertEqual(json.loads(lines[0].split("=", 1)[1]), plan)
+
+    def test_large_evidence_diff_keeps_ci_plan_below_process_limit(self):
+        paths = [
+            f"apps/chronicle/corpus/second-round/acceptance/evidence-{index:04}.json"
+            for index in range(300)
+        ]
+        plan = classify(paths)
+        validate_plan(plan)
+        encoded = json.dumps(plan, separators=(",", ":")).encode("utf-8")
+        self.assertLess(len(encoded), 100_000)
+        self.assertLessEqual(
+            max(len(reasons) for reasons in plan["reasons"].values()),
+            MAX_REASON_EXAMPLES,
+        )
 
     def test_deleted_docs_and_notes_do_not_read_missing_files(self):
         plan = classify(["docs/gone.md", "docs/tasks/chronicle/third-round/T01-gone.md"])
