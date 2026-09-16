@@ -50,6 +50,10 @@ r5 chain is the separate real-publication association requested by review.
 ### Gate and validation
 
 The latest current-head staged gate was run with the required browser suite and
-is recorded under `final-gate/` after the evidence commit. Focused persistence
-and staged-gate tests, JSON parsing, Python compilation and whitespace checks
-are reported in the PR handoff.
+is recorded under `final-gate/` after the evidence commit. It passed against
+commit `1c1e002cc97a7dd14e1a549d63a76dd1f0714144`, including the fixture
+reading, person-state review, performance, accessibility and browser flows at
+the 5,000-unit/1,000-group scale. The earlier missing-Playwright prerequisite
+is preserved under `final-gate-prerequisite-failure/`; it is not presented as a
+product failure. Focused persistence and staged-gate tests, JSON parsing, Python
+compilation and whitespace checks are reported in the PR handoff.
