@@ -219,8 +219,85 @@ def _strict_provider_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
     scalar_keys = (
         "type", "enum", "const", "pattern", "minLength", "maxLength",
-        "minimum", "maximum", "minItems", "maxItems", "uniqueItems",
+        "minimum", "maximum", "minItems", "maxItems",
     )
+
+    def type_for_value(value: Any) -> str:
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, int):
+            return "integer"
+        if isinstance(value, float):
+            return "number"
+        if isinstance(value, str):
+            return "string"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, dict):
+            return "object"
+        raise PersistenceError("provider schema contains an unsupported constant")
+
+    def scalar_union(types: list[str], constraints: dict[str, Any] | None = None,
+                     enum_values: list[Any] | None = None) -> dict[str, Any]:
+        constraints = constraints or {}
+        branches = []
+        for type_name in types:
+            branch = {"type": type_name}
+            keys = {
+                "string": ("pattern", "minLength", "maxLength"),
+                "integer": ("minimum", "maximum"),
+                "number": ("minimum", "maximum"),
+                "array": ("minItems", "maxItems"),
+            }.get(type_name, ())
+            branch.update({key: copy.deepcopy(constraints[key]) for key in keys if key in constraints})
+            if enum_values is not None:
+                branch["enum"] = [
+                    copy.deepcopy(item) for item in enum_values
+                    if type_for_value(item) == type_name
+                ]
+            branches.append(branch)
+        return {"anyOf": branches}
+
+    def finish_scalar(result: dict[str, Any], original: dict[str, Any]) -> dict[str, Any]:
+        """Give every provider property an explicit type or typed union.
+
+        The configured Responses gateway rejects otherwise-valid JSON Schema
+        properties such as ``{"const": "model"}`` and ``{"enum": [...]}``
+        without a sibling ``type``.  Draft 2020-12 permits both forms, but the
+        provider subset requires the explicit annotation.
+        """
+        if "type" in result and isinstance(result["type"], list):
+            types = [str(item) for item in result.pop("type")]
+            return {**scalar_union(types, result), **{
+                key: value for key, value in result.items()
+                if key not in {"pattern", "minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems"}
+            }}
+        if "type" not in result and "const" in result:
+            result["type"] = type_for_value(result["const"])
+        if "type" not in result and "enum" in result:
+            values = list(result["enum"])
+            types = list(dict.fromkeys(type_for_value(item) for item in values))
+            if len(types) == 1:
+                result["type"] = types[0]
+            else:
+                result.pop("enum")
+                return scalar_union(types, enum_values=values)
+        if not result:
+            # ``literal_ref.value`` and repair patch values are arbitrary JSON
+            # owned by the local validator. Keep the provider subset explicit
+            # while covering the useful scalar/object/array cases.
+            return {
+                "anyOf": [
+                    {"type": "string"}, {"type": "number"},
+                    {"type": "boolean"}, {"type": "null"},
+                    {"type": "array", "items": {"type": "string"}},
+                    {"type": "object", "additionalProperties": False,
+                     "properties": {}, "required": []},
+                ]
+            }
+        return result
 
     def merge_objects(parts: list[dict[str, Any]]) -> dict[str, Any]:
         properties: dict[str, Any] = {}
@@ -333,7 +410,7 @@ def _strict_provider_schema(schema: dict[str, Any]) -> dict[str, Any]:
             result["required"] = required
         if "items" in value:
             result["items"] = project(value["items"])
-        return result
+        return finish_scalar(result, value)
 
     projected = project(schema)
     if not isinstance(projected, dict):

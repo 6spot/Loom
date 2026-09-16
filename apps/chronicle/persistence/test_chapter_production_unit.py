@@ -133,6 +133,7 @@ class ChapterPatchTests(unittest.TestCase):
                     if isinstance(node, dict):
                         for forbidden in ("$ref", "$defs", "allOf", "oneOf", "if", "then", "not"):
                             self.assertNotIn(forbidden, node)
+                        self.assertNotIn("uniqueItems", node)
                         for child in node.values():
                             assert_no_composition(child)
                     elif isinstance(node, list):
