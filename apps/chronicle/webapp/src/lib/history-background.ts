@@ -57,6 +57,36 @@ export interface HistoryBackground {
 }
 
 const API = "/api/v1/public/backgrounds";
+const IMAGE_API = "/api/v1/public/background-assets";
+const LOCAL_ORIGIN = "https://loom.local";
+const HISTORY_SHA = /^[0-9a-f]{64}$/;
+const HISTORY_PARAGRAPH = /^hp_[0-9a-f]{24}$/;
+
+/** Keep metadata cache entries scoped to the immutable edition and exact paragraph. */
+export function historyBackgroundQueryKey(version: string, paragraphId: string): readonly string[] {
+  return ["history", "background", version, paragraphId];
+}
+
+/**
+ * The reading controller already owns the active paragraph. This helper only
+ * selects the two adjacent loaded paragraphs; it never observes scrolling or
+ * creates another position state machine.
+ */
+export function historyBackgroundAdjacentParagraphIds(
+  paragraphs: readonly { readonly id: string; readonly ordinal: number }[],
+  activeParagraphId: string | null,
+): string[] {
+  if (!activeParagraphId) return [];
+  const active = paragraphs.find((paragraph) => paragraph.id === activeParagraphId);
+  if (!active || !Number.isSafeInteger(active.ordinal)) return [];
+  const byOrdinal = new Map<number, string>();
+  for (const paragraph of paragraphs) {
+    if (paragraph.id && Number.isSafeInteger(paragraph.ordinal)) byOrdinal.set(paragraph.ordinal, paragraph.id);
+  }
+  return [-1, 1]
+    .map((delta) => byOrdinal.get(active.ordinal + delta))
+    .filter((id): id is string => Boolean(id) && id !== activeParagraphId);
+}
 
 export function historyBackgroundPath(version: string, paragraphId: string): string {
   return `${API}?${new URLSearchParams({ version, paragraph_id: paragraphId })}`;
@@ -72,11 +102,25 @@ export function historyBackgroundImagePath(
   version: string,
   paragraphId: string,
 ): string | null {
-  if (background.image_href) return background.image_href;
   const assetId = background.asset_id || background.asset?.asset_id;
   if (!assetId) return null;
   const query = new URLSearchParams({ version, paragraph_id: paragraphId });
-  return `/api/v1/public/background-assets/${encodeURIComponent(assetId)}?${query}`;
+  const expected = `${IMAGE_API}/${encodeURIComponent(assetId)}?${query}`;
+  if (!background.image_href) return expected;
+
+  // The API may return a resource URL, but only reuse it when it is the same
+  // same-origin asset and exact edition/paragraph locator. Otherwise construct
+  // the checked route from the saved asset id instead of trusting a stale URL.
+  try {
+    const href = new URL(background.image_href, LOCAL_ORIGIN);
+    const expectedUrl = new URL(expected, LOCAL_ORIGIN);
+    if (href.origin !== expectedUrl.origin || href.pathname !== expectedUrl.pathname
+      || href.searchParams.get("version") !== version
+      || href.searchParams.get("paragraph_id") !== paragraphId) return expected;
+    return background.image_href;
+  } catch {
+    return expected;
+  }
 }
 
 function clamp(value: number, minimum: number, maximum: number, fallback: number): number {
@@ -103,6 +147,43 @@ export function historyBackgroundMaskStyle(mask: NonNullable<HistoryBackgroundDi
 }
 
 /**
+ * Preload image bytes without adding an element to the reading DOM. The
+ * caller owns the abort signal so disabling backgrounds can stop pending
+ * adjacent loads; a late completion is still harmless because the component
+ * keys visibility by the exact image URL.
+ */
+export function preloadHistoryBackgroundImage(path: string, signal?: AbortSignal): Promise<void> {
+  if (typeof window === "undefined" || typeof window.Image === "undefined") return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const image = new window.Image();
+    let settled = false;
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const abort = () => {
+      image.src = "";
+      finish(signal?.reason instanceof Error ? signal.reason : new DOMException("Background preload aborted", "AbortError"));
+    };
+    image.decoding = "async";
+    image.onload = () => finish();
+    image.onerror = () => finish(new Error("background image failed to load"));
+    if (signal) {
+      if (signal.aborted) {
+        abort();
+        return;
+      }
+      signal.addEventListener("abort", abort, { once: true });
+    }
+    image.src = path;
+  });
+}
+
+/**
  * One exact public read. A missing binding (200 with `background: null`), an
  * unknown paragraph/edition (404/400), a disabled binding or any transport or
  * parse failure resolves to `null`; only a currently active binding returns
@@ -121,9 +202,16 @@ export async function loadHistoryBackground(
     );
     const background = payload?.background ?? null;
     if (!background || background.active !== true || background.status !== "active") return null;
-    if (background.edition_version !== version) return null;
+    if (background.edition_version !== version || !HISTORY_SHA.test(version)
+      || !HISTORY_PARAGRAPH.test(paragraphId)
+      || !HISTORY_PARAGRAPH.test(background.start_paragraph_id)
+      || !HISTORY_PARAGRAPH.test(background.end_paragraph_id)
+      || !background.asset_id || !background.asset_version_id) return null;
     return background;
-  } catch {
+  } catch (error) {
+    // Abort is a control-flow result, not an empty binding. Re-throwing keeps
+    // cancelled prefetches from poisoning the query cache with `null`.
+    if (signal?.aborted) throw error;
     return null;
   }
 }

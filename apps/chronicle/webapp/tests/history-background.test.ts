@@ -3,6 +3,7 @@ import {
   historyBackgroundImagePath,
   historyBackgroundMaskStyle,
   historyBackgroundPath,
+  historyBackgroundAdjacentParagraphIds,
   historyBackgroundStyle,
   loadHistoryBackground,
   type HistoryBackground,
@@ -45,6 +46,14 @@ function background(overrides: Partial<HistoryBackground> = {}): HistoryBackgrou
 afterEach(() => vi.unstubAllGlobals());
 
 describe("reader background boundary", () => {
+  it("selects only the exact loaded neighbors of the shared active paragraph", () => {
+    const ids = [0, 1, 2, 3].map((ordinal) => ({ id: `hp_${ordinal.toString(16).padStart(24, "0")}`, ordinal }));
+    expect(historyBackgroundAdjacentParagraphIds(ids, ids[1].id)).toEqual([ids[0].id, ids[2].id]);
+    // A missing ordinal is a window gap, not permission to prefetch a distant paragraph.
+    expect(historyBackgroundAdjacentParagraphIds([ids[0], ids[1], ids[3]], ids[1].id)).toEqual([ids[0].id]);
+    expect(historyBackgroundAdjacentParagraphIds(ids, "hp_ffffffffffffffffffffffff")).toEqual([]);
+  });
+
   it("reads exactly the active binding for the fixed edition and paragraph", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ background: background() })));
     vi.stubGlobal("fetch", fetcher);
@@ -79,6 +88,9 @@ describe("reader background boundary", () => {
       `/api/v1/public/background-assets/${assetId}?version=${version}&paragraph_id=${paragraph}`,
     );
     expect(historyBackgroundImagePath(background({ image_href: undefined, asset_id: "", asset: {} } as Partial<HistoryBackground>), version, paragraph)).toBeNull();
+    expect(historyBackgroundImagePath(background({ image_href: "https://other.example/image.png" }), version, paragraph)).toBe(
+      `/api/v1/public/background-assets/${assetId}?version=${version}&paragraph_id=${paragraph}`,
+    );
   });
 
   it("renders the saved display settings with bounded reader-side limits", () => {

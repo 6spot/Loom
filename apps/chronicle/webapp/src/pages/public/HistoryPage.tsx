@@ -13,6 +13,7 @@ import { historyPath, historyPositionKey, historyTime, historyTimeLabel, HISTORY
   historyAdjacentPages, loadHistory, loadHistoryPage, loadHistoryConclusion,
   type HistoryPublication, type HistoryEntity, type HistoryParagraph, type HistoryPage as HistoryPageData,
   type HistoryEntry } from "../../lib/history-api";
+import { historyBackgroundAdjacentParagraphIds } from "../../lib/history-background";
 import type { ContextEntityView, ReadingDirection, ReadingUnit, StreamPage } from "../../lib/reading-types";
 import "../../styles/reading-layout.css";
 import "../../styles/history.css";
@@ -208,6 +209,7 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   const [toolsParagraph, setToolsParagraph] = useState<HistoryParagraph | null>(null);
   const [conclusionId, setConclusionId] = useState<string | null>(null);
   const [axisOpen, setAxisOpen] = useState(false);
+  const [backgroundEnabled, setBackgroundEnabled] = useState(true);
   const [narrow, setNarrow] = useState(() => window.matchMedia("(max-width: 1199px)").matches);
   const [headerHeight, setHeaderHeight] = useState(72);
   const [chromeHeight, setChromeHeight] = useState(72);
@@ -301,6 +303,10 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
   // paragraph clears it); hover previews never change it.
   const phaseContext = useHistoryPersonStateContext(pub.version, activeParagraph);
   const group = active ? groups.get(active.group_id) : null;
+  const backgroundAdjacentParagraphIds = useMemo(
+    () => historyBackgroundAdjacentParagraphIds(paragraphs, activeParagraph?.id ?? null),
+    [activeParagraph?.id, paragraphs],
+  );
 
   const requestAdjacent = useCallback((direction: ReadingDirection) => {
     if (loadingDirectionsRef.current[direction]) return;
@@ -386,9 +392,25 @@ function PinnedHistory({ publication: pub }: { publication: HistoryPublication }
     onNavigate={(id) => { setAxisOpen(false); jump(id); }} />;
   const factIds = toolsParagraph ? [...new Set([...toolsParagraph.segments.flatMap((s) => s.conclusion_ids), ...toolsParagraph.entities.flatMap((e) => e.states.map((s) => s.id))])] : [];
   return <section className="rpage history-reading" data-view="history-reading" data-version={pub.version} style={{ "--rpage-chrome-top": `${headerHeight}px` } as React.CSSProperties}>
-    <HistoryBackground version={pub.version} paragraphId={activeParagraph?.id ?? null} />
+    <HistoryBackground
+      version={pub.version}
+      paragraphId={activeParagraph?.id ?? null}
+      adjacentParagraphIds={backgroundAdjacentParagraphIds}
+      enabled={backgroundEnabled}
+    />
     <div className="rpage-compact" ref={chromeRef}><button type="button" className="public-text-button history-axis-open" onClick={() => setAxisOpen(true)}>{historyTimeLabel(group) || "时间轴"}</button>
-      <div className="rpage-tools">{narrow ? side : null}<button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button></div></div>
+      <div className="rpage-tools">{narrow ? side : null}
+        <button
+          type="button"
+          className="public-text-button history-background-toggle"
+          data-test="history-background-toggle"
+          aria-pressed={backgroundEnabled}
+          aria-label={backgroundEnabled ? "关闭历史背景" : "开启历史背景"}
+          title={backgroundEnabled ? "关闭历史背景" : "开启历史背景"}
+          onClick={() => setBackgroundEnabled((enabled) => !enabled)}
+        >背景：{backgroundEnabled ? "开" : "关"}</button>
+        <button className="public-text-button" disabled={!active} onClick={() => { setConclusionId(null); setToolsParagraph(active ?? null); }}>阅读资料</button>
+      </div></div>
     {controller.issue ? <div className="history-load-error" role="alert"><p>无法定位这段正文。{controller.issue.detail}</p><button className="public-text-button" onClick={() => controller.restoreFromUrl()}>重试定位</button><Link to="/">返回首页</Link></div> : null}
     <div className="rpage-grid"><div className="rpage-axis-column history-desktop-axis">{axis}</div><div className="rpage-main history-body" ref={windowRef} aria-label="历史正文">
       <ReadingWindow
