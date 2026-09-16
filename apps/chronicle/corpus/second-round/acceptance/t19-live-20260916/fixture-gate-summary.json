@@ -1,0 +1,56 @@
+{
+  "schema": "chronicle.t19-fixture-gate-summary",
+  "version": "0.1",
+  "task": "C3-T19",
+  "issue": "LM-80",
+  "captured_at": "2026-09-16",
+  "candidate_commit": "9c7bccd5f5937f37de613fb00e8a90e3c5b70892",
+  "mode": "fixture",
+  "result": "PASS",
+  "fixture_only": true,
+  "disclaimer": "Deterministic fixture and browser-contract evidence only; it is not live translation, person-state, synthesis, or content-quality proof.",
+  "source_pack": {
+    "pack_id": "c2-r1-t02-first-round-v1",
+    "uploads": [
+      {
+        "upload": "ingest/sanguozhi-three-chapters.md",
+        "sha256": "a5dc345f7163cc01632e443cad93fbb85015b8dd277713e56c722ddfa5236076",
+        "bytes": 63266,
+        "chars": 21215
+      },
+      {
+        "upload": "ingest/zizhi-tongjian-065.md",
+        "sha256": "b9831c28e64a067634fc9c6c8e6c6f0a4a4e725858d2fb6556b47597499e18bd",
+        "bytes": 31871,
+        "chars": 10715
+      }
+    ]
+  },
+  "criteria": {
+    "staged_0_4_source_to_acceptance": "PASS",
+    "multi_chapter_source_state_consistency": "PASS",
+    "composite_history_two_review_chain": "PASS",
+    "source_person_state_publish_chain": "PASS",
+    "published_history_and_person_page": "PASS",
+    "browser_interaction": "PASS",
+    "performance_budget": "PASS",
+    "negative_faults": "PASS",
+    "scale_contract": "PASS",
+    "scenario_coverage": "PASS"
+  },
+  "browser": {
+    "result": "PASS",
+    "reading_flow_checks": 50,
+    "accessibility_checks": 25,
+    "reading_performance_checks": 71,
+    "person_reading_checks": 12,
+    "person_review_checks": 6,
+    "person_performance_checks": 5
+  },
+  "scale": {
+    "synthetic": true,
+    "units_checked": 5000,
+    "groups_checked": 1000
+  },
+  "source_and_model_quality": "NOT_PROVEN_BY_FIXTURE"
+}
