@@ -366,6 +366,32 @@ def _local_to_revision_map(assembled: dict[str, Any]) -> dict[str, str]:
         ) from exc
 
 
+def _resolve_revision_ref(
+    value: Any, *, chapter_index: int, local_to_revision: dict[str, str]
+) -> str | None:
+    """Resolve a chapter-local or already-assembled reference.
+
+    The 0.4 reading publication carries translation refs lifted into the
+    revision namespace, while older chapter publications carry local refs.
+    Direct revision refs are accepted only when they are values belonging to
+    this chapter's map; a ref from another chapter cannot be guessed into the
+    addressed publication.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    resolved = local_to_revision.get(f"({chapter_index},{value})")
+    if resolved is not None:
+        return resolved
+    chapter_prefix = f"({chapter_index},"
+    if value in {
+        mapped
+        for key, mapped in local_to_revision.items()
+        if key.startswith(chapter_prefix)
+    }:
+        return value
+    return None
+
+
 def _canonical_maps(conn, *, catalog_sha256: str) -> tuple[dict, dict]:
     row = conn.execute(
         """
@@ -606,6 +632,13 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
     chapter_id = str(full["chapter_id"])
     chapter_title = _chapter_title_from_assembled(assembled, chapter_id=chapter_id)
     local_map = _local_to_revision_map(assembled)
+    # A current reading publication is built from the revision-assembled
+    # translation blocks, whose entity/event refs are already in the
+    # revision namespace.  Older chapter publications retain chapter-local
+    # refs, so accept both forms but only for this chapter's own mapped
+    # values.  This keeps the fail-closed behavior for an unknown or
+    # cross-chapter ref while allowing the downstream publication produced by
+    # ``assemble_chapters`` to be read.
     entity_index, event_index = _canonical_maps(
         conn, catalog_sha256=str(full["catalog_sha256"])
     )
@@ -617,7 +650,9 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
                 f"publication {publication_id} block {block_id!r} carries "
                 "an empty reference; refusing to guess",
             )
-        revision_ref = local_map.get(f"({chapter_index},{local})")
+        revision_ref = _resolve_revision_ref(
+            local, chapter_index=chapter_index, local_to_revision=local_map
+        )
         if revision_ref is None:
             raise _Conflict(
                 "reference_unmapped",
@@ -725,7 +760,7 @@ def handle_detail(conn, publication_id: uuid.UUID) -> dict[str, Any]:
                     continue
                 local_ref = entry.get("ref")
                 revision_ref = (
-                    local_map.get(f"({chapter_index},{local_ref})")
+                    _remap(local_ref, block_id=block_id)
                     if isinstance(local_ref, str) and local_ref
                     else None
                 )

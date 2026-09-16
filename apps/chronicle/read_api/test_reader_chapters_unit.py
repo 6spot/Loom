@@ -50,6 +50,35 @@ class DirectoryCursorTests(unittest.TestCase):
         with self.assertRaises(chapters._BadRequest):
             chapters.decode_directory_cursor(tampered)
 
+    def test_revision_ref_resolver_accepts_local_and_assembled_values(self) -> None:
+        mapping = {
+            "(0,ent_001)": "ent_000001",
+            "(0,evt_001)": "evt_000001",
+            "(1,ent_001)": "ent_100001",
+        }
+        self.assertEqual(
+            "ent_000001",
+            chapters._resolve_revision_ref(
+                "ent_001", chapter_index=0, local_to_revision=mapping
+            ),
+        )
+        self.assertEqual(
+            "ent_000001",
+            chapters._resolve_revision_ref(
+                "ent_000001", chapter_index=0, local_to_revision=mapping
+            ),
+        )
+        self.assertIsNone(
+            chapters._resolve_revision_ref(
+                "ent_100001", chapter_index=0, local_to_revision=mapping
+            )
+        )
+        self.assertIsNone(
+            chapters._resolve_revision_ref(
+                "unknown", chapter_index=0, local_to_revision=mapping
+            )
+        )
+
 
 class PublicSourceCursorTests(unittest.TestCase):
     def test_round_trip_chapter_relative_offset(self) -> None:
